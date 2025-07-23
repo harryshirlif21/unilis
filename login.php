@@ -13,53 +13,74 @@ if (isset($_SESSION['user_role'])) {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - UNILIS</title>
-    <style>
-        body { font-family: Arial; padding: 20px; max-width: 500px; margin: auto; }
-        input, button {
-            width: 100%; padding: 10px; margin: 10px 0;
-            box-sizing: border-box;
-        }
-        button { cursor: pointer; background-color: #2c3e50; color: white; border: none; }
-        .error { color: red; }
-        .register-link {
-            text-align: center;
-            margin-top: 15px;
-        }
-        .register-link a {
-            text-decoration: none;
-            color: #1abc9c;
-        }
-        .register-link a:hover {
-            text-decoration: underline;
-        }
-    </style>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Roboto font -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- External CSS -->
+    <link rel="stylesheet" href="css/text.css">
 </head>
+
 <body>
+    <div class="login-wrapper">
+        <div class="left-panel">
+            <div class="quote-top">A WISE QUOTE</div>
+            <div class="text-content">
+                <div class="main-text">
+                    Get Everything You Want
+                </div>
+                <div class="sub-text">
+                    You can get everything you want if you work hard through the process and stick to the plan.
+                </div>
+            </div>
+        </div>
 
-    <h2>UNILIS Login</h2>
+        <div class="right-panel">
+            <div class="logo">
+                <i class="fas fa-graduation-cap"></i> UNILIS
+            </div>
+            <i class="fas fa-arrow-left"></i>
 
-    <?php if (!empty($login_error)): ?>
-        <p class="error"><?= $login_error ?></p>
-    <?php endif; ?>
+            <h2>Welcome Back</h2>
+            <p class="subtitle">Enter your email and password to access your account</p>
 
-    <form method="POST">
-        <input type="hidden" name="action" value="universal_login">
+            <?php if (!empty($login_error)): ?>
+                <p class="error"><?= $login_error ?></p>
+            <?php endif; ?>
 
-        <label>Email:</label>
-        <input type="email" name="email" required>
+            <form method="POST">
+                <input type="hidden" name="action" value="universal_login">
+                <div class="input-field">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                </div>
+                <div class="input-field">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                    <i class="fas fa-eye"></i>
+                </div>
 
-        <label>Password:</label>
-        <input type="password" name="password" required>
+                <div class="form-options">
+                    <div class="remember-me">
+                        <input type="checkbox" id="remember" name="remember">
+                        <label for="remember" style="font-weight: normal; margin-bottom: 0;">Remember me</label>
+                    </div>
+                </div>
+                
 
-        <button type="submit">Login</button>
-    </form>
+                <button type="submit" class="login-btn">Sign In</button>
+            </form>
 
-    <div class="register-link">
-        <p>Don't have an account? <a href="student/signup.php">Register here</a></p>
+            <div class="bottom-links">
+                <a href="update_password.php">Update Password</a>
+                <a href="student/signup.php">Don't have an account? Register</a>
+            </div>
+        </div>
     </div>
-
 </body>
 </html>
