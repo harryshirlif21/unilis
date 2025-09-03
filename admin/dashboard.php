@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once '../config/db.php';
-include '../actions.php';
+
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     header("Location: ../login.php");
@@ -724,6 +724,23 @@ $admin = $admin_res->fetch_assoc();
                 margin: 15% auto;
             }
         }
+		.btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    color: white;
+}
+
+.btn-primary {
+    background-color: #3498db;
+}
+
+.btn-danger {
+    background-color: #e74c3c;
+}
+
     </style>
 </head>
 <body>
@@ -885,6 +902,24 @@ $admin = $admin_res->fetch_assoc();
             </div>
         </div>
     </div>
+ 
+ <h3>Course Units</h3>
+<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+    <select id="courseSelect" name="course_id" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #ccc;">
+        <option value="">Select Course</option>
+        <!-- Your course options here -->
+        <option value="1">Computer Technology (7 units)</option>
+        <!-- Add dynamically as needed -->
+    </select>
+
+    <button type="button" onclick="viewCourseUnits()" class="btn btn-primary">
+        View Units
+    </button>
+
+    <button type="button" onclick="deleteCourseUnits()" class="btn btn-danger">
+        Delete Units
+    </button>
+</div>
 
     <!-- Quick Admin Action Cards Section -->
     <div class="action-grid">
@@ -927,7 +962,7 @@ $admin = $admin_res->fetch_assoc();
             <h3>Add University</h3>
             <?php if (!empty($university_success)) echo "<p class='success'>$university_success</p>"; ?>
             <?php if (!empty($university_error)) echo "<p class='error'>$university_error</p>"; ?>
-            <form method="POST">
+            <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_university">
                 <label>University Name:</label>
                 <input type="text" name="university_name" required>
@@ -943,21 +978,28 @@ $admin = $admin_res->fetch_assoc();
             <h3>Add Department</h3>
             <?php if (!empty($department_success)) echo "<p class='success'>$department_success</p>"; ?>
             <?php if (!empty($department_error)) echo "<p class='error'>$department_error</p>"; ?>
-            <form method="POST">
+            <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_department">
-                <label>Department Name:</label>
-                <input type="text" name="department_name" required>
-                <label>Select University:</label>
-                <select name="university_id" required>
-                    <option value="">-- Select University --</option>
-                    <?php
-                    $res = $conn->query("SELECT id, name FROM universities ORDER BY name ASC");
-                    while ($row = $res->fetch_assoc()) {
-                        echo "<option value='{$row['id']}'>" . htmlspecialchars($row['name']) . "</option>";
-                    }
-                    ?>
-                </select>
-                <button type="submit">Add Department</button>
+                <div class="form-group">
+                    <label>Department Name:</label>
+                    <input type="text" name="department_name" placeholder="Enter department name" required>
+                </div>
+                <div class="form-group">
+                    <label>Select University:</label>
+                    <select name="university_id" required>
+                        <option value="">-- Select University --</option>
+                        <?php
+                        $res = $conn->query("SELECT id, name FROM universities ORDER BY name ASC");
+                        while ($row = $res->fetch_assoc()) {
+                            echo "<option value='{$row['id']}'>" . htmlspecialchars($row['name']) . "</option>";
+                        }
+                        ?>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal('departmentModal')">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Department</button>
+                </div>
             </form>
         </div>
     </div>
@@ -969,7 +1011,7 @@ $admin = $admin_res->fetch_assoc();
             <h3>Add Course</h3>
             <?php if (!empty($course_success)) echo "<p class='success'>$course_success</p>"; ?>
             <?php if (!empty($course_error)) echo "<p class='error'>$course_error</p>"; ?>
-            <form method="POST">
+            <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_course">
                 <label>Course Name:</label>
                 <input type="text" name="course_name" required>
@@ -995,7 +1037,7 @@ $admin = $admin_res->fetch_assoc();
             <h3>Add Single Unit</h3>
             <?php if (!empty($unit_success)) echo "<p class='success'>$unit_success</p>"; ?>
             <?php if (!empty($unit_error)) echo "<p class='error'>$unit_error</p>"; ?>
-<form method="POST" action="/unilis/actions.php">
+<form method="POST" action="../actions.php">
 
                 <input type="hidden" name="action" value="add_unit">
                 <div class="unit-selection">
@@ -1042,7 +1084,7 @@ $admin = $admin_res->fetch_assoc();
             <h3>Add Units (Max 8)</h3>
             <?php if (!empty($unit_success)) echo "<p class='success'>$unit_success</p>"; ?>
             <?php if (!empty($unit_error)) echo "<p class='error'>$unit_error</p>"; ?>
-            <form method="POST" action="/unilis/actions.php">
+            <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_multiple_units">
                 <div class="unit-selection">
                     <label>Course:</label>
@@ -1096,7 +1138,7 @@ $admin = $admin_res->fetch_assoc();
             <h3>Add Lecturer</h3>
             <?php if (!empty($lecturer_success)) echo "<p class='success'>$lecturer_success</p>"; ?>
             <?php if (!empty($lecturer_error)) echo "<p class='error'>$lecturer_error</p>"; ?>
-            <form method="POST">
+            <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_lecturer">
                 <label>Name:</label>
                 <input type="text" name="lecturer_name" required>
@@ -1255,6 +1297,7 @@ $admin = $admin_res->fetch_assoc();
             document.getElementById('resultsBody').innerHTML = '<tr><td colspan="8">Error loading units. Please try again.</td></tr>';
         });
     });
+	
 </script>
 
 </body>

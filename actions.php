@@ -1,5 +1,6 @@
 <?php
 require_once 'config/db.php';
+//require_once 'vendor/autoload.php';
 require_once 'vendor/autoload.php';
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -7,6 +8,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 use Dompdf\Dompdf;
+use Dompdf\Options;
 
 // Helper: Safe action fetch
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -134,18 +136,27 @@ if ($action === 'add_university') {
 if ($action === 'add_department') {
     $name = trim($_POST['department_name']);
     $university_id = intval($_POST['university_id']);
+
+    // First check if department exists
     $stmt = $conn->prepare("SELECT id FROM departments WHERE name = ? AND university_id = ?");
     $stmt->bind_param("si", $name, $university_id);
     $stmt->execute();
     $stmt->store_result();
+    
     if ($stmt->num_rows > 0) {
-        $_SESSION['department_error'] = "Department already exists.";
+        $_SESSION['department_error'] = "Department already exists in this university.";
     } else {
+        // Insert new department with basic fields
         $stmt = $conn->prepare("INSERT INTO departments (name, university_id) VALUES (?, ?)");
         $stmt->bind_param("si", $name, $university_id);
-        $stmt->execute();
-        $_SESSION['department_success'] = "Department added.";
+        
+        if ($stmt->execute()) {
+            $_SESSION['department_success'] = "Department added successfully.";
+        } else {
+            $_SESSION['department_error'] = "Error adding department: " . $stmt->error;
+        }
     }
+    $stmt->close();
     header("Location: admin/dashboard.php");
     exit;
 }
@@ -192,7 +203,7 @@ if ($action === 'add_lecturer') {
     header("Location: admin/dashboard.php");
     exit;
 }
-
+// add single unit
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_unit') {
     $unit_name = trim($_POST['unit_name'] ?? '');
     $unit_code = trim($_POST['unit_code'] ?? '');
@@ -227,7 +238,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_u
 
     $insert->bind_param("ssiii", $unit_name, $unit_code, $course_id, $year, $semester);
     if ($insert->execute()) {
-        echo "success";
+       // echo "success";
+		echo '
+<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f4f4f4; font-family: Arial, sans-serif; color: #333;">
+    <h2 style="margin-bottom: 20px;">Action Completed Successfully!</h2>
+    <a href="admin/dashboard.php" style="padding: 12px 25px; background-color: #3498db; color: white; border-radius: 5px; text-decoration: none; font-size: 16px;">
+        Go Back to Dashboard
+    </a>
+</div>';
+exit;
+
     } else {
         echo "error: insert failed - " . $insert->error;
     }
@@ -246,13 +266,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 
     if (!$course_id || !$year || !$semester) {
         $_SESSION['unit_error'] = "Course, Year, and Semester are required.";
-        header("Location: ../admin/dashboard.php");
+        header("Location: admin/dashboard.php");
         exit;
     }
 
     if (count($unit_names) !== count($unit_codes)) {
         $_SESSION['unit_error'] = "Mismatch in number of unit names and codes.";
-        header("Location: ../admin/dashboard.php");
+        header("Location: admin/dashboard.php");
         exit;
     }
 
@@ -290,7 +310,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
         $_SESSION['unit_error'] = "No new units were added. They may already exist.";
     }
 
-    header("Location: ../admin/dashboard.php");
+   echo '
+<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f4f4f4; font-family: Arial, sans-serif; color: #333;">
+    <h2 style="margin-bottom: 20px;">Action Completed Successfully!</h2>
+    <a href="admin/dashboard.php" style="padding: 12px 25px; background-color: #3498db; color: white; border-radius: 5px; text-decoration: none; font-size: 16px;">
+        Go Back to Dashboard
+    </a>
+</div>';
     exit;
 }
 
@@ -813,4 +839,101 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_units_by_course') {
     echo json_encode($units);
     exit;
 }
+if ($action === 'generate_unit_submission_pdf') {
+    require_once 'vendor/autoload.php'; // Composer autoload
+
+    
+
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+        die("Access denied.");
+    }
+
+    $unit_id = (int)$_POST['unit_id'];
+    $lecturer_id = $_SESSION['user_id'];
+
+    // Fetch unit name
+    $stmt = $conn->prepare("SELECT name FROM units WHERE id = ?");
+    $stmt->bind_param("i", $unit_id);
+    $stmt->execute();
+    $stmt->bind_result($unit_name);
+    $stmt->fetch();
+    $stmt->close();
+
+    // Assignments
+    $assignments = [];
+    $res = $conn->query("SELECT id, title FROM assignments WHERE unit_id = $unit_id ORDER BY id ASC");
+    while ($row = $res->fetch_assoc()) {
+        $assignments[] = $row;
+    }
+
+    // Students (who submitted anything)
+    $students = [];
+    $res = $conn->query("
+        SELECT DISTINCT s.id, s.name, s.reg_no FROM students s
+        JOIN submissions sub ON sub.student_id = s.id
+        JOIN assignments a ON sub.assignment_id = a.id
+        WHERE a.unit_id = $unit_id
+    ");
+    while ($row = $res->fetch_assoc()) {
+        $students[] = $row;
+    }
+
+    // Generate HTML table
+    $html = "<style>
+        table { border-collapse: collapse; width: 100%; font-size: 12px; }
+        th, td { border: 1px solid #444; padding: 5px; text-align: center; }
+        th { background-color: #eee; }
+    </style>";
+    $html .= "<h2>Submission Report - $unit_name</h2>";
+    $html .= "<table>";
+    $html .= "<tr><th>Student Name</th><th>Reg No</th>";
+
+    foreach ($assignments as $a) {
+        $title = htmlspecialchars($a['title']);
+        $html .= "<th>$title<br>✔️</th><th>Marks</th><th>Comment</th><th>View?</th>";
+    }
+
+    $html .= "<th>Submitted</th><th>Out Of</th></tr>";
+
+    foreach ($students as $s) {
+        $submitted = 0;
+        $html .= "<tr><td>" . htmlspecialchars($s['name']) . "</td><td>" . htmlspecialchars($s['reg_no']) . "</td>";
+
+        foreach ($assignments as $a) {
+            $stmt = $conn->prepare("SELECT file_path, marks, comment, is_graded FROM submissions WHERE assignment_id = ? AND student_id = ? LIMIT 1");
+            $stmt->bind_param("ii", $a['id'], $s['id']);
+            $stmt->execute();
+            $res = $stmt->get_result();
+
+            if ($res->num_rows > 0) {
+                $data = $res->fetch_assoc();
+                $submitted++;
+                $mark = $data['is_graded'] ? $data['marks'] : '-';
+                $comment = $data['is_graded'] ? htmlspecialchars($data['comment']) : '-';
+                $view = $data['is_graded'] ? '✅' : '❌';
+                $html .= "<td>✔️</td><td>$mark</td><td>$comment</td><td>$view</td>";
+            } else {
+                $html .= "<td>❌</td><td>-</td><td>-</td><td>❌</td>";
+            }
+            $stmt->close();
+        }
+
+        $html .= "<td>$submitted</td><td>" . count($assignments) . "</td></tr>";
+    }
+
+    $html .= "</table>";
+
+    // Create PDF with DOMPDF
+    $options = new Options();
+    $options->set('isRemoteEnabled', true);
+    $dompdf = new Dompdf($options);
+    $dompdf->loadHtml($html);
+    $dompdf->setPaper('A4', 'landscape');
+    $dompdf->render();
+
+    // Output PDF to browser
+    $dompdf->stream("submission_report_unit_$unit_id.pdf", ["Attachment" => false]);
+    exit;
+}
+
 ?>
