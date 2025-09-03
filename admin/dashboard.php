@@ -971,6 +971,7 @@ $admin = $admin_res->fetch_assoc();
         </div>
     </div>
 
+    
     <!-- DEPARTMENT MODAL -->
     <div id="departmentModal" class="modal">
         <div class="modal-content">
