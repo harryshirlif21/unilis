@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  app:
+    build: .
+    container_name: unilis-app
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_USER: user
+      DB_PASSWORD: 
+      DB_NAME: unilis
+
+  db:
+    image: mysql:8.0
+    container_name: unilis-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: unilis
+      MYSQL_USER: unilisuser
+      MYSQL_PASSWORD: unilispass
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql # optional: seed DB
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: unilis-pma
+    restart: always
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: rootpass
+
+volumes:
+  db_data:
