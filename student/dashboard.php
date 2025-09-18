@@ -258,6 +258,30 @@ try {
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="notes-content">Notes</a>
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="meetings-content">Meetings</a>
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="profile-content">Profile</a>
+     <?php
+// Count unread notifications for this student
+$notif_count_query = $conn->prepare("
+    SELECT COUNT(*) AS unread_count 
+    FROM notifications 
+    WHERE user_id = ? AND user_role = 'student' AND is_read = 0
+");
+$notif_count_query->bind_param("i", $_SESSION['user_id']);
+$notif_count_query->execute();
+$result = $notif_count_query->get_result();
+$notif_data = $result->fetch_assoc();
+$unread_count = $notif_data['unread_count'] ?? 0;
+$notif_count_query->close();
+?>
+
+<!-- Notifications Nav Item -->
+<a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative" data-target="notifications-content" id="notifBell">
+  🔔 Notifications
+  <span id="notifCount" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-2">
+    <?= $unread_count ?>
+  </span>
+</a>
+
+
 </div>
         
         <!-- Mobile Menu Toggle Button (right-aligned) -->
@@ -896,6 +920,61 @@ try {
                 </div>
             </section>
         </div>
+<div id="notifications-content" class="hidden">
+    <section class="card bg-white rounded-2xl p-6 mb-8">
+        <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Notifications</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b-2 border-f5e6b2">
+                        <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Title</th>
+                        <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Message</th>
+                        <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Date</th>
+                        <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="text-92400e">
+                    <?php
+                    try {
+                        // Fetch notifications for the logged-in student
+                        $notif_query = $conn->prepare("
+                            SELECT id, title, message, link, is_read, created_at 
+                            FROM notifications 
+                            WHERE user_id = ? AND user_role = 'student'
+                            ORDER BY created_at DESC
+                        ");
+                        $notif_query->bind_param("i", $_SESSION['user_id']);
+                        $notif_query->execute();
+                        $notifications = $notif_query->get_result();
+
+                        if ($notifications->num_rows === 0) {
+                            echo "<tr><td colspan='4' class='py-4 text-center'>No notifications yet.</td></tr>";
+                        } else {
+                            while ($notif = $notifications->fetch_assoc()) {
+                                $title = htmlspecialchars($notif['title']);
+                                $message = htmlspecialchars($notif['message']);
+                                $created_at = date("d M Y, h:i A", strtotime($notif['created_at']));
+                                $link = !empty($notif['link']) ? "<a href='{$notif['link']}' class='text-f59e0b hover:underline'>View</a>" : "-";
+
+                                echo "<tr class='border-b border-f5e6b2 table-row-hover'>
+                                    <td class='py-4 table-text-primary'>$title</td>
+                                    <td class='py-4 table-text-secondary'>$message</td>
+                                    <td class='py-4 text-sm table-text-accent'>$created_at</td>
+                                    <td class='py-4'>$link</td>
+                                </tr>";
+                            }
+                        }
+                        $notif_query->close();
+                    } catch (mysqli_sql_exception $e) {
+                        error_log('Error fetching notifications: ' . $e->getMessage());
+                        echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading notifications.</td></tr>";
+                    }
+                    ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
 
     <script>
         // Enhanced JavaScript for better UX: Navigation, Sidebar Toggle, and Content Switching
@@ -990,6 +1069,19 @@ try {
                 });
             })();
         });
+        
+document.getElementById("notifBell").addEventListener("click", function() {
+    // AJAX call to mark notifications as read
+    fetch("mark_notifications_read.php")
+        .then(response => response.text())
+        .then(data => {
+            // Reset count to 0 in badge
+            document.getElementById("notifCount").innerText = "0";
+        })
+        .catch(err => console.error("Error marking notifications:", err));
+});
+
+
     </script>
 </body>
 </html>

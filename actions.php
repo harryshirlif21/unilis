@@ -9,6 +9,46 @@ if (session_status() === PHP_SESSION_NONE) {
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
+//create notification 
+
+function createNotification($conn, $user_id, $user_role, $title, $message, $link = null, $sendEmail = true) {
+    // Insert into notifications table
+    $ins = $conn->prepare("
+        INSERT INTO notifications (user_id, user_role, title, message, link, is_read, created_at) 
+        VALUES (?, ?, ?, ?, ?, 0, NOW())
+    ");
+    if (!$ins) die("❌ Prepare failed: " . $conn->error);
+
+    $ins->bind_param("issss", $user_id, $user_role, $title, $message, $link);
+    if (!$ins->execute()) die("❌ Notification insert failed: " . $ins->error);
+    $ins->close();
+
+    // Optional: send email to student
+    if ($sendEmail && $user_role === 'student') {
+        $get = $conn->prepare("SELECT email, name FROM students WHERE id = ?");
+        $get->bind_param("i", $user_id);
+        $get->execute();
+        $res = $get->get_result();
+        if ($row = $res->fetch_assoc()) {
+            $to = $row['email'];
+            $name = htmlspecialchars($row['name']);
+            $subject = $title;
+            $body = "
+                <html><body>
+                <p>Dear {$name},</p>
+                <p>{$message}</p>
+                " . ($link ? "<p><a href='https://yourdomain.com/{$link}'>Open in UNILIS</a></p>" : "") . "
+                <br><p>Regards,<br>UNILIS Team</p>
+                </body></html>
+            ";
+            $headers = "MIME-Version: 1.0\r\n";
+            $headers .= "Content-type:text/html;charset=UTF-8\r\n";
+            $headers .= "From: no-reply@yourdomain.com\r\n";
+            @mail($to, $subject, $body, $headers);
+        }
+        $get->close();
+    }
+}
 
 // Helper: Safe action fetch
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -322,28 +362,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 
 
 // === UPLOAD NOTES ===
+// === UPLOAD NOTES ===
 if ($action === 'upload_notes') {
-    $unit_id = $_POST['unit_id'];
+    $unit_id = intval($_POST['unit_id']);
     $lecturer_id = $_SESSION['user_id'];
-    $file = $_FILES['notes_file'];
 
+    // Handle single or multiple files
+    $files = $_FILES['notes_file'];
     $upload_dir = "assets/uploads/";
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
-    $filename = time() . "_" . basename($file['name']);
-    $target_path = $upload_dir . $filename;
+    // Normalize file input (single vs multiple)
+    $fileNames = is_array($files['name']) ? $files['name'] : [$files['name']];
+    $fileTmp   = is_array($files['tmp_name']) ? $files['tmp_name'] : [$files['tmp_name']];
 
-    if (move_uploaded_file($file['tmp_name'], $target_path)) {
-        $stmt = $conn->prepare("INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
-        $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
-        $stmt->execute();
-        $_SESSION['upload_success'] = "Notes uploaded.";
-    } else {
-        $_SESSION['upload_error'] = "File upload failed.";
+    // Track if notifications already sent for this batch
+    $notified = false;
+
+    foreach ($fileNames as $index => $name) {
+        if (empty($name)) continue; // skip empty slots
+
+        $filename = time() . "_" . preg_replace("/[^a-zA-Z0-9._-]/", "_", basename($name));
+        $target_path = $upload_dir . $filename;
+
+        if (move_uploaded_file($fileTmp[$index], $target_path)) {
+            // Insert into notes table
+            $stmt = $conn->prepare("
+                INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) 
+                VALUES (?, ?, ?, NOW())
+            ");
+            $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
+            if (!$stmt->execute()) {
+                error_log("❌ Notes insert failed: " . $stmt->error);
+            }
+            $stmt->close();
+
+            // Send notifications only once per upload batch
+            if (!$notified) {
+                $notif_title = "New Notes Uploaded";
+                $notif_message = "Your lecturer has uploaded new notes for your unit.";
+                $link = "student/dashboard.php?view=notes&unit_id=" . $unit_id;
+
+                // Fetch students in this unit
+                $studentsQuery = $conn->prepare("
+                    SELECT s.id 
+                    FROM student_units su 
+                    JOIN students s ON su.student_id = s.id 
+                    WHERE su.unit_id = ?
+                ");
+                $studentsQuery->bind_param("i", $unit_id);
+                $studentsQuery->execute();
+                $studentsResult = $studentsQuery->get_result();
+
+                if ($studentsResult->num_rows === 0) {
+                    error_log("⚠️ No students found for unit_id = " . $unit_id);
+                }
+
+                while ($student = $studentsResult->fetch_assoc()) {
+                    createNotification(
+                        $conn,
+                        intval($student['id']), // user_id
+                        'student',              // user_role
+                        $notif_title,
+                        $notif_message,
+                        $link
+                    );
+                }
+                $studentsQuery->close();
+
+                $notified = true; // prevent duplicates
+            }
+        }
     }
+
+    $_SESSION['upload_success'] = "Notes uploaded successfully.";
     header("Location: lecturer/dashboard.php");
     exit;
 }
+
+
 
 // === CREATE ASSIGNMENT ===
 if ($action === 'create_assignment') {
@@ -1564,6 +1661,14 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
     $_SESSION['success'] = "Interactive Assignment (and questions) updated successfully!";
     header("Location: lecturer/manage_interactive.php");
     exit;
+}
+function sendEmail($to, $subject, $message) {
+    $headers = "MIME-Version: 1.0" . "\r\n";
+    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+    $headers .= "From: UNILIS <no-reply@unilis.ac.ke>" . "\r\n";
+
+    // Use PHP mail()
+    return mail($to, $subject, $message, $headers);
 }
 
 ?>

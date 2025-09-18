@@ -851,3 +851,14 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+CREATE TABLE `notifications` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `user_id` INT NOT NULL, -- student_id or lecturer_id (depends on role)
+  `user_role` ENUM('student','lecturer','admin') NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `message` TEXT NOT NULL,
+  `link` VARCHAR(255) DEFAULT NULL, -- optional: e.g., link to assignment/meeting
+  `is_read` TINYINT(1) DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
