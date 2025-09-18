@@ -934,6 +934,636 @@ if ($action === 'generate_unit_submission_pdf') {
     // Output PDF to browser
     $dompdf->stream("submission_report_unit_$unit_id.pdf", ["Attachment" => false]);
     exit;
+ }
+ 
+ // === CREATE INTERACTIVE ASSIGNMENT ===
+if ($action === 'create_interactive_assignment') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+        http_response_code(403);
+        echo 'Unauthorized';
+        exit;
+    }
+
+    $lecturer_id = $_SESSION['user_id'];
+    $title = $_POST['title'] ?? '';
+    $description = $_POST['description'] ?? '';
+    $due_date = $_POST['due_date'] ?? null;
+    $unit_id = intval($_POST['unit_id'] ?? 0);
+    $questions = $_POST['questions'] ?? [];
+
+    $conn->begin_transaction();
+    try {
+        $ins = $conn->prepare("INSERT INTO interactive_assignments (lecturer_id, unit_id, title, description, due_date, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+        $ins->bind_param("iisss", $lecturer_id, $unit_id, $title, $description, $due_date);
+        $ins->execute();
+        $assignment_id = $ins->insert_id;
+
+        // Handle nested question files if any: $_FILES['questions'][i]['audio']
+        $questionFiles = $_FILES['questions'] ?? null;
+
+        foreach ($questions as $i => $q) {
+            $qtype = $q['type'] ?? 'text';
+            $qtext = $q['text'] ?? '';
+            $qpoints = intval($q['points'] ?? 1);
+            $qcorrect = $q['correct'] ?? null;
+
+            $media_url = null;
+            if ($questionFiles && isset($questionFiles['error'][$i]['audio']) && $questionFiles['error'][$i]['audio'] === UPLOAD_ERR_OK) {
+                $tmpName = $questionFiles['tmp_name'][$i]['audio'];
+                $orig = basename($questionFiles['name'][$i]['audio']);
+                $uploadDir = __DIR__ . "/uploads/questions/";
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+                $safe = time() . "_" . preg_replace('/[^A-Za-z0-9_\.\-]/', '_', $orig);
+                $target = $uploadDir . $safe;
+                if (move_uploaded_file($tmpName, $target)) {
+                    $media_url = "uploads/questions/" . $safe;
+                }
+            }
+
+            $qins = $conn->prepare("INSERT INTO interactive_questions (interactive_assignment_id, question_text, type, points, media_url) VALUES (?, ?, ?, ?, ?)");
+            $qins->bind_param("issis", $assignment_id, $qtext, $qtype, $qpoints, $media_url);
+            $qins->execute();
+            $qid = $qins->insert_id;
+
+            if ($qtype === 'multiple_choice' && !empty($q['options'])) {
+                foreach ($q['options'] as $optIndex => $optText) {
+                    if (trim($optText) === '') continue;
+                    $is_correct = ($qcorrect !== null && intval($qcorrect) == ($optIndex + 1)) ? 1 : 0;
+                    $oin = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, is_correct) VALUES (?, ?, ?)");
+                    $oin->bind_param("isi", $qid, $optText, $is_correct);
+                    $oin->execute();
+                }
+            }
+        }
+
+        $conn->commit();
+        $_SESSION['success'] = 'Interactive assignment created.';
+        header('Location: lecturer/create_questions.php');
+        exit;
+    } catch (Exception $ex) {
+        $conn->rollback();
+        $_SESSION['error'] = 'Create failed: ' . $ex->getMessage();
+        header('Location: lecturer/create_questions.php');
+        exit;
+    }
+}
+
+// === GET MC QUESTIONS FOR AN INTERACTIVE ASSIGNMENT (AJAX) ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_mc_questions') {
+    $assignment_id = intval($_GET['assignment_id'] ?? 0);
+    if ($assignment_id <= 0) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Invalid assignment id']);
+        exit;
+    }
+
+    // Fetch assignment title
+    $ast = $conn->prepare("SELECT title FROM interactive_assignments WHERE id = ?");
+    $ast->bind_param("i", $assignment_id);
+    $ast->execute();
+    $ares = $ast->get_result();
+    $assignment = $ares->fetch_assoc();
+    if (!$assignment) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Assignment not found']);
+        exit;
+    }
+
+    // Fetch only multiple_choice questions
+    $q = $conn->prepare("SELECT id, question_text, points FROM interactive_questions WHERE interactive_assignment_id = ? AND type = 'multiple_choice' ORDER BY id ASC");
+    $q->bind_param("i", $assignment_id);
+    $q->execute();
+    $qres = $q->get_result();
+    $questions = [];
+    while ($row = $qres->fetch_assoc()) {
+        $row['options'] = [];
+        $qo = $conn->prepare("SELECT id, option_text FROM interactive_options WHERE question_id = ? ORDER BY id ASC");
+        $qo->bind_param("i", $row['id']);
+        $qo->execute();
+        $ores = $qo->get_result();
+        while ($opt = $ores->fetch_assoc()) {
+            $row['options'][] = $opt;
+        }
+        $questions[] = $row;
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode(['title' => $assignment['title'], 'questions' => $questions]);
+    exit;
+}
+
+// === GET INTERACTIVE ASSIGNMENT (LECTURER) WITH QUESTIONS ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
+    $lecturer_id = intval($_SESSION['user_id']);
+    $id = intval($_GET['id'] ?? 0);
+    if ($id <= 0) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Invalid id']);
+        exit;
+    }
+
+    $chk = $conn->prepare("SELECT id, title, description, due_date, unit_id FROM interactive_assignments WHERE id=? AND lecturer_id=?");
+    $chk->bind_param("ii", $id, $lecturer_id);
+    $chk->execute();
+    $assignment = $chk->get_result()->fetch_assoc();
+    if (!$assignment) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Not found or unauthorized']);
+        exit;
+    }
+
+    $qstmt = $conn->prepare("SELECT id, question_text, type, points, media_url FROM interactive_questions WHERE interactive_assignment_id=? ORDER BY id ASC");
+    $qstmt->bind_param("i", $id);
+    $qstmt->execute();
+    $qres = $qstmt->get_result();
+    $questions = [];
+    while ($q = $qres->fetch_assoc()) {
+        $q['options'] = [];
+        if ($q['type'] === 'multiple_choice') {
+            $opts = $conn->prepare("SELECT id, option_text, is_correct FROM interactive_options WHERE question_id=? ORDER BY id ASC");
+            $opts->bind_param("i", $q['id']);
+            $opts->execute();
+            $optRes = $opts->get_result();
+            while ($o = $optRes->fetch_assoc()) $q['options'][] = $o;
+        }
+        $questions[] = $q;
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'assignment' => $assignment, 'questions' => $questions]);
+    exit;
+}
+
+// === DELETE INTERACTIVE ASSIGNMENT (LECTURER) ===
+if (isset($_GET['action']) && $_GET['action'] === 'delete_interactive_assignment') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+        $_SESSION['error'] = 'Unauthorized';
+        header('Location: lecturer/create_questions.php');
+        exit;
+    }
+    $lecturer_id = intval($_SESSION['user_id']);
+    $id = intval($_GET['id'] ?? 0);
+    if ($id > 0) {
+        $stmt = $conn->prepare("DELETE FROM interactive_assignments WHERE id=? AND lecturer_id=?");
+        $stmt->bind_param("ii", $id, $lecturer_id);
+    $stmt->execute();
+        $_SESSION['success'] = 'Assignment deleted successfully!';
+    } else {
+        $_SESSION['error'] = 'Invalid assignment id.';
+    }
+    header('Location: lecturer/create_questions.php');
+    exit;
+}
+
+// === SUBMIT MCQ ANSWERS FOR INTERACTIVE ASSIGNMENT ===
+if (isset($_POST['action']) && $_POST['action'] === 'submit_mc_answers') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
+        http_response_code(403);
+        echo "Unauthorized";
+        exit;
+    }
+
+    $student_id = intval($_SESSION['user_id']);
+    $assignment_id = intval($_POST['assignment_id'] ?? 0);
+    $answers = $_POST['answers'] ?? [];
+
+    if ($assignment_id <= 0) {
+        $_SESSION['submission_error'] = 'Invalid assignment.';
+        header('Location: student/dashboard.php');
+    exit;
+}
+
+    // Prevent duplicate submissions
+    $chk = $conn->prepare("SELECT id FROM interactive_submissions WHERE assignment_id = ? AND student_id = ?");
+    $chk->bind_param("ii", $assignment_id, $student_id);
+    $chk->execute();
+    $chk->store_result();
+    if ($chk->num_rows > 0) {
+        $_SESSION['submission_error'] = 'You already submitted this interactive assignment.';
+        header('Location: student/dashboard.php');
+        exit;
+    }
+    $chk->close();
+
+    // Create submission
+    $ins = $conn->prepare("INSERT INTO interactive_submissions (assignment_id, student_id, submitted_at) VALUES (?, ?, NOW())");
+    $ins->bind_param("ii", $assignment_id, $student_id);
+    $ins->execute();
+    $submission_id = $ins->insert_id;
+    $ins->close();
+
+    // Optionally persist per-question choices if schema supports it
+    // Attempt to insert into interactive_answers if present columns exist
+    foreach ($answers as $question_id => $option_id) {
+        $qid = intval($question_id);
+        $oid = intval($option_id);
+        // Try an insert that stores choice if a suitable table exists; ignore on failure
+        @$conn->query(
+            "INSERT INTO interactive_answers (assignment_id, question_id, student_id, selected_option_id, submitted_at) " .
+            "VALUES (" . intval($assignment_id) . ", " . intval($qid) . ", " . intval($student_id) . ", " . intval($oid) . ", NOW())"
+        );
+    }
+
+    $_SESSION['submission_success'] = 'Interactive assignment submitted successfully.';
+    header('Location: student/dashboard.php');
+    exit;
+}
+
+// === LIST INTERACTIVE ASSIGNMENTS BY UNIT FOR STUDENT (course/year already enforced by unit choice) ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_interactive_assignments_by_unit') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+    $unit_id = intval($_GET['unit_id'] ?? 0);
+    if ($unit_id <= 0) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Invalid unit id']);
+        exit;
+    }
+    $stmt = $conn->prepare("SELECT id, title, due_date FROM interactive_assignments WHERE unit_id = ? ORDER BY due_date ASC");
+    $stmt->bind_param('i', $unit_id);
+    $stmt->execute();
+    $res = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    header('Content-Type: application/json');
+    echo json_encode(['assignments' => $res]);
+    exit;
+}
+
+// === GET ASSIGNMENT DETAILS FOR STUDENT ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_assignment_details') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+    $assignment_id = intval($_GET['assignment_id'] ?? 0);
+    if ($assignment_id <= 0) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Invalid assignment id']);
+        exit;
+    }
+    
+    try {
+        // Get assignment details
+        $stmt = $conn->prepare("SELECT a.id, a.title, a.description, a.due_date, u.name AS unit_name FROM interactive_assignments a JOIN units u ON a.unit_id = u.id WHERE a.id = ?");
+        $stmt->bind_param('i', $assignment_id);
+        $stmt->execute();
+        $assignment = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        
+        if (!$assignment) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Assignment not found']);
+            exit;
+        }
+        
+        // Get questions with options
+        $stmt = $conn->prepare("SELECT id, question_text, type, points FROM interactive_questions WHERE interactive_assignment_id = ? ORDER BY id ASC");
+        $stmt->bind_param('i', $assignment_id);
+        $stmt->execute();
+        $questions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        
+        foreach ($questions as &$question) {
+            $stmt = $conn->prepare("SELECT id, option_text, is_correct FROM interactive_options WHERE question_id = ? ORDER BY id ASC");
+            $stmt->bind_param('i', $question['id']);
+            $stmt->execute();
+            $question['options'] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        }
+        
+        header('Content-Type: application/json');
+        echo json_encode([
+            'assignment' => $assignment,
+            'questions' => $questions
+        ]);
+        exit;
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        exit;
+    }
+}
+
+// === SUBMIT INTERACTIVE ANSWERS (AUTO-MARK MCQ) ===
+if (isset($_POST['action']) && $_POST['action'] === 'submit_interactive_answers') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
+        http_response_code(403);
+        echo 'Unauthorized';
+        exit;
+    }
+    $student_id = intval($_SESSION['user_id']);
+    $assignment_id = intval($_POST['assignment_id'] ?? 0);
+    $answers = $_POST['answers'] ?? []; // answers[question_id] = text or option_id
+    if ($assignment_id <= 0) {
+        $_SESSION['submission_error'] = 'Invalid assignment.';
+        header('Location: student/dashboard.php');
+        exit;
+    }
+
+    // Prevent duplicate submissions
+    $chk = $conn->prepare("SELECT id FROM interactive_submissions WHERE assignment_id = ? AND student_id = ?");
+    $chk->bind_param('ii', $assignment_id, $student_id);
+    $chk->execute();
+    $chk->store_result();
+    if ($chk->num_rows > 0) {
+        $_SESSION['submission_error'] = 'You already submitted this interactive assignment.';
+        header('Location: student/dashboard.php');
+        exit;
+    }
+    $chk->close();
+
+    $conn->begin_transaction();
+    try {
+        // create submission
+        $ins = $conn->prepare("INSERT INTO interactive_submissions (assignment_id, student_id, submitted_at, score) VALUES (?, ?, NOW(), 0)");
+        $ins->bind_param('ii', $assignment_id, $student_id);
+        $ins->execute();
+        $submission_id = $ins->insert_id;
+
+        // fetch MCQ correctness map: question_id -> correct option id
+        $correctMap = [];
+        $pointsMap = [];
+        $qres = $conn->prepare("SELECT id, type, points FROM interactive_questions WHERE interactive_assignment_id = ?");
+        $qres->bind_param('i', $assignment_id);
+        $qres->execute();
+        $qr = $qres->get_result();
+        $mcqIds = [];
+        while ($row = $qr->fetch_assoc()) {
+            $pointsMap[(int)$row['id']] = (int)$row['points'];
+            if ($row['type'] === 'multiple_choice') $mcqIds[] = (int)$row['id'];
+        }
+        if (!empty($mcqIds)) {
+            $in = implode(',', array_map('intval', $mcqIds));
+            $rs = $conn->query("SELECT question_id, id, is_correct FROM interactive_options WHERE question_id IN ($in)");
+            while ($r = $rs->fetch_assoc()) {
+                if ((int)$r['is_correct'] === 1) $correctMap[(int)$r['question_id']] = (int)$r['id'];
+            }
+        }
+
+        $totalScore = 0;
+        foreach ($answers as $qidStr => $value) {
+            $qid = (int)$qidStr;
+            $selected_option_id = null;
+            $answer_text = null;
+            if (isset($correctMap[$qid])) {
+                $selected_option_id = (int)$value;
+                if ($selected_option_id === $correctMap[$qid]) {
+                    $totalScore += $pointsMap[$qid] ?? 0;
+                }
+            } else {
+                $answer_text = trim((string)$value);
+            }
+            $ain = $conn->prepare("INSERT INTO interactive_answers (assignment_id, question_id, student_id, answer_text, selected_option_id, submitted_at) VALUES (?, ?, ?, ?, ?, NOW())");
+            $ain->bind_param('iiisi', $assignment_id, $qid, $student_id, $answer_text, $selected_option_id);
+            $ain->execute();
+        }
+
+        // update score
+        $up = $conn->prepare("UPDATE interactive_submissions SET score = ? WHERE id = ?");
+        $up->bind_param('ii', $totalScore, $submission_id);
+        $up->execute();
+
+        $conn->commit();
+        $_SESSION['submission_success'] = 'Assignment submitted successfully! Your score: ' . $totalScore . ' points';
+        header('Location: student/dashboard.php');
+        exit;
+    } catch (Exception $e) {
+        $conn->rollback();
+        $_SESSION['submission_error'] = 'Submit failed: ' . $e->getMessage();
+        header('Location: student/dashboard.php');
+        exit;
+    }
+}
+// === ADD SPEECH QUESTION TO INTERACTIVE ASSIGNMENT ===
+if ($action === 'add_speech_question') {
+    $assignment_id = intval($_POST['assignment_id']);
+    $question_text = $_POST['question_text'];
+    $type = "speech";
+    $points = intval($_POST['points'] ?? 1);
+    $question_type = "speech";
+
+    $media_url = null;
+    if (!empty($_FILES['audio_file']['name'])) {
+        $uploadDir = "uploads/questions/";
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+        $fileName = time() . "_" . basename($_FILES['audio_file']['name']);
+        $targetFile = $uploadDir . $fileName;
+        if (move_uploaded_file($_FILES['audio_file']['tmp_name'], $targetFile)) {
+            $media_url = $targetFile;
+        }
+    }
+
+    $stmt = $conn->prepare("INSERT INTO interactive_questions 
+        (assignment_id, question_text, type, points, question_type, media_url) 
+        VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("ississ", $assignment_id, $question_text, $type, $points, $question_type, $media_url);
+    $stmt->execute();
+
+    // Show single success div
+    echo "<div style='padding:20px; border:1px solid #ccc; margin:20px; background:#f9f9f9;'>";
+    echo "<h2>✅ Speech question added successfully</h2>";
+    echo "<p><strong>Q:</strong> " . htmlspecialchars($question_text) . " (" . $type . ")</p>";
+    if ($media_url) {
+        echo "<audio controls><source src='" . htmlspecialchars($media_url) . "' type='audio/mpeg'></audio><br>";
+    }
+    echo "<div style='margin-top:20px;'>";
+    echo "<a href='lecturer/manage_interactive.php?id=$assignment_id' style='padding:10px 15px; background:#28a745; color:#fff; text-decoration:none; margin-right:10px;'>✏️ Edit</a>";
+    echo "<a href='lecturer_dashboard.php' style='padding:10px 15px; background:#007bff; color:#fff; text-decoration:none;'>✅ Finish</a>";
+    echo "</div></div>";
+    exit;
+}
+
+// === SUBMIT SPEECH ANSWER ===
+if ($action === 'submit_speech_answer') {
+    $assignment_id = intval($_POST['assignment_id']);
+    $question_id = intval($_POST['question_id']);
+    $student_id = $_SESSION['user_id'];
+    $answer_text = $_POST['answer_text'] ?? null;
+    $answer_audio = null;
+
+    if (!empty($_FILES['audio_answer']['name'])) {
+        $uploadDir = "uploads/answers/";
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+        $fileName = time() . "_" . basename($_FILES['audio_answer']['name']);
+        $targetFile = $uploadDir . $fileName;
+        if (move_uploaded_file($_FILES['audio_answer']['tmp_name'], $targetFile)) {
+            $answer_audio = $targetFile;
+        }
+    }
+
+    $stmt = $conn->prepare("INSERT INTO interactive_answers 
+        (assignment_id, question_id, student_id, answer_text, answer_audio, submitted_at) 
+        VALUES (?, ?, ?, ?, ?, NOW())");
+    $stmt->bind_param("iiiss", $assignment_id, $question_id, $student_id, $answer_text, $answer_audio);
+    $stmt->execute();
+
+    // Redirect student after submission
+    header("Location: student/dashboard.php?success=1");
+    exit;
+}
+
+// === SAVE INTERACTIVE QUESTIONS (TEXT / MCQ / SPEECH) ===
+if ($action === 'save_questions') {
+    $assignment_id = intval($_POST['assignment_id']);
+    $questions = $_POST['questions'] ?? [];
+
+    foreach ($questions as $q) {
+        $type   = $q['type'] ?? 'text';
+        $text   = $q['text'] ?? '';
+        $points = intval($q['points'] ?? 1);
+        $correct = $q['correct'] ?? null;
+        $question_type = $type;
+
+        $media_url = null;
+        if (!empty($_FILES['audio']['name'])) {
+            $uploadDir = "uploads/questions/";
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+            $fileName = time() . "_" . basename($_FILES['audio']['name']);
+            $targetFile = $uploadDir . $fileName;
+            if (move_uploaded_file($_FILES['audio']['tmp_name'], $targetFile)) {
+                $media_url = $targetFile;
+            }
+        }
+
+        $stmt = $conn->prepare("INSERT INTO interactive_questions 
+            (assignment_id, question_text, type, points, question_type, media_url) 
+            VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ississ", $assignment_id, $text, $type, $points, $question_type, $media_url);
+        $stmt->execute();
+        $question_id = $stmt->insert_id;
+
+        if ($type === 'multiple_choice' && !empty($q['options'])) {
+            foreach ($q['options'] as $index => $optionText) {
+                if (trim($optionText) === '') continue;
+                $is_correct = ($correct == ($index + 1)) ? 1 : 0;
+                $optStmt = $conn->prepare("INSERT INTO interactive_options 
+                    (question_id, option_text, is_correct) 
+                    VALUES (?, ?, ?)");
+                $optStmt->bind_param("isi", $question_id, $optionText, $is_correct);
+                $optStmt->execute();
+            }
+        }
+    }
+
+    // ✅ Display saved questions in one success div
+    $res = $conn->query("SELECT * FROM interactive_questions WHERE interactive_assignment_id = $assignment_id");
+
+    echo "<div style='padding:20px; border:1px solid #ccc; margin:20px; background:#f9f9f9;'>";
+    echo "<h2>✅ Questions saved successfully</h2>";
+
+    while ($row = $res->fetch_assoc()) {
+        echo "<div style='border:1px solid #ddd; padding:10px; margin:10px 0;'>";
+        echo "<strong>Q:</strong> " . htmlspecialchars($row['question_text']) . " <em>(" . $row['type'] . ")</em><br>";
+        echo "Points: " . intval($row['points']) . "<br>";
+
+        if ($row['media_url']) {
+            echo "<audio controls><source src='" . htmlspecialchars($row['media_url']) . "' type='audio/mpeg'></audio><br>";
+        }
+
+        if ($row['type'] === 'multiple_choice') {
+            $qid = $row['id'];
+            $optRes = $conn->query("SELECT * FROM interactive_options WHERE question_id = $qid");
+            echo "<ul>";
+            while ($opt = $optRes->fetch_assoc()) {
+                $correctMark = $opt['is_correct'] ? "✅" : "";
+                echo "<li>" . htmlspecialchars($opt['option_text']) . " $correctMark</li>";
+            }
+            echo "</ul>";
+        }
+
+        echo "</div>";
+    }
+
+    echo "<div style='margin-top:20px;'>";
+    echo "<a href='lecturer/manage_interactive.php?id=$assignment_id' style='padding:10px 15px; background:#28a745; color:#fff; text-decoration:none; margin-right:10px;'>✏️ Edit</a>";
+    echo "<a href='lecturer_dashboard.php' style='padding:10px 15px; background:#007bff; color:#fff; text-decoration:none;'>✅ Finish</a>";
+    echo "</div></div>";
+    exit;
+}
+
+if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignment') {
+    $id = intval($_POST['id']);
+    $title = $_POST['title'];
+    $description = $_POST['description'];
+    $due_date = $_POST['due_date'];
+    $unit_id = intval($_POST['unit_id']);
+    $questions = $_POST['questions'] ?? [];
+
+    // === 1. Update assignment itself ===
+    $stmt = $conn->prepare("UPDATE interactive_assignments 
+                            SET title=?, description=?, due_date=?, unit_id=? 
+                            WHERE id=? AND lecturer_id=?");
+    $stmt->bind_param("sssiii", $title, $description, $due_date, $unit_id, $id, $_SESSION['user_id']);
+    $stmt->execute();
+
+    // === 2. Handle questions ===
+    foreach ($questions as $q) {
+        $qid    = intval($q['id'] ?? 0);
+        $text   = $q['text'] ?? '';
+        $type   = $q['type'] ?? 'text';
+        $points = intval($q['points'] ?? 1);
+        $correct = $q['correct'] ?? null;
+
+        if ($qid > 0) {
+            // Update existing question
+            $stmtQ = $conn->prepare("UPDATE interactive_questions 
+                                     SET question_text=?, type=?, points=? 
+                                     WHERE id=? AND interactive_assignment_id=?");
+            $stmtQ->bind_param("ssiii", $text, $type, $points, $qid, $id);
+            $stmtQ->execute();
+
+            // For multiple choice → update options
+            if ($type === 'multiple_choice' && isset($q['options'])) {
+                foreach ($q['options'] as $index => $opt) {
+                    $opt_id = intval($opt['id'] ?? 0);
+                    $opt_text = $opt['text'] ?? '';
+                    $is_correct = ($correct == ($index + 1)) ? 1 : 0;
+
+                    if ($opt_id > 0) {
+                        // Update existing option
+                        $optStmt = $conn->prepare("UPDATE interactive_options 
+                                                   SET option_text=?, is_correct=? 
+                                                   WHERE id=? AND question_id=?");
+                        $optStmt->bind_param("siii", $opt_text, $is_correct, $opt_id, $qid);
+                        $optStmt->execute();
+                    } else {
+                        // Insert new option
+                        $optStmt = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, is_correct) VALUES (?, ?, ?)");
+                        $optStmt->bind_param("isi", $qid, $opt_text, $is_correct);
+                        $optStmt->execute();
+                    }
+                }
+            }
+        } else {
+            // Insert new question
+            $stmtQ = $conn->prepare("INSERT INTO interactive_questions (interactive_assignment_id, question_text, type, points) VALUES (?, ?, ?, ?)");
+            $stmtQ->bind_param("issi", $id, $text, $type, $points);
+            $stmtQ->execute();
+            $new_qid = $stmtQ->insert_id;
+
+            if ($type === 'multiple_choice' && isset($q['options'])) {
+                foreach ($q['options'] as $index => $opt) {
+                    $opt_text = $opt['text'] ?? '';
+                    $is_correct = ($correct == ($index + 1)) ? 1 : 0;
+                    $optStmt = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, is_correct) VALUES (?, ?, ?)");
+                    $optStmt->bind_param("isi", $new_qid, $opt_text, $is_correct);
+                    $optStmt->execute();
+                }
+            }
+        }
+    }
+
+    $_SESSION['success'] = "Interactive Assignment (and questions) updated successfully!";
+    header("Location: lecturer/manage_interactive.php");
+    exit;
 }
 
 ?>

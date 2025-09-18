@@ -49,9 +49,50 @@ try {
     $stmt->execute();
     $pending_submissions = $stmt->get_result()->fetch_row()[0];
     $stmt->close();
+
+    // Fetch assignment statistics per unit
+    $stmt = $conn->prepare("
+        SELECT 
+            u.name as unit_name,
+            COUNT(a.id) as total_assignments,
+            COUNT(DISTINCT s.id) as total_submissions
+        FROM units u
+        JOIN lecturer_units lu ON u.id = lu.unit_id
+        LEFT JOIN assignments a ON u.id = a.unit_id
+        LEFT JOIN submissions s ON a.id = s.assignment_id
+        WHERE lu.lecturer_id = ?
+        GROUP BY u.id, u.name
+    ");
+    $stmt->bind_param("i", $lecturer_id);
+    $stmt->execute();
+    $assignment_stats = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    // Fetch submission rate over time
+    $stmt = $conn->prepare("
+        SELECT 
+            u.name as unit_name,
+            DATE(s.submitted_at) as submission_date,
+            COUNT(s.id) as submission_count
+        FROM units u
+        JOIN lecturer_units lu ON u.id = lu.unit_id
+        JOIN assignments a ON u.id = a.unit_id
+        JOIN submissions s ON a.id = s.assignment_id
+        WHERE lu.lecturer_id = ?
+        AND s.submitted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        GROUP BY u.id, u.name, DATE(s.submitted_at)
+        ORDER BY submission_date
+    ");
+    $stmt->bind_param("i", $lecturer_id);
+    $stmt->execute();
+    $submission_trends = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
 } catch (mysqli_sql_exception $e) {
     error_log("Error fetching stats: " . $e->getMessage());
     $total_assignments = $active_assignments = $pending_submissions = 0;
+    $assignment_stats = [];
+    $submission_trends = [];
 }
 ?>
 
@@ -62,6 +103,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lecturer Dashboard - UNILIS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-color: #3498db;
@@ -132,14 +174,43 @@ try {
             right: -300px;
             width: 280px;
             height: 100vh;
-            background-color: var(--secondary-color);
-            box-shadow: -4px 0 15px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
             transition: right 0.3s ease-in-out;
             z-index: 200;
             display: flex;
             flex-direction: column;
-            padding: 25px;
             box-sizing: border-box;
+        }
+
+        /* Menu Content Styles */
+        .off-canvas-menu .menu-content {
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* Scrollbar Styles */
+        .off-canvas-menu .menu-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .off-canvas-menu .menu-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .off-canvas-menu .menu-content::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .off-canvas-menu .menu-content::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255, 255, 255, 0.3);
         }
 
         .off-canvas-menu.active {
@@ -159,6 +230,22 @@ try {
             color: var(--danger-color);
         }
 
+        .off-canvas-menu h2 {
+            color: var(--white);
+            margin-bottom: 5px;
+            font-size: 1.6em;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .off-canvas-menu p {
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 25px;
+            font-size: 0.95em;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 15px;
+        }
+
         .off-canvas-menu .menu-item {
             display: flex;
             align-items: center;
@@ -166,30 +253,36 @@ try {
             padding: 12px 15px;
             margin-bottom: 10px;
             border: none;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--white);
             border-radius: 8px;
             cursor: pointer;
             text-align: left;
             text-decoration: none;
             font-size: 1.05em;
-            transition: background-color 0.3s ease, transform 0.2s ease;
+            transition: all 0.3s ease;
             gap: 10px;
             box-sizing: border-box;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(5px);
         }
 
         .off-canvas-menu .menu-item:hover {
-            background-color: var(--primary-color);
+            background: rgba(52, 152, 219, 0.2);
+            border-color: rgba(52, 152, 219, 0.3);
             transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
 
         .off-canvas-menu .menu-item.logout {
             margin-top: auto;
-            background-color: var(--danger-color);
+            background: rgba(231, 76, 60, 0.1);
+            border-color: rgba(231, 76, 60, 0.2);
         }
 
         .off-canvas-menu .menu-item.logout:hover {
-            background-color: #c0392b;
+            background: rgba(231, 76, 60, 0.2);
+            border-color: rgba(231, 76, 60, 0.4);
         }
 
         .overlay {
@@ -290,19 +383,19 @@ try {
             background-color: var(--white);
             border-radius: 12px;
             box-shadow: var(--shadow-light);
-            padding: 25px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 250px;
+            height: 300px;
         }
 
         .chart-container h3 {
             margin-top: 0;
             color: var(--secondary-color);
-            font-size: 1.4em;
-            margin-bottom: 20px;
+            font-size: 1.2em;
+            margin-bottom: 15px;
             text-align: center;
         }
 
@@ -511,6 +604,48 @@ try {
             resize: vertical;
         }
 
+        .voice-recorder {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .voice-recorder button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .voice-recorder button:hover {
+            background: var(--accent-color);
+        }
+
+        #recordingStatus {
+            display: block;
+            margin: 10px 0;
+            color: #666;
+            font-style: italic;
+        }
+
+        #audioPreview {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        #speechOptions {
+            background: rgba(52, 152, 219, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border: 1px solid rgba(52, 152, 219, 0.1);
+        }
+
         .modal-content button[type="submit"] {
             background-color: var(--primary-color);
             color: var(--white);
@@ -584,7 +719,7 @@ try {
                 gap: 20px;
             }
             .chart-container {
-                min-height: 220px;
+                height: 250px;
             }
             .recent-activity-section h3 {
                 font-size: 1.5em;
@@ -641,7 +776,46 @@ try {
                 width: 95%;
                 margin: 20% auto;
             }
-        }
+        } 
+        .dropdown {
+    position: relative;
+    width: 100%;
+}
+
+.dropdown-btn {
+    width: 100%;
+    background: none;
+    border: none;
+    color: inherit;
+    text-align: left;
+    padding: 10px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.dropdown-content {
+    display: none;
+    flex-direction: column;
+    background-color: #2c2f33;
+    border-left: 3px solid #4cafef;
+    margin-left: 15px;
+}
+
+.dropdown-content a {
+    padding: 8px 12px;
+    text-decoration: none;
+    color: #ddd;
+    font-size: 14px;
+}
+
+.dropdown-content a:hover {
+    background-color: #3a3d42;
+}
+
+.dropdown.active .dropdown-content {
+    display: flex;
+}
+
     </style>
 </head>
 <body>
@@ -652,18 +826,40 @@ try {
     </header>
 
     <div class="off-canvas-menu" id="offCanvasMenu">
+    <div class="menu-content">
         <button class="close-btn" id="closeMenuBtn">×</button>
         <h2><?= htmlspecialchars($lecturer_name) ?></h2>
         <p>Lecturer - UNILIS</p>
+        
         <button class="menu-item" onclick="showModal('uploadModal')"><i class="fas fa-upload"></i> Upload Notes</button>
         <button class="menu-item" onclick="showModal('viewNotesModal')"><i class="fas fa-file-alt"></i> View Notes</button>
-        <button class="menu-item" onclick="showModal('assignmentModal')"><i class="fas fa-edit"></i> Create Assignment</button>
+        
+        <!-- 🔽 Dropdown for Interactive Assignments -->
+       <!-- 🔽 Dropdown for Interactive Assignments -->
+<div class="menu-item dropdown">
+    <button type="button" class="dropdown-btn">
+        <i class="fas fa-edit"></i> Interactive Assignments <i class="fas fa-caret-down"></i>
+    </button>
+    <div class="dropdown-content">
+        <a href="create_questions.php"><i class="fas fa-plus"></i> Create Assignment</a>
+        <a href="scores_overview.php"><i class="fas fa-chart-line"></i> View Student Scores</a>
+        <a href="assignment_submissions.php"><i class="fas fa-inbox"></i> View Submissions</a>
+        <a href="submission_stats.php"><i class="fas fa-chart-bar"></i> Submission Stats</a>
+        <a href="AIGrading.php"><i class="fas fa-robot"></i> AI Grading</a>
+    </div>
+</div>
+<!-- 🔼 End Dropdown -->
+
+        <!-- 🔼 End Dropdown -->
+
         <button class="menu-item" onclick="showModal('submissionModal')"><i class="fas fa-inbox"></i> View Submissions</button>
         <button class="menu-item" onclick="showModal('addUnitModal')"><i class="fas fa-plus-circle"></i> Add My Units</button>
         <a href="assignment_submissions.php" class="menu-item"><i class="fas fa-chart-bar"></i> View Submission Stats</a>
         <a href="meetings.php" class="menu-item"><i class="fas fa-calendar-alt"></i> Create Meeting</a>
         <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
     </div>
+</div>
+
 
     <div class="overlay" id="menuOverlay"></div>
 
@@ -695,18 +891,110 @@ try {
 
         <div class="charts-grid">
             <div class="chart-container">
-                <h3>Assignment Status</h3>
-                <div class="chart-placeholder">Bar Chart Placeholder</div>
+                <h3>Assignment Status per Unit</h3>
+                <canvas id="assignmentStatusChart"></canvas>
             </div>
             <div class="chart-container">
-                <h3>Submission Rate by Unit</h3>
-                <div class="chart-placeholder">Stacked Bar Chart Placeholder</div>
-            </div>
-            <div class="chart-container">
-                <h3>Recent Notes Engagement</h3>
-                <div class="chart-placeholder">Line Chart Placeholder</div>
+                <h3>Submission Rate Trends (Last 30 Days)</h3>
+                <canvas id="submissionRateChart"></canvas>
             </div>
         </div>
+        
+        <script>
+        // Assignment Status Chart
+        const assignmentStats = <?= json_encode($assignment_stats) ?>;
+        
+        new Chart(document.getElementById('assignmentStatusChart'), {
+            type: 'bar',
+            data: {
+                labels: assignmentStats.map(stat => stat.unit_name),
+                datasets: [{
+                    label: 'Total Assignments',
+                    data: assignmentStats.map(stat => stat.total_assignments),
+                    backgroundColor: 'rgba(52, 152, 219, 0.6)',
+                    borderColor: 'rgba(52, 152, 219, 1)',
+                    borderWidth: 1
+                }, {
+                    label: 'Submissions Received',
+                    data: assignmentStats.map(stat => stat.total_submissions),
+                    backgroundColor: 'rgba(46, 204, 113, 0.6)',
+                    borderColor: 'rgba(46, 204, 113, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Assignments vs Submissions per Unit'
+                    }
+                }
+            }
+        });
+
+        // Submission Rate Chart
+        const submissionTrends = <?= json_encode($submission_trends) ?>;
+        const uniqueUnits = [...new Set(submissionTrends.map(trend => trend.unit_name))];
+        const uniqueDates = [...new Set(submissionTrends.map(trend => trend.submission_date))];
+        
+        const datasets = uniqueUnits.map(unit => {
+            const color = `hsl(${Math.random() * 360}, 70%, 50%)`;
+            return {
+                label: unit,
+                data: uniqueDates.map(date => {
+                    const match = submissionTrends.find(trend => 
+                        trend.unit_name === unit && trend.submission_date === date
+                    );
+                    return match ? match.submission_count : 0;
+                }),
+                borderColor: color,
+                fill: false,
+                tension: 0.4
+            };
+        });
+
+        new Chart(document.getElementById('submissionRateChart'), {
+            type: 'line',
+            data: {
+                labels: uniqueDates,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Daily Submission Trends'
+                    }
+                }
+            }
+        });
+        </script>
 
         <div class="recent-activity-section">
             <h3>Recent Submissions</h3>
@@ -855,9 +1143,10 @@ try {
                         <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <label for="notesFile">Upload File:</label>
-                <input type="file" name="notes_file" id="notesFile" required>
-                <button type="submit">Upload</button>
+                <label for="notesFile">Upload Files:</label>
+                <input type="file" name="notes_file[]" id="notesFile" required multiple accept=".pdf,.doc,.docx,.ppt,.pptx">
+                <small style="color: #666; margin-top: 5px;">You can select multiple files. Accepted formats: PDF, DOC, DOCX, PPT, PPTX</small>
+                <button type="submit">Upload Files</button>
             </form>
         </div>
     </div>
@@ -915,13 +1204,89 @@ try {
                 </select>
                 <label for="assignmentTitle">Assignment Title:</label>
                 <input type="text" name="title" id="assignmentTitle" required>
-                <label for="instructions">Instructions:</label>
+                <label for="assignmentMode">Exam/Assignment Mode:</label>
+                <select name="mode" id="assignmentMode" required onchange="handleModeChange()">
+                    <option value="text">Text (Written Answers)</option>
+                    <option value="speech">Speech (Spoken Answers)</option>
+                    <option value="hybrid">Hybrid (Student's Choice)</option>
+                </select>
+                <div id="speechOptions" style="display: none;">
+                    <label for="voiceInstructions">Voice Instructions (Optional):</label>
+                    <div class="voice-recorder">
+                        <button type="button" id="recordButton" onclick="toggleRecording()">
+                            <i class="fas fa-microphone"></i> Record Instructions
+                        </button>
+                        <span id="recordingStatus"></span>
+                        <audio id="audioPreview" controls style="display: none;"></audio>
+                        <input type="hidden" name="voice_instructions" id="voiceInstructions">
+                    </div>
+                    <label for="rubric">Grading Rubric for Speech:</label>
+                    <textarea name="rubric" id="rubric" placeholder="Enter criteria for speech evaluation (e.g., pronunciation, fluency, content accuracy)"></textarea>
+                </div>
+                <label for="instructions">Written Instructions:</label>
                 <textarea name="instructions" id="instructions" required></textarea>
-                <label for="dueDate">Deadline:</label>
+                <label for="due_date">Deadline:</label>
                 <input type="datetime-local" name="due_date" id="dueDate" required>
                 <label for="assignmentFile">Attach File (optional):</label>
                 <input type="file" name="assignment_file" id="assignmentFile">
                 <button type="submit">Create Assignment</button>
+                
+                <script>
+                function handleModeChange() {
+                    const mode = document.getElementById('assignmentMode').value;
+                    const speechOptions = document.getElementById('speechOptions');
+                    speechOptions.style.display = (mode === 'text' ? 'none' : 'block');
+                }
+
+                let mediaRecorder;
+                let audioChunks = [];
+                let isRecording = false;
+
+                async function toggleRecording() {
+                    const recordButton = document.getElementById('recordButton');
+                    const recordingStatus = document.getElementById('recordingStatus');
+                    const audioPreview = document.getElementById('audioPreview');
+                    
+                    if (!isRecording) {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            mediaRecorder = new MediaRecorder(stream);
+                            audioChunks = [];
+
+                            mediaRecorder.ondataavailable = (event) => {
+                                audioChunks.push(event.data);
+                            };
+
+                            mediaRecorder.onstop = () => {
+                                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                                const audioUrl = URL.createObjectURL(audioBlob);
+                                audioPreview.src = audioUrl;
+                                audioPreview.style.display = 'block';
+                                
+                                // Convert to base64 for storage
+                                const reader = new FileReader();
+                                reader.readAsDataURL(audioBlob);
+                                reader.onloadend = () => {
+                                    document.getElementById('voiceInstructions').value = reader.result;
+                                };
+                            };
+
+                            mediaRecorder.start();
+                            isRecording = true;
+                            recordButton.innerHTML = '<i class="fas fa-stop"></i> Stop Recording';
+                            recordingStatus.textContent = 'Recording...';
+                        } catch (err) {
+                            console.error('Error accessing microphone:', err);
+                            alert('Could not access microphone. Please check permissions.');
+                        }
+                    } else {
+                        mediaRecorder.stop();
+                        isRecording = false;
+                        recordButton.innerHTML = '<i class="fas fa-microphone"></i> Record Instructions';
+                        recordingStatus.textContent = 'Recording saved';
+                    }
+                }
+                </script>
             </form>
         </div>
     </div>
@@ -1069,6 +1434,12 @@ try {
                     unitSelect.innerHTML = '<option value="">Error loading units</option>';
                 });
         });
+        document.querySelectorAll('.dropdown-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+        this.parentElement.classList.toggle('active');
+    });
+});
+
     </script>
 </body>
 </html>

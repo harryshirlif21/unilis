@@ -1,8 +1,7 @@
-version: '3.9'
-
 services:
   app:
     build: .
+    image: hilkim21/unilis-app:1.0
     container_name: unilis-app
     ports:
       - "8080:80"
@@ -12,12 +11,12 @@ services:
       - db
     environment:
       DB_HOST: db
-      DB_USER: user
-      DB_PASSWORD: 
-      DB_NAME: unilis
+      MYSQL_USER: unilisuser
+      MYSQL_PASSWORD: unilispass
+      MYSQL_DATABASE: unilis
 
   db:
-    image: mysql:8.0
+    image: mysql:8.0.33
     container_name: unilis-db
     restart: always
     environment:
@@ -30,7 +29,7 @@ services:
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql # optional: seed DB
 
   phpmyadmin:
-    image: phpmyadmin/phpmyadmin
+    image: phpmyadmin/phpmyadmin:5.2.1
     container_name: unilis-pma
     restart: always
     ports:

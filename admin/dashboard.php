@@ -247,12 +247,38 @@ $admin = $admin_res->fetch_assoc();
         .stat-card .label {
             font-size: 1em;
             color: #666;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .university-select {
+            width: 100%;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .stat-card .university-select select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background-color: var(--white);
+            color: var(--text-color);
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+
+        .stat-card .university-select select:hover,
+        .stat-card .university-select select:focus {
+            border-color: var(--primary-color);
+            outline: none;
         }
 
         .stat-card.users .icon, .stat-card.users .number { color: var(--info-color); }
         .stat-card.courses .icon, .stat-card.courses .number { color: var(--primary-color); }
-        .stat-card.assignments .icon, .stat-card.assignments .number { color: var(--warning-color); }
-        .stat-card.submissions .icon, .stat-card.submissions .number { color: var(--success-color); }
+        .stat-card.departments .icon, .stat-card.departments .number { color: var(--warning-color); }
+        .stat-card.universities .icon, .stat-card.universities .number { color: var(--success-color); }
 
         .charts-grid {
             display: grid;
@@ -424,13 +450,26 @@ $admin = $admin_res->fetch_assoc();
         .modal {
             display: none;
             position: fixed;
-            z-index: 300;
+            z-index: 1000;
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
             overflow: auto;
             background-color: rgba(0, 0, 0, 0.6);
+        }
+
+        .modal.delete-modal .modal-content {
+            width: 90%;
+            max-width: 400px;
+            margin: 15% auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .modal.delete-modal h3 {
+            margin: 0 0 15px 0;
+            color: var(--danger-color);
         }
 
         .modal-content {
@@ -724,23 +763,244 @@ $admin = $admin_res->fetch_assoc();
                 margin: 15% auto;
             }
         }
-		.btn {
-    padding: 6px 12px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    color: white;
-}
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease;
+        }
 
-.btn-primary {
-    background-color: #3498db;
-}
+        .btn-primary {
+            background-color: #3498db;
+        }
 
-.btn-danger {
-    background-color: #e74c3c;
-}
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
 
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+
+        .btn-success {
+            background-color: #2ecc71;
+        }
+
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+
+        .btn-secondary {
+            background-color: #95a5a6;
+        }
+
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+
+        .course-units-header {
+            margin-bottom: 20px;
+        }
+
+        .course-units-header .select-container {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .course-units-header select {
+            flex: 1;
+            min-width: 300px;
+            max-width: 600px;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn i {
+            margin-right: 5px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        #unitsTableContainer {
+            margin-top: 20px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .action-buttons .btn {
+            padding: 4px 8px;
+            font-size: 0.9em;
+        }
+
+        /* Floating Units Display Styles */
+        .floating-display {
+            display: none;
+            position: fixed;
+            right: 20px;
+            top: 80px;
+            width: 400px;
+            max-height: calc(100vh - 100px);
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .floating-display.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .floating-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .floating-header h3 {
+            margin: 0;
+            font-size: 1.2em;
+        }
+
+        .floating-header .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+        }
+
+        .floating-header .close-btn:hover {
+            color: #ff6b6b;
+        }
+
+        .units-grid {
+            padding: 15px;
+            overflow-y: auto;
+            max-height: calc(100vh - 180px);
+        }
+
+        .unit-card {
+            background: #f8f9fa;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .unit-card:hover {
+            transform: translateX(-5px);
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .unit-info {
+            flex: 1;
+        }
+
+        .unit-info h4 {
+            margin: 0 0 5px 0;
+            color: var(--secondary-color);
+            font-size: 1.1em;
+        }
+
+        .unit-code {
+            color: var(--primary-color);
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .unit-meta {
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 5px;
+        }
+
+        .unit-card .delete-btn {
+            background-color: transparent;
+            border: none;
+            color: var(--danger-color);
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 10px;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+
+        .unit-card .delete-btn:hover {
+            background-color: rgba(231, 76, 60, 0.1);
+        }
+
+        .unit-card .delete-btn i {
+            font-size: 1.2em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--secondary-color);
+            font-style: italic;
+        }
+
+        .error-message {
+            text-align: center;
+            padding: 20px;
+            color: var(--danger-color);
+            background-color: rgba(231, 76, 60, 0.1);
+            border-radius: 8px;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            .floating-display {
+                width: 90%;
+                right: 5%;
+                left: 5%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -780,8 +1040,8 @@ $admin = $admin_res->fetch_assoc();
     <?php
     $users_count = $conn->query("SELECT COUNT(*) as count FROM (SELECT id FROM students UNION SELECT id FROM lecturers UNION SELECT id FROM admins) as users")->fetch_assoc()['count'];
     $courses_count = $conn->query("SELECT COUNT(*) as count FROM courses")->fetch_assoc()['count'];
-    $assignments_count = $conn->query("SELECT COUNT(*) as count FROM assignments")->fetch_assoc()['count'];
-    $submissions_count = $conn->query("SELECT COUNT(*) as count FROM submissions")->fetch_assoc()['count'];
+    $departments_count = $conn->query("SELECT COUNT(*) as count FROM departments")->fetch_assoc()['count'];
+    $universities_count = $conn->query("SELECT COUNT(*) as count FROM universities")->fetch_assoc()['count'];
     ?>
     <div class="stat-cards-grid">
         <div class="stat-card users">
@@ -794,15 +1054,26 @@ $admin = $admin_res->fetch_assoc();
             <div class="number"><?= $courses_count ?></div>
             <div class="label">Active Courses</div>
         </div>
-        <div class="stat-card assignments">
-            <div class="icon"><i class="fas fa-clipboard-list"></i></div>
-            <div class="number"><?= $assignments_count ?></div>
-            <div class="label">Total Assignments</div>
+        <div class="stat-card departments">
+            <div class="icon"><i class="fas fa-building"></i></div>
+            <div class="number"><?= $departments_count ?></div>
+            <div class="label">Total Departments</div>
         </div>
-        <div class="stat-card submissions">
-            <div class="icon"><i class="fas fa-check-double"></i></div>
-            <div class="number"><?= $submissions_count ?></div>
-            <div class="label">Total Submissions</div>
+        <div class="stat-card universities">
+            <div class="icon"><i class="fas fa-university"></i></div>
+            <div class="number"><?= $universities_count ?></div>
+            <div class="label">Total Universities</div>
+            <div class="university-select">
+                <select id="universityFilter" onchange="filterByUniversity(this.value)">
+                    <option value="">Select University</option>
+                    <?php
+                    $universities = $conn->query("SELECT id, name FROM universities ORDER BY name ASC");
+                    while ($uni = $universities->fetch_assoc()) {
+                        echo "<option value='" . $uni['id'] . "'>" . htmlspecialchars($uni['name']) . "</option>";
+                    }
+                    ?>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -818,108 +1089,65 @@ $admin = $admin_res->fetch_assoc();
         </div>
     </div>
 
-    <!-- Recent Activity / Key Lists Section -->
+    <!-- Course Units Section -->
     <div class="recent-activity-section">
-        <h3>Course Units</h3>
-        <div class="select-container">
-            <form method="POST" id="selectCourseForm">
-                <select name="course_id" required>
+        <h3>Course Units Management</h3>
+        <div class="course-units-header">
+            <div class="select-container">
+                <select name="course_id" id="courseSelect" required>
                     <option value="">-- Select a Course --</option>
                     <?php
                     $courses_query = $conn->query("
-                        SELECT c.id, c.name AS course_name, COUNT(u.id) AS unit_count
+                        SELECT c.id, c.name AS course_name, d.name AS department_name, COUNT(u.id) AS unit_count
                         FROM courses c
                         LEFT JOIN units u ON c.id = u.course_id
-                        GROUP BY c.id, c.name
-                        ORDER BY c.name
+                        JOIN departments d ON c.department_id = d.id
+                        GROUP BY c.id, c.name, d.name
+                        ORDER BY d.name, c.name
                     ");
                     while ($course = $courses_query->fetch_assoc()) {
-                        echo "<option value='{$course['id']}'>" . htmlspecialchars($course['course_name']) . " (" . $course['unit_count'] . " units)</option>";
+                        echo "<option value='{$course['id']}'>" . 
+                             htmlspecialchars($course['department_name']) . " - " . 
+                             htmlspecialchars($course['course_name']) . 
+                             " (" . $course['unit_count'] . " units)</option>";
                     }
                     ?>
                 </select>
-                <button type="submit">View Units</button>
-            </form>
-        </div>
-
-        <h3>Latest Courses</h3>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Course Name</th>
-                        <th>Department</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php
-                    $courses_query = $conn->query("SELECT c.name AS course_name, d.name AS department_name 
-                                                  FROM courses c 
-                                                  JOIN departments d ON c.department_id = d.id 
-                                                  ORDER BY c.id DESC 
-                                                  LIMIT 5");
-                    if ($courses_query->num_rows === 0) {
-                        echo "<tr><td colspan='3'>No courses found.</td></tr>";
-                    } else {
-                        while ($course = $courses_query->fetch_assoc()) {
-                            echo "<tr>
-                                <td>" . htmlspecialchars($course['course_name']) . "</td>
-                                <td>" . htmlspecialchars($course['department_name']) . "</td>
-                                <td><a href='#' class='action-link' onclick='alert(\"Edit course not implemented yet!\")'>Edit</a></td>
-                            </tr>";
-                        }
-                    }
-                    ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Course Units Modal -->
-    <div id="courseUnitsModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('courseUnitsModal')">×</span>
-            <h3>Course Units</h3>
-            <div class="table-container" id="searchResults">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Course Name</th>
-                            <th>Department</th>
-                            <th>Year</th>
-                            <th>Semester</th>
-                            <th>Unit Name</th>
-                            <th>Unit Code</th>
-                            <th>Total Units</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="resultsBody">
-                        <tr><td colspan="8">Select a course to view units.</td></tr>
-                    </tbody>
-                </table>
+                <div class="button-group">
+                    <button type="button" onclick="viewCourseUnits()" class="btn btn-primary">
+                        <i class="fas fa-eye"></i> View Units
+                    </button>
+                    <button type="button" onclick="exportUnitsPDF()" class="btn btn-success">
+                        <i class="fas fa-file-pdf"></i> Export PDF
+                    </button>
+                </div>
             </div>
         </div>
     </div>
- 
- <h3>Course Units</h3>
-<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-    <select id="courseSelect" name="course_id" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #ccc;">
-        <option value="">Select Course</option>
-        <!-- Your course options here -->
-        <option value="1">Computer Technology (7 units)</option>
-        <!-- Add dynamically as needed -->
-    </select>
 
-    <button type="button" onclick="viewCourseUnits()" class="btn btn-primary">
-        View Units
-    </button>
+    <!-- Floating Units Display -->
+    <div id="floatingUnitsDisplay" class="floating-display">
+        <div class="floating-header">
+            <h3>Course Units</h3>
+            <button class="close-btn" onclick="closeFloatingDisplay()">×</button>
+        </div>
+        <div class="units-grid" id="unitsGrid">
+            <!-- Units will be dynamically inserted here -->
+        </div>
+    </div>
 
-    <button type="button" onclick="deleteCourseUnits()" class="btn btn-danger">
-        Delete Units
-    </button>
-</div>
+    <!-- Delete Unit Confirmation Modal -->
+    <div id="deleteUnitModal" class="modal delete-modal">
+        <div class="modal-content">
+            <h3>Delete Unit?</h3>
+            <p></p>
+            <input type="hidden" id="deleteUnitId">
+            <div class="modal-actions">
+                <button onclick="closeModal('deleteUnitModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="confirmDeleteUnit()" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Quick Admin Action Cards Section -->
     <div class="action-grid">
@@ -971,15 +1199,156 @@ $admin = $admin_res->fetch_assoc();
         </div>
     </div>
 
-    
+
+    <!-- Floating Message Div -->
+    <div id="floatingMessage" class="floating-message" style="display: none;"></div>
+
+    <script>
+    function filterByUniversity(universityId) {
+        if (universityId) {
+            fetch(`../actions.php?action=get_university_data&university_id=${universityId}`)
+            .then(response => response.json())
+            .then(data => {
+                const courseSelect = document.querySelector('select[name="course_id"]');
+                courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
+                data.courses.forEach(course => {
+                    courseSelect.innerHTML += `<option value="${course.id}">${course.name} (${course.unit_count} units)</option>`;
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    }
+
+    function viewCourseUnits() {
+        const courseId = document.getElementById('courseSelect').value;
+        if (!courseId) {
+            showFloatingMessage('Please select a course first', 'error');
+            return;
+        }
+
+        // Show loading state
+        const floatingDisplay = document.getElementById('floatingUnitsDisplay');
+        const unitsGrid = document.getElementById('unitsGrid');
+        floatingDisplay.classList.add('active');
+        unitsGrid.innerHTML = '<div class="loading">Loading units...</div>';
+
+        fetch(`../actions.php?action=get_course_units&course_id=${courseId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data.course) {
+                    throw new Error('Course not found');
+                }
+
+                // Update the floating header with course info
+                const header = floatingDisplay.querySelector('.floating-header h3');
+                header.textContent = `${data.course.department_name} - ${data.course.course_name}`;
+
+                unitsGrid.innerHTML = '';
+                if (data.units && data.units.length > 0) {
+                    // Sort units by year and semester
+                    const sortedUnits = data.units.sort((a, b) => {
+                        if (a.year !== b.year) return a.year - b.year;
+                        return a.semester - b.semester;
+                    });
+
+                    sortedUnits.forEach(unit => {
+                        const unitCard = document.createElement('div');
+                        unitCard.className = 'unit-card';
+                        unitCard.innerHTML = `
+                            <div class="unit-info">
+                                <h4>${unit.name}</h4>
+                                <div class="unit-code">${unit.code}</div>
+                                <div class="unit-meta">
+                                    Year ${unit.year}, Semester ${unit.semester}
+                                </div>
+                            </div>
+                            <button class="delete-btn" onclick="showDeleteUnitModal(${unit.id}, '${unit.code}')" title="Delete Unit">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        `;
+                        unitsGrid.appendChild(unitCard);
+                    });
+                } else {
+                    unitsGrid.innerHTML = '<div class="empty-message">No units found for this course.</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                unitsGrid.innerHTML = '<div class="error-message">Error loading units. Please try again.</div>';
+                showFloatingMessage('Error loading units: ' + error.message, 'error');
+            });
+    }
+
+    function showDeleteUnitModal(unitId, unitCode) {
+        document.getElementById('deleteUnitId').value = unitId;
+        const modalContent = document.querySelector('#deleteUnitModal p');
+        modalContent.textContent = `Delete ${unitCode}?`;
+        openModal('deleteUnitModal');
+    }
+
+    function confirmDeleteUnit() {
+        const unitId = document.getElementById('deleteUnitId').value;
+        
+        fetch('../actions.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=delete_unit&unit_id=${unitId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                closeModal('deleteUnitModal');
+                viewCourseUnits(); // Refresh the units table
+                showFloatingMessage(data.message, 'success');
+            } else {
+                showFloatingMessage(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showFloatingMessage('An error occurred while deleting the unit', 'error');
+        });
+    }
+
+    function exportUnitsPDF() {
+        const courseId = document.getElementById('courseSelect').value;
+        if (!courseId) {
+            alert('Please select a course first');
+            return;
+        }
+        window.open(`../actions.php?action=generate_unit_pdf&course_id=${courseId}`, '_blank');
+    }
+
+    function showFloatingMessage(message, type = 'success') {
+        const messageDiv = document.getElementById('floatingMessage');
+        messageDiv.textContent = message;
+        messageDiv.className = `floating-message ${type}`;
+        messageDiv.style.display = 'block';
+        
+        setTimeout(() => {
+            messageDiv.style.display = 'none';
+        }, 3000);
+    }
+
+    function closeFloatingDisplay() {
+        const floatingDisplay = document.getElementById('floatingUnitsDisplay');
+        floatingDisplay.classList.remove('active');
+    }
+    </script>
+
     <!-- DEPARTMENT MODAL -->
     <div id="departmentModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('departmentModal')">×</span>
             <h3>Add Department</h3>
-            <?php if (!empty($department_success)) echo "<p class='success'>$department_success</p>"; ?>
-            <?php if (!empty($department_error)) echo "<p class='error'>$department_error</p>"; ?>
-            <form method="POST" action="../actions.php">
+            <form id="departmentForm" onsubmit="submitDepartmentForm(event)">
                 <input type="hidden" name="action" value="add_department">
                 <div class="form-group">
                     <label>Department Name:</label>
@@ -1004,6 +1373,81 @@ $admin = $admin_res->fetch_assoc();
             </form>
         </div>
     </div>
+
+    <style>
+    .floating-message {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 5px;
+        z-index: 9999;
+        display: none;
+        animation: slideIn 0.5s ease-out;
+    }
+
+    .floating-message.success {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .floating-message.error {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    </style>
+
+    <script>
+    function showFloatingMessage(message, type) {
+        const msgDiv = document.getElementById('floatingMessage');
+        msgDiv.textContent = message;
+        msgDiv.className = 'floating-message ' + type;
+        msgDiv.style.display = 'block';
+
+        // Hide message after 3 seconds
+        setTimeout(() => {
+            msgDiv.style.display = 'none';
+        }, 3000);
+    }
+
+    function submitDepartmentForm(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        fetch('../actions.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showFloatingMessage(data.message, 'success');
+                closeModal('departmentModal');
+                // Optionally refresh the page or update the departments list
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                showFloatingMessage(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            showFloatingMessage('An error occurred while submitting the form', 'error');
+        });
+    }
+    </script>
 
     <!-- COURSE MODAL -->
     <div id="courseModal" class="modal">
