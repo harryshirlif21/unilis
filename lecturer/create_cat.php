@@ -21,155 +21,15 @@ $units = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create CAT</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #3498db;
-            --secondary-color: #2c3e50;
-            --accent-color: #2ecc71;
-            --warning-color: #f1c40f;
-            --danger-color: #e74c3c;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f6fa;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
-
-        .header {
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid var(--primary-color);
-        }
-
-        .cat-info {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-        }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        .input-group input[type="text"],
-        .input-group input[type="number"],
-        .input-group input[type="datetime-local"],
-        .input-group select,
-        .input-group textarea {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-
-        .questions-container {
-            margin-top: 30px;
-        }
-
-        .question-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #e9ecef;
-            position: relative;
-        }
-
-        .question-number {
-            position: absolute;
-            top: -10px;
-            left: -10px;
-            background: var(--secondary-color);
-            color: white;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-        }
-
-        .voice-input {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 10px 0;
-        }
-
-        .record-btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .record-btn.recording {
-            background: var(--danger-color);
-            animation: pulse 1.5s infinite;
-        }
-
-        .submit-btn {
-            background: var(--accent-color);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 20px;
-            width: 100%;
-        }
-
-        .solution-input {
-            margin-top: 15px;
-            border-top: 1px solid #ddd;
-            padding-top: 15px;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="css/create_cat.css">
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -178,7 +38,7 @@ $units = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
         <form id="catForm" action="../actions.php" method="POST">
             <input type="hidden" name="action" value="create_cat">
-            
+
             <div class="cat-info">
                 <div class="input-group">
                     <label for="unit">Unit:</label>
@@ -282,7 +142,9 @@ $units = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
             if (!mediaRecorders[id]) {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: true
+                    });
                     mediaRecorders[id] = new MediaRecorder(stream);
                     audioChunks[id] = [];
 
@@ -291,7 +153,9 @@ $units = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     };
 
                     mediaRecorders[id].onstop = async () => {
-                        const audioBlob = new Blob(audioChunks[id], { type: 'audio/wav' });
+                        const audioBlob = new Blob(audioChunks[id], {
+                            type: 'audio/wav'
+                        });
                         const audioUrl = URL.createObjectURL(audioBlob);
                         audio.src = audioUrl;
                         audio.style.display = 'block';
@@ -333,10 +197,10 @@ $units = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         document.getElementById('numQuestions').addEventListener('change', function(e) {
             const container = document.getElementById('questionsContainer');
             const numQuestions = parseInt(e.target.value) || 0;
-            
+
             // Clear existing questions
             container.innerHTML = '';
-            
+
             // Add new question cards
             for (let i = 1; i <= numQuestions; i++) {
                 container.appendChild(createQuestionCard(i));
@@ -354,7 +218,7 @@ $units = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         // Form validation
         document.getElementById('catForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             let isValid = true;
             const requiredFields = this.querySelectorAll('[required]');
 
@@ -376,4 +240,5 @@ $units = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         });
     </script>
 </body>
+
 </html>

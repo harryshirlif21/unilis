@@ -23,176 +23,23 @@ while ($row = $result->fetch_assoc()) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Assignment - UNILIS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #3498db;
-            --secondary-color: #2c3e50;
-            --accent-color: #2ecc71;
-            --danger-color: #e74c3c;
-            --border-color: #ddd;
-        }
+    <link rel="stylesheet" href="css/create_assignment.css">
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f6fa;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
-
-        h1 {
-            color: var(--secondary-color);
-            margin-bottom: 30px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--primary-color);
-        }
-
-        .form-section {
-            margin-bottom: 30px;
-        }
-
-        .question-box {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 15px 0;
-            position: relative;
-        }
-
-        .question-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .question-content {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: var(--secondary-color);
-        }
-
-        input[type="text"],
-        input[type="number"],
-        select,
-        textarea {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        textarea {
-            min-height: 100px;
-            resize: vertical;
-        }
-
-        .options-container {
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-
-        .option-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 10px 0;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        .btn:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-
-        .ai-marking-section {
-            background: #f0f8ff;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-
-        .confidence-slider {
-            width: 100%;
-            margin: 10px 0;
-        }
-
-        .feedback-section {
-            margin-top: 20px;
-            padding: 15px;
-            background: #e8f5e9;
-            border-radius: 8px;
-            display: none;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-
-            .question-box {
-                padding: 15px;
-            }
-        }
-    </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Create Assignment</h1>
-        
+
         <form id="assignmentForm" action="../actions.php" method="POST" enctype="multipart/form-data">
             <input type="hidden" name="action" value="create_assignment">
-            
+
             <div class="form-section">
                 <div class="form-group">
                     <label for="unit_id">Select Unit:</label>
@@ -240,8 +87,8 @@ while ($row = $result->fetch_assoc()) {
                 <div id="aiOptions" style="display: none;">
                     <div class="form-group">
                         <label for="aiConfidence">AI Confidence Threshold:</label>
-                        <input type="range" name="ai_confidence" id="aiConfidence" 
-                               class="confidence-slider" min="70" max="100" value="85">
+                        <input type="range" name="ai_confidence" id="aiConfidence"
+                            class="confidence-slider" min="70" max="100" value="85">
                         <span id="confidenceValue">85%</span>
                     </div>
 
@@ -319,13 +166,13 @@ while ($row = $result->fetch_assoc()) {
                 <div class="answer-rubric" style="display: none;">
                     <div class="form-group">
                         <label>Model Answer / Grading Rubric:</label>
-                        <textarea name="questions[{index}][rubric]" 
-                                placeholder="Enter the correct answer or detailed grading rubric for AI marking"></textarea>
+                        <textarea name="questions[{index}][rubric]"
+                            placeholder="Enter the correct answer or detailed grading rubric for AI marking"></textarea>
                     </div>
                     <div class="form-group">
                         <label>Key Points (One per line):</label>
-                        <textarea name="questions[{index}][key_points]" 
-                                placeholder="Enter key points that should be present in the answer"></textarea>
+                        <textarea name="questions[{index}][key_points]"
+                            placeholder="Enter key points that should be present in the answer"></textarea>
                     </div>
                 </div>
             </div>
@@ -340,11 +187,11 @@ while ($row = $result->fetch_assoc()) {
             const template = document.getElementById('questionTemplate').innerHTML;
             const questionDiv = document.createElement('div');
             questionCount++;
-            
+
             questionDiv.innerHTML = template
                 .replace(/{index}/g, questionCount)
                 .replace(/{number}/g, questionCount);
-            
+
             container.appendChild(questionDiv.firstElementChild);
         }
 
@@ -359,7 +206,7 @@ while ($row = $result->fetch_assoc()) {
             const questionBox = select.closest('.question-box');
             const optionsContainer = questionBox.querySelector('.options-container');
             const answerRubric = questionBox.querySelector('.answer-rubric');
-            
+
             if (select.value === 'multiple_choice') {
                 optionsContainer.style.display = 'block';
                 answerRubric.style.display = 'none';
@@ -373,7 +220,7 @@ while ($row = $result->fetch_assoc()) {
             const optionsList = button.previousElementSibling;
             const optionCount = optionsList.children.length + 1;
             const questionIndex = button.closest('.question-box').dataset.questionIndex;
-            
+
             const optionDiv = document.createElement('div');
             optionDiv.className = 'option-item';
             optionDiv.innerHTML = `
@@ -383,7 +230,7 @@ while ($row = $result->fetch_assoc()) {
                     <i class="fas fa-times"></i>
                 </button>
             `;
-            
+
             optionsList.appendChild(optionDiv);
         }
 
@@ -405,7 +252,7 @@ while ($row = $result->fetch_assoc()) {
         // Form Validation
         document.getElementById('assignmentForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             // Check if there are questions
             const questions = document.querySelectorAll('.question-box');
             if (questions.length === 0) {
@@ -420,7 +267,7 @@ while ($row = $result->fetch_assoc()) {
                 if (type === 'multiple_choice') {
                     const options = question.querySelectorAll('input[name*="[options]"]');
                     const correctAnswer = question.querySelector('input[name*="[correct]"]:checked');
-                    
+
                     if (options.length < 2) {
                         alert(`Question ${index + 1} must have at least 2 options.`);
                         isValid = false;
@@ -447,4 +294,5 @@ while ($row = $result->fetch_assoc()) {
         addQuestion();
     </script>
 </body>
+
 </html>
