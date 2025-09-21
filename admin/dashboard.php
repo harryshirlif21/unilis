@@ -1203,145 +1203,8 @@ $admin = $admin_res->fetch_assoc();
     <!-- Floating Message Div -->
     <div id="floatingMessage" class="floating-message" style="display: none;"></div>
 
-    <script>
-    function filterByUniversity(universityId) {
-        if (universityId) {
-            fetch(`../actions.php?action=get_university_data&university_id=${universityId}`)
-            .then(response => response.json())
-            .then(data => {
-                const courseSelect = document.querySelector('select[name="course_id"]');
-                courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
-                data.courses.forEach(course => {
-                    courseSelect.innerHTML += `<option value="${course.id}">${course.name} (${course.unit_count} units)</option>`;
-                });
-            })
-            .catch(error => console.error('Error:', error));
-        }
-    }
 
-    function viewCourseUnits() {
-        const courseId = document.getElementById('courseSelect').value;
-        if (!courseId) {
-            showFloatingMessage('Please select a course first', 'error');
-            return;
-        }
-
-        // Show loading state
-        const floatingDisplay = document.getElementById('floatingUnitsDisplay');
-        const unitsGrid = document.getElementById('unitsGrid');
-        floatingDisplay.classList.add('active');
-        unitsGrid.innerHTML = '<div class="loading">Loading units...</div>';
-
-        fetch(`../actions.php?action=get_course_units&course_id=${courseId}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (!data.course) {
-                    throw new Error('Course not found');
-                }
-
-                // Update the floating header with course info
-                const header = floatingDisplay.querySelector('.floating-header h3');
-                header.textContent = `${data.course.department_name} - ${data.course.course_name}`;
-
-                unitsGrid.innerHTML = '';
-                if (data.units && data.units.length > 0) {
-                    // Sort units by year and semester
-                    const sortedUnits = data.units.sort((a, b) => {
-                        if (a.year !== b.year) return a.year - b.year;
-                        return a.semester - b.semester;
-                    });
-
-                    sortedUnits.forEach(unit => {
-                        const unitCard = document.createElement('div');
-                        unitCard.className = 'unit-card';
-                        unitCard.innerHTML = `
-                            <div class="unit-info">
-                                <h4>${unit.name}</h4>
-                                <div class="unit-code">${unit.code}</div>
-                                <div class="unit-meta">
-                                    Year ${unit.year}, Semester ${unit.semester}
-                                </div>
-                            </div>
-                            <button class="delete-btn" onclick="showDeleteUnitModal(${unit.id}, '${unit.code}')" title="Delete Unit">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        `;
-                        unitsGrid.appendChild(unitCard);
-                    });
-                } else {
-                    unitsGrid.innerHTML = '<div class="empty-message">No units found for this course.</div>';
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                unitsGrid.innerHTML = '<div class="error-message">Error loading units. Please try again.</div>';
-                showFloatingMessage('Error loading units: ' + error.message, 'error');
-            });
-    }
-
-    function showDeleteUnitModal(unitId, unitCode) {
-        document.getElementById('deleteUnitId').value = unitId;
-        const modalContent = document.querySelector('#deleteUnitModal p');
-        modalContent.textContent = `Delete ${unitCode}?`;
-        openModal('deleteUnitModal');
-    }
-
-    function confirmDeleteUnit() {
-        const unitId = document.getElementById('deleteUnitId').value;
-        
-        fetch('../actions.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `action=delete_unit&unit_id=${unitId}`
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                closeModal('deleteUnitModal');
-                viewCourseUnits(); // Refresh the units table
-                showFloatingMessage(data.message, 'success');
-            } else {
-                showFloatingMessage(data.message, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showFloatingMessage('An error occurred while deleting the unit', 'error');
-        });
-    }
-
-    function exportUnitsPDF() {
-        const courseId = document.getElementById('courseSelect').value;
-        if (!courseId) {
-            alert('Please select a course first');
-            return;
-        }
-        window.open(`../actions.php?action=generate_unit_pdf&course_id=${courseId}`, '_blank');
-    }
-
-    function showFloatingMessage(message, type = 'success') {
-        const messageDiv = document.getElementById('floatingMessage');
-        messageDiv.textContent = message;
-        messageDiv.className = `floating-message ${type}`;
-        messageDiv.style.display = 'block';
-        
-        setTimeout(() => {
-            messageDiv.style.display = 'none';
-        }, 3000);
-    }
-
-    function closeFloatingDisplay() {
-        const floatingDisplay = document.getElementById('floatingUnitsDisplay');
-        floatingDisplay.classList.remove('active');
-    }
-    </script>
+    
 
     <!-- DEPARTMENT MODAL -->
     <div id="departmentModal" class="modal">
@@ -1408,46 +1271,7 @@ $admin = $admin_res->fetch_assoc();
     }
     </style>
 
-    <script>
-    function showFloatingMessage(message, type) {
-        const msgDiv = document.getElementById('floatingMessage');
-        msgDiv.textContent = message;
-        msgDiv.className = 'floating-message ' + type;
-        msgDiv.style.display = 'block';
-
-        // Hide message after 3 seconds
-        setTimeout(() => {
-            msgDiv.style.display = 'none';
-        }, 3000);
-    }
-
-    function submitDepartmentForm(event) {
-        event.preventDefault();
-        const form = event.target;
-        const formData = new FormData(form);
-
-        fetch('../actions.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                showFloatingMessage(data.message, 'success');
-                closeModal('departmentModal');
-                // Optionally refresh the page or update the departments list
-                setTimeout(() => {
-                    location.reload();
-                }, 2000);
-            } else {
-                showFloatingMessage(data.message, 'error');
-            }
-        })
-        .catch(error => {
-            showFloatingMessage('An error occurred while submitting the form', 'error');
-        });
-    }
-    </script>
+    
 
     <!-- COURSE MODAL -->
     <div id="courseModal" class="modal">
@@ -1607,56 +1431,73 @@ $admin = $admin_res->fetch_assoc();
     </div>
 </div>
 
+
+
 <script>
-    // Off-Canvas Menu Logic
-    const hamburgerBtn = document.getElementById('hamburgerMenu');
-    const closeMenuBtn = document.getElementById('closeMenuBtn');
-    const offCanvasMenu = document.getElementById('offCanvasMenu');
-    const menuOverlay = document.getElementById('menuOverlay');
-
-    function toggleOffCanvasMenu() {
-        offCanvasMenu.classList.toggle('active');
-        menuOverlay.classList.toggle('active');
+// ================== Utility: Floating Message ==================
+window.showFloatingMessage = function(message, type = 'success') {
+    const messageDiv = document.getElementById('floatingMessage');
+    if (messageDiv) {
+        messageDiv.textContent = message;
+        messageDiv.className = `floating-message ${type}`;
+        messageDiv.style.display = 'block';
+        setTimeout(() => { messageDiv.style.display = 'none'; }, 3000);
+    } else {
+        alert(`${type.toUpperCase()}: ${message}`);
     }
+};
 
-    hamburgerBtn.addEventListener('click', toggleOffCanvasMenu);
-    closeMenuBtn.addEventListener('click', toggleOffCanvasMenu);
-    menuOverlay.addEventListener('click', toggleOffCanvasMenu);
+// ================== Modal Handlers ==================
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'block';
+}
 
-    const menuItems = document.querySelectorAll('.off-canvas-menu .menu-item');
-    menuItems.forEach(item => {
-        item.addEventListener('click', () => {
-            setTimeout(toggleOffCanvasMenu, 150);
-        });
-    });
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'none';
+}
 
-    // Modal Logic
-    function openModal(id) {
-        document.getElementById(id).style.display = 'block';
-    }
+// ================== Off-Canvas Menu ==================
+const hamburgerBtn = document.getElementById('hamburgerMenu');
+const closeMenuBtn = document.getElementById('closeMenuBtn');
+const offCanvasMenu = document.getElementById('offCanvasMenu');
+const menuOverlay = document.getElementById('menuOverlay');
 
-    function closeModal(id) {
-        document.getElementById(id).style.display = 'none';
-    }
+function toggleOffCanvasMenu() {
+    if (offCanvasMenu) offCanvasMenu.classList.toggle('active');
+    if (menuOverlay) menuOverlay.classList.toggle('active');
+}
 
-    window.onclick = function(event) {
-        const modals = document.getElementsByClassName('modal');
-        for (let i = 0; i < modals.length; i++) {
-            if (event.target === modals[i]) {
-                modals[i].style.display = 'none';
-            }
+if (hamburgerBtn) hamburgerBtn.addEventListener('click', toggleOffCanvasMenu);
+if (closeMenuBtn) closeMenuBtn.addEventListener('click', toggleOffCanvasMenu);
+if (menuOverlay) menuOverlay.addEventListener('click', toggleOffCanvasMenu);
+
+const menuItems = document.querySelectorAll('.off-canvas-menu .menu-item');
+menuItems.forEach(item => {
+    item.addEventListener('click', () => setTimeout(toggleOffCanvasMenu, 150));
+});
+
+// ================== Close modals on outside click ==================
+window.onclick = function(event) {
+    const modals = document.getElementsByClassName('modal');
+    for (let i = 0; i < modals.length; i++) {
+        if (event.target === modals[i]) {
+            modals[i].style.display = 'none';
         }
     }
+};
 
-    // Add Unit Logic for Multiple Units Modal
-    let unitCount = 1;
-    function addUnit() {
-        if (unitCount >= 8) {
-            alert('Maximum of 8 units allowed.');
-            return;
-        }
-        unitCount++;
-        const container = document.getElementById('unitContainer');
+// ================== Add Unit Logic ==================
+let unitCount = 1;
+function addUnit() {
+    if (unitCount >= 8) {
+        showFloatingMessage('Maximum of 8 units allowed.', 'error');
+        return;
+    }
+    unitCount++;
+    const container = document.getElementById('unitContainer');
+    if (container) {
         const box = document.createElement('div');
         box.className = 'unit-box';
         box.innerHTML = `
@@ -1670,79 +1511,186 @@ $admin = $admin_res->fetch_assoc();
         `;
         container.appendChild(box);
     }
+};
 
-    // Handle course selection with AJAX
-    document.getElementById('selectCourseForm').addEventListener('submit', function(event) {
-        event.preventDefault(); // Prevent page reload
-        const form = this;
-        const courseId = form.querySelector('select[name="course_id"]').value;
-
-        if (!courseId) {
-            alert('Please select a course.');
-            return;
-        }
-
-        // Open the modal
-        openModal('courseUnitsModal');
-
-        // Fetch course units via AJAX
-        fetch('../actions.php?action=get_course_units', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `course_id=${encodeURIComponent(courseId)}`
-        })
+// ================== Populate Courses ==================
+function filterByUniversity(universityId) {
+    if (!universityId) return;
+    fetch(`../actions.php?action=get_university_data&university_id=${universityId}`)
         .then(response => {
             if (!response.ok) throw new Error('Network response was not ok');
             return response.json();
         })
         .then(data => {
-            const resultsBody = document.getElementById('resultsBody');
-            resultsBody.innerHTML = ''; // Clear previous results
-
-            if (!data || data.units.length === 0) {
-                resultsBody.innerHTML = '<tr><td colspan="8">No units found for this course.</td></tr>';
-            } else {
-                const unitCount = data.units.length;
-                const firstUnit = data.units[0] || null;
-                let row = `
-                    <tr>
-                        <td>${data.course_name}</td>
-                        <td>${data.department_name}</td>
-                        <td>${firstUnit ? firstUnit.year : '-'}</td>
-                        <td>${firstUnit ? firstUnit.semester : '-'}</td>
-                        <td>${firstUnit ? firstUnit.unit_name : '-'}</td>
-                        <td>${firstUnit ? firstUnit.unit_code : '-'}</td>
-                        <td>${unitCount}</td>
-                        <td><a href="dashboard.php?action=download_pdf&course_id=${data.course_id}" class="action-link">Download PDF</a></td>
-                    </tr>`;
-                resultsBody.innerHTML += row;
-
-                // Add additional units for the same course
-                for (let i = 1; i < unitCount; i++) {
-                    const unit = data.units[i];
-                    row = `
-                        <tr>
-                            <td></td>
-                            <td></td>
-                            <td>${unit.year}</td>
-                            <td>${unit.semester}</td>
-                            <td>${unit.unit_name}</td>
-                            <td>${unit.unit_code}</td>
-                            <td></td>
-                            <td></td>
-                        </tr>`;
-                    resultsBody.innerHTML += row;
+            const selects = document.querySelectorAll('select[name="course_id"]');
+            selects.forEach(select => {
+                select.innerHTML = '<option value="">-- Select a Course --</option>';
+                if (Array.isArray(data.courses)) {
+                    data.courses.forEach(course => {
+                        const opt = document.createElement('option');
+                        opt.value = course.id;
+                        opt.textContent = `${course.name} (${course.unit_count} units)`;
+                        select.appendChild(opt);
+                    });
                 }
-            }
+            });
         })
-        .catch(error => {
-            console.error('Error fetching course units:', error);
-            document.getElementById('resultsBody').innerHTML = '<tr><td colspan="8">Error loading units. Please try again.</td></tr>';
+        .catch(err => {
+            console.error('Error:', err);
+            showFloatingMessage('Error loading courses', 'error');
         });
+};
+
+// ================== Delete Unit ==================
+window.openDeleteUnitModal = function(unitId, unitName) {
+    const hidden = document.getElementById('deleteUnitId');
+    const p = document.querySelector('#deleteUnitModal .modal-content p');
+    if (hidden) hidden.value = unitId;
+    if (p) p.textContent = `Delete unit "${unitName}"?`;
+    openModal('deleteUnitModal');
+};
+
+window.confirmDeleteUnit = function() {
+    const unitId = document.getElementById('deleteUnitId').value;
+    if (!unitId) {
+        showFloatingMessage('Invalid unit ID', 'error');
+        return;
+    }
+
+    fetch('../actions.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=delete_unit&unit_id=${encodeURIComponent(unitId)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showFloatingMessage(data.message || 'Unit deleted successfully', 'success');
+            closeModal('deleteUnitModal');
+            viewCourseUnits(); // refresh list
+        } else {
+            showFloatingMessage(data.message || 'Error deleting unit', 'error');
+        }
+    })
+    .catch(err => {
+        console.error('Delete error:', err);
+        showFloatingMessage('Error deleting unit', 'error');
     });
-	
+};
+
+// ================== Export Units PDF ==================
+window.exportUnitsPDF = function() {
+    const courseSelect = document.getElementById('courseSelect');
+    const courseId = courseSelect ? courseSelect.value : '';
+    if (!courseId) {
+        showFloatingMessage('Please select a course first', 'error');
+        return;
+    }
+    window.open(`../actions.php?action=generate_unit_pdf&course_id=${courseId}`, '_blank');
+};
+
+// ================== View Course Units ==================
+window.viewCourseUnits = function() {
+    const courseSelect = document.getElementById('courseSelect');
+    const courseId = courseSelect ? courseSelect.value : '';
+    if (!courseId) {
+        showFloatingMessage('Please select a course first', 'error');
+        return;
+    }
+
+    const floatingDisplay = document.getElementById('floatingUnitsDisplay');
+    const unitsGrid = document.getElementById('unitsGrid');
+    if (floatingDisplay) floatingDisplay.classList.add('active');
+    if (unitsGrid) unitsGrid.innerHTML = '<div class="loading">Loading units...</div>';
+
+    fetch(`../actions.php?action=get_course_units&course_id=${courseId}`)
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(data => {
+            const header = document.querySelector('#floatingUnitsDisplay .floating-header h3');
+            
+            // Show course + department gracefully
+            if (header) {
+                let courseName = "";
+                let deptName = "";
+                if (typeof data.course === "object" && data.course !== null) {
+                    courseName = data.course.course_name || "";
+                    deptName = data.course.department_name || "";
+                } else if (typeof data.course === "string") {
+                    courseName = data.course;
+                }
+                header.textContent = deptName ? `${deptName} - ${courseName}` : courseName;
+            }
+
+            if (unitsGrid) unitsGrid.innerHTML = '';
+            if (data.status !== 'success' || !data.units || data.units.length === 0) {
+                if (unitsGrid) unitsGrid.innerHTML = '<div class="empty-message">No units found for this course.</div>';
+                return;
+            }
+
+            const sortedUnits = data.units.slice().sort((a, b) => {
+                const yearA = parseInt(a.year, 10);
+                const yearB = parseInt(b.year, 10);
+                if (yearA !== yearB) return yearA - yearB;
+                return parseInt(a.semester, 10) - parseInt(b.semester, 10);
+            });
+
+            const frag = document.createDocumentFragment();
+            sortedUnits.forEach(unit => {
+                const card = document.createElement('div');
+                card.className = 'unit-card';
+                card.innerHTML = `
+                    <div class="unit-info">
+                        <h4>${unit.unit_name}</h4>
+                        <span class="unit-code">${unit.unit_code}</span>
+                        <div class="unit-meta">Year ${unit.year} | Semester ${unit.semester}</div>
+                    </div>
+                `;
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                delBtn.onclick = () => openDeleteUnitModal(unit.id, unit.unit_name);
+                card.appendChild(delBtn);
+                frag.appendChild(card);
+            });
+            if (unitsGrid) unitsGrid.appendChild(frag);
+        })
+        .catch(err => {
+            console.error('Fetch error:', err);
+            if (unitsGrid) unitsGrid.innerHTML = '<div class="error-message">Error loading units</div>';
+            showFloatingMessage(err.message || 'Error loading units', 'error');
+        });
+};
+
+// ================== Close Floating Display ==================
+window.closeFloatingDisplay = function() {
+    const floatingDisplay = document.getElementById('floatingUnitsDisplay');
+    if (floatingDisplay) floatingDisplay.classList.remove('active');
+};
+
+// ================== Submit Department Form ==================
+function submitDepartmentForm(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    fetch('../actions.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showFloatingMessage(data.message, 'success');
+            closeModal('departmentModal');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showFloatingMessage(data.message, 'error');
+        }
+    })
+    .catch(() => showFloatingMessage('An error occurred while submitting the form', 'error'));
+};
 </script>
 
 </body>
