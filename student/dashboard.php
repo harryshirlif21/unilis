@@ -38,6 +38,7 @@ try {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -47,201 +48,9 @@ try {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #fefce8; /* Light golden background for theme */
-            color: #92400e; /* Warm brown for better contrast with golden theme */
-            overflow-x: hidden;
-        }
-        .sidebar {
-            width: 280px;
-            position: fixed;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            transform: translateX(100%);
-            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-            z-index: 50;
-            backdrop-filter: blur(10px);
-            background-color: rgba(254, 252, 232, 0.95); /* Light golden backdrop */
-            border-left: 1px solid #f5e6b2; /* Golden border */
-            overflow-y: auto;
-        }
-        .sidebar.open {
-            transform: translateX(0);
-        }
-        .overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background-color: rgba(0, 0, 0, 0.3); /* Slightly darker overlay for better focus */
-            z-index: 40;
-            transition: opacity 0.4s ease-in-out;
-            opacity: 0;
-        }
-        .overlay.open {
-            display: block;
-            opacity: 1;
-        }
-        .card {
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05); /* Softer shadows for modern flat design */
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: 1px solid #f5e6b2; /* Golden border */
-        }
-        .card:hover {
-            transform: translateY(-4px); /* Reduced lift for subtler interaction */
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.15);
-        }
-        .btn-primary {
-            background: linear-gradient(to right, #f59e0b, #d97706); /* Golden gradient for theme */
-            color: white;
-            transition: all 0.2s ease;
-            border: none;
-        }
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            background: linear-gradient(to right, #d97706, #b45309); /* Darker golden on hover */
-            color: white;
-        }
-        .table-row-hover:hover {
-            background-color: #fef3c7; /* Light golden hover for tables */
-        }
-        .modal {
-            display: none;
-            z-index: 50;
-        }
-        .modal.open {
-            display: flex;
-        }
-        .nav-link {
-            transition: all 0.3s ease; /* Smooth transition for hover */
-            color: #92400e; /* Warm brown base */
-        }
-        .nav-link:hover {
-            color: #f59e0b; /* Golden on hover */
-        }
-        .nav-link.active {
-            font-weight: 600;
-            color: #f59e0b; /* Golden accent for active state */
-            background-color: #fef3c7; /* Light golden background */
-        }
-        .nav-link.active svg {
-            color: #f59e0b;
-        }
-        /* Style for the hamburger icon when the sidebar is open */
-        .hamburger-icon-menu {
-            transition: transform 0.3s ease-in-out;
-        }
-        .hamburger-icon-menu.open {
-            transform: rotate(-90deg);
-        }
-        /* New: Improved stat card icons with varied golden colors */
-        .stat-icon {
-            transition: transform 0.2s ease, color 0.3s ease;
-        }
-        .card:hover .stat-icon {
-            transform: scale(1.05);
-            color: #f59e0b; /* Golden on card hover */
-        }
-        /* Vary text colors in stats */
-        .stat-text-primary { color: #b45309; } /* Darker golden */
-        .stat-text-secondary { color: #d97706; } /* Medium golden */
-        .stat-text-accent { color: #f59e0b; } /* Bright golden */
-        /* Enhanced course cards with subtle golden gradients */
-        .course-header {
-            background: linear-gradient(to right, rgba(245, 158, 11, 0.05), rgba(217, 119, 6, 0.05));
-            border-bottom: 1px solid #f5e6b2;
-        }
-        .course-title {
-            color: #92400e;
-            transition: color 0.3s ease;
-        }
-        .course-title:hover {
-            color: #f59e0b;
-        }
-        .course-instructor {
-            color: #a16207;
-            transition: color 0.3s ease;
-        }
-        .course-instructor:hover {
-            color: #d97706;
-        }
-        .course-detail {
-            color: #be9500;
-            transition: color 0.3s ease;
-        }
-        .course-detail:hover {
-            color: #f59e0b;
-        }
-        /* Hero text styling */
-        .hero-text {
-            color: #FFD700; /* Golden text */
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); /* Shadow for visibility over image */
-            transition: color 0.3s ease;
-        }
-        .hero-text:hover {
-            color: #FFA500; /* Orange-gold on hover */
-        }
-        /* General text hover for headings */
-        h1, h2, h3 {
-            transition: color 0.3s ease;
-        }
-        h1:hover, h2:hover, h3:hover {
-            color: #f59e0b; /* Golden on hover */
-        }
-        /* Table text variations and hovers */
-        .table-text-primary { color: #92400e; transition: color 0.3s ease; }
-        .table-text-primary:hover { color: #f59e0b; }
-        .table-text-secondary { color: #a16207; transition: color 0.3s ease; }
-        .table-text-secondary:hover { color: #d97706; }
-        /* Styles for new sidebar elements */
-        .menu-item {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 1rem;
-            border-radius: 0.75rem;
-            color: #92400e;
-            background: none;
-            border: none;
-            width: 100%;
-            text-align: left;
-            text-decoration: none;
-            transition: all 0.2s ease;
-            font-size: 1.125rem;
-        }
-        .menu-item:hover {
-            background-color: #fef3c7;
-            color: #f59e0b;
-        }
-        .menu-section-title {
-            font-weight: 600;
-            font-size: 1.125rem;
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-            color: #f59e0b;
-            padding-left: 1rem;
-            padding-top: 0.5rem;
-            padding-bottom: 0.5rem;
-        }
-        .close-btn {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            font-size: 1.875rem;
-            font-weight: bold;
-            color: #92400e;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            transition: color 0.2s ease;
-        }
-        .close-btn:hover {
-            color: #f59e0b;
-        }
-    </style>
+    <link rel="stylesheet" href="css/dashboard.css">
 </head>
+
 <body class="relative">
 
     <!-- Top Navigation Bar -->
@@ -249,41 +58,41 @@ try {
         <a href="#" class="text-2xl font-bold text-92400e">
             UNILIS
         </a>
-        
+
         <!-- Main Navigation Links (Desktop) -->
         <div class="hidden md:flex space-x-8 items-center text-92400e">
-    <a href="#" class="nav-link active font-medium px-3 py-2 rounded-lg" data-target="dashboard-content">Dashboard</a>
-    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="courses-content">Courses</a>
-    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="assignments-content">Assignments</a>
-    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="notes-content">Notes</a>
-    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="meetings-content">Meetings</a>
-    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="profile-content">Profile</a>
-     <?php
-// Count unread notifications for this student
-$notif_count_query = $conn->prepare("
+            <a href="#" class="nav-link active font-medium px-3 py-2 rounded-lg" data-target="dashboard-content">Dashboard</a>
+            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="courses-content">Courses</a>
+            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="assignments-content">Assignments</a>
+            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="notes-content">Notes</a>
+            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="meetings-content">Meetings</a>
+            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="profile-content">Profile</a>
+            <?php
+            // Count unread notifications for this student
+            $notif_count_query = $conn->prepare("
     SELECT COUNT(*) AS unread_count 
     FROM notifications 
     WHERE user_id = ? AND user_role = 'student' AND is_read = 0
 ");
-$notif_count_query->bind_param("i", $_SESSION['user_id']);
-$notif_count_query->execute();
-$result = $notif_count_query->get_result();
-$notif_data = $result->fetch_assoc();
-$unread_count = $notif_data['unread_count'] ?? 0;
-$notif_count_query->close();
-?>
+            $notif_count_query->bind_param("i", $_SESSION['user_id']);
+            $notif_count_query->execute();
+            $result = $notif_count_query->get_result();
+            $notif_data = $result->fetch_assoc();
+            $unread_count = $notif_data['unread_count'] ?? 0;
+            $notif_count_query->close();
+            ?>
 
-<!-- Notifications Nav Item -->
-<a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative" data-target="notifications-content" id="notifBell">
-  🔔 Notifications
-  <span id="notifCount" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-2">
-    <?= $unread_count ?>
-  </span>
-</a>
+            <!-- Notifications Nav Item -->
+            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative" data-target="notifications-content" id="notifBell">
+                🔔 Notifications
+                <span id="notifCount" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-2">
+                    <?= $unread_count ?>
+                </span>
+            </a>
 
 
-</div>
-        
+        </div>
+
         <!-- Mobile Menu Toggle Button (right-aligned) -->
         <button id="menu-toggle" class="p-2 rounded-full text-92400e hover:bg-fef3c7 focus:outline-none focus:ring-2 focus:ring-f59e0b transition-all">
             <svg class="hamburger-icon-menu h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -294,84 +103,84 @@ $notif_count_query->close();
 
     <!-- Off-Canvas Sidebar -->
     <!-- Off-Canvas Menu -->
-<div id="offCanvasMenu" class="sidebar">
-    <button id="closeMenuBtn" class="close-btn">&times;</button>
-    
-    <!-- Student Info -->
-    <h2 class="text-2xl font-bold mb-2 text-center text-92400e">
-        <?= htmlspecialchars($student['name']) ?>
-    </h2>
-    <p class="text-base mb-2 text-center text-a16207">
-        Student ID: <?= htmlspecialchars($student['reg_no']) ?>
-    </p>
-    <p class="text-base mb-2 text-center text-a16207">
-        Program: <?= htmlspecialchars($course_name) ?>
-    </p>
-    <p class="text-base mb-2 text-center text-a16207">
-        Year of Study: Year <?= htmlspecialchars($year_of_study) ?>
-    </p>
-    <p class="text-base mb-2 text-center text-a16207">
-        Email: <?= htmlspecialchars($student['email']) ?>
-    </p>
-    <p class="text-base mb-6 text-center text-a16207">
-        Joined: <?= htmlspecialchars($student['year_joined']) ?>
-    </p>
+    <div id="offCanvasMenu" class="sidebar">
+        <button id="closeMenuBtn" class="close-btn">&times;</button>
 
-    <!-- Dashboard -->
-    <button class="menu-item" onclick="alert('Dashboard Overview clicked!')">
-        <i class="fas fa-tachometer-alt"></i> Dashboard
-    </button>
+        <!-- Student Info -->
+        <h2 class="text-2xl font-bold mb-2 text-center text-92400e">
+            <?= htmlspecialchars($student['name']) ?>
+        </h2>
+        <p class="text-base mb-2 text-center text-a16207">
+            Student ID: <?= htmlspecialchars($student['reg_no']) ?>
+        </p>
+        <p class="text-base mb-2 text-center text-a16207">
+            Program: <?= htmlspecialchars($course_name) ?>
+        </p>
+        <p class="text-base mb-2 text-center text-a16207">
+            Year of Study: Year <?= htmlspecialchars($year_of_study) ?>
+        </p>
+        <p class="text-base mb-2 text-center text-a16207">
+            Email: <?= htmlspecialchars($student['email']) ?>
+        </p>
+        <p class="text-base mb-6 text-center text-a16207">
+            Joined: <?= htmlspecialchars($student['year_joined']) ?>
+        </p>
 
-    <!-- Academic Section -->
-    <div class="menu-section-title">Academic</div>
-    <button class="menu-item" onclick="alert('My Courses clicked!')">
-        <i class="fas fa-book"></i> My Courses
-    </button>
-    <a href="submit_assignment.php" class="menu-item">
-        <i class="fas fa-upload"></i> Submit Assignment
-    </a>
-    <button class="menu-item" onclick="alert('Grades clicked!')">
-        <i class="fas fa-medal"></i> Grades
-    </button>
-    <button class="menu-item" onclick="alert('Schedule clicked!')">
-        <i class="fas fa-calendar-alt"></i> Schedule
-    </button>
+        <!-- Dashboard -->
+        <button class="menu-item" onclick="alert('Dashboard Overview clicked!')">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </button>
 
-    <!-- Resources Section -->
-    <div class="menu-section-title">Resources</div>
-    <button class="menu-item" onclick="alert('Notes & Files clicked!')">
-        <i class="fas fa-file-alt"></i> Notes & Files
-    </button>
-    <button class="menu-item" onclick="alert('Library Services clicked!')">
-        <i class="fas fa-book-reader"></i> Library Services
-    </button>
+        <!-- Academic Section -->
+        <div class="menu-section-title">Academic</div>
+        <button class="menu-item" onclick="alert('My Courses clicked!')">
+            <i class="fas fa-book"></i> My Courses
+        </button>
+        <a href="submit_assignment.php" class="menu-item">
+            <i class="fas fa-upload"></i> Submit Assignment
+        </a>
+        <button class="menu-item" onclick="alert('Grades clicked!')">
+            <i class="fas fa-medal"></i> Grades
+        </button>
+        <button class="menu-item" onclick="alert('Schedule clicked!')">
+            <i class="fas fa-calendar-alt"></i> Schedule
+        </button>
 
-    <!-- Communication & Support Section -->
-    <div class="menu-section-title">Communication & Support</div>
-    <button class="menu-item" onclick="alert('Announcements clicked!')">
-        <i class="fas fa-bullhorn"></i> Announcements
-    </button>
-    <a href="#" class="menu-item" onclick="alert('Messages not implemented yet!')">
-        <i class="fas fa-envelope"></i> Messages
-    </a>
-    <button class="menu-item" onclick="alert('Help & Support clicked!')">
-        <i class="fas fa-question-circle"></i> Help & Support
-    </button>
+        <!-- Resources Section -->
+        <div class="menu-section-title">Resources</div>
+        <button class="menu-item" onclick="alert('Notes & Files clicked!')">
+            <i class="fas fa-file-alt"></i> Notes & Files
+        </button>
+        <button class="menu-item" onclick="alert('Library Services clicked!')">
+            <i class="fas fa-book-reader"></i> Library Services
+        </button>
 
-    <!-- Account Section -->
-    <div class="menu-section-title">Account</div>
-    <a href="#" class="menu-item" onclick="alert('Profile Settings not implemented yet!')">
-        <i class="fas fa-user-circle"></i> My Profile
-    </a>
-    <button class="menu-item" onclick="alert('Change Password clicked!')">
-        <i class="fas fa-key"></i> Change Password
-    </button>
-    <a href="../logout.php" class="menu-item logout">
-        <i class="fas fa-sign-out-alt"></i> Logout
-    </a>
-</div>
+        <!-- Communication & Support Section -->
+        <div class="menu-section-title">Communication & Support</div>
+        <button class="menu-item" onclick="alert('Announcements clicked!')">
+            <i class="fas fa-bullhorn"></i> Announcements
+        </button>
+        <a href="#" class="menu-item" onclick="alert('Messages not implemented yet!')">
+            <i class="fas fa-envelope"></i> Messages
+        </a>
+        <button class="menu-item" onclick="alert('Help & Support clicked!')">
+            <i class="fas fa-question-circle"></i> Help & Support
+        </button>
 
-    
+        <!-- Account Section -->
+        <div class="menu-section-title">Account</div>
+        <a href="#" class="menu-item" onclick="alert('Profile Settings not implemented yet!')">
+            <i class="fas fa-user-circle"></i> My Profile
+        </a>
+        <button class="menu-item" onclick="alert('Change Password clicked!')">
+            <i class="fas fa-key"></i> Change Password
+        </button>
+        <a href="../logout.php" class="menu-item logout">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
+
+
     <!-- Overlay to close the sidebar -->
     <div id="overlay" class="overlay"></div>
 
@@ -501,24 +310,24 @@ $notif_count_query->close();
             <!-- Messages -->
             <?php
             if (isset($_SESSION['submission_success'])) {
-                echo "<div class='bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6'>". htmlspecialchars($_SESSION['submission_success']) . "</div>";
+                echo "<div class='bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6'>" . htmlspecialchars($_SESSION['submission_success']) . "</div>";
                 unset($_SESSION['submission_success']);
             }
             if (isset($_SESSION['submission_error'])) {
-                echo "<div class='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6'>". htmlspecialchars($_SESSION['submission_error']) . "</div>";
+                echo "<div class='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6'>" . htmlspecialchars($_SESSION['submission_error']) . "</div>";
                 unset($_SESSION['submission_error']);
             }
             if (isset($_SESSION['error'])) {
-                echo "<div class='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6'>". htmlspecialchars($_SESSION['error']) . "</div>";
+                echo "<div class='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6'>" . htmlspecialchars($_SESSION['error']) . "</div>";
                 unset($_SESSION['error']);
             }
             ?>
 
             <!-- Notes Section -->
-            
-           
-          
-            
+
+
+
+
             <!-- Quick Action Cards -->
             <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <a href="submit_assignment.php" class="card bg-white rounded-2xl p-6 text-center hover:shadow-lg">
@@ -560,8 +369,8 @@ $notif_count_query->close();
 
         <!-- Assignments Content (Hidden by default) -->
         <div id="assignments-content" class="hidden">
-            
-             <!-- Interactive Assignments / CATs Section -->
+
+            <!-- Interactive Assignments / CATs Section -->
             <section class="card bg-white rounded-2xl p-6 mb-8">
                 <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Interactive Assignments / CATs</h2>
                 <div class="mb-4">
@@ -576,10 +385,11 @@ $notif_count_query->close();
                             $uf->execute();
                             $ul = $uf->get_result();
                             while ($urow = $ul->fetch_assoc()) {
-                                echo '<option value="'.intval($urow['id']).'">'.htmlspecialchars($urow['name'])."</option>";
+                                echo '<option value="' . intval($urow['id']) . '">' . htmlspecialchars($urow['name']) . "</option>";
                             }
                             $uf->close();
-                        } catch (mysqli_sql_exception $e) { /* ignore */ }
+                        } catch (mysqli_sql_exception $e) { /* ignore */
+                        }
                         ?>
                     </select>
                 </div>
@@ -644,7 +454,7 @@ $notif_count_query->close();
             </section>
 
 
-              <!-- Submitted Assignments Section -->
+            <!-- Submitted Assignments Section -->
             <section class="card bg-white rounded-2xl p-6 mb-8">
                 <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Submitted Assignments</h2>
                 <div class="overflow-x-auto">
@@ -711,7 +521,7 @@ $notif_count_query->close();
 
 
 
-             <!-- Assignments Section -->
+            <!-- Assignments Section -->
             <section class="card bg-white rounded-2xl p-6 mb-8">
                 <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Assignments for Year <?= htmlspecialchars($year_of_study) ?></h2>
                 <div class="overflow-x-auto">
@@ -920,168 +730,172 @@ $notif_count_query->close();
                 </div>
             </section>
         </div>
-<div id="notifications-content" class="hidden">
-    <section class="card bg-white rounded-2xl p-6 mb-8">
-        <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Notifications</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="border-b-2 border-f5e6b2">
-                        <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Title</th>
-                        <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Message</th>
-                        <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Date</th>
-                        <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="text-92400e">
-                    <?php
-                    try {
-                        // Fetch notifications for the logged-in student
-                        $notif_query = $conn->prepare("
+        <div id="notifications-content" class="hidden">
+            <section class="card bg-white rounded-2xl p-6 mb-8">
+                <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Notifications</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-f5e6b2">
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Title</th>
+                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Message</th>
+                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Date</th>
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-92400e">
+                            <?php
+                            try {
+                                // Fetch notifications for the logged-in student
+                                $notif_query = $conn->prepare("
                             SELECT id, title, message, link, is_read, created_at 
                             FROM notifications 
                             WHERE user_id = ? AND user_role = 'student'
                             ORDER BY created_at DESC
                         ");
-                        $notif_query->bind_param("i", $_SESSION['user_id']);
-                        $notif_query->execute();
-                        $notifications = $notif_query->get_result();
+                                $notif_query->bind_param("i", $_SESSION['user_id']);
+                                $notif_query->execute();
+                                $notifications = $notif_query->get_result();
 
-                        if ($notifications->num_rows === 0) {
-                            echo "<tr><td colspan='4' class='py-4 text-center'>No notifications yet.</td></tr>";
-                        } else {
-                            while ($notif = $notifications->fetch_assoc()) {
-                                $title = htmlspecialchars($notif['title']);
-                                $message = htmlspecialchars($notif['message']);
-                                $created_at = date("d M Y, h:i A", strtotime($notif['created_at']));
-                                $link = !empty($notif['link']) ? "<a href='{$notif['link']}' class='text-f59e0b hover:underline'>View</a>" : "-";
+                                if ($notifications->num_rows === 0) {
+                                    echo "<tr><td colspan='4' class='py-4 text-center'>No notifications yet.</td></tr>";
+                                } else {
+                                    while ($notif = $notifications->fetch_assoc()) {
+                                        $title = htmlspecialchars($notif['title']);
+                                        $message = htmlspecialchars($notif['message']);
+                                        $created_at = date("d M Y, h:i A", strtotime($notif['created_at']));
+                                        $link = !empty($notif['link']) ? "<a href='{$notif['link']}' class='text-f59e0b hover:underline'>View</a>" : "-";
 
-                                echo "<tr class='border-b border-f5e6b2 table-row-hover'>
+                                        echo "<tr class='border-b border-f5e6b2 table-row-hover'>
                                     <td class='py-4 table-text-primary'>$title</td>
                                     <td class='py-4 table-text-secondary'>$message</td>
                                     <td class='py-4 text-sm table-text-accent'>$created_at</td>
                                     <td class='py-4'>$link</td>
                                 </tr>";
+                                    }
+                                }
+                                $notif_query->close();
+                            } catch (mysqli_sql_exception $e) {
+                                error_log('Error fetching notifications: ' . $e->getMessage());
+                                echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading notifications.</td></tr>";
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <script>
+            // Enhanced JavaScript for better UX: Navigation, Sidebar Toggle, and Content Switching
+            document.addEventListener('DOMContentLoaded', function() {
+                const menuToggle = document.getElementById('menu-toggle');
+                const sidebar = document.getElementById('offCanvasMenu');
+                const overlay = document.getElementById('overlay');
+                const closeBtn = document.getElementById('closeMenuBtn');
+                const navLinks = document.querySelectorAll('.nav-link');
+
+                // Sidebar Toggle
+                menuToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('open');
+                    overlay.classList.toggle('open');
+                    menuToggle.querySelector('svg').classList.toggle('open');
+                });
+
+                // Close sidebar on overlay click
+                overlay.addEventListener('click', function() {
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('open');
+                    menuToggle.querySelector('svg').classList.remove('open');
+                });
+
+                // Close sidebar on close button click
+                closeBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('open');
+                    menuToggle.querySelector('svg').classList.remove('open');
+                });
+
+                // Navigation Content Switching
+                navLinks.forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const target = this.getAttribute('data-target');
+                        if (target) {
+                            // Hide all sections
+                            const contentSections = document.querySelectorAll('[id$="-content"]');
+                            contentSections.forEach(section => section.classList.add('hidden'));
+                            // Show target section if it exists
+                            const targetSection = document.getElementById(target);
+                            if (targetSection) {
+                                targetSection.classList.remove('hidden');
+                            }
+                            // Update active nav
+                            navLinks.forEach(l => l.classList.remove('active'));
+                            this.classList.add('active');
+                            // Close sidebar on mobile
+                            if (window.innerWidth < 768) {
+                                sidebar.classList.remove('open');
+                                overlay.classList.remove('open');
+                                menuToggle.querySelector('svg').classList.remove('open');
                             }
                         }
-                        $notif_query->close();
-                    } catch (mysqli_sql_exception $e) {
-                        error_log('Error fetching notifications: ' . $e->getMessage());
-                        echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading notifications.</td></tr>";
-                    }
-                    ?>
-                </tbody>
-            </table>
-        </div>
-    </section>
-</div>
+                    });
+                });
 
-    <script>
-        // Enhanced JavaScript for better UX: Navigation, Sidebar Toggle, and Content Switching
-        document.addEventListener('DOMContentLoaded', function() {
-            const menuToggle = document.getElementById('menu-toggle');
-            const sidebar = document.getElementById('offCanvasMenu');
-            const overlay = document.getElementById('overlay');
-            const closeBtn = document.getElementById('closeMenuBtn');
-            const navLinks = document.querySelectorAll('.nav-link');
-
-            // Sidebar Toggle
-            menuToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('open');
-                overlay.classList.toggle('open');
-                menuToggle.querySelector('svg').classList.toggle('open');
-            });
-
-            // Close sidebar on overlay click
-            overlay.addEventListener('click', function() {
-                sidebar.classList.remove('open');
-                overlay.classList.remove('open');
-                menuToggle.querySelector('svg').classList.remove('open');
-            });
-
-            // Close sidebar on close button click
-            closeBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                sidebar.classList.remove('open');
-                overlay.classList.remove('open');
-                menuToggle.querySelector('svg').classList.remove('open');
-            });
-
-            // Navigation Content Switching
-            navLinks.forEach(link => {
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const target = this.getAttribute('data-target');
-                    if (target) {
-                        // Hide all sections
-                        const contentSections = document.querySelectorAll('[id$="-content"]');
-                        contentSections.forEach(section => section.classList.add('hidden'));
-                        // Show target section if it exists
-                        const targetSection = document.getElementById(target);
-                        if (targetSection) {
-                            targetSection.classList.remove('hidden');
-                        }
-                        // Update active nav
-                        navLinks.forEach(l => l.classList.remove('active'));
-                        this.classList.add('active');
-                        // Close sidebar on mobile
-                        if (window.innerWidth < 768) {
-                            sidebar.classList.remove('open');
-                            overlay.classList.remove('open');
-                            menuToggle.querySelector('svg').classList.remove('open');
-                        }
+                // Improved focus management for accessibility
+                menuToggle.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.click();
                     }
                 });
+
+                // Unit filter functionality
+                (function() {
+                    const sel = document.getElementById('ia-unit-filter');
+                    const tbody = document.getElementById('ia-tbody');
+                    if (!sel || !tbody) return;
+                    sel.addEventListener('change', function() {
+                        const unitId = parseInt(this.value || '0', 10);
+                        if (!unitId) return;
+                        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center">Loading...</td></tr>';
+                        fetch(`../actions.php?action=get_interactive_assignments_by_unit&unit_id=${unitId}`)
+                            .then(r => r.json())
+                            .then(data => {
+                                const items = data.assignments || [];
+                                if (!items.length) {
+                                    tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center">No interactive assignments for this unit.</td></tr>';
+                                    return;
+                                }
+                                tbody.innerHTML = '';
+                                items.forEach(a => {
+                                    const d = a.due_date ? new Date(a.due_date).toLocaleString() : '';
+                                    const tr = document.createElement('tr');
+                                    tr.className = 'border-b border-f5e6b2 table-row-hover';
+                                    tr.innerHTML = `<td class="py-4 table-text-primary">-</td><td class="py-4 table-text-secondary">${a.title}</td><td class="py-4 text-sm table-text-accent">${d}</td><td class="py-4 table-text-primary"><a href="take_assignment.php?id=${a.id}" class="text-f59e0b hover:underline">Answer MCQs</a></td>`;
+                                    tbody.appendChild(tr);
+                                });
+                            })
+                            .catch(() => {
+                                tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-red-500">Failed to load.</td></tr>';
+                            });
+                    });
+                })();
             });
 
-            // Improved focus management for accessibility
-            menuToggle.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    this.click();
-                }
+            document.getElementById("notifBell").addEventListener("click", function() {
+                // AJAX call to mark notifications as read
+                fetch("mark_notifications_read.php")
+                    .then(response => response.text())
+                    .then(data => {
+                        // Reset count to 0 in badge
+                        document.getElementById("notifCount").innerText = "0";
+                    })
+                    .catch(err => console.error("Error marking notifications:", err));
             });
-
-            // Unit filter functionality
-            (function(){
-                const sel = document.getElementById('ia-unit-filter');
-                const tbody = document.getElementById('ia-tbody');
-                if (!sel || !tbody) return;
-                sel.addEventListener('change', function(){
-                    const unitId = parseInt(this.value||'0', 10);
-                    if (!unitId) return;
-                    tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center">Loading...</td></tr>';
-                    fetch(`../actions.php?action=get_interactive_assignments_by_unit&unit_id=${unitId}`)
-                      .then(r=>r.json())
-                      .then(data=>{
-                        const items = data.assignments || [];
-                        if (!items.length) { tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center">No interactive assignments for this unit.</td></tr>'; return; }
-                        tbody.innerHTML = '';
-                        items.forEach(a => {
-                            const d = a.due_date ? new Date(a.due_date).toLocaleString() : '';
-                            const tr = document.createElement('tr');
-                            tr.className = 'border-b border-f5e6b2 table-row-hover';
-                            tr.innerHTML = `<td class="py-4 table-text-primary">-</td><td class="py-4 table-text-secondary">${a.title}</td><td class="py-4 text-sm table-text-accent">${d}</td><td class="py-4 table-text-primary"><a href="take_assignment.php?id=${a.id}" class="text-f59e0b hover:underline">Answer MCQs</a></td>`;
-                            tbody.appendChild(tr);
-                        });
-                      })
-                      .catch(()=>{ tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-red-500">Failed to load.</td></tr>'; });
-                });
-            })();
-        });
-        
-document.getElementById("notifBell").addEventListener("click", function() {
-    // AJAX call to mark notifications as read
-    fetch("mark_notifications_read.php")
-        .then(response => response.text())
-        .then(data => {
-            // Reset count to 0 in badge
-            document.getElementById("notifCount").innerText = "0";
-        })
-        .catch(err => console.error("Error marking notifications:", err));
-});
-
-
-    </script>
+        </script>
 </body>
+
 </html>

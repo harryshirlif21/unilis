@@ -6,7 +6,7 @@ $maxRetries = 5;
 $retryDelay = 3; // seconds
 
 // Get environment variables with fallbacks for Docker
-$host = getenv('DB_HOST');
+$host = getenv('DB_HOST') ?: '127.0.0.1';
 if (!$host) {
     // Check if running in Docker
     if (file_exists('/.dockerenv')) {
@@ -16,8 +16,8 @@ if (!$host) {
     }
 }
 
-$user = getenv('MYSQL_USER') ?: 'unilisuser';
-$password = getenv('MYSQL_PASSWORD') ?: 'unilispass';
+$user = getenv('MYSQL_USER') ?: 'root';
+$password = getenv('MYSQL_PASSWORD') ?: 'password';
 $dbname = getenv('MYSQL_DATABASE') ?: 'unilis';
 
 // Connection retry loop with improved error handling
