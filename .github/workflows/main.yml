@@ -3,14 +3,14 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - production
+      - main
 
   # schedule:
   #   - cron: '0 0 0 * *' # Uncomment to schedule the workflow
 
   pull_request:
     branches:
-      - production
+      - main
     types:
       - closed
 
@@ -34,7 +34,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v3
         with:
-          context: ./client/
+          context: ./
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}, ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
 
