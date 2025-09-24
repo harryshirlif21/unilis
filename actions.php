@@ -9,46 +9,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
-//create notification 
-
-function createNotification($conn, $user_id, $user_role, $title, $message, $link = null, $sendEmail = true) {
-    // Insert into notifications table
-    $ins = $conn->prepare("
-        INSERT INTO notifications (user_id, user_role, title, message, link, is_read, created_at) 
-        VALUES (?, ?, ?, ?, ?, 0, NOW())
-    ");
-    if (!$ins) die("❌ Prepare failed: " . $conn->error);
-
-    $ins->bind_param("issss", $user_id, $user_role, $title, $message, $link);
-    if (!$ins->execute()) die("❌ Notification insert failed: " . $ins->error);
-    $ins->close();
-
-    // Optional: send email to student
-    if ($sendEmail && $user_role === 'student') {
-        $get = $conn->prepare("SELECT email, name FROM students WHERE id = ?");
-        $get->bind_param("i", $user_id);
-        $get->execute();
-        $res = $get->get_result();
-        if ($row = $res->fetch_assoc()) {
-            $to = $row['email'];
-            $name = htmlspecialchars($row['name']);
-            $subject = $title;
-            $body = "
-                <html><body>
-                <p>Dear {$name},</p>
-                <p>{$message}</p>
-                " . ($link ? "<p><a href='https://yourdomain.com/{$link}'>Open in UNILIS</a></p>" : "") . "
-                <br><p>Regards,<br>UNILIS Team</p>
-                </body></html>
-            ";
-            $headers = "MIME-Version: 1.0\r\n";
-            $headers .= "Content-type:text/html;charset=UTF-8\r\n";
-            $headers .= "From: no-reply@yourdomain.com\r\n";
-            @mail($to, $subject, $body, $headers);
-        }
-        $get->close();
-    }
-}
 
 // Helper: Safe action fetch
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -362,85 +322,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 
 
 // === UPLOAD NOTES ===
-// === UPLOAD NOTES ===
 if ($action === 'upload_notes') {
-    $unit_id = intval($_POST['unit_id']);
+    $unit_id = $_POST['unit_id'];
     $lecturer_id = $_SESSION['user_id'];
+    $file = $_FILES['notes_file'];
 
-    // Handle single or multiple files
-    $files = $_FILES['notes_file'];
     $upload_dir = "assets/uploads/";
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
-    // Normalize file input (single vs multiple)
-    $fileNames = is_array($files['name']) ? $files['name'] : [$files['name']];
-    $fileTmp   = is_array($files['tmp_name']) ? $files['tmp_name'] : [$files['tmp_name']];
+    $filename = time() . "_" . basename($file['name']);
+    $target_path = $upload_dir . $filename;
 
-    // Track if notifications already sent for this batch
-    $notified = false;
-
-    foreach ($fileNames as $index => $name) {
-        if (empty($name)) continue; // skip empty slots
-
-        $filename = time() . "_" . preg_replace("/[^a-zA-Z0-9._-]/", "_", basename($name));
-        $target_path = $upload_dir . $filename;
-
-        if (move_uploaded_file($fileTmp[$index], $target_path)) {
-            // Insert into notes table
-            $stmt = $conn->prepare("
-                INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) 
-                VALUES (?, ?, ?, NOW())
-            ");
-            $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
-            if (!$stmt->execute()) {
-                error_log("❌ Notes insert failed: " . $stmt->error);
-            }
-            $stmt->close();
-
-            // Send notifications only once per upload batch
-            if (!$notified) {
-                $notif_title = "New Notes Uploaded";
-                $notif_message = "Your lecturer has uploaded new notes for your unit.";
-                $link = "student/dashboard.php?view=notes&unit_id=" . $unit_id;
-
-                // Fetch students in this unit
-                $studentsQuery = $conn->prepare("
-                    SELECT s.id 
-                    FROM student_units su 
-                    JOIN students s ON su.student_id = s.id 
-                    WHERE su.unit_id = ?
-                ");
-                $studentsQuery->bind_param("i", $unit_id);
-                $studentsQuery->execute();
-                $studentsResult = $studentsQuery->get_result();
-
-                if ($studentsResult->num_rows === 0) {
-                    error_log("⚠️ No students found for unit_id = " . $unit_id);
-                }
-
-                while ($student = $studentsResult->fetch_assoc()) {
-                    createNotification(
-                        $conn,
-                        intval($student['id']), // user_id
-                        'student',              // user_role
-                        $notif_title,
-                        $notif_message,
-                        $link
-                    );
-                }
-                $studentsQuery->close();
-
-                $notified = true; // prevent duplicates
-            }
-        }
+    if (move_uploaded_file($file['tmp_name'], $target_path)) {
+        $stmt = $conn->prepare("INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
+        $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
+        $stmt->execute();
+        $_SESSION['upload_success'] = "Notes uploaded.";
+    } else {
+        $_SESSION['upload_error'] = "File upload failed.";
     }
-
-    $_SESSION['upload_success'] = "Notes uploaded successfully.";
     header("Location: lecturer/dashboard.php");
     exit;
 }
-
-
 
 // === CREATE ASSIGNMENT ===
 if ($action === 'create_assignment') {
@@ -713,58 +616,11 @@ if ($action === 'download_register') {
     exit;
 }
 
-// =================== VIEW COURSE UNITS (AJAX) ===================
-if ($action === 'get_course_units') {
-    $course_id = intval($_REQUEST['course_id'] ?? 0);
-    $stmt = $conn->prepare("
-        SELECT c.id AS course_id, c.name AS course_name, d.name AS department_name,
-               u.id AS unit_id, u.name AS unit_name, u.code AS unit_code, u.year, u.semester
-        FROM courses c
-        JOIN departments d ON c.department_id = d.id
-        LEFT JOIN units u ON c.id = u.course_id
-        WHERE c.id = ?
-        ORDER BY u.year, u.semester, u.name
-    ");
-    $stmt->bind_param("i", $course_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    $course = null;
-    $units = [];
-    while ($row = $result->fetch_assoc()) {
-        if (!$course) {
-            $course = [
-                'course_id' => $row['course_id'],
-                'course_name' => $row['course_name'],
-                'department_name' => $row['department_name']
-            ];
-        }
-        if ($row['unit_id']) {
-            $units[] = [
-                'id' => $row['unit_id'],
-                'unit_name' => $row['unit_name'],
-                'unit_code' => $row['unit_code'],
-                'year' => $row['year'],
-                'semester' => $row['semester']
-            ];
-        }
-    }
-
-    header('Content-Type: application/json');
-    echo json_encode([
-        'status' => 'success',
-        'course' => $course ?: ['course_id'=>$course_id,'course_name'=>'','department_name'=>''],
-        'units' => $units
-    ]);
-    exit;
-}
-
-// =================== GENERATE PDF FOR COURSE UNITS ===================
-if ($action === 'generate_unit_pdf') {
-    $course_id = intval($_REQUEST['course_id'] ?? 0);
-
-    $stmt = $conn->prepare("
-        SELECT c.name AS course_name, d.name AS department_name,
+// === GET COURSE UNITS (FOR AJAX) ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_course_units' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $course_id = intval($_POST['course_id']);
+    $query = $conn->prepare("
+        SELECT c.id AS course_id, c.name AS course_name, d.name AS department_name, 
                u.name AS unit_name, u.code AS unit_code, u.year, u.semester
         FROM courses c
         JOIN departments d ON c.department_id = d.id
@@ -772,7 +628,48 @@ if ($action === 'generate_unit_pdf') {
         WHERE c.id = ?
         ORDER BY u.year, u.semester, u.name
     ");
-    $stmt->bind_param("i", $course_id);
+    $query->bind_param('i', $course_id);
+    $query->execute();
+    $result = $query->get_result();
+
+    $course_data = null;
+    while ($row = $result->fetch_assoc()) {
+        if (!$course_data) {
+            $course_data = [
+                'course_id' => $row['course_id'],
+                'course_name' => $row['course_name'],
+                'department_name' => $row['department_name'],
+                'units' => []
+            ];
+        }
+        if ($row['unit_name']) {
+            $course_data['units'][] = [
+                'unit_name' => $row['unit_name'],
+                'unit_code' => $row['unit_code'],
+                'year' => $row['year'],
+                'semester' => $row['semester']
+            ];
+        }
+    }
+    $query->close();
+    header('Content-Type: application/json');
+    echo json_encode($course_data ?: ['course_id' => $course_id, 'course_name' => '', 'department_name' => '', 'units' => []]);
+    exit;
+}
+
+// === DOWNLOAD PDF OF COURSE UNITS ===
+if (isset($_GET['action']) && $_GET['action'] === 'download_pdf' && isset($_GET['course_id'])) {
+    $course_id = intval($_GET['course_id']);
+    $stmt = $conn->prepare("
+        SELECT c.name AS course_name, d.name AS department_name, 
+               u.name AS unit_name, u.code AS unit_code, u.year, u.semester
+        FROM courses c
+        JOIN departments d ON c.department_id = d.id
+        LEFT JOIN units u ON c.id = u.course_id
+        WHERE c.id = ?
+        ORDER BY u.year, u.semester, u.name
+    ");
+    $stmt->bind_param('i', $course_id);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -783,23 +680,138 @@ if ($action === 'generate_unit_pdf') {
         $course_name = $row['course_name'];
         $department_name = $row['department_name'];
         if ($row['unit_name']) {
-            $units[] = $row;
+            $units[] = [
+                'unit_name' => $row['unit_name'],
+                'unit_code' => $row['unit_code'],
+                'year' => $row['year'],
+                'semester' => $row['semester']
+            ];
         }
     }
+    $stmt->close();
 
-    $html = "<h2>Units for Course: $course_name</h2>";
-    $html .= "<p><strong>Department:</strong> $department_name</p>";
-    $html .= "<table border='1' cellpadding='5' cellspacing='0' style='border-collapse: collapse; width: 100%;'>";
-    $html .= "<tr><th>Year</th><th>Semester</th><th>Unit Name</th><th>Unit Code</th></tr>";
-    foreach ($units as $u) {
-        $html .= "<tr>
-            <td>{$u['year']}</td>
-            <td>{$u['semester']}</td>
-            <td>{$u['unit_name']}</td>
-            <td>{$u['unit_code']}</td>
-        </tr>";
+    // Generate PDF using Dompdf
+    $dompdf = new Dompdf();
+    $html = '
+        <h1>Units for ' . htmlspecialchars($course_name) . '</h1>
+        <p><strong>Department:</strong> ' . htmlspecialchars($department_name) . '</p>
+        <p><strong>Total Units:</strong> ' . count($units) . '</p>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #ddd; padding: 8px;">Year</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">Semester</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">Unit Name</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">Unit Code</th>
+                </tr>
+            </thead>
+            <tbody>
+    ';
+    foreach ($units as $unit) {
+        $html .= '
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">' . htmlspecialchars($unit['year']) . '</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">' . htmlspecialchars($unit['semester']) . '</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">' . htmlspecialchars($unit['unit_name']) . '</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">' . htmlspecialchars($unit['unit_code']) . '</td>
+            </tr>
+        ';
     }
-    $html .= "</table>";
+    $html .= '
+            </tbody>
+        </table>
+    ';
+
+    $dompdf->loadHtml($html);
+    $dompdf->setPaper('A4', 'portrait');
+    $dompdf->render();
+    $dompdf->stream("$course_name_units.pdf", ['Attachment' => true]);
+    exit;
+}
+
+// === VIEW UNITS BY COURSE ===
+if (isset($_POST['action']) && $_POST['action'] === 'view_units_by_course') {
+    $course_id = intval($_POST['course_id']);
+
+    $course_name_stmt = $conn->prepare("SELECT name FROM courses WHERE id = ?");
+    $course_name_stmt->bind_param("i", $course_id);
+    $course_name_stmt->execute();
+    $course_result = $course_name_stmt->get_result();
+    $course = $course_result->fetch_assoc();
+    $course_name = $course['name'] ?? 'Unknown Course';
+
+    // Fetch units
+    $units_stmt = $conn->prepare("
+        SELECT name, code, year, semester 
+        FROM units 
+        WHERE course_id = ? 
+        ORDER BY year, semester, name
+    ");
+    $units_stmt->bind_param("i", $course_id);
+    $units_stmt->execute();
+    $units_result = $units_stmt->get_result();
+
+    $units_by_group = [];
+    while ($unit = $units_result->fetch_assoc()) {
+        $key = "Year {$unit['year']} - Semester {$unit['semester']}";
+        $units_by_group[$key][] = $unit;
+    }
+
+    echo "<h3>Units for <strong>" . htmlspecialchars($course_name) . "</strong></h3>";
+
+    if (!empty($units_by_group)) {
+        echo "<div id='unitDisplay'>";
+        foreach ($units_by_group as $group => $units) {
+            echo "<h4>$group</h4><ul>";
+            foreach ($units as $u) {
+                echo "<li><strong>" . htmlspecialchars($u['code']) . "</strong>: " . htmlspecialchars($u['name']) . "</li>";
+            }
+            echo "</ul>";
+        }
+        echo "</div>";
+        echo "<form method='POST' action='actions.php' target='_blank'>
+                <input type='hidden' name='action' value='generate_unit_pdf'>
+                <input type='hidden' name='course_id' value='$course_id'>
+                <button type='submit'>Generate PDF</button>
+              </form>";
+    } else {
+        echo "<p>No units found for this course.</p>";
+    }
+
+    exit;
+}
+
+// === GENERATE PDF OF UNITS FOR A COURSE ===
+if (isset($_POST['action']) && $_POST['action'] === 'generate_unit_pdf') {
+    $course_id = intval($_POST['course_id']);
+
+    $course_stmt = $conn->prepare("SELECT name FROM courses WHERE id = ?");
+    $course_stmt->bind_param("i", $course_id);
+    $course_stmt->execute();
+    $course_result = $course_stmt->get_result();
+    $course = $course_result->fetch_assoc();
+    $course_name = $course['name'] ?? 'Unknown Course';
+
+    $unit_stmt = $conn->prepare("SELECT name, code, year, semester FROM units WHERE course_id = ? ORDER BY year, semester, name");
+    $unit_stmt->bind_param("i", $course_id);
+    $unit_stmt->execute();
+    $unit_result = $unit_stmt->get_result();
+
+    $units_by_group = [];
+    while ($unit = $unit_result->fetch_assoc()) {
+        $group = "Year {$unit['year']} - Semester {$unit['semester']}";
+        $units_by_group[$group][] = $unit;
+    }
+
+    // Build HTML for PDF
+    $html = "<h2 style='text-align:center;'>Units for Course: $course_name</h2>";
+    foreach ($units_by_group as $group => $units) {
+        $html .= "<h3>$group</h3><ul>";
+        foreach ($units as $u) {
+            $html .= "<li><strong>{$u['code']}</strong>: {$u['name']}</li>";
+        }
+        $html .= "</ul>";
+    }
 
     $dompdf = new Dompdf();
     $dompdf->loadHtml($html);
@@ -807,92 +819,26 @@ if ($action === 'generate_unit_pdf') {
     $dompdf->render();
     $dompdf->stream("Units_$course_name.pdf", ["Attachment" => true]);
     exit;
-}  
+}
 
-// =================== GET COURSE UNITS (AJAX) ===================
-if ($action === 'get_course_units') {
-    $course_id = intval($_REQUEST['course_id'] ?? 0);
+// === GET UNITS BY COURSE (LEGACY) ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_units_by_course') {
+    $course_id = intval($_GET['course_id']);
+    $query = $conn->query("SELECT u.name AS unit_name, u.code AS unit_code, 
+                                  c.name AS course_name, d.name AS department_name,
+                                  (SELECT COUNT(*) FROM units WHERE course_id = $course_id) AS total_units
+                           FROM units u 
+                           JOIN courses c ON u.course_id = c.id 
+                           JOIN departments d ON c.department_id = d.id 
+                           WHERE u.course_id = $course_id");
 
-    // Fetch course + units
-    $stmt = $conn->prepare("
-        SELECT c.id AS course_id, c.name AS course_name, d.name AS department_name,
-               u.id AS unit_id, u.name AS unit_name, u.code AS unit_code, u.year, u.semester
-        FROM courses c
-        JOIN departments d ON c.department_id = d.id
-        LEFT JOIN units u ON c.id = u.course_id
-        WHERE c.id = ?
-        ORDER BY u.year ASC, u.semester ASC, u.name ASC
-    ");
-    $stmt->bind_param("i", $course_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    $course = null;
     $units = [];
-
-    while ($row = $result->fetch_assoc()) {
-        if (!$course) {
-            $course = [
-                'course_id' => $row['course_id'],
-                'course_name' => $row['course_name'],
-                'department_name' => $row['department_name']
-            ];
-        }
-        if ($row['unit_id']) {
-            // Group by Year -> Semester
-            $year = "Year " . $row['year'];
-            $semester = "Semester " . $row['semester'];
-            $units[$year][$semester][] = [
-                'id' => $row['unit_id'],
-                'name' => $row['unit_name'],
-                'code' => $row['unit_code']
-            ];
-        }
+    while ($row = $query->fetch_assoc()) {
+        $units[] = $row;
     }
-
-    header('Content-Type: application/json');
-    echo json_encode([
-        'status' => 'success',
-        'course' => $course ?: ['course_id'=>$course_id,'course_name'=>'','department_name'=>''],
-        'units' => $units
-    ]);
+    echo json_encode($units);
     exit;
 }
-
-// =================== DELETE UNIT ===================
-if ($action === 'delete_unit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Get the unit ID from the request
-    $unit_id = intval($_POST['unit_id'] ?? 0);
-
-    if ($unit_id <= 0) {
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Invalid unit ID'
-        ]);
-        exit;
-    }
-
-    // Prepare and execute deletion
-    $stmt = $conn->prepare("DELETE FROM units WHERE id = ?");
-    $stmt->bind_param("i", $unit_id);
-
-    if ($stmt->execute()) {
-        echo json_encode([
-            'status' => 'success',
-            'message' => 'Unit deleted successfully'
-        ]);
-    } else {
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Failed to delete unit'
-        ]);
-    }
-
-    $stmt->close();
-    exit;
-}
-
-// === GENERATE UNIT SUBMISSION REPORT PDF ===
 if ($action === 'generate_unit_submission_pdf') {
     require_once 'vendor/autoload.php'; // Composer autoload
 
@@ -1618,14 +1564,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
     $_SESSION['success'] = "Interactive Assignment (and questions) updated successfully!";
     header("Location: lecturer/manage_interactive.php");
     exit;
-}
-function sendEmail($to, $subject, $message) {
-    $headers = "MIME-Version: 1.0" . "\r\n";
-    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-    $headers .= "From: UNILIS <no-reply@unilis.ac.ke>" . "\r\n";
-
-    // Use PHP mail()
-    return mail($to, $subject, $message, $headers);
 }
 
 ?>
