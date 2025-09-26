@@ -2,7 +2,6 @@
 session_start();
 require_once '../config/db.php';
 
-
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     header("Location: ../login.php");
     exit;
@@ -12,7 +11,6 @@ $user_id = $_SESSION['user_id'];
 $admin_res = $conn->query("SELECT * FROM admins WHERE id = $user_id");
 $admin = $admin_res->fetch_assoc();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,987 +18,32 @@ $admin = $admin_res->fetch_assoc();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - UNILIS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
     <style>
-        :root {
-            --primary-color: #3498db;
-            --secondary-color: #2c3e50;
-            --accent-color: #2ecc71;
-            --text-color: #333;
-            --light-bg: #ecf0f1;
-            --white: #ffffff;
-            --border-color: #ddd;
-            --danger-color: #e74c3c;
-            --shadow-light: 0 4px 15px rgba(0, 0, 0, 0.08);
-            --shadow-medium: 0 10px 30px rgba(0, 0, 0, 0.2);
-            --info-color: #007bff;
-            --warning-color: #ffc107;
-            --success-color: #28a745;
-            --header-gradient: linear-gradient(to right, #2c3e50, #34495e);
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            min-height: 100vh;
-            background-color: var(--light-bg);
-            color: var(--text-color);
-            line-height: 1.6;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            background: var(--header-gradient);
-            color: var(--white);
-            padding: 15px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header h1 {
-            margin: 0;
-            font-size: 1.8em;
-            font-weight: 400;
-        }
-
-        .header .admin-info {
-            font-size: 1.1em;
-            font-weight: 300;
-        }
-
-        .hamburger-menu {
-            font-size: 1.8em;
-            cursor: pointer;
-            background: none;
-            border: none;
-            color: var(--white);
-            padding: 5px 10px;
-            border-radius: 5px;
-            transition: background-color 0.2s ease;
-        }
-
-        .hamburger-menu:hover {
-            background-color: rgba(255, 255, 255, 0.15);
-        }
-
-        .off-canvas-menu {
+        /* small in-file styles kept (you can move to styles.css) */
+        .floating-message {
             position: fixed;
-            top: 0;
-            right: -300px;
-            width: 280px;
-            height: 100vh;
-            background-color: var(--secondary-color);
-            box-shadow: -6px 0 20px rgba(0, 0, 0, 0.3);
-            transition: right 0.3s ease-in-out;
-            z-index: 200;
-            display: flex;
-            flex-direction: column;
-            padding: 25px 25px 40px 25px;
-            box-sizing: border-box;
-            overflow-y: auto;
-        }
-
-        .off-canvas-menu.active {
-            right: 0;
-        }
-
-        .off-canvas-menu .close-btn {
-            font-size: 2em;
-            color: var(--white);
-            align-self: flex-end;
-            cursor: pointer;
-            margin-bottom: 20px;
-            transition: color 0.2s ease;
-        }
-
-        .off-canvas-menu .close-btn:hover {
-            color: var(--danger-color);
-        }
-
-        .off-canvas-menu .menu-section-title {
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 0.9em;
-            margin-top: 20px;
-            margin-bottom: 8px;
-            padding-left: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-            padding-bottom: 5px;
-        }
-
-        .off-canvas-menu .menu-item {
-            display: flex;
-            align-items: center;
-            width: 100%;
-            padding: 14px 15px;
-            margin-bottom: 8px;
-            border: none;
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--white);
-            border-radius: 8px;
-            cursor: pointer;
-            text-align: left;
-            text-decoration: none;
-            font-size: 1.05em;
-            transition: background-color 0.3s ease, transform 0.2s ease;
-            gap: 12px;
-            box-sizing: border-box;
-        }
-
-        .off-canvas-menu .menu-item:hover {
-            background-color: var(--primary-color);
-            transform: translateY(-3px);
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .off-canvas-menu .menu-item.logout {
-            margin-top: auto;
-            background-color: var(--danger-color);
-        }
-
-        .overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 150;
-            transition: opacity 0.3s ease;
-            opacity: 0;
-        }
-
-        .overlay.active {
-            display: block;
-            opacity: 1;
-        }
-
-        .content {
-            flex: 1;
-            padding: 30px;
-            background: var(--light-bg);
-            overflow-y: auto;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .content h2 {
-            color: var(--secondary-color);
-            margin-bottom: 25px;
-            font-size: 2.2em;
-            border-bottom: 2px solid var(--primary-color);
-            padding-bottom: 15px;
-            text-align: center;
-        }
-
-        .stat-cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 25px;
-            margin-bottom: 40px;
-            padding: 0 10px;
-            max-width: 1200px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .stat-card {
-            background-color: var(--white);
-            border-radius: 15px;
-            box-shadow: var(--shadow-light);
-            padding: 25px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 120px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            border: 1px solid var(--border-color);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-8px);
-            box-shadow: var(--shadow-medium);
-        }
-
-        .stat-card .icon {
-            font-size: 2.8em;
-            color: var(--primary-color);
-            margin-bottom: 10px;
-        }
-
-        .stat-card .number {
-            font-size: 3em;
-            font-weight: bold;
-            color: var(--secondary-color);
-            margin-bottom: 5px;
-        }
-
-        .stat-card .label {
-            font-size: 1em;
-            color: #666;
-            margin-bottom: 10px;
-        }
-
-        .stat-card .university-select {
-            width: 100%;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .stat-card .university-select select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            background-color: var(--white);
-            color: var(--text-color);
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: border-color 0.2s ease;
-        }
-
-        .stat-card .university-select select:hover,
-        .stat-card .university-select select:focus {
-            border-color: var(--primary-color);
-            outline: none;
-        }
-
-        .stat-card.users .icon, .stat-card.users .number { color: var(--info-color); }
-        .stat-card.courses .icon, .stat-card.courses .number { color: var(--primary-color); }
-        .stat-card.departments .icon, .stat-card.departments .number { color: var(--warning-color); }
-        .stat-card.universities .icon, .stat-card.universities .number { color: var(--success-color); }
-
-        .charts-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 25px;
-            margin-bottom: 40px;
-            padding: 0 10px;
-            max-width: 1200px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .chart-container {
-            background-color: var(--white);
-            border-radius: 12px;
-            box-shadow: var(--shadow-light);
-            padding: 25px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 250px;
-            border: 1px solid var(--border-color);
-        }
-
-        .chart-container h3 {
-            margin-top: 0;
-            color: var(--secondary-color);
-            font-size: 1.4em;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .chart-placeholder {
-            width: 100%;
-            height: 180px;
-            background-color: #f0f0f0;
-            border: 1px dashed var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #aaa;
-            font-style: italic;
-            font-size: 0.9em;
-        }
-
-        .recent-activity-section {
-            margin-bottom: 40px;
-            padding: 0 10px;
-            max-width: 1200px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .recent-activity-section h3 {
-            color: var(--secondary-color);
-            font-size: 1.8em;
-            margin-bottom: 20px;
-            border-bottom: 2px solid var(--primary-color);
-            padding-bottom: 10px;
-        }
-
-        .table-container {
-            background-color: var(--white);
-            border-radius: 12px;
-            box-shadow: var(--shadow-light);
-            padding: 20px;
-            overflow-x: auto;
-            margin-bottom: 25px;
-            border: 1px solid var(--border-color);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.95em;
-            min-width: 600px;
-        }
-
-        table th, table td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        table th {
-            background-color: var(--light-bg);
-            color: var(--secondary-color);
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        table tbody tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-
-        table tbody tr:hover {
-            background-color: #e6f7ff;
-        }
-
-        table td .action-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: bold;
-            transition: color 0.2s ease;
-        }
-
-        table td .action-link:hover {
-            color: var(--accent-color);
-            text-decoration: underline;
-        }
-
-        .action-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 25px;
-            padding: 0 10px;
-            max-width: 1200px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .action-card {
-            background-color: var(--white);
-            border-radius: 15px;
-            box-shadow: var(--shadow-light);
-            padding: 30px;
-            text-align: center;
-            cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 180px;
-            border: 1px solid var(--border-color);
-        }
-
-        .action-card:hover {
-            transform: translateY(-8px);
-            box-shadow: var(--shadow-medium);
-            border-color: var(--primary-color);
-        }
-
-        .action-card .icon {
-            font-size: 3.8em;
-            color: var(--primary-color);
-            margin-bottom: 15px;
-            transition: color 0.2s ease;
-        }
-
-        .action-card:hover .icon {
-            color: var(--accent-color);
-        }
-
-        .action-card h3 {
-            font-size: 1.5em;
-            color: var(--secondary-color);
-            margin-top: 0;
-            margin-bottom: 10px;
-        }
-
-        .action-card p {
-            font-size: 0.95em;
-            color: #666;
-            margin: 0;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.6);
-        }
-
-        .modal.delete-modal .modal-content {
-            width: 90%;
-            max-width: 400px;
-            margin: 15% auto;
-            padding: 20px;
-            text-align: center;
-        }
-
-        .modal.delete-modal h3 {
-            margin: 0 0 15px 0;
-            color: var(--danger-color);
-        }
-
-        .modal-content {
-            background-color: var(--white);
-            margin: 10% auto;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: var(--shadow-medium);
-            width: 80%;
-            max-width: 800px;
-            border: 1px solid var(--border-color);
-        }
-
-        .modal-content h3 {
-            color: var(--secondary-color);
-            margin-top: 0;
-            margin-bottom: 20px;
-            font-size: 1.6em;
-        }
-
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: color 0.2s ease;
-        }
-
-        .close:hover,
-        .close:focus {
-            color: var(--danger-color);
-        }
-
-        .modal-content form {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .modal-content label {
-            font-size: 1em;
-            color: var(--text-color);
-            font-weight: 500;
-        }
-
-        .modal-content input[type="text"],
-        .modal-content select {
-            padding: 10px;
-            font-size: 0.95em;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            width: 100%;
-            box-sizing: border-box;
-            transition: border-color 0.2s ease;
-        }
-
-        .modal-content input:focus,
-        .modal-content select:focus {
-            border-color: var(--primary-color);
-            outline: none;
-        }
-
-        .modal-content button[type="submit"],
-        .modal-content button[type="button"] {
-            background-color: var(--primary-color);
-            color: var(--white);
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.95em;
-            transition: background-color 0.2s ease;
-            align-self: flex-start;
-        }
-
-        .modal-content button[type="submit"]:hover,
-        .modal-content button[type="button"]:hover {
-            background-color: var(--accent-color);
-        }
-
-        .unit-selection {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .unit-selection label {
-            margin-right: 10px;
-            flex: 0 0 auto;
-        }
-
-        .unit-selection select {
-            flex: 1;
-            min-width: 150px;
-            max-width: 200px;
-        }
-
-        .unit-box {
-            border: 1px solid var(--border-color);
-            background-color: #f9f9f9;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            box-shadow: var(--shadow-light);
-        }
-
-        .unit-box h4 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            background-color: var(--light-bg);
-            padding: 5px 10px;
-            border-radius: 4px;
-            color: var(--secondary-color);
-        }
-
-        .unit-inputs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .unit-inputs label {
-            margin-right: 10px;
-            flex: 0 0 auto;
-        }
-
-        .unit-inputs input {
-            flex: 1;
-            min-width: 150px;
-            max-width: 250px;
-        }
-
-        .success {
-            color: var(--success-color);
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .error {
-            color: var(--danger-color);
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .select-container {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .select-container select {
-            padding: 10px;
-            font-size: 0.95em;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            min-width: 200px;
-            max-width: 400px;
-        }
-
-        .select-container button {
-            background-color: var(--primary-color);
-            color: var(--white);
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.95em;
-            transition: background-color 0.2s ease;
-        }
-
-        .select-container button:hover {
-            background-color: var(--accent-color);
-        }
-
-        @media (max-width: 992px) {
-            .stat-cards-grid, .charts-grid, .recent-activity-section, .action-grid {
-                padding: 0 15px;
-            }
-            .modal-content {
-                width: 80%;
-            }
-            .unit-selection select,
-            .unit-inputs input {
-                max-width: 100%;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .header {
-                padding: 10px 20px;
-            }
-            .header h1 {
-                font-size: 1.5em;
-            }
-            .header .admin-info {
-                font-size: 0.95em;
-            }
-            .content {
-                padding: 20px;
-            }
-            .stat-cards-grid {
-                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                gap: 15px;
-            }
-            .stat-card .number {
-                font-size: 2.2em;
-            }
-            .stat-card .label {
-                font-size: 0.85em;
-            }
-            .charts-grid {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-            .chart-container {
-                min-height: 220px;
-            }
-            .recent-activity-section h3 {
-                font-size: 1.5em;
-            }
-            table {
-                min-width: 500px;
-            }
-            .action-grid {
-                gap: 15px;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            }
-            .action-card {
-                padding: 20px;
-                min-height: 160px;
-            }
-            .action-card .icon {
-                font-size: 3em;
-            }
-            .action-card h3 {
-                font-size: 1.2em;
-            }
-            .unit-selection,
-            .unit-inputs {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .unit-selection select,
-            .unit-inputs input {
-                width: 100%;
-                max-width: none;
-            }
-            .select-container {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .select-container select {
-                width: 100%;
-                max-width: none;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .header .admin-info {
-                display: none;
-            }
-            .content {
-                padding: 15px;
-            }
-            .stat-cards-grid {
-                grid-template-columns: 1fr;
-            }
-            .action-grid {
-                grid-template-columns: 1fr;
-            }
-            .action-card {
-                min-height: 150px;
-            }
-            .chart-container {
-                min-height: 200px;
-            }
-            table {
-                font-size: 0.85em;
-                min-width: 400px;
-            }
-            table th, table td {
-                padding: 8px 10px;
-            }
-            .modal-content {
-                width: 90%;
-                margin: 15% auto;
-            }
-        }
-        .btn {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            color: white;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s ease;
-        }
-
-        .btn-primary {
-            background-color: #3498db;
-        }
-
-        .btn-primary:hover {
-            background-color: #2980b9;
-        }
-
-        .btn-danger {
-            background-color: #e74c3c;
-        }
-
-        .btn-danger:hover {
-            background-color: #c0392b;
-        }
-
-        .btn-success {
-            background-color: #2ecc71;
-        }
-
-        .btn-success:hover {
-            background-color: #27ae60;
-        }
-
-        .btn-secondary {
-            background-color: #95a5a6;
-        }
-
-        .btn-secondary:hover {
-            background-color: #7f8c8d;
-        }
-
-        .course-units-header {
-            margin-bottom: 20px;
-        }
-
-        .course-units-header .select-container {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .course-units-header select {
-            flex: 1;
-            min-width: 300px;
-            max-width: 600px;
-            padding: 8px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 0.95em;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn i {
-            margin-right: 5px;
-        }
-
-        .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        #unitsTableContainer {
-            margin-top: 20px;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 5px;
-        }
-
-        .action-buttons .btn {
-            padding: 4px 8px;
-            font-size: 0.9em;
-        }
-
-        /* Floating Units Display Styles */
-        .floating-display {
-            display: none;
-            position: fixed;
+            top: 20px;
             right: 20px;
-            top: 80px;
-            width: 400px;
-            max-height: calc(100vh - 100px);
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-            z-index: 1000;
-            overflow: hidden;
-            border: 1px solid var(--border-color);
+            padding: 15px 25px;
+            border-radius: 5px;
+            z-index: 9999;
+            display: none;
+            animation: slideIn 0.5s ease-out;
         }
-
-        .floating-display.active {
-            display: flex;
-            flex-direction: column;
+        .floating-message.success { background-color: #28a745; color: white; }
+        .floating-message.error   { background-color: #dc3545; color: white; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to   { transform: translateX(0); opacity: 1; }
         }
-
-        .floating-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px;
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .floating-header h3 {
-            margin: 0;
-            font-size: 1.2em;
-        }
-
-        .floating-header .close-btn {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 0 5px;
-            line-height: 1;
-        }
-
-        .floating-header .close-btn:hover {
-            color: #ff6b6b;
-        }
-
-        .units-grid {
-            padding: 15px;
-            overflow-y: auto;
-            max-height: calc(100vh - 180px);
-        }
-
-        .unit-card {
-            background: #f8f9fa;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .unit-card:hover {
-            transform: translateX(-5px);
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .unit-info {
-            flex: 1;
-        }
-
-        .unit-info h4 {
-            margin: 0 0 5px 0;
-            color: var(--secondary-color);
-            font-size: 1.1em;
-        }
-
-        .unit-code {
-            color: var(--primary-color);
-            font-weight: bold;
-            font-size: 0.9em;
-        }
-
-        .unit-meta {
-            color: #666;
-            font-size: 0.85em;
-            margin-top: 5px;
-        }
-
-        .unit-card .delete-btn {
-            background-color: transparent;
-            border: none;
-            color: var(--danger-color);
-            cursor: pointer;
-            padding: 5px;
-            margin-left: 10px;
-            border-radius: 4px;
-            transition: background-color 0.2s ease;
-        }
-
-        .unit-card .delete-btn:hover {
-            background-color: rgba(231, 76, 60, 0.1);
-        }
-
-        .unit-card .delete-btn i {
-            font-size: 1.2em;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: var(--secondary-color);
-            font-style: italic;
-        }
-
-        .error-message {
-            text-align: center;
-            padding: 20px;
-            color: var(--danger-color);
-            background-color: rgba(231, 76, 60, 0.1);
-            border-radius: 8px;
-        }
-
-        .empty-message {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            font-style: italic;
-        }
-
-        @media (max-width: 768px) {
-            .floating-display {
-                width: 90%;
-                right: 5%;
-                left: 5%;
-            }
-        }
+        /* basic floating display and units grid */
+        .floating-display { display:none; position:fixed; right:20px; top:80px; width:420px; max-height:70vh; overflow:auto; background:#fff; border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:999; }
+        .floating-display.active { display:block; }
+        .floating-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #eee; }
+        .units-grid { padding:12px 16px; display:grid; gap:8px; }
+        .unit-card { display:flex; justify-content:space-between; align-items:center; padding:10px; border-radius:6px; background:#fafafa; border:1px solid #eee; }
+        .delete-modal .modal-content { max-width:400px; }
     </style>
 </head>
 <body>
@@ -1106,10 +149,8 @@ $admin = $admin_res->fetch_assoc();
                         ORDER BY d.name, c.name
                     ");
                     while ($course = $courses_query->fetch_assoc()) {
-                        echo "<option value='{$course['id']}'>" . 
-                             htmlspecialchars($course['department_name']) . " - " . 
-                             htmlspecialchars($course['course_name']) . 
-                             " (" . $course['unit_count'] . " units)</option>";
+                        $label = htmlspecialchars($course['department_name']) . " - " . htmlspecialchars($course['course_name']) . " (" . $course['unit_count'] . " units)";
+                        echo "<option value='{$course['id']}'>$label</option>";
                     }
                     ?>
                 </select>
@@ -1137,7 +178,7 @@ $admin = $admin_res->fetch_assoc();
     </div>
 
     <!-- Delete Unit Confirmation Modal -->
-    <div id="deleteUnitModal" class="modal delete-modal">
+    <div id="deleteUnitModal" class="modal delete-modal" style="display:none;">
         <div class="modal-content">
             <h3>Delete Unit?</h3>
             <p></p>
@@ -1184,7 +225,7 @@ $admin = $admin_res->fetch_assoc();
     </div>
 
     <!-- UNIVERSITY MODAL -->
-    <div id="universityModal" class="modal">
+    <div id="universityModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('universityModal')">×</span>
             <h3>Add University</h3>
@@ -1199,152 +240,11 @@ $admin = $admin_res->fetch_assoc();
         </div>
     </div>
 
-
     <!-- Floating Message Div -->
     <div id="floatingMessage" class="floating-message" style="display: none;"></div>
 
-    <script>
-    function filterByUniversity(universityId) {
-        if (universityId) {
-            fetch(`../actions.php?action=get_university_data&university_id=${universityId}`)
-            .then(response => response.json())
-            .then(data => {
-                const courseSelect = document.querySelector('select[name="course_id"]');
-                courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
-                data.courses.forEach(course => {
-                    courseSelect.innerHTML += `<option value="${course.id}">${course.name} (${course.unit_count} units)</option>`;
-                });
-            })
-            .catch(error => console.error('Error:', error));
-        }
-    }
-
-    function viewCourseUnits() {
-        const courseId = document.getElementById('courseSelect').value;
-        if (!courseId) {
-            showFloatingMessage('Please select a course first', 'error');
-            return;
-        }
-
-        // Show loading state
-        const floatingDisplay = document.getElementById('floatingUnitsDisplay');
-        const unitsGrid = document.getElementById('unitsGrid');
-        floatingDisplay.classList.add('active');
-        unitsGrid.innerHTML = '<div class="loading">Loading units...</div>';
-
-        fetch(`../actions.php?action=get_course_units&course_id=${courseId}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (!data.course) {
-                    throw new Error('Course not found');
-                }
-
-                // Update the floating header with course info
-                const header = floatingDisplay.querySelector('.floating-header h3');
-                header.textContent = `${data.course.department_name} - ${data.course.course_name}`;
-
-                unitsGrid.innerHTML = '';
-                if (data.units && data.units.length > 0) {
-                    // Sort units by year and semester
-                    const sortedUnits = data.units.sort((a, b) => {
-                        if (a.year !== b.year) return a.year - b.year;
-                        return a.semester - b.semester;
-                    });
-
-                    sortedUnits.forEach(unit => {
-                        const unitCard = document.createElement('div');
-                        unitCard.className = 'unit-card';
-                        unitCard.innerHTML = `
-                            <div class="unit-info">
-                                <h4>${unit.name}</h4>
-                                <div class="unit-code">${unit.code}</div>
-                                <div class="unit-meta">
-                                    Year ${unit.year}, Semester ${unit.semester}
-                                </div>
-                            </div>
-                            <button class="delete-btn" onclick="showDeleteUnitModal(${unit.id}, '${unit.code}')" title="Delete Unit">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        `;
-                        unitsGrid.appendChild(unitCard);
-                    });
-                } else {
-                    unitsGrid.innerHTML = '<div class="empty-message">No units found for this course.</div>';
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                unitsGrid.innerHTML = '<div class="error-message">Error loading units. Please try again.</div>';
-                showFloatingMessage('Error loading units: ' + error.message, 'error');
-            });
-    }
-
-    function showDeleteUnitModal(unitId, unitCode) {
-        document.getElementById('deleteUnitId').value = unitId;
-        const modalContent = document.querySelector('#deleteUnitModal p');
-        modalContent.textContent = `Delete ${unitCode}?`;
-        openModal('deleteUnitModal');
-    }
-
-    function confirmDeleteUnit() {
-        const unitId = document.getElementById('deleteUnitId').value;
-        
-        fetch('../actions.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `action=delete_unit&unit_id=${unitId}`
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                closeModal('deleteUnitModal');
-                viewCourseUnits(); // Refresh the units table
-                showFloatingMessage(data.message, 'success');
-            } else {
-                showFloatingMessage(data.message, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showFloatingMessage('An error occurred while deleting the unit', 'error');
-        });
-    }
-
-    function exportUnitsPDF() {
-        const courseId = document.getElementById('courseSelect').value;
-        if (!courseId) {
-            alert('Please select a course first');
-            return;
-        }
-        window.open(`../actions.php?action=generate_unit_pdf&course_id=${courseId}`, '_blank');
-    }
-
-    function showFloatingMessage(message, type = 'success') {
-        const messageDiv = document.getElementById('floatingMessage');
-        messageDiv.textContent = message;
-        messageDiv.className = `floating-message ${type}`;
-        messageDiv.style.display = 'block';
-        
-        setTimeout(() => {
-            messageDiv.style.display = 'none';
-        }, 3000);
-    }
-
-    function closeFloatingDisplay() {
-        const floatingDisplay = document.getElementById('floatingUnitsDisplay');
-        floatingDisplay.classList.remove('active');
-    }
-    </script>
-
     <!-- DEPARTMENT MODAL -->
-    <div id="departmentModal" class="modal">
+    <div id="departmentModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('departmentModal')">×</span>
             <h3>Add Department</h3>
@@ -1374,83 +274,8 @@ $admin = $admin_res->fetch_assoc();
         </div>
     </div>
 
-    <style>
-    .floating-message {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 25px;
-        border-radius: 5px;
-        z-index: 9999;
-        display: none;
-        animation: slideIn 0.5s ease-out;
-    }
-
-    .floating-message.success {
-        background-color: #28a745;
-        color: white;
-    }
-
-    .floating-message.error {
-        background-color: #dc3545;
-        color: white;
-    }
-
-    @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    </style>
-
-    <script>
-    function showFloatingMessage(message, type) {
-        const msgDiv = document.getElementById('floatingMessage');
-        msgDiv.textContent = message;
-        msgDiv.className = 'floating-message ' + type;
-        msgDiv.style.display = 'block';
-
-        // Hide message after 3 seconds
-        setTimeout(() => {
-            msgDiv.style.display = 'none';
-        }, 3000);
-    }
-
-    function submitDepartmentForm(event) {
-        event.preventDefault();
-        const form = event.target;
-        const formData = new FormData(form);
-
-        fetch('../actions.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                showFloatingMessage(data.message, 'success');
-                closeModal('departmentModal');
-                // Optionally refresh the page or update the departments list
-                setTimeout(() => {
-                    location.reload();
-                }, 2000);
-            } else {
-                showFloatingMessage(data.message, 'error');
-            }
-        })
-        .catch(error => {
-            showFloatingMessage('An error occurred while submitting the form', 'error');
-        });
-    }
-    </script>
-
     <!-- COURSE MODAL -->
-    <div id="courseModal" class="modal">
+    <div id="courseModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('courseModal')">×</span>
             <h3>Add Course</h3>
@@ -1476,14 +301,13 @@ $admin = $admin_res->fetch_assoc();
     </div>
 
     <!-- UNIT SINGLE MODAL -->
-    <div id="unitSingleModal" class="modal">
+    <div id="unitSingleModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('unitSingleModal')">×</span>
             <h3>Add Single Unit</h3>
             <?php if (!empty($unit_success)) echo "<p class='success'>$unit_success</p>"; ?>
             <?php if (!empty($unit_error)) echo "<p class='error'>$unit_error</p>"; ?>
-<form method="POST" action="../actions.php">
-
+            <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_unit">
                 <div class="unit-selection">
                     <label>Course:</label>
@@ -1496,22 +320,21 @@ $admin = $admin_res->fetch_assoc();
                         }
                         ?>
                     </select>
-                   <label>Year:</label>
-<select name="year" required>
-  <option value="">-- Select Year --</option>
-  <option value="1">First Year</option>
-  <option value="2">Second Year</option>
-  <option value="3">Third Year</option>
-  <option value="4">Fourth Year</option>
-</select>
+                    <label>Year:</label>
+                    <select name="year" required>
+                      <option value="">-- Select Year --</option>
+                      <option value="1">First Year</option>
+                      <option value="2">Second Year</option>
+                      <option value="3">Third Year</option>
+                      <option value="4">Fourth Year</option>
+                    </select>
 
-<label>Semester:</label>
-<select name="semester" required>
-  <option value="">-- Select Semester --</option>
-  <option value="1">Semester 1</option>
-  <option value="2">Semester 2</option>
-</select>
-
+                    <label>Semester:</label>
+                    <select name="semester" required>
+                      <option value="">-- Select Semester --</option>
+                      <option value="1">Semester 1</option>
+                      <option value="2">Semester 2</option>
+                    </select>
                 </div>
                 <label>Unit Name:</label>
                 <input type="text" name="unit_name" required>
@@ -1523,7 +346,7 @@ $admin = $admin_res->fetch_assoc();
     </div>
 
     <!-- UNIT MODAL (Multiple Units) -->
-    <div id="unitModal" class="modal">
+    <div id="unitModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('unitModal')">×</span>
             <h3>Add Units (Max 8)</h3>
@@ -1542,21 +365,21 @@ $admin = $admin_res->fetch_assoc();
                         }
                         ?>
                     </select>
-                     <label>Year:</label>
-<select name="year" required>
-  <option value="">-- Select Year --</option>
-  <option value="1">First Year</option>
-  <option value="2">Second Year</option>
-  <option value="3">Third Year</option>
-  <option value="4">Fourth Year</option>
-</select>
+                    <label>Year:</label>
+                    <select name="year" required>
+                      <option value="">-- Select Year --</option>
+                      <option value="1">First Year</option>
+                      <option value="2">Second Year</option>
+                      <option value="3">Third Year</option>
+                      <option value="4">Fourth Year</option>
+                    </select>
 
-<label>Semester:</label>
-<select name="semester" required>
-  <option value="">-- Select Semester --</option>
-  <option value="1">Semester 1</option>
-  <option value="2">Semester 2</option>
-</select>
+                    <label>Semester:</label>
+                    <select name="semester" required>
+                      <option value="">-- Select Semester --</option>
+                      <option value="1">Semester 1</option>
+                      <option value="2">Semester 2</option>
+                    </select>
                 </div>
                 <hr>
                 <div id="unitContainer">
@@ -1577,7 +400,7 @@ $admin = $admin_res->fetch_assoc();
     </div>
 
     <!-- LECTURER MODAL -->
-    <div id="lecturerModal" class="modal">
+    <div id="lecturerModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('lecturerModal')">×</span>
             <h3>Add Lecturer</h3>
@@ -1605,138 +428,323 @@ $admin = $admin_res->fetch_assoc();
             </form>
         </div>
     </div>
-</div>
 
+</div> <!-- end .content -->
+
+<!-- ===========================
+     All JS consolidated below
+     =========================== -->
 <script>
-    // Off-Canvas Menu Logic
-    const hamburgerBtn = document.getElementById('hamburgerMenu');
-    const closeMenuBtn = document.getElementById('closeMenuBtn');
-    const offCanvasMenu = document.getElementById('offCanvasMenu');
-    const menuOverlay = document.getElementById('menuOverlay');
-
-    function toggleOffCanvasMenu() {
-        offCanvasMenu.classList.toggle('active');
-        menuOverlay.classList.toggle('active');
+/* Helper: safe JSON parse with debugging */
+function parseJSONSafe(text) {
+    if (text === null || text === undefined || text.trim() === '') {
+        return null;
     }
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        console.error('Failed to parse JSON. Raw response:', text);
+        throw e;
+    }
+}
 
-    hamburgerBtn.addEventListener('click', toggleOffCanvasMenu);
-    closeMenuBtn.addEventListener('click', toggleOffCanvasMenu);
-    menuOverlay.addEventListener('click', toggleOffCanvasMenu);
+/* Floating message UI (single implementation) */
+function showFloatingMessage(message, type = 'success') {
+    const messageDiv = document.getElementById('floatingMessage');
+    if (!messageDiv) return;
+    messageDiv.textContent = message;
+    messageDiv.className = `floating-message ${type}`;
+    messageDiv.style.display = 'block';
+    setTimeout(() => {
+        messageDiv.style.display = 'none';
+    }, 3000);
+}
 
-    const menuItems = document.querySelectorAll('.off-canvas-menu .menu-item');
+/* Off-Canvas Menu Logic: defensive checks */
+const hamburgerBtn = document.getElementById('hamburgerMenu');
+const closeMenuBtn = document.getElementById('closeMenuBtn');
+const offCanvasMenu = document.getElementById('offCanvasMenu');
+const menuOverlay = document.getElementById('menuOverlay');
+
+function toggleOffCanvasMenu() {
+    if (!offCanvasMenu || !menuOverlay) return;
+    offCanvasMenu.classList.toggle('active');
+    menuOverlay.classList.toggle('active');
+}
+if (hamburgerBtn) hamburgerBtn.addEventListener('click', toggleOffCanvasMenu);
+if (closeMenuBtn) closeMenuBtn.addEventListener('click', toggleOffCanvasMenu);
+if (menuOverlay) menuOverlay.addEventListener('click', toggleOffCanvasMenu);
+
+const menuItems = document.querySelectorAll('.off-canvas-menu .menu-item');
+if (menuItems && menuItems.length) {
     menuItems.forEach(item => {
         item.addEventListener('click', () => {
             setTimeout(toggleOffCanvasMenu, 150);
         });
     });
+}
 
-    // Modal Logic
-    function openModal(id) {
-        document.getElementById(id).style.display = 'block';
-    }
-
-    function closeModal(id) {
-        document.getElementById(id).style.display = 'none';
-    }
-
-    window.onclick = function(event) {
-        const modals = document.getElementsByClassName('modal');
-        for (let i = 0; i < modals.length; i++) {
-            if (event.target === modals[i]) {
-                modals[i].style.display = 'none';
-            }
+/* Basic modal functions */
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'block';
+}
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+}
+window.onclick = function(event) {
+    const modals = document.getElementsByClassName('modal');
+    for (let i = 0; i < modals.length; i++) {
+        if (event.target === modals[i]) {
+            modals[i].style.display = 'none';
         }
     }
+}
 
-    // Add Unit Logic for Multiple Units Modal
-    let unitCount = 1;
-    function addUnit() {
-        if (unitCount >= 8) {
-            alert('Maximum of 8 units allowed.');
+/* Add Unit Logic for Multiple Units Modal */
+let unitCount = 1;
+function addUnit() {
+    if (unitCount >= 8) {
+        alert('Maximum of 8 units allowed.');
+        return;
+    }
+    unitCount++;
+    const container = document.getElementById('unitContainer');
+    if (!container) return;
+    const box = document.createElement('div');
+    box.className = 'unit-box';
+    box.innerHTML = `
+        <h4>Unit ${unitCount}</h4>
+        <div class="unit-inputs">
+            <label>Unit Name:</label>
+            <input type="text" name="unit_name[]" required>
+            <label>Unit Code:</label>
+            <input type="text" name="unit_code[]" required>
+        </div>
+    `;
+    container.appendChild(box);
+}
+
+/* Filter courses by university (safe JSON parsing) */
+function filterByUniversity(universityId) {
+    const courseSelect = document.querySelector('select[name="course_id"]') || document.getElementById('courseSelect');
+    if (!courseSelect) return;
+    if (!universityId) {
+        // Reset select to original or to a placeholder
+        // Optionally you could reload the page or repopulate from a stored list
+        courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
+        return;
+    }
+    fetch(`../actions.php?action=get_university_data&university_id=${encodeURIComponent(universityId)}`)
+    .then(response => response.text())
+    .then(text => {
+        let data;
+        try {
+            data = parseJSONSafe(text);
+        } catch (e) {
+            showFloatingMessage('Invalid response from server', 'error');
             return;
         }
-        unitCount++;
-        const container = document.getElementById('unitContainer');
-        const box = document.createElement('div');
-        box.className = 'unit-box';
-        box.innerHTML = `
-            <h4>Unit ${unitCount}</h4>
-            <div class="unit-inputs">
-                <label>Unit Name:</label>
-                <input type="text" name="unit_name[]" required>
-                <label>Unit Code:</label>
-                <input type="text" name="unit_code[]" required>
-            </div>
-        `;
-        container.appendChild(box);
-    }
+        if (!data || !Array.isArray(data.courses)) {
+            courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
+            return;
+        }
+        courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
+        data.courses.forEach(course => {
+            const opt = document.createElement('option');
+            opt.value = course.id;
+            const label = course.name + (course.unit_count ? ` (${course.unit_count} units)` : '');
+            opt.textContent = label;
+            courseSelect.appendChild(opt);
+        });
+    })
+    .catch(err => {
+        console.error('Error fetching university data:', err);
+        showFloatingMessage('Error loading courses for that university', 'error');
+    });
+}
 
-   // Handle course selection with AJAX
-document.getElementById('selectCourseForm').addEventListener('submit', function(event) {
-    event.preventDefault(); // Prevent page reload
-    const form = this;
-    const courseId = form.querySelector('select[name="course_id"]').value;
-
+/* View Course Units (safe response handling) */
+function viewCourseUnits() {
+    const courseSelect = document.getElementById('courseSelect');
+    if (!courseSelect) return;
+    const courseId = courseSelect.value;
     if (!courseId) {
-        alert('Please select a course.');
+        showFloatingMessage('Please select a course first', 'error');
         return;
     }
 
-    // Open the modal
-    openModal('courseUnitsModal');
+    const floatingDisplay = document.getElementById('floatingUnitsDisplay');
+    const unitsGrid = document.getElementById('unitsGrid');
+    if (floatingDisplay) floatingDisplay.classList.add('active');
+    if (unitsGrid) unitsGrid.innerHTML = '<div class="loading">Loading units...</div>';
 
-    // Fetch course units via AJAX
-    fetch('../actions.php?action=get_course_units', {
+    fetch(`../actions.php?action=get_course_units&course_id=${encodeURIComponent(courseId)}`)
+    .then(response => response.text())
+    .then(text => {
+        let data;
+        try {
+            data = parseJSONSafe(text);
+        } catch (e) {
+            unitsGrid.innerHTML = '<div class="error-message">Invalid server response.</div>';
+            showFloatingMessage('Error parsing server response', 'error');
+            return;
+        }
+
+        if (!data || !data.course) {
+            unitsGrid.innerHTML = '<div class="error-message">Course not found.</div>';
+            showFloatingMessage('Course not found', 'error');
+            return;
+        }
+
+        // Update header
+        if (floatingDisplay) {
+            const header = floatingDisplay.querySelector('.floating-header h3');
+            if (header) header.textContent = `${data.course.department_name || ''} - ${data.course.course_name || ''}`;
+        }
+
+        if (!data.units || data.units.length === 0) {
+            unitsGrid.innerHTML = '<div class="empty-message">No units found for this course.</div>';
+            return;
+        }
+
+        // Sort units by year then semester
+        const sortedUnits = data.units.sort((a,b) => {
+            if (a.year !== b.year) return a.year - b.year;
+            return (a.semester || 0) - (b.semester || 0);
+        });
+
+        unitsGrid.innerHTML = '';
+        sortedUnits.forEach(unit => {
+            const unitCard = document.createElement('div');
+            unitCard.className = 'unit-card';
+            unitCard.innerHTML = `
+                <div class="unit-info">
+                    <h4>${escapeHtml(unit.name)}</h4>
+                    <div class="unit-code">${escapeHtml(unit.code)}</div>
+                    <div class="unit-meta">Year ${escapeHtml(unit.year)}${unit.semester ? ', Semester ' + escapeHtml(unit.semester) : ''}</div>
+                </div>
+                <button class="delete-btn" onclick="showDeleteUnitModal(${Number(unit.id)}, '${escapeJs(unit.code)}')" title="Delete Unit">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            `;
+            unitsGrid.appendChild(unitCard);
+        });
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        if (unitsGrid) unitsGrid.innerHTML = '<div class="error-message">Error loading units. Please try again.</div>';
+        showFloatingMessage('Error loading units: ' + (err.message || err), 'error');
+    });
+}
+
+function closeFloatingDisplay() {
+    const floatingDisplay = document.getElementById('floatingUnitsDisplay');
+    if (floatingDisplay) floatingDisplay.classList.remove('active');
+}
+
+/* Delete unit modal/confirm (safe JSON handling) */
+function showDeleteUnitModal(unitId, unitCode) {
+    const idInput = document.getElementById('deleteUnitId');
+    const modalContent = document.querySelector('#deleteUnitModal p');
+    if (idInput) idInput.value = unitId;
+    if (modalContent) modalContent.textContent = `Delete ${unitCode}?`;
+    openModal('deleteUnitModal');
+}
+
+function confirmDeleteUnit() {
+    const unitId = document.getElementById('deleteUnitId')?.value;
+    if (!unitId) {
+        showFloatingMessage('Invalid unit selected', 'error');
+        return;
+    }
+
+    fetch('../actions.php', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `course_id=${encodeURIComponent(courseId)}`
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=delete_unit&unit_id=${encodeURIComponent(unitId)}`
     })
-    .then(response => {
-        if (!response.ok) throw new Error('Network response was not ok');
-        return response.json();
-    })
-    .then(data => {
-        const resultsBody = document.getElementById('resultsBody');
-        resultsBody.innerHTML = ''; // Clear previous results
-
-        if (!data || !data.units || Object.keys(data.units).length === 0) {
-            resultsBody.innerHTML = '<tr><td colspan="8">No units found for this course.</td></tr>';
+    .then(response => response.text())
+    .then(text => {
+        let data;
+        try {
+            data = parseJSONSafe(text);
+        } catch (e) {
+            showFloatingMessage('Invalid server response', 'error');
+            return;
+        }
+        if (data && data.status === 'success') {
+            closeModal('deleteUnitModal');
+            viewCourseUnits();
+            showFloatingMessage(data.message || 'Unit deleted', 'success');
         } else {
-            let firstRow = true;
-
-            // Loop through years
-            for (let year in data.units) {
-                // Loop through semesters
-                for (let semester in data.units[year]) {
-                    // Loop through units in this semester
-                    data.units[year][semester].forEach(unit => {
-                        let row = `
-                            <tr>
-                                <td>${firstRow ? data.course.course_name : ''}</td>
-                                <td>${firstRow ? data.course.department_name : ''}</td>
-                                <td>${year}</td>
-                                <td>${semester}</td>
-                                <td>${unit.name}</td>
-                                <td>${unit.code}</td>
-                                <td></td>
-                                <td>${firstRow ? `<a href="dashboard.php?action=download_pdf&course_id=${data.course.course_id}" class="action-link">Download PDF</a>` : ''}</td>
-                            </tr>`;
-                        resultsBody.innerHTML += row;
-                        firstRow = false;
-                    });
-                }
-            }
+            showFloatingMessage((data && data.message) ? data.message : 'Failed to delete unit', 'error');
         }
     })
-    .catch(error => {
-        console.error('Error fetching course units:', error);
-        document.getElementById('resultsBody').innerHTML = '<tr><td colspan="8">Error loading units. Please try again.</td></tr>';
+    .catch(err => {
+        console.error('Delete error:', err);
+        showFloatingMessage('An error occurred while deleting the unit', 'error');
     });
-});
+}
 
+/* Export units PDF */
+function exportUnitsPDF() {
+    const courseId = document.getElementById('courseSelect')?.value;
+    if (!courseId) {
+        alert('Please select a course first');
+        return;
+    }
+    window.open(`../actions.php?action=generate_unit_pdf&course_id=${encodeURIComponent(courseId)}`, '_blank');
+}
+
+/* Department form submit via AJAX */
+function submitDepartmentForm(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+
+    fetch('../actions.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(text => {
+        let data;
+        try {
+            data = parseJSONSafe(text);
+        } catch (e) {
+            showFloatingMessage('Invalid server response', 'error');
+            return;
+        }
+        if (data && data.status === 'success') {
+            showFloatingMessage(data.message, 'success');
+            closeModal('departmentModal');
+            setTimeout(() => { location.reload(); }, 1200);
+        } else {
+            showFloatingMessage((data && data.message) ? data.message : 'Failed to add department', 'error');
+        }
+    })
+    .catch(err => {
+        console.error('Department submit error:', err);
+        showFloatingMessage('An error occurred while submitting the form', 'error');
+    });
+}
+
+/* simple escaping helpers for DOM insertion */
+function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    return String(str).replace(/[&<>"'`=\/]/g, function(s) {
+        return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#x60;","/":"&#x2F;"}[s];
+    });
+}
+/* escape for JS string literal (used when injecting into onclick attr) */
+function escapeJs(str) {
+    if (str === undefined || str === null) return '';
+    return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '');
+}
+
+/* End of consolidated JS */
 </script>
-
 </body>
 </html>

@@ -729,57 +729,46 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_pdf' && isset($_GET[
     exit;
 }
 
-// === VIEW UNITS BY COURSE ===
-if (isset($_POST['action']) && $_POST['action'] === 'view_units_by_course') {
-    $course_id = intval($_POST['course_id']);
-
-    $course_name_stmt = $conn->prepare("SELECT name FROM courses WHERE id = ?");
-    $course_name_stmt->bind_param("i", $course_id);
-    $course_name_stmt->execute();
-    $course_result = $course_name_stmt->get_result();
-    $course = $course_result->fetch_assoc();
-    $course_name = $course['name'] ?? 'Unknown Course';
-
-    // Fetch units
-    $units_stmt = $conn->prepare("
-        SELECT name, code, year, semester 
-        FROM units 
-        WHERE course_id = ? 
-        ORDER BY year, semester, name
+if ($action === 'get_course_units') {
+    $course_id = intval($_GET['course_id']);
+    $course_res = $conn->query("
+        SELECT c.id, c.name AS course_name, d.name AS department_name
+        FROM courses c
+        JOIN departments d ON c.department_id = d.id
+        WHERE c.id = $course_id
     ");
-    $units_stmt->bind_param("i", $course_id);
-    $units_stmt->execute();
-    $units_result = $units_stmt->get_result();
 
-    $units_by_group = [];
-    while ($unit = $units_result->fetch_assoc()) {
-        $key = "Year {$unit['year']} - Semester {$unit['semester']}";
-        $units_by_group[$key][] = $unit;
-    }
+    if ($course_res && $course_res->num_rows > 0) {
+        $course = $course_res->fetch_assoc();
 
-    echo "<h3>Units for <strong>" . htmlspecialchars($course_name) . "</strong></h3>";
+        $units_res = $conn->query("
+            SELECT id, name, code, year, semester
+            FROM units
+            WHERE course_id = $course_id
+            ORDER BY year, semester
+        ");
 
-    if (!empty($units_by_group)) {
-        echo "<div id='unitDisplay'>";
-        foreach ($units_by_group as $group => $units) {
-            echo "<h4>$group</h4><ul>";
-            foreach ($units as $u) {
-                echo "<li><strong>" . htmlspecialchars($u['code']) . "</strong>: " . htmlspecialchars($u['name']) . "</li>";
-            }
-            echo "</ul>";
+        $units = [];
+        while ($u = $units_res->fetch_assoc()) {
+            $units[] = [
+                'id' => $u['id'],
+                'name' => $u['name'],
+                'code' => $u['code'],
+                'year' => $u['year'],
+                'semester' => $u['semester']
+            ];
         }
-        echo "</div>";
-        echo "<form method='POST' action='actions.php' target='_blank'>
-                <input type='hidden' name='action' value='generate_unit_pdf'>
-                <input type='hidden' name='course_id' value='$course_id'>
-                <button type='submit'>Generate PDF</button>
-              </form>";
-    } else {
-        echo "<p>No units found for this course.</p>";
-    }
 
+        echo json_encode([
+            'course' => $course,
+            'units' => $units
+        ]);
+    } else {
+        echo json_encode(['error' => 'Course not found']);
+    }
     exit;
 }
+
 
 // === GENERATE PDF OF UNITS FOR A COURSE ===
 if (isset($_POST['action']) && $_POST['action'] === 'generate_unit_pdf') {

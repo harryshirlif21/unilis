@@ -26,7 +26,7 @@ services:
       MYSQL_PASSWORD: unilispass
     volumes:
       - db_data:/var/lib/mysql
-      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql # optional: seed DB
+      - ./docker/unilis.sql:/docker-entrypoint-initdb.d/unilis.sql:ro
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:5.2.1
