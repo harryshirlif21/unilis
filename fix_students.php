@@ -7,7 +7,7 @@ if (isset($_POST['send_email'])) {
     $to = "mwendihillary21@gmail.com";     // your email
     $subject = "Test Email from PHP";
     $message = "Hello Hillary! This is a test email.";
-    $headers = "From: mwendikimaiga21.com"; // change to a valid sender email
+    $headers = "From: mwendikimaiga21@gmail.com"; // change to a valid sender email
 
     if (mail($to, $subject, $message, $headers)) {
         $message_sent = "<p style='color:green;'>Email sent successfully!</p>";
