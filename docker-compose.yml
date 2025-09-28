@@ -7,6 +7,8 @@ services:
       - "8080:80"
     volumes:
       - .:/var/www/html
+      # Keep vendor inside the container (don’t override with host)
+      - /var/www/html/vendor
     depends_on:
       - db
     environment:
