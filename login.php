@@ -60,10 +60,10 @@ if (isset($_SESSION['user_role'])) {
                     <input type="email" id="email" name="email" placeholder="Enter your email" required>
                 </div>
                 <div class="input-field">
-                    <label for="password">Password:</label>
-                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
-                    <i class="fas fa-eye"></i>
-                </div>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+    <i class="fas fa-eye" id="togglePassword" style="cursor:pointer;"></i>
+</div>
 
                 <div class="form-options">
                     <div class="remember-me">
@@ -84,3 +84,16 @@ if (isset($_SESSION['user_role'])) {
     </div>
 </body>
 </html>
+<script>
+    const passwordInput = document.getElementById('password');
+    const togglePassword = document.getElementById('togglePassword');
+
+    togglePassword.addEventListener('click', () => {
+        // Toggle the type attribute
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+
+        // Toggle the eye icon class (optional, requires FontAwesome)
+        togglePassword.classList.toggle('fa-eye-slash');
+    });
+</script>
