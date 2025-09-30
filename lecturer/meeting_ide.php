@@ -1,92 +1,74 @@
 <?php
-session_start();
-require_once '../config/db.php';
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
-    header("Location: ../login.php");
-    exit;
-}
+require '../vendor/autoload.php';
 
+$APP_ID = "your-app-id";
+$APP_SECRET = "your-app-secret"; // must match Jitsi prosody config
 $meeting_id = $_GET['meeting_id'] ?? null;
-if (!$meeting_id) {
-    die("Meeting ID is required.");
-}
-
-// Fetch meeting details
-$stmt = $conn->prepare("SELECT title, scheduled_time, duration FROM meetings WHERE id = ?");
-$stmt->bind_param("i", $meeting_id);
-$stmt->execute();
-$result = $stmt->get_result();
-$meeting = $result->fetch_assoc();
-$stmt->close();
-
-if (!$meeting) {
-    die("Meeting not found.");
-}
+$userName = $_SESSION['user_name'];
+$userRole = $_SESSION['user_role']; // "lecturer" or "student"
 
 $roomName = "unilis_meeting_" . $meeting_id;
-$userName = $_SESSION['user_name'];
+
+// Create JWT payload
+$payload = [
+    "aud" => "jitsi",
+    "iss" => $APP_ID,
+    "sub" => "meet.jit.si", // or your self-hosted domain
+    "room" => $roomName,
+    "exp" => time() + 3600,
+    "context" => [
+        "user" => [
+            "name" => $userName,
+            "email" => $_SESSION['email'] ?? '',
+            "moderator" => ($userRole === 'lecturer') ? true : false
+        ]
+    ]
+];
+
+// Generate token
+$jwt = JWT::encode($payload, $APP_SECRET, 'HS256');
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title><?= htmlspecialchars($meeting['title']) ?> - Meeting</title>
+    <title>Meeting</title>
     <script src="https://meet.jit.si/external_api.js"></script>
-    <style>
-        html, body, #jitsi-container {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            background: #000;
-        }
-    </style>
 </head>
 <body>
-    <div id="jitsi-container"></div>
+    <div id="jitsi-container" style="height:100vh;width:100%"></div>
 
     <script>
-        const domain = "meet.jit.si";
+        const domain = "your.jitsi.domain"; // not meet.jit.si if JWT needed
         const options = {
             roomName: "<?= $roomName ?>",
+            jwt: "<?= $jwt ?>",  // attach lecturer/student token
             width: "100%",
             height: "100%",
-            parentNode: document.getElementById('jitsi-container'),
+            parentNode: document.querySelector('#jitsi-container'),
             userInfo: {
                 displayName: "<?= htmlspecialchars($userName) ?>"
-            },
-            configOverwrite: {
-                prejoinPageEnabled: false
-            },
-            interfaceConfigOverwrite: {
-                SHOW_JITSI_WATERMARK: true,
-                SHOW_WATERMARK_FOR_GUESTS: false,
-                DEFAULT_REMOTE_DISPLAY_NAME: 'Participant',
-                TOOLBAR_BUTTONS: [
-                    'microphone', 'camera', 'desktop', 'fullscreen',
-                    'fodeviceselection', 'hangup', 'chat', 'recording',
-                    'settings', 'raisehand', 'videoquality', 'tileview'
-                ]
-            }
+            }# Install system deps
+            RUN apt-get update && apt-get install -y \
+                libzip-dev unzip git && \
+                docker-php-ext-install pdo pdo_mysql zip
+            
+            # Enable Apache mod_rewrite
+            RUN a2enmod rewrite
+            
+            # Copy app files
+            COPY . /var/www/html/
+            
+            # Install Composer
+            COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+            
+            # Install PHP dependencies
+            WORKDIR /var/www/html
+            RUN composer install --no-dev --optimize-autoloader
         };
-
         const api = new JitsiMeetExternalAPI(domain, options);
-
-        // Auto-log lecturer attendance
-        api.addEventListener('videoConferenceJoined', () => {
-            fetch('../actions.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=log_attendance&meeting_id=<?= $meeting_id ?>'
-            });
-        });
-
-        // Optional: Auto-end meeting after duration (in milliseconds)
-        const durationMinutes = <?= $meeting['duration'] ?>;
-        const autoEndTime = durationMinutes * 60 * 1000;
-        setTimeout(() => {
-            alert("Meeting time is over. You will be disconnected.");
-            api.executeCommand('hangup');
-        }, autoEndTime);
     </script>
 </body>
 </html>
