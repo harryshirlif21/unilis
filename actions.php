@@ -323,19 +323,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 
 // === UPLOAD NOTES ===
 if ($action === 'upload_notes') {
+    // Check if user is logged in
+    if (!isset($_SESSION['user_id'])) {
+        $_SESSION['upload_error'] = "You must be logged in to upload notes.";
+        header("Location: login.php");
+        exit;
+    }
+
     $unit_id = intval($_POST['unit_id']);
-   $lecturer_id = $_SESSION['user_id'];
-$files = $_FILES['notes_file'];
+    $lecturer_id = $_SESSION['user_id'];
+    $files = $_FILES['notes_file'];
     $upload_dir = "assets/uploads/";
-    if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+    if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true); // Line 330
+
+    // Validate file types
+    $allowed_types = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ];
 
     // Normalize: handle single or multiple uploads
-    $fileNames    = is_array($files['name']) ? $files['name'] : [$files['name']];
+    $fileNames = is_array($files['name']) ? $files['name'] : [$files['name']];
     $fileTmpNames = is_array($files['tmp_name']) ? $files['tmp_name'] : [$files['tmp_name']];
+    $fileTypes = is_array($files['type']) ? $files['type'] : [$files['type']];
 
     $uploadCount = 0;
     foreach ($fileNames as $index => $name) {
-        if (empty($name)) continue; // skip empty input
+        if (empty($name)) continue; // Skip empty input
+
+        // Validate file type
+        if (!in_array($fileTypes[$index], $allowed_types)) {
+            $_SESSION['upload_error'] = "Invalid file type for '$name'. Allowed types: PDF, DOC, DOCX, PPT, PPTX.";
+            continue;
+        }
 
         $filename = time() . "_" . basename($name);
         $target_path = $upload_dir . $filename;
@@ -344,14 +367,22 @@ $files = $_FILES['notes_file'];
             // Save notes to DB
             $stmt = $conn->prepare("INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
             $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                error_log("Insert notes failed: " . $conn->error);
+                $_SESSION['upload_error'] = "Database error while saving notes.";
+                continue;
+            }
 
             // === Notifications ===
             $msg = "New notes uploaded for your unit.";
             $link = "student/notes.php?unit_id=" . $unit_id;
 
-            // fetch students for this unit
-            $students = $conn->query("SELECT student_id FROM student_units WHERE unit_id = $unit_id");
+            // Fetch students for this unit using prepared statement
+            $stmt = $conn->prepare("SELECT student_id FROM student_units WHERE unit_id = ?");
+            $stmt->bind_param("i", $unit_id);
+            $stmt->execute();
+            $students = $stmt->get_result();
+
             while ($s = $students->fetch_assoc()) {
                 $student_id = $s['student_id'];
                 $stmt2 = $conn->prepare("INSERT INTO notifications (user_id, message, link, created_at) VALUES (?, ?, ?, NOW())");
@@ -360,19 +391,20 @@ $files = $_FILES['notes_file'];
             }
 
             $uploadCount++;
+        } else {
+            $_SESSION['upload_error'] = "Failed to upload file '$name'.";
         }
     }
 
     if ($uploadCount > 0) {
         $_SESSION['upload_success'] = "$uploadCount file(s) uploaded successfully and students notified.";
     } else {
-        $_SESSION['upload_error'] = "File upload failed. Please try again.";
+        $_SESSION['upload_error'] = isset($_SESSION['upload_error']) ? $_SESSION['upload_error'] : "No files were uploaded.";
     }
 
     header("Location: lecturer/dashboard.php");
     exit;
 }
-
 // === CREATE ASSIGNMENT ===
 if ($action === 'create_assignment') {
     $unit_id = $_POST['unit_id'];
