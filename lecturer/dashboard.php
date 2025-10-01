@@ -107,237 +107,8 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        :root {
-            --primary: #f59e0b;
-            --secondary: #92400e;
-            --accent: #fef3c7;
-            --border: #f5e6b2;
-            --background: #fefce8;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--background);
-            color: var(--secondary);
-        }
-
-        .sidebar {
-            width: 280px;
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            right: -280px; /* Hidden by default */
-            background: var(--background);
-            backdrop-filter: blur(5px);
-            transition: right 0.4s ease;
-            z-index: 40;
-            overflow-y: auto;
-        }
-
-        .sidebar.open {
-            right: 0; /* Slides in on toggle */
-        }
-
-        .close-btn {
-            font-size: 24px;
-            color: var(--secondary);
-            cursor: pointer;
-            padding: 10px;
-            position: absolute;
-            top: 10px;
-            right: 10px;
-        }
-
-        .close-btn:hover {
-            color: var(--primary);
-        }
-
-        .menu-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px 15px;
-            color: var(--secondary);
-            cursor: pointer;
-            border-radius: 8px;
-            font-size: 1.05em;
-        }
-
-        .menu-item:hover {
-            background: var(--accent);
-        }
-
-        .dropdown {
-            position: relative;
-            width: 100%;
-        }
-
-        .dropdown-btn {
-            width: 100%;
-            background: none;
-            border: none;
-            color: var(--secondary);
-            text-align: left;
-            padding: 12px 15px;
-            cursor: pointer;
-            font-size: 1.05em;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border-radius: 8px;
-            transition: background-color 0.3s ease;
-        }
-
-        .dropdown-btn:hover {
-            background-color: var(--accent);
-        }
-
-        .dropdown-content {
-            display: none;
-            flex-direction: column;
-            margin-left: 15px;
-            border-left: 3px solid var(--primary);
-        }
-
-        .dropdown-content a {
-            padding: 8px 12px;
-            text-decoration: none;
-            color: var(--secondary);
-            font-size: 0.95em;
-            transition: background-color 0.3s ease;
-        }
-
-        .dropdown-content a:hover {
-            background-color: var(--accent);
-            color: #d97706;
-        }
-
-        .dropdown.active .dropdown-content {
-            display: flex;
-        }
-
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            display: none;
-            z-index: 30; /* Below sidebar but above content */
-        }
-
-        .overlay.open {
-            display: block;
-        }
-
-        .nav-link {
-            color: var(--secondary);
-            transition: background-color 0.3s ease;
-        }
-
-        .nav-link.active, .nav-link:hover {
-            background: var(--accent);
-        }
-
-        .card {
-            background: #ffffff;
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-4px);
-        }
-
-        .stat-icon {
-            transition: transform 0.3s ease;
-        }
-
-        .card:hover .stat-icon {
-            transform: scale(1.1);
-        }
-
-        .stat-text-primary {
-            color: var(--primary);
-        }
-
-        .stat-text-secondary {
-            color: var(--secondary);
-        }
-
-        .stat-text-accent {
-            color: #d97706;
-        }
-
-        .table-row-hover:hover {
-            background: var(--accent);
-        }
-
-        .table-text-primary {
-            color: var(--primary);
-        }
-
-        .table-text-secondary {
-            color: var(--secondary);
-        }
-
-        .table-text-accent {
-            color: #d97706;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            z-index: 50;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.open {
-            display: flex;
-        }
-
-        .modal-content {
-            max-width: 600px;
-            width: 90%;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary), #d97706);
-            color: #ffffff;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.3s ease;
-        }
-
-        .btn-primary:hover {
-            background: var(--accent);
-            color: var(--secondary);
-        }
-
-        .hero-text {
-            color: #FFD700;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        /* Smaller chart sizes */
-        .chart-container {
-            position: relative;
-            height: 200px; /* Reduced from default */
-            width: 100%;
-        }
-    </style>
+     <link rel="stylesheet" href="css/dashboard.css">
+    
 </head>
 <body class="relative">
     <!-- Top Navigation Bar -->
@@ -783,25 +554,29 @@ try {
         </div>
 
         <!-- Modals -->
-        <div id="uploadModal" class="modal">
-            <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
-                <span class="close text-92400e text-2xl font-bold cursor-pointer hover:text-f59e0b" onclick="hideModal('uploadModal')">&times;</span>
-                <h3 class="text-xl font-semibold stat-text-secondary mb-4">Upload Notes</h3>
-                <form action="../actions.php" method="POST" enctype="multipart/form-data">
-                    <input type="hidden" name="action" value="upload_notes">
-                    <label class="block text-sm font-medium stat-text-primary mb-2">Unit:</label>
-                    <select name="unit_id" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e">
-                        <option value="">-- Select Unit --</option>
-                        <?php foreach ($units as $u): ?>
-                            <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Upload Files:</label>
-                    <input type="file" name="notes_file[]" required multiple accept=".pdf,.doc,.docx,.ppt,.pptx" class="text-sm text-92400e">
-                    <button type="submit" class="btn-primary px-4 py-2 mt-4 rounded-lg">Upload Files</button>
-                </form>
-            </div>
+         <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="hideModal('uploadModal')">×</span>
+            <h3>Upload Notes</h3>
+            <form action="../actions.php" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="upload_notes">
+                <label>Unit:</label>
+                <select name="unit_id" required>
+                    <option value="">-- Select Unit --</option>
+                    <?php
+                    foreach ($units as $unit) {
+                        echo "<option value='{$unit['id']}'>" . htmlspecialchars($unit['name']) . "</option>";
+                    }
+                    ?>
+                </select>
+                <label>Upload File:</label>
+               <input type="file" name="notes_file[]" multiple required>
+
+                <button type="submit">Upload</button>
+            </form>
         </div>
+    </div>
+
 
         <div id="assignmentModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">

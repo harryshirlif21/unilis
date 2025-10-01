@@ -323,6 +323,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 
 // === UPLOAD NOTES ===
 if ($action === 'upload_notes') {
+    session_start();
+    if (!isset($_SESSION['user_id'])) {
+        $_SESSION['upload_error'] = "Session expired. Please log in again.";
+        header("Location: login.php");
+        exit;
+    }
+
     $unit_id = $_POST['unit_id'];
     $lecturer_id = $_SESSION['user_id'];
     $files = $_FILES['notes_file'];
@@ -330,18 +337,19 @@ if ($action === 'upload_notes') {
     $upload_dir = "assets/uploads/";
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
-    // Normalize: if single file, wrap into array
-    $fileNames = is_array($files['name']) ? $files['name'] : [$files['name']];
+    // Normalize: handle single or multiple uploads
+    $fileNames   = is_array($files['name']) ? $files['name'] : [$files['name']];
     $fileTmpNames = is_array($files['tmp_name']) ? $files['tmp_name'] : [$files['tmp_name']];
 
+    $uploadCount = 0;
     foreach ($fileNames as $index => $name) {
-        if (empty($name)) continue; // skip empty
+        if (empty($name)) continue; // skip empty input
 
         $filename = time() . "_" . basename($name);
         $target_path = $upload_dir . $filename;
 
         if (move_uploaded_file($fileTmpNames[$index], $target_path)) {
-            // Save notes to DB
+            // Save to DB
             $stmt = $conn->prepare("INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
             $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
             $stmt->execute();
@@ -350,18 +358,23 @@ if ($action === 'upload_notes') {
             $msg = "New notes uploaded for your unit.";
             $link = "student/notes.php?unit_id=" . $unit_id;
 
-            // Fetch all students in this unit
             $students = $conn->query("SELECT student_id FROM student_units WHERE unit_id = $unit_id");
-
             while ($s = $students->fetch_assoc()) {
                 $stmt2 = $conn->prepare("INSERT INTO notifications (user_id, message, link) VALUES (?, ?, ?)");
                 $stmt2->bind_param("iss", $s['student_id'], $msg, $link);
                 $stmt2->execute();
             }
+
+            $uploadCount++;
         }
     }
 
-    $_SESSION['upload_success'] = "Notes uploaded and students notified.";
+    if ($uploadCount > 0) {
+        $_SESSION['upload_success'] = "$uploadCount file(s) uploaded successfully and students notified.";
+    } else {
+        $_SESSION['upload_error'] = "File upload failed. Please try again.";
+    }
+
     header("Location: lecturer/dashboard.php");
     exit;
 }
