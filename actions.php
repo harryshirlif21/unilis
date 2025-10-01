@@ -334,16 +334,32 @@ if ($action === 'upload_notes') {
     $target_path = $upload_dir . $filename;
 
     if (move_uploaded_file($file['tmp_name'], $target_path)) {
+        // Save notes to DB
         $stmt = $conn->prepare("INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
         $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
         $stmt->execute();
-        $_SESSION['upload_success'] = "Notes uploaded.";
+
+        // === Notifications ===
+        $msg = "New notes uploaded for your unit.";
+        $link = "student/notes.php?unit_id=" . $unit_id;
+
+        // Fetch all students in this unit (adjust table name if different)
+        $students = $conn->query("SELECT student_id FROM student_units WHERE unit_id = $unit_id");
+
+        while ($s = $students->fetch_assoc()) {
+            $stmt2 = $conn->prepare("INSERT INTO notifications (user_id, message, link) VALUES (?, ?, ?)");
+            $stmt2->bind_param("iss", $s['student_id'], $msg, $link);
+            $stmt2->execute();
+        }
+
+        $_SESSION['upload_success'] = "Notes uploaded and students notified.";
     } else {
         $_SESSION['upload_error'] = "File upload failed.";
     }
     header("Location: lecturer/dashboard.php");
     exit;
 }
+
 
 // === CREATE ASSIGNMENT ===
 if ($action === 'create_assignment') {
@@ -368,6 +384,7 @@ if ($action === 'create_assignment') {
         }
     }
 
+    // Insert into DB
     if ($filename) {
         $stmt = $conn->prepare("INSERT INTO assignments (lecturer_id, unit_id, title, description, deadline, file_path, created_at)
                                 VALUES (?, ?, ?, ?, ?, ?, NOW())");
@@ -378,12 +395,28 @@ if ($action === 'create_assignment') {
         $stmt->bind_param("iisss", $lecturer_id, $unit_id, $title, $instructions, $due_date);
     }
 
-    $stmt->execute() ?
-        $_SESSION['assignment_success'] = "Assignment created." :
+    if ($stmt->execute()) {
+        // === Notifications ===
+        $msg = "New assignment: '$title' has been posted for your unit.";
+        $link = "student/assignments.php?unit_id=" . $unit_id;
+
+        // Fetch all students in this unit (adjust table if needed)
+        $students = $conn->query("SELECT student_id FROM student_units WHERE unit_id = $unit_id");
+        while ($s = $students->fetch_assoc()) {
+            $stmt2 = $conn->prepare("INSERT INTO notifications (user_id, message, link) VALUES (?, ?, ?)");
+            $stmt2->bind_param("iss", $s['student_id'], $msg, $link);
+            $stmt2->execute();
+        }
+
+        $_SESSION['assignment_success'] = "Assignment created and students notified.";
+    } else {
         $_SESSION['assignment_error'] = "Failed to create assignment.";
+    }
+
     header("Location: lecturer/dashboard.php");
     exit;
 }
+
 
 // === SAVE MARKS ===
 if ($action === 'save_marks') {
