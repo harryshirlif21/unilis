@@ -554,29 +554,25 @@ try {
         </div>
 
         <!-- Modals -->
-         <div id="uploadModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="hideModal('uploadModal')">×</span>
-            <h3>Upload Notes</h3>
-            <form action="../actions.php" method="POST" enctype="multipart/form-data">
-                <input type="hidden" name="action" value="upload_notes">
-                <label>Unit:</label>
-                <select name="unit_id" required>
-                    <option value="">-- Select Unit --</option>
-                    <?php
-                    foreach ($units as $unit) {
-                        echo "<option value='{$unit['id']}'>" . htmlspecialchars($unit['name']) . "</option>";
-                    }
-                    ?>
-                </select>
-                <label>Upload File:</label>
-               <input type="file" name="notes_file[]" multiple required>
-
-                <button type="submit">Upload</button>
-            </form>
+        <div id="uploadModal" class="modal">
+            <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
+                <span class="close text-92400e text-2xl font-bold cursor-pointer hover:text-f59e0b" onclick="hideModal('uploadModal')">&times;</span>
+                <h3 class="text-xl font-semibold stat-text-secondary mb-4">Upload Notes</h3>
+                <form action="../actions.php" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="upload_notes">
+                    <label class="block text-sm font-medium stat-text-primary mb-2">Unit:</label>
+                    <select name="unit_id" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e">
+                        <option value="">-- Select Unit --</option>
+                        <?php foreach ($units as $u): ?>
+                            <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Upload Files:</label>
+                    <input type="file" name="notes_file[]" required multiple accept=".pdf,.doc,.docx,.ppt,.pptx" class="text-sm text-92400e">
+                    <button type="submit" class="btn-primary px-4 py-2 mt-4 rounded-lg">Upload Files</button>
+                </form>
+            </div>
         </div>
-    </div>
-
 
         <div id="assignmentModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
@@ -593,26 +589,7 @@ try {
                     </select>
                     <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Assignment Title:</label>
                     <input type="text" name="title" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e">
-                    <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Exam/Assignment Mode:</label>
-                    <select name="mode" id="assignmentMode" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e" onchange="handleModeChange()">
-                        <option value="text">Text (Written Answers)</option>
-                        <option value="speech">Speech (Spoken Answers)</option>
-                        <option value="hybrid">Hybrid (Student's Choice)</option>
-                    </select>
-                    <div id="speechOptions" class="hidden bg-amber-50 p-4 rounded-lg mt-4">
-                        <label class="block text-sm font-medium stat-text-primary mb-2">Voice Instructions (Optional):</label>
-                        <div class="voice-recorder">
-                            <button type="button" id="recordButton" class="btn-primary px-4 py-2 rounded-lg" onclick="toggleRecording()">
-                                <i class="fas fa-microphone"></i> Record Instructions
-                            </button>
-                            <span id="recordingStatus" class="block mt-2 text-sm text-gray-600"></span>
-                            <audio id="audioPreview" controls class="w-full mt-2 hidden"></audio>
-                            <input type="hidden" name="voice_instructions" id="voiceInstructions">
-                        </div>
-                        <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Grading Rubric for Speech:</label>
-                        <textarea name="rubric" class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e" placeholder="Enter criteria for speech evaluation"></textarea>
-                    </div>
-                    <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Written Instructions:</label>
+                   <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Written Instructions:</label>
                     <textarea name="instructions" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e" rows="4"></textarea>
                     <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Deadline:</label>
                     <input type="datetime-local" name="due_date" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e">
