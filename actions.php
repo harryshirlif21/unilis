@@ -333,13 +333,13 @@ if ($action === 'upload_notes') {
     $unit_id = intval($_POST['unit_id']);
     $user_id = $_SESSION['user_id'];
 
-    // Get lecturer_id from lecturers table
+    // 🔹 Get lecturer_id for the logged-in user
     $stmtL = $conn->prepare("SELECT id FROM lecturers WHERE user_id = ?");
     $stmtL->bind_param("i", $user_id);
     $stmtL->execute();
     $resultL = $stmtL->get_result();
     if ($resultL->num_rows === 0) {
-        $_SESSION['upload_error'] = "Lecturer not found.";
+        $_SESSION['upload_error'] = "Lecturer account not found.";
         header("Location: lecturer/dashboard.php");
         exit;
     }
@@ -347,7 +347,6 @@ if ($action === 'upload_notes') {
     $lecturer_id = $lecturer['id'];
 
     $files = $_FILES['notes_file'];
-
     $upload_dir = "assets/uploads/";
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
@@ -357,13 +356,13 @@ if ($action === 'upload_notes') {
 
     $uploadCount = 0;
     foreach ($fileNames as $index => $name) {
-        if (empty($name)) continue;
+        if (empty($name)) continue; // skip empty input
 
         $filename = time() . "_" . basename($name);
         $target_path = $upload_dir . $filename;
 
         if (move_uploaded_file($fileTmpNames[$index], $target_path)) {
-            // Save to DB
+            // Save notes to DB
             $stmt = $conn->prepare("INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
             $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
             $stmt->execute();
@@ -372,10 +371,12 @@ if ($action === 'upload_notes') {
             $msg = "New notes uploaded for your unit.";
             $link = "student/notes.php?unit_id=" . $unit_id;
 
+            // fetch students for this unit
             $students = $conn->query("SELECT student_id FROM student_units WHERE unit_id = $unit_id");
             while ($s = $students->fetch_assoc()) {
-                $stmt2 = $conn->prepare("INSERT INTO notifications (user_id, message, link) VALUES (?, ?, ?)");
-                $stmt2->bind_param("iss", $s['student_id'], $msg, $link);
+                $student_id = $s['student_id'];
+                $stmt2 = $conn->prepare("INSERT INTO notifications (user_id, message, link, created_at) VALUES (?, ?, ?, NOW())");
+                $stmt2->bind_param("iss", $student_id, $msg, $link);
                 $stmt2->execute();
             }
 
@@ -392,7 +393,6 @@ if ($action === 'upload_notes') {
     header("Location: lecturer/dashboard.php");
     exit;
 }
-
 
 // === CREATE ASSIGNMENT ===
 if ($action === 'create_assignment') {
