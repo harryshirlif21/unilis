@@ -330,20 +330,34 @@ if ($action === 'upload_notes') {
         exit;
     }
 
-    $unit_id = $_POST['unit_id'];
-    $lecturer_id = $_SESSION['user_id'];
+    $unit_id = intval($_POST['unit_id']);
+    $user_id = $_SESSION['user_id'];
+
+    // Get lecturer_id from lecturers table
+    $stmtL = $conn->prepare("SELECT id FROM lecturers WHERE user_id = ?");
+    $stmtL->bind_param("i", $user_id);
+    $stmtL->execute();
+    $resultL = $stmtL->get_result();
+    if ($resultL->num_rows === 0) {
+        $_SESSION['upload_error'] = "Lecturer not found.";
+        header("Location: lecturer/dashboard.php");
+        exit;
+    }
+    $lecturer = $resultL->fetch_assoc();
+    $lecturer_id = $lecturer['id'];
+
     $files = $_FILES['notes_file'];
 
     $upload_dir = "assets/uploads/";
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
     // Normalize: handle single or multiple uploads
-    $fileNames   = is_array($files['name']) ? $files['name'] : [$files['name']];
+    $fileNames    = is_array($files['name']) ? $files['name'] : [$files['name']];
     $fileTmpNames = is_array($files['tmp_name']) ? $files['tmp_name'] : [$files['tmp_name']];
 
     $uploadCount = 0;
     foreach ($fileNames as $index => $name) {
-        if (empty($name)) continue; // skip empty input
+        if (empty($name)) continue;
 
         $filename = time() . "_" . basename($name);
         $target_path = $upload_dir . $filename;
