@@ -323,15 +323,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 
 // === UPLOAD NOTES ===
 if ($action === 'upload_notes') {
-    session_start();
-    if (!isset($_SESSION['user_id'])) {
-        $_SESSION['upload_error'] = "Session expired. Please log in again.";
-        header("Location: login.php");
-        exit;
-    }
-
     $unit_id = intval($_POST['unit_id']);
-    $user_id = $_SESSION['user_id'];
+   $lecturer_id = $_SESSION['user_id'];
 
     // 🔹 Get lecturer_id for the logged-in user
     $stmtL = $conn->prepare("SELECT id FROM lecturers WHERE user_id = ?");
