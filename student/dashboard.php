@@ -900,6 +900,4 @@ try {
 
 <<<<<<< HEAD
 </html>
-=======
-</html>
->>>>>>> 7edc48bfabefc9c70adee98aca028874fb96e82d
+
