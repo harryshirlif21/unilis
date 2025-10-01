@@ -325,21 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 if ($action === 'upload_notes') {
     $unit_id = intval($_POST['unit_id']);
    $lecturer_id = $_SESSION['user_id'];
-
-    // 🔹 Get lecturer_id for the logged-in user
-    $stmtL = $conn->prepare("SELECT id FROM lecturers WHERE user_id = ?");
-    $stmtL->bind_param("i", $user_id);
-    $stmtL->execute();
-    $resultL = $stmtL->get_result();
-    if ($resultL->num_rows === 0) {
-        $_SESSION['upload_error'] = "Lecturer account not found.";
-        header("Location: lecturer/dashboard.php");
-        exit;
-    }
-    $lecturer = $resultL->fetch_assoc();
-    $lecturer_id = $lecturer['id'];
-
-    $files = $_FILES['notes_file'];
+$files = $_FILES['notes_file'];
     $upload_dir = "assets/uploads/";
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
