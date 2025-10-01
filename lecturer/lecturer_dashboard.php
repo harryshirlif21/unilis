@@ -81,7 +81,8 @@ if ($stmt) {
                     ?>
                 </select>
                 <label>Upload File:</label>
-                <input type="file" name="notes_file" required>
+               <input type="file" name="notes_file[]" multiple required>
+
                 <button type="submit">Upload</button>
             </form>
         </div>
