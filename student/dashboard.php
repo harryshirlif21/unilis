@@ -61,37 +61,37 @@ try {
 
         <!-- Main Navigation Links (Desktop) -->
         <div class="hidden md:flex space-x-8 items-center text-92400e">
-            <a href="#" class="nav-link active font-medium px-3 py-2 rounded-lg" data-target="dashboard-content">Dashboard</a>
-            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="courses-content">Courses</a>
-            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="assignments-content">Assignments</a>
-            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="notes-content">Notes</a>
-            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="meetings-content">Meetings</a>
-            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="profile-content">Profile</a>
-            <?php
-            // Count unread notifications for this student
-            $notif_count_query = $conn->prepare("
-    SELECT COUNT(*) AS unread_count 
-    FROM notifications 
-    WHERE user_id = ? AND user_role = 'student' AND is_read = 0
-");
-            $notif_count_query->bind_param("i", $_SESSION['user_id']);
-            $notif_count_query->execute();
-            $result = $notif_count_query->get_result();
-            $notif_data = $result->fetch_assoc();
-            $unread_count = $notif_data['unread_count'] ?? 0;
-            $notif_count_query->close();
-            ?>
+    <a href="#" class="nav-link active font-medium px-3 py-2 rounded-lg text-green-600 hover:bg-green-100" data-target="dashboard-content">Dashboard</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-orange-600 hover:bg-orange-100" data-target="courses-content">Courses</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="assignments-content">Assignments</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-green-600 hover:bg-green-100" data-target="notes-content">Notes</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-orange-600 hover:bg-orange-100" data-target="meetings-content">Meetings</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="profile-content">Profile</a>
 
-            <!-- Notifications Nav Item -->
-            <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative" data-target="notifications-content" id="notifBell">
-                🔔 Notifications
-                <span id="notifCount" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-2">
-                    <?= $unread_count ?>
-                </span>
-            </a>
+    <?php
+    // Count unread notifications for this student
+    $notif_count_query = $conn->prepare("
+        SELECT COUNT(*) AS unread_count 
+        FROM notifications 
+        WHERE user_id = ? AND user_role = 'student' AND is_read = 0
+    ");
+    $notif_count_query->bind_param("i", $_SESSION['user_id']);
+    $notif_count_query->execute();
+    $result = $notif_count_query->get_result();
+    $notif_data = $result->fetch_assoc();
+    $unread_count = $notif_data['unread_count'] ?? 0;
+    $notif_count_query->close();
+    ?>
 
+    <!-- Notifications Nav Item -->
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative text-green-700 hover:bg-green-100" data-target="notifications-content" id="notifBell">
+        🔔 Notifications
+        <span id="notifCount" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-2">
+            <?= $unread_count ?>
+        </span>
+    </a>
+</div>
 
-        </div>
 
         <!-- Mobile Menu Toggle Button (right-aligned) -->
         <button id="menu-toggle" class="p-2 rounded-full text-92400e hover:bg-fef3c7 focus:outline-none focus:ring-2 focus:ring-f59e0b transition-all">
@@ -898,6 +898,4 @@ try {
         </script>
 </body>
 
-<<<<<<< HEAD
 </html>
-
