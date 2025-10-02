@@ -1,35 +1,47 @@
 <?php
-// send_email.php
+// include your existing DB connection
+require_once __DIR__ . "/config/db.php";
 
-$message_sent = ""; // variable to store status message
-
-if (isset($_POST['send_email'])) {
-    $to = "mwendihillary21@gmail.com";     // your email
-    $subject = "Test Email from PHP";
-    $message = "Hello Hillary! This is a test email.";
-    $headers = "From: mwendikimaiga21@gmail.com"; // change to a valid sender email
-
-    if (mail($to, $subject, $message, $headers)) {
-        $message_sent = "<p style='color:green;'>Email sent successfully!</p>";
-    } else {
-        $message_sent = "<p style='color:red;'>Failed to send email.</p>";
-    }
-}
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Send Email</title>
-</head>
-<body>
-    <?php
-        if (!empty($message_sent)) {
-            echo $message_sent;
+// get table structure
+echo "<h2>Notifications Table Structure</h2>";
+$result = $conn->query("DESCRIBE notifications");
+if ($result) {
+    echo "<table border='1' cellpadding='5'><tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th></tr>";
+    while ($row = $result->fetch_assoc()) {
+        echo "<tr>";
+        foreach ($row as $col) {
+            echo "<td>" . htmlspecialchars($col) . "</td>";
         }
-    ?>
-    <form method="post" action="">
-        <button type="submit" name="send_email">Send Email</button>
-    </form>
-</body>
-</html>
+        echo "</tr>";
+    }
+    echo "</table>";
+} else {
+    echo "Error fetching structure: " . $conn->error;
+}
+
+// get sample data
+echo "<h2>Sample Data from Notifications</h2>";
+$data = $conn->query("SELECT * FROM notifications LIMIT 10");
+if ($data && $data->num_rows > 0) {
+    echo "<table border='1' cellpadding='5'><tr>";
+    // print column headers
+    while ($field = $data->fetch_field()) {
+        echo "<th>" . htmlspecialchars($field->name) . "</th>";
+    }
+    echo "</tr>";
+    // print rows
+    $data->data_seek(0);
+    while ($row = $data->fetch_assoc()) {
+        echo "<tr>";
+        foreach ($row as $value) {
+            echo "<td>" . htmlspecialchars($value) . "</td>";
+        }
+        echo "</tr>";
+    }
+    echo "</table>";
+} else {
+    echo "No data found or error: " . $conn->error;
+}
+
+$conn->close();
+?>
