@@ -6,9 +6,9 @@
     --golden-dark: #d97706;
     --golden-light: #fef3c7;
 
-    --golden-green: #6b8e23;
-    --golden-green-dark: #556b2f;
-    --golden-green-light: #f0fdf4;
+    --green: #6b8e23;
+    --green-dark: #556b2f;
+    --green-light: #f0fdf4;
 
     --blue: #2563eb;
     --blue-dark: #1e40af;
@@ -29,8 +29,8 @@
    ============================= */
 body {
     font-family: 'Inter', sans-serif;
-    background-color: #fefce8; /* Light golden background */
-    color: #92400e; /* Warm brown for contrast */
+    background-color: #fefce8;
+    color: #374151;
     overflow-x: hidden;
 }
 
@@ -40,11 +40,9 @@ body {
 .sidebar {
     width: 280px;
     position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
+    top: 0; right: 0; bottom: 0;
     transform: translateX(100%);
-    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition: transform 0.4s ease-in-out;
     z-index: 50;
     backdrop-filter: blur(10px);
     background-color: rgba(254, 252, 232, 0.95);
@@ -55,73 +53,63 @@ body {
 
 .overlay {
     display: none;
-    position: fixed;
-    inset: 0;
+    position: fixed; inset: 0;
     background-color: rgba(0, 0, 0, 0.3);
     z-index: 40;
-    transition: opacity 0.4s ease-in-out;
     opacity: 0;
+    transition: opacity 0.4s ease-in-out;
 }
 .overlay.open { display: block; opacity: 1; }
 
 /* =============================
-   NAVIGATION
+   MENU ITEMS (Alternating Colors)
    ============================= */
-.nav-link {
-    transition: all 0.3s ease;
-    color: #92400e;
-}
-.nav-link:hover { color: var(--golden); }
-.nav-link.active {
-    font-weight: 600;
-    color: var(--golden);
-    background-color: var(--golden-light);
-}
-.nav-link.active svg { color: var(--golden); }
-
-/* Themed nav */
-.nav-golden { color: var(--golden); }
-.nav-golden:hover { color: var(--golden-dark); background-color: var(--golden-light); }
-
-.nav-golden-green { color: var(--golden-green); }
-.nav-golden-green:hover { color: var(--golden-green-dark); background-color: var(--golden-green-light); }
-
-.nav-blue { color: var(--blue); }
-.nav-blue:hover { color: var(--blue-dark); background-color: var(--blue-light); }
-
-.nav-orange { color: var(--orange); }
-.nav-orange:hover { color: var(--orange-dark); background-color: var(--orange-light); }
-
-/* =============================
-   BUTTONS
-   ============================= */
-.btn-primary {
-    background: linear-gradient(to right, var(--golden), var(--golden-dark));
-    color: var(--white);
-    transition: all 0.2s ease;
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    color: var(--neutral-text);
+    background: none;
     border: none;
+    width: 100%;
+    text-align: left;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 1.125rem;
+    cursor: pointer;
 }
-.btn-primary:hover {
-    transform: translateY(-2px);
-    background: linear-gradient(to right, var(--golden-dark), #b45309);
-    color: var(--white);
+
+/* Alternate themes for menu items */
+.menu-item:nth-child(4n+1) { color: var(--green); }
+.menu-item:nth-child(4n+1):hover { background: var(--green-light); color: var(--green-dark); }
+
+.menu-item:nth-child(4n+2) { color: var(--blue); }
+.menu-item:nth-child(4n+2):hover { background: var(--blue-light); color: var(--blue-dark); }
+
+.menu-item:nth-child(4n+3) { color: var(--orange); }
+.menu-item:nth-child(4n+3):hover { background: var(--orange-light); color: var(--orange-dark); }
+
+.menu-item:nth-child(4n+4) { color: var(--golden); }
+.menu-item:nth-child(4n+4):hover { background: var(--golden-light); color: var(--golden-dark); }
+
+.menu-section-title {
+    font-weight: 600;
+    font-size: 1.125rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 1rem;
 }
-.btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; cursor: pointer; }
 
-.btn-golden { background-color: var(--golden); color: var(--white); }
-.btn-golden:hover { background-color: var(--golden-dark); }
-
-.btn-golden-green { background-color: var(--golden-green); color: var(--white); }
-.btn-golden-green:hover { background-color: var(--golden-green-dark); }
-
-.btn-blue { background-color: var(--blue); color: var(--white); }
-.btn-blue:hover { background-color: var(--blue-dark); }
-
-.btn-orange { background-color: var(--orange); color: var(--white); }
-.btn-orange:hover { background-color: var(--orange-dark); }
+/* Alternate section title colors */
+.menu-section-title:nth-of-type(4n+1) { color: var(--green); }
+.menu-section-title:nth-of-type(4n+2) { color: var(--blue); }
+.menu-section-title:nth-of-type(4n+3) { color: var(--orange); }
+.menu-section-title:nth-of-type(4n+4) { color: var(--golden); }
 
 /* =============================
-   CARDS
+   CARDS (Alternating Borders)
    ============================= */
 .card {
     border: 1px solid var(--neutral-border);
@@ -136,124 +124,70 @@ body {
     box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 8px 20px rgba(0,0,0,0.15);
 }
 
-/* Accent cards */
-.card-golden { border-left: 6px solid var(--golden); }
-.card-golden-green { border-left: 6px solid var(--golden-green); }
-.card-blue { border-left: 6px solid var(--blue); }
-.card-orange { border-left: 6px solid var(--orange); }
+.card:nth-child(4n+1) { border-left: 6px solid var(--green); }
+.card:nth-child(4n+2) { border-left: 6px solid var(--blue); }
+.card:nth-child(4n+3) { border-left: 6px solid var(--orange); }
+.card:nth-child(4n+4) { border-left: 6px solid var(--golden); }
 
 /* =============================
-   TABLES
+   TABLES (Alternating Rows)
    ============================= */
-.table-row-hover:hover { background-color: var(--golden-light); }
-
-.table {
-    width: 100%;
-    border-collapse: collapse;
-}
+.table { width: 100%; border-collapse: collapse; }
 .table th, .table td {
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--neutral-border);
     text-align: left;
 }
-.table th {
-    font-weight: 600;
-    background-color: var(--neutral-bg);
-    color: var(--neutral-text);
-}
+.table th { font-weight: 600; background-color: var(--neutral-bg); color: var(--neutral-text); }
+
+/* Alternate row highlight colors */
+.table tr:nth-child(4n+1):hover { background-color: var(--green-light); color: var(--green-dark); }
+.table tr:nth-child(4n+2):hover { background-color: var(--blue-light); color: var(--blue-dark); }
+.table tr:nth-child(4n+3):hover { background-color: var(--orange-light); color: var(--orange-dark); }
+.table tr:nth-child(4n+4):hover { background-color: var(--golden-light); color: var(--golden-dark); }
 
 /* =============================
-   MODALS
+   BUTTONS (Alternating)
+   ============================= */
+.btn { 
+    padding: 0.5rem 1rem; 
+    border-radius: 0.5rem; 
+    font-weight: 500; 
+    cursor: pointer; 
+    border: none;
+    transition: all 0.2s ease;
+}
+
+/* Alternate button themes */
+.btn:nth-child(4n+1) { background-color: var(--green); color: var(--white); }
+.btn:nth-child(4n+1):hover { background-color: var(--green-dark); }
+
+.btn:nth-child(4n+2) { background-color: var(--blue); color: var(--white); }
+.btn:nth-child(4n+2):hover { background-color: var(--blue-dark); }
+
+.btn:nth-child(4n+3) { background-color: var(--orange); color: var(--white); }
+.btn:nth-child(4n+3):hover { background-color: var(--orange-dark); }
+
+.btn:nth-child(4n+4) { background-color: var(--golden); color: var(--white); }
+.btn:nth-child(4n+4):hover { background-color: var(--golden-dark); }
+
+/* =============================
+   MODALS (Also Themed)
    ============================= */
 .modal { display: none; z-index: 50; }
 .modal.open { display: flex; }
 
-/* =============================
-   ICONS & TEXT
-   ============================= */
-.hamburger-icon-menu { transition: transform 0.3s ease-in-out; }
-.hamburger-icon-menu.open { transform: rotate(-90deg); }
-
-.stat-icon { transition: transform 0.2s ease, color 0.3s ease; }
-.card:hover .stat-icon { transform: scale(1.05); color: var(--golden); }
-
-.stat-text-primary { color: #b45309; }
-.stat-text-secondary { color: var(--golden-dark); }
-.stat-text-accent { color: var(--golden); }
+.modal:nth-of-type(4n+1) { border-top: 5px solid var(--green); }
+.modal:nth-of-type(4n+2) { border-top: 5px solid var(--blue); }
+.modal:nth-of-type(4n+3) { border-top: 5px solid var(--orange); }
+.modal:nth-of-type(4n+4) { border-top: 5px solid var(--golden); }
 
 /* =============================
-   COURSE CARDS
+   CLOSE BUTTON
    ============================= */
-.course-header {
-    background: linear-gradient(to right, rgba(245, 158, 11, 0.05), rgba(217, 119, 6, 0.05));
-    border-bottom: 1px solid var(--neutral-border);
-}
-.course-title { color: #92400e; transition: color 0.3s ease; }
-.course-title:hover { color: var(--golden); }
-
-.course-instructor { color: #a16207; transition: color 0.3s ease; }
-.course-instructor:hover { color: var(--golden-dark); }
-
-.course-detail { color: #be9500; transition: color 0.3s ease; }
-.course-detail:hover { color: var(--golden); }
-
-/* =============================
-   HERO & HEADINGS
-   ============================= */
-.hero-text {
-    color: #FFD700;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-    transition: color 0.3s ease;
-}
-.hero-text:hover { color: #FFA500; }
-
-h1, h2, h3 { transition: color 0.3s ease; }
-h1:hover, h2:hover, h3:hover { color: var(--golden); }
-
-/* =============================
-   TABLE TEXT VARIANTS
-   ============================= */
-.table-text-primary { color: #92400e; transition: color 0.3s ease; }
-.table-text-primary:hover { color: var(--golden); }
-
-.table-text-secondary { color: #a16207; transition: color 0.3s ease; }
-.table-text-secondary:hover { color: var(--golden-dark); }
-
-/* =============================
-   SIDEBAR MENU
-   ============================= */
-.menu-item {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    border-radius: 0.75rem;
-    color: #92400e;
-    background: none;
-    border: none;
-    width: 100%;
-    text-align: left;
-    text-decoration: none;
-    transition: all 0.2s ease;
-    font-size: 1.125rem;
-}
-.menu-item:hover { background-color: var(--golden-light); color: var(--golden); }
-
-.menu-section-title {
-    font-weight: 600;
-    font-size: 1.125rem;
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
-    color: var(--golden);
-    padding-left: 1rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-}
-
 .close-btn {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: 1rem; right: 1rem;
     font-size: 1.875rem;
     font-weight: bold;
     color: #92400e;
