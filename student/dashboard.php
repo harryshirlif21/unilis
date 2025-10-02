@@ -127,36 +127,36 @@ try {
         </p>
 
         <!-- Dashboard -->
-        <button class="menu-item" onclick="alert('Dashboard Overview clicked!')">
+        <button class="menu-item green" onclick="alert('Dashboard Overview clicked!')">
             <i class="fas fa-tachometer-alt"></i> Dashboard
         </button>
 
         <!-- Academic Section -->
-        <div class="menu-section-title">Academic</div>
-        <button class="menu-item" onclick="alert('My Courses clicked!')">
+        <div class="menu-section-title blue">Academic</div>
+        <button class="menu-item orange" onclick="alert('My Courses clicked!')">
             <i class="fas fa-book"></i> My Courses
         </button>
-        <a href="submit_assignment.php" class="menu-item">
+        <a href="submit_assignment.php" class="menu-item orange">
             <i class="fas fa-upload"></i> Submit Assignment
         </a>
-        <button class="menu-item" onclick="alert('Grades clicked!')">
+        <button class="menu-item orange" onclick="alert('Grades clicked!')">
             <i class="fas fa-medal"></i> Grades
         </button>
-        <button class="menu-item" onclick="alert('Schedule clicked!')">
+        <button class="menu-item orange" onclick="alert('Schedule clicked!')">
             <i class="fas fa-calendar-alt"></i> Schedule
         </button>
 
         <!-- Resources Section -->
-        <div class="menu-section-title">Resources</div>
-        <button class="menu-item" onclick="alert('Notes & Files clicked!')">
+        <div class="menu-section-title green">Resources</div>
+        <button class="menu-item orange" onclick="alert('Notes & Files clicked!')">
             <i class="fas fa-file-alt"></i> Notes & Files
         </button>
-        <button class="menu-item" onclick="alert('Library Services clicked!')">
+        <button class="menu-item orange" onclick="alert('Library Services clicked!')">
             <i class="fas fa-book-reader"></i> Library Services
         </button>
 
         <!-- Communication & Support Section -->
-        <div class="menu-section-title">Communication & Support</div>
+        <div class="menu-section-title blue">Communication & Support</div>
         <button class="menu-item" onclick="alert('Announcements clicked!')">
             <i class="fas fa-bullhorn"></i> Announcements
         </button>
@@ -168,7 +168,7 @@ try {
         </button>
 
         <!-- Account Section -->
-        <div class="menu-section-title">Account</div>
+        <div class="menu-section-title orange">Account</div>
         <a href="#" class="menu-item" onclick="alert('Profile Settings not implemented yet!')">
             <i class="fas fa-user-circle"></i> My Profile
         </a>
@@ -255,7 +255,8 @@ try {
                             <i class="fas fa-book-open h-6 w-6"></i>
                         </div>
                         <div>
-                            <p class="text-sm stat-text-primary">Active Units</p>
+                           <p class="text-sm stat-text-primary" style="color: #6b8e23;">Active Units</p>
+
                             <h2 class="text-3xl font-bold stat-text-secondary"><?= $units_count ?></h2>
                         </div>
                     </div>
@@ -266,7 +267,8 @@ try {
                             <i class="fas fa-hourglass-half h-6 w-6"></i>
                         </div>
                         <div>
-                            <p class="text-sm stat-text-secondary">Assignments Due</p>
+                           <p class="text-sm stat-text-secondary" style="color: #2563eb;">Assignments Due</p>
+
                             <h2 class="text-3xl font-bold stat-text-accent"><?= $assignments_count ?></h2>
                         </div>
                     </div>
@@ -288,7 +290,8 @@ try {
                             <i class="fas fa-check-double h-6 w-6"></i>
                         </div>
                         <div>
-                            <p class="text-sm stat-text-primary">Assignments Submitted</p>
+                           <p class="text-sm stat-text-primary" style="color: #fb923c;">Assignments Submitted</p>
+
                             <h2 class="text-3xl font-bold stat-text-secondary"><?= $submitted_count ?></h2>
                         </div>
                     </div>
