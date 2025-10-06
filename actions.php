@@ -47,7 +47,7 @@ if ($action === 'signup_student') {
         $stmt->bind_param("sssiiiiss", $reg_no, $name, $email, $university_id, $department_id, $course_id, $year_of_study, $year_joined, $password_hashed);
         $stmt->execute() ? $_SESSION['signup_success'] = "Student registered successfully." : $_SESSION['signup_error'] = "Error: " . $stmt->error;
     }
-    header("Location: index.html");
+    header("Location: ../index.html");
     exit;
 }
 // === UNIVERSAL LOGIN ===
