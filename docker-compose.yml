@@ -6,9 +6,18 @@ services:
     ports:
       - "8080:80"
     volumes:
+      # Mount full project
       - .:/var/www/html
+
       # Keep vendor inside the container (don’t override with host)
       - /var/www/html/vendor
+
+      # 🆕 Persist uploads
+      - ./assets/uploads:/var/www/html/assets/uploads
+      - ./uploads:/var/www/html/uploads
+      - ./assets/assignments:/var/www/html/assets/assignments  # optional for assignments
+      - ./assets/meetings:/var/www/html/assets/meetings        # optional for meeting recordings
+
     depends_on:
       - db
     environment:
