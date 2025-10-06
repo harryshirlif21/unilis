@@ -69,12 +69,14 @@ try {
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="profile-content">Profile</a>
 
     <?php
-    // Count unread notifications for this student
     $notif_count_query = $conn->prepare("
-    SELECT COUNT(*) AS unread_count 
-    FROM notifications 
-    WHERE user_id = ? AND user_role = 'student' AND is_read = 0
+    SELECT COUNT(*) AS unread_count
+    FROM notifications n
+    JOIN notes nt ON n.notes_id = nt.id
+    JOIN units u ON nt.unit_id = u.id
+    WHERE u.course_id = ? AND u.year = ? AND n.is_read = 0
 ");
+
 $notif_count_query->bind_param("i", $_SESSION['user_id']);
 
     $notif_count_query->execute();
