@@ -1,35 +1,43 @@
 <?php
-// send_email.php
+// include your existing DB connection
+require_once __DIR__ . "/config/db.php";
 
-$message_sent = ""; // variable to store status message
+// Drop the two columns from the notifications table if they exist
+$columns = ['user_id', 'user_role'];
 
-if (isset($_POST['send_email'])) {
-    $to = "mwendihillary21@gmail.com";     // your email
-    $subject = "Test Email from PHP";
-    $message = "Hello Hillary! This is a test email.";
-    $headers = "From: mwendikimaiga21@gmail.com"; // change to a valid sender email
-
-    if (mail($to, $subject, $message, $headers)) {
-        $message_sent = "<p style='color:green;'>Email sent successfully!</p>";
+foreach ($columns as $column) {
+    $check = $conn->query("SHOW COLUMNS FROM notifications LIKE '$column'");
+    if ($check && $check->num_rows > 0) {
+        $sql = "ALTER TABLE notifications DROP COLUMN $column";
+        if ($conn->query($sql)) {
+            echo "<p>✅ Column <strong>$column</strong> removed successfully.</p>";
+        } else {
+            echo "<p>❌ Error removing <strong>$column</strong>: " . htmlspecialchars($conn->error) . "</p>";
+        }
     } else {
-        $message_sent = "<p style='color:red;'>Failed to send email.</p>";
+        echo "<p>ℹ️ Column <strong>$column</strong> does not exist or was already removed.</p>";
     }
 }
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Send Email</title>
-</head>
-<body>
-    <?php
-        if (!empty($message_sent)) {
-            echo $message_sent;
+
+// Confirm final structure
+echo "<h2>Updated Notifications Table Structure</h2>";
+$result = $conn->query("DESCRIBE notifications");
+if ($result) {
+    echo "<table border='1' cellpadding='5'>
+            <tr>
+                <th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th>
+            </tr>";
+    while ($row = $result->fetch_assoc()) {
+        echo "<tr>";
+        foreach ($row as $col) {
+            echo "<td>" . htmlspecialchars($col ?? '', ENT_QUOTES, 'UTF-8') . "</td>";
         }
-    ?>
-    <form method="post" action="">
-        <button type="submit" name="send_email">Send Email</button>
-    </form>
-</body>
-</html>
+        echo "</tr>";
+    }
+    echo "</table>";
+} else {
+    echo "Error fetching structure: " . htmlspecialchars($conn->error);
+}
+
+$conn->close();
+?>
