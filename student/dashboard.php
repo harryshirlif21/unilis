@@ -102,11 +102,6 @@ if ($course_id && $year_of_study) {
 }
 ?>
 
-<!-- Example usage in your HTML -->
-<span class="notif-badge">
-    <?php echo $unread_count > 0 ? $unread_count : ''; ?>
-</span>
-
 
     <!-- Notifications Nav Item -->
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative text-green-700 hover:bg-green-100" data-target="notifications-content" id="notifBell">
