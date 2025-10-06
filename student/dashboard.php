@@ -69,16 +69,22 @@ try {
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="profile-content">Profile</a>
 
     <?php
-    $notif_count_query = $conn->prepare("
-    SELECT COUNT(*) AS unread_count
+    $notif_query = $conn->prepare("
+    SELECT n.id, n.title, n.message, n.link, n.is_read, n.created_at
     FROM notifications n
-    JOIN notes nt ON n.notes_id = nt.id
-    JOIN units u ON nt.unit_id = u.id
-    WHERE u.course_id = ? AND u.year = ? AND n.is_read = 0
+    LEFT JOIN notes nt ON n.notes_id = nt.id
+    LEFT JOIN assignments a ON n.assignment_id = a.id
+    LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
+    LEFT JOIN meetings m ON n.meeting_id = m.id
+    LEFT JOIN units u 
+        ON u.id = nt.unit_id 
+        OR u.id = a.unit_id 
+        OR u.id = ia.unit_id 
+        OR u.id = m.unit_id
+    WHERE u.course_id = ? AND u.year = ?
+    ORDER BY n.created_at DESC
 ");
-
-$notif_count_query->bind_param("i", $_SESSION['user_id']);
-
+$notif_query->bind_param("ii", $course_id, $year_of_study);
     $notif_count_query->execute();
     $result = $notif_count_query->get_result();
     $notif_data = $result->fetch_assoc();
