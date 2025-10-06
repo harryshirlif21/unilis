@@ -69,28 +69,44 @@ try {
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="profile-content">Profile</a>
 
     <?php
-    $notif_query = $conn->prepare("
-    SELECT n.id, n.title, n.message, n.link, n.is_read, n.created_at
-    FROM notifications n
-    LEFT JOIN notes nt ON n.notes_id = nt.id
-    LEFT JOIN assignments a ON n.assignment_id = a.id
-    LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
-    LEFT JOIN meetings m ON n.meeting_id = m.id
-    LEFT JOIN units u 
-        ON u.id = nt.unit_id 
-        OR u.id = a.unit_id 
-        OR u.id = ia.unit_id 
-        OR u.id = m.unit_id
-    WHERE u.course_id = ? AND u.year = ?
-    ORDER BY n.created_at DESC
-");
-$notif_query->bind_param("ii", $course_id, $year_of_study);
+// Ensure these session variables are set
+$course_id = $_SESSION['course_id'] ?? null;
+$year_of_study = $_SESSION['year_of_study'] ?? null;
+$unread_count = 0;
+
+if ($course_id && $year_of_study) {
+    // Query unread notifications related to this student's course and year
+    $notif_count_query = $conn->prepare("
+        SELECT COUNT(DISTINCT n.id) AS unread_count
+        FROM notifications n
+        LEFT JOIN notes nt ON n.notes_id = nt.id
+        LEFT JOIN assignments a ON n.assignment_id = a.id
+        LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
+        LEFT JOIN meetings m ON n.meeting_id = m.id
+        LEFT JOIN units u 
+            ON u.id = nt.unit_id 
+            OR u.id = a.unit_id 
+            OR u.id = ia.unit_id 
+            OR u.id = m.unit_id
+        WHERE u.course_id = ? AND u.year = ? AND n.is_read = 0
+    ");
+    $notif_count_query->bind_param("ii", $course_id, $year_of_study);
     $notif_count_query->execute();
     $result = $notif_count_query->get_result();
-    $notif_data = $result->fetch_assoc();
-    $unread_count = $notif_data['unread_count'] ?? 0;
+
+    if ($row = $result->fetch_assoc()) {
+        $unread_count = $row['unread_count'];
+    }
+
     $notif_count_query->close();
-    ?>
+}
+?>
+
+<!-- Example usage in your HTML -->
+<span class="notif-badge">
+    <?php echo $unread_count > 0 ? $unread_count : ''; ?>
+</span>
+
 
     <!-- Notifications Nav Item -->
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative text-green-700 hover:bg-green-100" data-target="notifications-content" id="notifBell">
