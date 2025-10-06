@@ -71,11 +71,12 @@ try {
     <?php
     // Count unread notifications for this student
     $notif_count_query = $conn->prepare("
-        SELECT COUNT(*) AS unread_count 
-        FROM notifications 
-        WHERE user_id = ? AND user_role = 'student' AND is_read = 0
-    ");
-    $notif_count_query->bind_param("i", $_SESSION['user_id']);
+    SELECT COUNT(*) AS unread_count 
+    FROM notifications 
+    WHERE user_id = ? AND user_role = 'student' AND is_read = 0
+");
+$notif_count_query->bind_param("i", $_SESSION['user_id']);
+
     $notif_count_query->execute();
     $result = $notif_count_query->get_result();
     $notif_data = $result->fetch_assoc();
@@ -733,61 +734,93 @@ try {
                 </div>
             </section>
         </div>
-        <div id="notifications-content" class="hidden">
-            <section class="card bg-white rounded-2xl p-6 mb-8">
-                <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Notifications</h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="border-b-2 border-f5e6b2">
-                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Title</th>
-                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Message</th>
-                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Date</th>
-                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="text-92400e">
-                            <?php
-                            try {
-                                // Fetch notifications for the logged-in student
-                                $notif_query = $conn->prepare("
-                            SELECT id, title, message, link, is_read, created_at 
-                            FROM notifications 
-                            WHERE user_id = ? AND user_role = 'student'
-                            ORDER BY created_at DESC
-                        ");
-                                $notif_query->bind_param("i", $_SESSION['user_id']);
-                                $notif_query->execute();
-                                $notifications = $notif_query->get_result();
+        
+       <?php
+// Make sure PHP mode starts before this logic if you're mixing with HTML
+?>
+<div id="notifications-content" class="hidden">
+    <section class="card bg-white rounded-2xl p-6 mb-8">
+        <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Notifications</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b-2 border-f5e6b2">
+                        <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Title</th>
+                        <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Message</th>
+                        <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Date</th>
+                        <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="text-92400e">
+                    <?php
+                    try {
+                        
+                        $course_id = $_SESSION['course_id'] ?? null;
+                        $year_of_study = $_SESSION['year_of_study'] ?? null;
 
-                                if ($notifications->num_rows === 0) {
-                                    echo "<tr><td colspan='4' class='py-4 text-center'>No notifications yet.</td></tr>";
-                                } else {
-                                    while ($notif = $notifications->fetch_assoc()) {
-                                        $title = htmlspecialchars($notif['title']);
-                                        $message = htmlspecialchars($notif['message']);
-                                        $created_at = date("d M Y, h:i A", strtotime($notif['created_at']));
-                                        $link = !empty($notif['link']) ? "<a href='{$notif['link']}' class='text-f59e0b hover:underline'>View</a>" : "-";
+                        if (!$course_id || !$year_of_study) {
+                            echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Missing student context.</td></tr>";
+                        } else {
+                            // Fetch notifications relevant to student's course and year
+                            $notif_query = $conn->prepare("
+                                SELECT DISTINCT n.id, n.title, n.message, n.link, n.is_read, n.created_at
+                                FROM notifications n
+                                LEFT JOIN notes nt ON n.notes_id = nt.id
+                                LEFT JOIN assignments a ON n.assignment_id = a.id
+                                LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
+                                LEFT JOIN meetings m ON n.meeting_id = m.id
+                                LEFT JOIN units u 
+                                    ON u.id = nt.unit_id 
+                                    OR u.id = a.unit_id 
+                                    OR u.id = ia.unit_id 
+                                    OR u.id = m.unit_id
+                                WHERE u.course_id = ? AND u.year = ?
+                                ORDER BY n.created_at DESC
+                            ");
 
-                                        echo "<tr class='border-b border-f5e6b2 table-row-hover'>
-                                    <td class='py-4 table-text-primary'>$title</td>
-                                    <td class='py-4 table-text-secondary'>$message</td>
-                                    <td class='py-4 text-sm table-text-accent'>$created_at</td>
-                                    <td class='py-4'>$link</td>
-                                </tr>";
-                                    }
+                            $notif_query->bind_param("ii", $course_id, $year_of_study);
+                            $notif_query->execute();
+                            $notifications = $notif_query->get_result();
+
+                            if ($notifications->num_rows === 0) {
+                                echo "<tr><td colspan='4' class='py-4 text-center'>No notifications yet.</td></tr>";
+                            } else {
+                                while ($notif = $notifications->fetch_assoc()) {
+                                    $title = htmlspecialchars($notif['title']);
+                                    $message = htmlspecialchars($notif['message']);
+                                    $created_at = date("d M Y, h:i A", strtotime($notif['created_at']));
+                                    $link = !empty($notif['link'])
+                                        ? "<a href='" . htmlspecialchars($notif['link']) . "' class='text-f59e0b hover:underline'>View</a>"
+                                        : "-";
+
+                                    // Highlight unread notifications
+                                    $row_style = $notif['is_read'] ? '' : "style='background-color:#fffbea;'";
+
+                                    echo "<tr class='border-b border-f5e6b2 table-row-hover' $row_style>
+                                        <td class='py-4 table-text-primary'>$title</td>
+                                        <td class='py-4 table-text-secondary'>$message</td>
+                                        <td class='py-4 text-sm table-text-accent'>$created_at</td>
+                                        <td class='py-4'>$link</td>
+                                    </tr>";
                                 }
-                                $notif_query->close();
-                            } catch (mysqli_sql_exception $e) {
-                                error_log('Error fetching notifications: ' . $e->getMessage());
-                                echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading notifications.</td></tr>";
                             }
-                            ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+
+                            $notif_query->close();
+                        }
+                    } catch (mysqli_sql_exception $e) {
+                        error_log('Error fetching notifications: ' . $e->getMessage());
+                        echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading notifications.</td></tr>";
+                    }
+                    ?>
+                </tbody>
+            </table>
         </div>
+    </section>
+</div>
+<?php
+// Optionally close PHP again after if more HTML follows
+?>
+
 
         <script>
             // Enhanced JavaScript for better UX: Navigation, Sidebar Toggle, and Content Switching
