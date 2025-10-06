@@ -139,12 +139,12 @@ try {
             <div class="dropdown-content">
                 <a href="create_questions.php"><i class="fas fa-plus"></i> Create Assignment</a>
                 <a href="scores_overview.php"><i class="fas fa-chart-line"></i> View Student Scores</a>
-                <a href="assignment_submissions.php"><i class="fas fa-inbox"></i> View Submissions</a>
                 <a href="submission_stats.php"><i class="fas fa-chart-bar"></i> Submission Stats</a>
                 <a href="AIGrading.php"><i class="fas fa-robot"></i> AI Grading</a>
             </div>
         </div>
-        <button class="menu-item" data-target="submissions-content"><i class="fas fa-inbox"></i> View Submissions</button>
+       
+         <a class="menu-item" data-target="submissions-content" href="assignment_submissions.php"><i class="fas fa-inbox"></i> View Submissions</a>
         <button class="menu-item" onclick="showModal('uploadModal')"><i class="fas fa-upload"></i> Upload Notes</button>
         <button class="menu-item" data-target="notes-content"><i class="fas fa-file-alt"></i> View Notes</button>
         <a href="meetings.php" class="menu-item"><i class="fas fa-calendar-alt"></i> Create Meeting</a>
