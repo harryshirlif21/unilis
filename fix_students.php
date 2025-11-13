@@ -9,15 +9,15 @@ if ($conn->query($deleteSql)) {
     echo "<p>❌ Error deleting row: " . htmlspecialchars($conn->error) . "</p>";
 }
 
-// Step 2: Reset AUTO_INCREMENT on meetings.id
-$alterSql = "ALTER TABLE meetings MODIFY id INT NOT NULL AUTO_INCREMENT PRIMARY KEY";
+// Step 2: Alter id column to AUTO_INCREMENT only
+$alterSql = "ALTER TABLE meetings MODIFY id INT NOT NULL AUTO_INCREMENT";
 if ($conn->query($alterSql)) {
     echo "<p>✅ meetings.id column is now AUTO_INCREMENT.</p>";
 } else {
     echo "<p>❌ Error setting AUTO_INCREMENT: " . htmlspecialchars($conn->error) . "</p>";
 }
 
-// Step 3: Display the updated meetings table
+// Step 3: Display updated meetings table
 $sql = "SELECT * FROM meetings";
 $result = $conn->query($sql);
 
