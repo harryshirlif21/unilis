@@ -1,5 +1,5 @@
 <?php
-// include your existing DB connection
+// Include your existing DB connection
 require_once __DIR__ . "/config/db.php";
 
 // === Step 1: Rename note_id → notes_id (if needed) ===
@@ -15,10 +15,9 @@ if ($check && $check->num_rows > 0) {
     echo "<p>ℹ️ Column <strong>note_id</strong> does not exist or was already renamed.</p>";
 }
 
-// === Step 2: Check and Add Foreign Keys ===
+// === Step 2: Check and Add Foreign Keys for notifications ===
 echo "<h2>Foreign Key Constraints for Notifications Table</h2>";
 
-// Define target columns and their referenced tables
 $relations = [
     'notes_id' => ['table' => 'notes', 'column' => 'id'],
     'assignment_id' => ['table' => 'assignments', 'column' => 'id'],
@@ -26,7 +25,6 @@ $relations = [
     'meeting_id' => ['table' => 'meetings', 'column' => 'id']
 ];
 
-// Track which foreign keys exist
 $existingFKs = [];
 
 $fkQuery = "
@@ -50,7 +48,6 @@ if ($result) {
     }
 }
 
-// Check and create missing foreign keys
 foreach ($relations as $column => $ref) {
     if (!isset($existingFKs[$column])) {
         $constraintName = "fk_notifications_" . $ref['table'];
@@ -70,7 +67,7 @@ foreach ($relations as $column => $ref) {
     }
 }
 
-// === Step 3: Show current table structure ===
+// === Step 3: Show current notifications table structure ===
 echo "<h2>Updated Notifications Table Structure</h2>";
 
 $result = $conn->query("DESCRIBE notifications");
@@ -94,6 +91,72 @@ if ($result) {
     echo "</table>";
 } else {
     echo "Error fetching structure: " . htmlspecialchars($conn->error);
+}
+
+// === Step 4: Create WebRTC tables if they don't exist ===
+echo "<h2>Creating WebRTC Tables</h2>";
+
+// 1. meeting_attendance
+$sql = "CREATE TABLE IF NOT EXISTS meeting_attendance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    meeting_id INT NOT NULL,
+    user_id INT NOT NULL,
+    role ENUM('lecturer','student') NOT NULL,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)";
+if ($conn->query($sql)) {
+    echo "<p>✅ Table <strong>meeting_attendance</strong> is ready.</p>";
+} else {
+    echo "<p>❌ Error creating <strong>meeting_attendance</strong>: " . htmlspecialchars($conn->error) . "</p>";
+}
+
+// 2. meeting_signals
+$sql = "CREATE TABLE IF NOT EXISTS meeting_signals (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    meeting_id INT NOT NULL,
+    from_user_id INT NOT NULL,
+    to_user_id INT NOT NULL,
+    type ENUM('offer','answer','candidate') NOT NULL,
+    data TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
+)";
+if ($conn->query($sql)) {
+    echo "<p>✅ Table <strong>meeting_signals</strong> is ready.</p>";
+} else {
+    echo "<p>❌ Error creating <strong>meeting_signals</strong>: " . htmlspecialchars($conn->error) . "</p>";
+}
+
+// Show the new tables structure
+$tables = ['meeting_attendance', 'meeting_signals'];
+foreach ($tables as $tbl) {
+    echo "<h3>Structure of $tbl</h3>";
+    $result = $conn->query("DESCRIBE $tbl");
+    if ($result) {
+        echo "<table border='1' cellpadding='5'>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Null</th>
+                    <th>Key</th>
+                    <th>Default</th>
+                    <th>Extra</th>
+                </tr>";
+        while ($row = $result->fetch_assoc()) {
+            echo "<tr>";
+            foreach ($row as $col) {
+                echo "<td>" . htmlspecialchars($col ?? '', ENT_QUOTES, 'UTF-8') . "</td>";
+            }
+            echo "</tr>";
+        }
+        echo "</table>";
+    } else {
+        echo "<p>❌ Error fetching structure of $tbl: " . htmlspecialchars($conn->error) . "</p>";
+    }
 }
 
 $conn->close();
