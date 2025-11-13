@@ -8,17 +8,17 @@ if ($conn->query("SET FOREIGN_KEY_CHECKS = 0") === TRUE) {
     die("<p>❌ Failed to disable foreign key checks: " . htmlspecialchars($conn->error) . "</p>");
 }
 
-// Step 1: Drop existing foreign keys first
+// Step 1: Try dropping foreign keys (ignore errors if they don’t exist)
 $dropFKQueries = [
-    "ALTER TABLE notifications DROP FOREIGN KEY IF EXISTS fk_notifications_meetings",
-    "ALTER TABLE meeting_attendance DROP FOREIGN KEY IF EXISTS meeting_attendance_ibfk_1"
+    "ALTER TABLE notifications DROP FOREIGN KEY fk_notifications_meetings",
+    "ALTER TABLE meeting_attendance DROP FOREIGN KEY meeting_attendance_ibfk_1"
 ];
 
 foreach ($dropFKQueries as $sql) {
     if ($conn->query($sql)) {
         echo "<p>✅ Foreign key dropped successfully.</p>";
     } else {
-        echo "<p>⚠️ Note: " . htmlspecialchars($conn->error) . "</p>";
+        echo "<p>⚠️ Note: Could not drop a foreign key (maybe it didn’t exist): " . htmlspecialchars($conn->error) . "</p>";
     }
 }
 
