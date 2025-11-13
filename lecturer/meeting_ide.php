@@ -27,14 +27,14 @@ $userName = $_SESSION['user_name'];
     <title><?= htmlspecialchars($meeting['title']) ?> - Lecturer WebRTC Meeting</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        body { margin:0; font-family:sans-serif; background:#111; color:#fff; display:flex; height:100vh; }
-        #main { flex:1; display:flex; flex-direction:column; }
-        #videos { display:flex; flex-wrap:wrap; gap:5px; padding:5px; flex:1; overflow:auto; background:#000; }
-        video { width:45%; height:300px; background:#333; border-radius:5px; }
-        #localVideo { border:2px solid #0f0; }
-        #controls { display:flex; gap:10px; padding:5px; background:#222; flex-wrap:wrap; }
-        .control-btn { padding:5px 10px; border:none; border-radius:3px; cursor:pointer; background:#333; color:#fff; display:flex; align-items:center; gap:5px; }
-        .control-btn:hover { opacity:0.8; }
+        body, html { margin:0; padding:0; height:100%; font-family:sans-serif; background:#000; color:#fff; overflow:hidden; }
+        #videos { display:flex; flex-wrap:wrap; gap:5px; padding:5px; width:100%; height:100%; box-sizing:border-box; }
+        video { flex:1 1 45%; height:calc(50% - 10px); background:#111; border-radius:5px; object-fit:cover; }
+        #localVideo { border:3px solid #0f0; }
+        #controls { position:fixed; bottom:10px; left:50%; transform:translateX(-50%); background:rgba(34,34,34,0.8); padding:10px 15px; border-radius:10px; display:flex; gap:10px; flex-wrap:wrap; }
+        .control-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:5px 10px; border:none; border-radius:5px; cursor:pointer; background:#333; color:#fff; font-size:12px; width:60px; }
+        .control-btn i { font-size:18px; margin-bottom:3px; }
+        .control-btn:hover { background:#444; }
         #sidebar { width:300px; background:#222; display:flex; flex-direction:column; transition: transform 0.3s; transform: translateX(100%); position:fixed; right:0; top:0; bottom:0; z-index:100; }
         #sidebar.active { transform: translateX(0); }
         #participants, #chat { flex:1; overflow:auto; padding:10px; border-bottom:1px solid #444; }
@@ -44,20 +44,19 @@ $userName = $_SESSION['user_name'];
     </style>
 </head>
 <body>
-<div id="main">
-    <h2><?= htmlspecialchars($meeting['title']) ?> - Lecturer View</h2>
-    <div id="videos">
-        <video id="localVideo" autoplay muted></video>
-    </div>
-    <div id="controls">
-        <button class="control-btn" id="toggleVideo"><i class="fa fa-video"></i></button>
-        <button class="control-btn" id="toggleAudio"><i class="fa fa-microphone"></i></button>
-        <button class="control-btn" id="presentScreen"><i class="fa fa-desktop"></i></button>
-        <button class="control-btn" id="muteAll"><i class="fa fa-volume-mute"></i></button>
-        <button class="control-btn" id="record"><i class="fa fa-circle"></i></button>
-        <button class="control-btn" id="endMeeting"><i class="fa fa-sign-out-alt"></i></button>
-        <button class="control-btn" id="toggleSidebar"><i class="fa fa-comments"></i></button>
-    </div>
+
+<div id="videos">
+    <video id="localVideo" autoplay muted></video>
+</div>
+
+<div id="controls">
+    <button class="control-btn" id="toggleVideo"><i class="fa fa-video"></i>Video</button>
+    <button class="control-btn" id="toggleAudio"><i class="fa fa-microphone"></i>Audio</button>
+    <button class="control-btn" id="presentScreen"><i class="fa fa-desktop"></i>Share</button>
+    <button class="control-btn" id="muteAll"><i class="fa fa-volume-mute"></i>Mute All</button>
+    <button class="control-btn" id="record"><i class="fa fa-circle"></i>Record</button>
+    <button class="control-btn" id="endMeeting"><i class="fa fa-sign-out-alt"></i>End</button>
+    <button class="control-btn" id="toggleSidebar"><i class="fa fa-comments"></i>Chat</button>
 </div>
 
 <div id="sidebar">
@@ -171,8 +170,6 @@ document.getElementById('presentScreen').onclick = async ()=>{
 };
 document.getElementById('muteAll').onclick = ()=>{ Object.values(peers).forEach(pc=>pc.getSenders().forEach(s=>{ if(s.track.kind==='audio') s.track.enabled=false; })); };
 document.getElementById('endMeeting').onclick = ()=>{ location.reload(); };
-
-// --- Recording ---
 document.getElementById('record').onclick = ()=>{
     if(!recording){
         mediaRecorder = new MediaRecorder(localStream);
@@ -186,11 +183,7 @@ document.getElementById('record').onclick = ()=>{
         mediaRecorder.start(); recording=true; alert("Recording started");
     } else { mediaRecorder.stop(); recording=false; alert("Recording stopped"); }
 };
-
-// --- Chat toggle ---
 document.getElementById('toggleSidebar').onclick = ()=>{ sidebar.classList.toggle('active'); };
-
-// --- Send chat ---
 document.getElementById('sendChat').onclick = ()=>{
     const msg = document.getElementById('chatMessage').value;
     if(msg.trim()==='') return;
