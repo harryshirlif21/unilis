@@ -93,19 +93,23 @@ if ($result) {
     echo "Error fetching structure: " . htmlspecialchars($conn->error);
 }
 
-// === Step 4: Create WebRTC tables if they don't exist ===
+// === Step 4: Create WebRTC tables using separate student_id and lecturer_id ===
 echo "<h2>Creating WebRTC Tables</h2>";
 
 // 1. meeting_attendance
 $sql = "CREATE TABLE IF NOT EXISTS meeting_attendance (
     id INT AUTO_INCREMENT PRIMARY KEY,
     meeting_id INT NOT NULL,
-    user_id INT NOT NULL,
-    role ENUM('lecturer','student') NOT NULL,
+    student_id INT NULL,
+    lecturer_id INT NULL,
     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    duration_minutes INT DEFAULT NULL,
+    status ENUM('joined','left','absent') DEFAULT 'joined',
     FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-)";
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (lecturer_id) REFERENCES lecturers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
 if ($conn->query($sql)) {
     echo "<p>✅ Table <strong>meeting_attendance</strong> is ready.</p>";
 } else {
@@ -116,15 +120,20 @@ if ($conn->query($sql)) {
 $sql = "CREATE TABLE IF NOT EXISTS meeting_signals (
     id INT AUTO_INCREMENT PRIMARY KEY,
     meeting_id INT NOT NULL,
-    from_user_id INT NOT NULL,
-    to_user_id INT NOT NULL,
+    from_student_id INT NULL,
+    from_lecturer_id INT NULL,
+    to_student_id INT NULL,
+    to_lecturer_id INT NULL,
     type ENUM('offer','answer','candidate') NOT NULL,
     data TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
-    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
-)";
+    FOREIGN KEY (from_student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (from_lecturer_id) REFERENCES lecturers(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_lecturer_id) REFERENCES lecturers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
 if ($conn->query($sql)) {
     echo "<p>✅ Table <strong>meeting_signals</strong> is ready.</p>";
 } else {
