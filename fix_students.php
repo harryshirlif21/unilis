@@ -1,73 +1,86 @@
 <?php
 require_once __DIR__ . "/config/db.php";
 
-// Step 0: Temporarily disable foreign key checks
-if ($conn->query("SET FOREIGN_KEY_CHECKS = 0") === TRUE) {
-    echo "<p>⚙️ Foreign key checks disabled temporarily.</p>";
-} else {
-    die("<p>❌ Failed to disable foreign key checks: " . htmlspecialchars($conn->error) . "</p>");
+// Step 0: Get all tables in the current database
+$tablesResult = $conn->query("SHOW TABLES");
+if (!$tablesResult) {
+    die("❌ Error fetching tables: " . htmlspecialchars($conn->error));
 }
 
-// Step 1: Try dropping foreign keys (ignore errors if they don’t exist)
-$dropFKQueries = [
-    "ALTER TABLE notifications DROP FOREIGN KEY fk_notifications_meetings",
-    "ALTER TABLE meeting_attendance DROP FOREIGN KEY meeting_attendance_ibfk_1"
-];
+$tables = [];
+while ($row = $tablesResult->fetch_array()) {
+    $tables[] = $row[0];
+}
 
-foreach ($dropFKQueries as $sql) {
-    if ($conn->query($sql)) {
-        echo "<p>✅ Foreign key dropped successfully.</p>";
+echo "<h1>Database Structure Overview</h1>";
+
+foreach ($tables as $table) {
+    echo "<h2>Table: $table</h2>";
+
+    // 1️⃣ Show columns
+    $columnsResult = $conn->query("DESCRIBE $table");
+    if ($columnsResult) {
+        echo "<h3>Columns</h3>";
+        echo "<table border='1' cellpadding='5'>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Null</th>
+                    <th>Key</th>
+                    <th>Default</th>
+                    <th>Extra</th>
+                </tr>";
+        while ($col = $columnsResult->fetch_assoc()) {
+            echo "<tr>";
+            foreach ($col as $val) {
+                echo "<td>" . htmlspecialchars($val ?? '', ENT_QUOTES, 'UTF-8') . "</td>";
+            }
+            echo "</tr>";
+        }
+        echo "</table>";
     } else {
-        echo "<p>⚠️ Note: Could not drop a foreign key (maybe it didn’t exist): " . htmlspecialchars($conn->error) . "</p>";
+        echo "<p>❌ Could not fetch columns for $table: " . htmlspecialchars($conn->error) . "</p>";
     }
-}
 
-// Step 2: Truncate dependent and main tables
-$tablesToTruncate = ['notifications', 'meeting_attendance', 'meetings'];
-foreach ($tablesToTruncate as $table) {
-    $sql = "TRUNCATE TABLE $table";
-    if ($conn->query($sql)) {
-        echo "<p>✅ Table <strong>$table</strong> truncated successfully.</p>";
+    // 2️⃣ Show foreign keys referencing other tables
+    $fkResult = $conn->query("
+        SELECT
+            k.CONSTRAINT_NAME,
+            k.COLUMN_NAME,
+            k.REFERENCED_TABLE_NAME,
+            k.REFERENCED_COLUMN_NAME
+        FROM
+            information_schema.KEY_COLUMN_USAGE AS k
+        WHERE
+            k.TABLE_SCHEMA = DATABASE()
+            AND k.TABLE_NAME = '$table'
+            AND k.REFERENCED_TABLE_NAME IS NOT NULL
+    ");
+
+    if ($fkResult && $fkResult->num_rows > 0) {
+        echo "<h3>Foreign Keys</h3>";
+        echo "<table border='1' cellpadding='5'>
+                <tr>
+                    <th>Constraint Name</th>
+                    <th>Column</th>
+                    <th>References Table</th>
+                    <th>References Column</th>
+                </tr>";
+        while ($fk = $fkResult->fetch_assoc()) {
+            echo "<tr>";
+            echo "<td>" . htmlspecialchars($fk['CONSTRAINT_NAME']) . "</td>";
+            echo "<td>" . htmlspecialchars($fk['COLUMN_NAME']) . "</td>";
+            echo "<td>" . htmlspecialchars($fk['REFERENCED_TABLE_NAME']) . "</td>";
+            echo "<td>" . htmlspecialchars($fk['REFERENCED_COLUMN_NAME']) . "</td>";
+            echo "</tr>";
+        }
+        echo "</table>";
     } else {
-        echo "<p>❌ Could not truncate table <strong>$table</strong>: " . htmlspecialchars($conn->error) . "</p>";
+        echo "<p>ℹ️ No foreign keys for this table.</p>";
     }
-}
 
-// Step 3: Alter meetings.id to AUTO_INCREMENT
-$alter = "ALTER TABLE meetings MODIFY id INT NOT NULL AUTO_INCREMENT PRIMARY KEY";
-if ($conn->query($alter)) {
-    echo "<p>✅ Meetings table 'id' column is now AUTO_INCREMENT.</p>";
-} else {
-    echo "<p>❌ Error setting AUTO_INCREMENT: " . htmlspecialchars($conn->error) . "</p>";
-}
-
-// Step 4: Recreate foreign keys
-$fkQueries = [
-    "ALTER TABLE notifications
-        ADD CONSTRAINT fk_notifications_meetings
-        FOREIGN KEY (meeting_id) REFERENCES meetings(id)
-        ON DELETE SET NULL ON UPDATE CASCADE",
-    "ALTER TABLE meeting_attendance
-        ADD CONSTRAINT meeting_attendance_ibfk_1
-        FOREIGN KEY (meeting_id) REFERENCES meetings(id)
-        ON DELETE CASCADE"
-];
-
-foreach ($fkQueries as $sql) {
-    if ($conn->query($sql)) {
-        echo "<p>✅ Foreign key added successfully.</p>";
-    } else {
-        echo "<p>❌ Could not add foreign key: " . htmlspecialchars($conn->error) . "</p>";
-    }
-}
-
-// Step 5: Re-enable foreign key checks
-if ($conn->query("SET FOREIGN_KEY_CHECKS = 1") === TRUE) {
-    echo "<p>🔒 Foreign key checks re-enabled.</p>";
-} else {
-    echo "<p>⚠️ Warning: Could not re-enable foreign key checks: " . htmlspecialchars($conn->error) . "</p>";
+    echo "<hr>";
 }
 
 $conn->close();
-echo "<p>🎯 All steps completed successfully.</p>";
 ?>
