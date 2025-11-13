@@ -1,15 +1,18 @@
 <?php
-require_once __DIR__ . "/config/db.php"; // offline DB connection
+require_once __DIR__ . "/config/db.php";
 
-// Step 1: Delete the row with id = 0
-$deleteSql = "DELETE FROM meetings WHERE id = 0";
-if ($conn->query($deleteSql)) {
-    echo "<p>✅ Row with id=0 deleted successfully.</p>";
+// Step 1: Disable foreign key checks temporarily
+$conn->query("SET FOREIGN_KEY_CHECKS = 0");
+
+// Step 2: Truncate the meetings table (this deletes all rows and resets AUTO_INCREMENT)
+$truncateSql = "TRUNCATE TABLE meetings";
+if ($conn->query($truncateSql)) {
+    echo "<p>✅ All rows deleted and AUTO_INCREMENT reset.</p>";
 } else {
-    echo "<p>❌ Error deleting row: " . htmlspecialchars($conn->error) . "</p>";
+    echo "<p>❌ Could not truncate table: " . htmlspecialchars($conn->error) . "</p>";
 }
 
-// Step 2: Alter id column to AUTO_INCREMENT only
+// Step 3: Ensure id column is AUTO_INCREMENT
 $alterSql = "ALTER TABLE meetings MODIFY id INT NOT NULL AUTO_INCREMENT";
 if ($conn->query($alterSql)) {
     echo "<p>✅ meetings.id column is now AUTO_INCREMENT.</p>";
@@ -17,31 +20,8 @@ if ($conn->query($alterSql)) {
     echo "<p>❌ Error setting AUTO_INCREMENT: " . htmlspecialchars($conn->error) . "</p>";
 }
 
-// Step 3: Display updated meetings table
-$sql = "SELECT * FROM meetings";
-$result = $conn->query($sql);
-
-if ($result->num_rows > 0) {
-    echo "<h2>Meetings Table</h2>";
-    echo "<table border='1' cellpadding='5'>";
-    echo "<tr>";
-    while ($field = $result->fetch_field()) {
-        echo "<th>" . htmlspecialchars($field->name) . "</th>";
-    }
-    echo "</tr>";
-
-    while ($row = $result->fetch_assoc()) {
-        echo "<tr>";
-        foreach ($row as $value) {
-            echo "<td>" . htmlspecialchars($value) . "</td>";
-        }
-        echo "</tr>";
-    }
-
-    echo "</table>";
-} else {
-    echo "<p>No records found in the meetings table.</p>";
-}
+// Step 4: Re-enable foreign key checks
+$conn->query("SET FOREIGN_KEY_CHECKS = 1");
 
 $conn->close();
 ?>
