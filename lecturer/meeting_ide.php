@@ -2,12 +2,10 @@
 session_start();
 require_once '../config/db.php';
 
-// Security check: only lecturers
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     die("Access denied. Only lecturers can access this page.");
 }
 
-// Meeting lookup
 $meeting_id = $_GET['meeting_id'] ?? null;
 if (!$meeting_id) die("Meeting ID is required.");
 
@@ -27,46 +25,49 @@ $userName = $_SESSION['user_name'];
 <html>
 <head>
     <title><?= htmlspecialchars($meeting['title']) ?> - Lecturer WebRTC Meeting</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        body { margin:0; background:#111; color:#fff; font-family:sans-serif; display:flex; }
+        body { margin:0; font-family:sans-serif; background:#111; color:#fff; display:flex; height:100vh; }
         #main { flex:1; display:flex; flex-direction:column; }
-        #videos { display:flex; flex-wrap:wrap; gap:5px; padding:5px; flex:1; overflow:auto; }
+        #videos { display:flex; flex-wrap:wrap; gap:5px; padding:5px; flex:1; overflow:auto; background:#000; }
         video { width:45%; height:300px; background:#333; border-radius:5px; }
         #localVideo { border:2px solid #0f0; }
-        #controls { display:flex; gap:10px; padding:5px; }
-        button { padding:5px 10px; border:none; border-radius:3px; cursor:pointer; background:#222; color:#fff; }
-        button:hover { opacity:0.8; }
-        #sidebar { width:300px; background:#222; display:flex; flex-direction:column; }
-        #participants, #chat { flex:1; overflow:auto; padding:5px; border-bottom:1px solid #444; }
-        #chatInput { display:flex; }
+        #controls { display:flex; gap:10px; padding:5px; background:#222; flex-wrap:wrap; }
+        .control-btn { padding:5px 10px; border:none; border-radius:3px; cursor:pointer; background:#333; color:#fff; display:flex; align-items:center; gap:5px; }
+        .control-btn:hover { opacity:0.8; }
+        #sidebar { width:300px; background:#222; display:flex; flex-direction:column; transition: transform 0.3s; transform: translateX(100%); position:fixed; right:0; top:0; bottom:0; z-index:100; }
+        #sidebar.active { transform: translateX(0); }
+        #participants, #chat { flex:1; overflow:auto; padding:10px; border-bottom:1px solid #444; }
+        #chatInput { display:flex; padding:5px; border-top:1px solid #444; }
         #chatInput input { flex:1; padding:5px; border:none; border-radius:3px; margin-right:5px; }
-        #chatInput button { padding:5px; border:none; border-radius:3px; cursor:pointer; }
+        #chatInput button { padding:5px 10px; border:none; border-radius:3px; cursor:pointer; background:#0f0; color:#000; }
     </style>
 </head>
 <body>
-    <div id="main">
-        <h2><?= htmlspecialchars($meeting['title']) ?> - Lecturer View</h2>
-        <div id="videos">
-            <video id="localVideo" autoplay muted></video>
-        </div>
-        <div id="controls">
-            <button id="toggleVideo">Toggle Video</button>
-            <button id="toggleAudio">Toggle Audio</button>
-            <button id="presentScreen">Share Screen</button>
-            <button id="muteAll">Mute All</button>
-            <button id="record">Start Recording</button>
-            <button id="endMeeting">End Meeting</button>
-            <button id="showParticipants">Participants</button>
-        </div>
+<div id="main">
+    <h2><?= htmlspecialchars($meeting['title']) ?> - Lecturer View</h2>
+    <div id="videos">
+        <video id="localVideo" autoplay muted></video>
     </div>
-    <div id="sidebar">
-        <div id="participants"></div>
-        <div id="chat"></div>
-        <div id="chatInput">
-            <input type="text" id="chatMessage" placeholder="Type a message...">
-            <button id="sendChat">Send</button>
-        </div>
+    <div id="controls">
+        <button class="control-btn" id="toggleVideo"><i class="fa fa-video"></i></button>
+        <button class="control-btn" id="toggleAudio"><i class="fa fa-microphone"></i></button>
+        <button class="control-btn" id="presentScreen"><i class="fa fa-desktop"></i></button>
+        <button class="control-btn" id="muteAll"><i class="fa fa-volume-mute"></i></button>
+        <button class="control-btn" id="record"><i class="fa fa-circle"></i></button>
+        <button class="control-btn" id="endMeeting"><i class="fa fa-sign-out-alt"></i></button>
+        <button class="control-btn" id="toggleSidebar"><i class="fa fa-comments"></i></button>
     </div>
+</div>
+
+<div id="sidebar">
+    <div id="participants"><strong>Participants:</strong></div>
+    <div id="chat"></div>
+    <div id="chatInput">
+        <input type="text" id="chatMessage" placeholder="Type a message...">
+        <button id="sendChat">Send</button>
+    </div>
+</div>
 
 <script>
 const meetingId = <?= $meeting_id ?>;
@@ -78,21 +79,20 @@ const peers = {};
 const videoContainer = document.getElementById('videos');
 const participantsDiv = document.getElementById('participants');
 const chatDiv = document.getElementById('chat');
+const sidebar = document.getElementById('sidebar');
 let mediaRecorder;
 let recordedChunks = [];
 let recording = false;
 
-// --- 1. Initialize local media ---
+// --- Initialize local media ---
 async function initLocalMedia() {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
         document.getElementById('localVideo').srcObject = localStream;
-    } catch(e) {
-        alert("Failed to access camera/microphone: "+e.message);
-    }
+    } catch(e) { alert("Failed to access camera/microphone: "+e.message); }
 }
 
-// --- 2. Signaling ---
+// --- Polling signaling ---
 async function fetchSignals() {
     const res = await fetch('../actions.php', {
         method:'POST',
@@ -111,7 +111,7 @@ async function sendSignal(toUserId, type, data) {
     });
 }
 
-// --- 3. Handle signals ---
+// --- Handle signals ---
 function handleSignal(sig){
     const from = sig.from_user_id;
     if(!peers[from]) createPeer(from,false);
@@ -131,7 +131,7 @@ function handleSignal(sig){
     }
 }
 
-// --- 4. Create peer ---
+// --- Create peer ---
 function createPeer(peerId,isInitiator=true){
     const pc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] });
     localStream.getTracks().forEach(track=>pc.addTrack(track,localStream));
@@ -154,31 +154,23 @@ function createPeer(peerId,isInitiator=true){
     }
 }
 
-// --- 5. Controls ---
-document.getElementById('toggleVideo').onclick = () => {
-    localStream.getVideoTracks().forEach(t=>t.enabled = !t.enabled);
-};
-document.getElementById('toggleAudio').onclick = () => {
-    localStream.getAudioTracks().forEach(t=>t.enabled = !t.enabled);
-};
-document.getElementById('presentScreen').onclick = async () => {
+// --- Controls ---
+document.getElementById('toggleVideo').onclick = ()=>{ localStream.getVideoTracks().forEach(t=>t.enabled=!t.enabled); };
+document.getElementById('toggleAudio').onclick = ()=>{ localStream.getAudioTracks().forEach(t=>t.enabled=!t.enabled); };
+document.getElementById('presentScreen').onclick = async ()=>{
     try{
         const screenStream = await navigator.mediaDevices.getDisplayMedia({video:true});
-        const track=screenStream.getVideoTracks()[0];
+        const track = screenStream.getVideoTracks()[0];
         Object.values(peers).forEach(pc=>{
-            const sender=pc.getSenders().find(s=>s.track.kind==='video');
+            const sender = pc.getSenders().find(s=>s.track.kind==='video');
             if(sender) sender.replaceTrack(track);
         });
-        document.getElementById('localVideo').srcObject=screenStream;
+        document.getElementById('localVideo').srcObject = screenStream;
         track.onended = ()=> initLocalMedia();
     } catch(e){ alert('Screen share failed: '+e.message); }
 };
-document.getElementById('muteAll').onclick = () => {
-    Object.values(peers).forEach(pc=>{
-        pc.getSenders().forEach(s=>{ if(s.track.kind==='audio') s.track.enabled=false; });
-    });
-};
-document.getElementById('endMeeting').onclick = () => { location.reload(); };
+document.getElementById('muteAll').onclick = ()=>{ Object.values(peers).forEach(pc=>pc.getSenders().forEach(s=>{ if(s.track.kind==='audio') s.track.enabled=false; })); };
+document.getElementById('endMeeting').onclick = ()=>{ location.reload(); };
 
 // --- Recording ---
 document.getElementById('record').onclick = ()=>{
@@ -186,35 +178,23 @@ document.getElementById('record').onclick = ()=>{
         mediaRecorder = new MediaRecorder(localStream);
         mediaRecorder.ondataavailable = e=>{ recordedChunks.push(e.data); }
         mediaRecorder.onstop = ()=>{
-            const blob=new Blob(recordedChunks,{type:'video/webm'});
-            const url=URL.createObjectURL(blob);
-            const a=document.createElement('a');
-            a.href=url; a.download='recording_'+Date.now()+'.webm'; a.click();
+            const blob = new Blob(recordedChunks,{type:'video/webm'});
+            const url = URL.createObjectURL(blob);
+            const a=document.createElement('a'); a.href=url; a.download='recording_'+Date.now()+'.webm'; a.click();
             recordedChunks=[];
         };
-        mediaRecorder.start();
-        recording=true;
-        alert("Recording started");
-    } else {
-        mediaRecorder.stop();
-        recording=false;
-        alert("Recording stopped");
-    }
+        mediaRecorder.start(); recording=true; alert("Recording started");
+    } else { mediaRecorder.stop(); recording=false; alert("Recording stopped"); }
 };
 
-// --- Participants ---
-document.getElementById('showParticipants').onclick = ()=>{
-    participantsDiv.innerHTML = `<strong>Participants:</strong><br>` +
-        Object.keys(peers).map(id=>`User ${id}`).join('<br>');
-};
+// --- Chat toggle ---
+document.getElementById('toggleSidebar').onclick = ()=>{ sidebar.classList.toggle('active'); };
 
-// --- Chat ---
+// --- Send chat ---
 document.getElementById('sendChat').onclick = ()=>{
     const msg = document.getElementById('chatMessage').value;
     if(msg.trim()==='') return;
-    const p=document.createElement('div');
-    p.textContent=`${userName}: ${msg}`;
-    chatDiv.appendChild(p);
+    const p=document.createElement('div'); p.textContent=`${userName}: ${msg}`; chatDiv.appendChild(p);
     document.getElementById('chatMessage').value='';
 };
 
