@@ -27,19 +27,89 @@ $userName = $_SESSION['user_name'];
     <title><?= htmlspecialchars($meeting['title']) ?> - Lecturer WebRTC Meeting</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        html, body { margin:0; padding:0; height:100%; font-family:sans-serif; background:#000; color:#fff; overflow:hidden; }
-        #videos { display:flex; flex-wrap:wrap; width:100%; height:100%; gap:5px; padding:5px; box-sizing:border-box; }
-        video { flex:1 1 50%; width:49%; height:49%; object-fit:cover; border-radius:5px; background:#111; }
-        #localVideo { border:3px solid #0f0; }
-        #controls { position:fixed; bottom:10px; left:50%; transform:translateX(-50%); display:flex; gap:10px; background:rgba(0,0,0,0.6); padding:10px 15px; border-radius:10px; z-index:100; flex-wrap:wrap; }
-        .control-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:5px 10px; border:none; border-radius:5px; cursor:pointer; background:#333; color:#fff; font-size:12px; width:60px; }
+        html, body { margin:0; padding:0; width:100%; height:100%; font-family:sans-serif; background:#000; color:#fff; overflow:hidden; }
+
+        /* Full-screen video grid */
+        #videos {
+            display:grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-auto-rows: 1fr;
+            gap:5px;
+            width:100%;
+            height:100%;
+            padding:5px;
+            box-sizing:border-box;
+        }
+
+        video {
+            width:100%;
+            height:100%;
+            object-fit:cover;
+            border-radius:5px;
+            background:#111;
+        }
+
+        #localVideo {
+            border:3px solid #0f0;
+        }
+
+        /* Bottom controls */
+        #controls {
+            position:fixed;
+            bottom:10px;
+            left:50%;
+            transform:translateX(-50%);
+            display:flex;
+            gap:10px;
+            background:rgba(0,0,0,0.6);
+            padding:10px 15px;
+            border-radius:10px;
+            z-index:100;
+            flex-wrap:wrap;
+        }
+
+        .control-btn {
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            padding:5px 10px;
+            border:none;
+            border-radius:5px;
+            cursor:pointer;
+            background:#333;
+            color:#fff;
+            font-size:12px;
+            width:60px;
+        }
+
         .control-btn i { font-size:18px; margin-bottom:3px; }
+
         .control-btn:hover { background:#444; }
-        #sidebar { width:300px; background:#222; display:flex; flex-direction:column; transition: transform 0.3s; transform: translateX(100%); position:fixed; right:0; top:0; bottom:0; z-index:101; }
+
+        /* Sidebar */
+        #sidebar {
+            width:300px;
+            background:#222;
+            display:flex;
+            flex-direction:column;
+            transition: transform 0.3s;
+            transform: translateX(100%);
+            position:fixed;
+            right:0;
+            top:0;
+            bottom:0;
+            z-index:101;
+        }
+
         #sidebar.active { transform: translateX(0); }
+
         #participants, #chat { flex:1; overflow:auto; padding:10px; border-bottom:1px solid #444; }
+
         #chatInput { display:flex; padding:5px; border-top:1px solid #444; }
+
         #chatInput input { flex:1; padding:5px; border:none; border-radius:3px; margin-right:5px; }
+
         #chatInput button { padding:5px 10px; border:none; border-radius:3px; cursor:pointer; background:#0f0; color:#000; }
     </style>
 </head>
