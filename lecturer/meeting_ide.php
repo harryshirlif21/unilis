@@ -27,15 +27,15 @@ $userName = $_SESSION['user_name'];
     <title><?= htmlspecialchars($meeting['title']) ?> - Lecturer WebRTC Meeting</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        body, html { margin:0; padding:0; height:100%; font-family:sans-serif; background:#000; color:#fff; overflow:hidden; }
-        #videos { display:flex; flex-wrap:wrap; gap:5px; padding:5px; width:100%; height:100%; box-sizing:border-box; }
-        video { flex:1 1 45%; height:calc(50% - 10px); background:#111; border-radius:5px; object-fit:cover; }
+        html, body { margin:0; padding:0; height:100%; font-family:sans-serif; background:#000; color:#fff; overflow:hidden; }
+        #videos { display:flex; flex-wrap:wrap; width:100%; height:100%; gap:5px; padding:5px; box-sizing:border-box; }
+        video { flex:1 1 50%; width:49%; height:49%; object-fit:cover; border-radius:5px; background:#111; }
         #localVideo { border:3px solid #0f0; }
-        #controls { position:fixed; bottom:10px; left:50%; transform:translateX(-50%); background:rgba(34,34,34,0.8); padding:10px 15px; border-radius:10px; display:flex; gap:10px; flex-wrap:wrap; }
+        #controls { position:fixed; bottom:10px; left:50%; transform:translateX(-50%); display:flex; gap:10px; background:rgba(0,0,0,0.6); padding:10px 15px; border-radius:10px; z-index:100; flex-wrap:wrap; }
         .control-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:5px 10px; border:none; border-radius:5px; cursor:pointer; background:#333; color:#fff; font-size:12px; width:60px; }
         .control-btn i { font-size:18px; margin-bottom:3px; }
         .control-btn:hover { background:#444; }
-        #sidebar { width:300px; background:#222; display:flex; flex-direction:column; transition: transform 0.3s; transform: translateX(100%); position:fixed; right:0; top:0; bottom:0; z-index:100; }
+        #sidebar { width:300px; background:#222; display:flex; flex-direction:column; transition: transform 0.3s; transform: translateX(100%); position:fixed; right:0; top:0; bottom:0; z-index:101; }
         #sidebar.active { transform: translateX(0); }
         #participants, #chat { flex:1; overflow:auto; padding:10px; border-bottom:1px solid #444; }
         #chatInput { display:flex; padding:5px; border-top:1px solid #444; }
