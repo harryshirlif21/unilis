@@ -11,7 +11,7 @@ $meeting_id = $_GET['meeting_id'] ?? null;
 if (!$meeting_id) die("Meeting ID is required.");
 
 // Fetch meeting info
-$stmt = $conn->prepare("SELECT id, title, scheduled_time, duration, FROM meetings WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, title, scheduled_time, duration FROM meetings WHERE id = ?");
 $stmt->bind_param("i", $meeting_id);
 $stmt->execute();
 $result = $stmt->get_result();
