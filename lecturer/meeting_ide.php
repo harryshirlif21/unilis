@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once '../config/db.php'; // your mysqli $conn
+require_once '../config/db.php'; // expects $conn (mysqli)
 
 // Lecturer-only guard
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
@@ -16,7 +16,7 @@ if (!$meeting_id) {
     exit;
 }
 
-// Ensure recordings & chat table exist and "ended" column exists on meetings (non-destructive checks)
+// Ensure schema (non-destructive)
 function ensure_schema($conn) {
     // recordings table
     $conn->query("
@@ -26,13 +26,12 @@ function ensure_schema($conn) {
             lecturer_id INT NOT NULL,
             file_path VARCHAR(255) NOT NULL,
             recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
-            FOREIGN KEY (lecturer_id) REFERENCES lecturers(id) ON DELETE CASCADE
+            INDEX (meeting_id),
+            INDEX (lecturer_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
-    // chat not persisted requirement: we will keep chat in PHP session; create 'chat' table only optionally (not used).
-    // ensure meetings ended column exists (check information_schema)
+    // ensure meetings ended column exists
     $check = $conn->prepare("
         SELECT COUNT(*) as cnt FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'meetings' AND COLUMN_NAME = 'ended'
@@ -41,18 +40,50 @@ function ensure_schema($conn) {
     $row = $check->get_result()->fetch_assoc();
     $check->close();
     if ((int)$row['cnt'] === 0) {
-        // Add column
-        $conn->query("ALTER TABLE meetings ADD COLUMN ended TINYINT(1) NOT NULL DEFAULT 0");
+        @$conn->query("ALTER TABLE meetings ADD COLUMN ended TINYINT(1) NOT NULL DEFAULT 0");
     }
+
+    // optionally ensure meeting_attendance table exists (basic)
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS meeting_attendance (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            meeting_id INT NOT NULL,
+            student_id INT NULL,
+            guest_name VARCHAR(255) NULL,
+            reg_no VARCHAR(100) NULL,
+            joined_at DATETIME NULL,
+            duration_minutes INT NULL DEFAULT 0,
+            status ENUM('joined','left','absent') DEFAULT 'joined',
+            active TINYINT(1) DEFAULT 1,
+            marks DECIMAL(6,2) NULL,
+            INDEX (meeting_id),
+            INDEX (student_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+
+    // meeting_signals (lightweight)
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS meeting_signals (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            meeting_id INT NOT NULL,
+            from_lecturer_id INT NULL,
+            from_student_id INT NULL,
+            to_lecturer_id INT NULL,
+            to_student_id INT NULL,
+            type VARCHAR(50),
+            data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX (meeting_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
 }
 ensure_schema($conn);
 
-// Fetch meeting info
+// Fetch meeting
 $stmt = $conn->prepare("SELECT id, title, scheduled_time, duration, ended FROM meetings WHERE id = ?");
 $stmt->bind_param("i", $meeting_id);
 $stmt->execute();
-$result = $stmt->get_result();
-$meeting = $result->fetch_assoc();
+$meeting = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 if (!$meeting) {
     http_response_code(404);
@@ -63,40 +94,32 @@ if (!$meeting) {
 $userId = (int) $_SESSION['user_id'];
 $userName = $_SESSION['user_name'] ?? 'Lecturer';
 
-// Prepare session storage for chat (per meeting)
+// Session chat store per meeting (not persisted)
 if (!isset($_SESSION['meeting_chat'])) $_SESSION['meeting_chat'] = [];
 if (!isset($_SESSION['meeting_chat'][$meeting_id])) $_SESSION['meeting_chat'][$meeting_id] = [];
 
-// =====================
-// AJAX action handling
-// =====================
+// AJAX handling
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json; charset=utf-8');
     $action = $_POST['action'];
 
-    // Helper: output JSON and exit
-    function out($data) {
-        echo json_encode($data);
-        exit;
-    }
+    function out($data) { echo json_encode($data); exit; }
 
     switch ($action) {
-        // return list of participants (currently joined) using meeting_attendance join students
         case 'get_participants':
-            // Participants = meeting_attendance rows with status='joined'
-            $sql = "SELECT ma.id AS attendance_id, COALESCE(s.name, ma.guest_name) AS name, COALESCE(s.reg_no, '') AS reg_no, ma.joined_at
+            // Participants: joined meeting_attendance rows joined to students (if present)
+            $sql = "SELECT ma.id AS attendance_id, ma.student_id AS student_id, COALESCE(s.name, ma.guest_name) AS name, COALESCE(s.reg_no, ma.reg_no, '') AS reg_no, ma.joined_at
                     FROM meeting_attendance ma
                     LEFT JOIN students s ON s.id = ma.student_id
                     WHERE ma.meeting_id = ? AND (ma.status = 'joined' OR ma.status IS NULL)";
             $st = $conn->prepare($sql);
             $st->bind_param("i", $meeting_id);
             $st->execute();
-            $res = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+            $rows = $st->get_result()->fetch_all(MYSQLI_ASSOC);
             $st->close();
-            out($res);
+            out($rows);
             break;
 
-        // chat stored in session only (not persisted to DB)
         case 'get_chat':
             $ch = $_SESSION['meeting_chat'][$meeting_id] ?? [];
             out($ch);
@@ -112,14 +135,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'created_at' => date('Y-m-d H:i:s'),
             ];
             $_SESSION['meeting_chat'][$meeting_id][] = $entry;
-            // keep session chat trimmed to last 200 messages
-            if (count($_SESSION['meeting_chat'][$meeting_id]) > 200) {
-                $_SESSION['meeting_chat'][$meeting_id] = array_slice($_SESSION['meeting_chat'][$meeting_id], -200);
+            // trim to last 500 messages
+            if (count($_SESSION['meeting_chat'][$meeting_id]) > 500) {
+                $_SESSION['meeting_chat'][$meeting_id] = array_slice($_SESSION['meeting_chat'][$meeting_id], -500);
             }
             out(['success' => true, 'entry' => $entry]);
             break;
 
-        // get attendance records (persistent)
+        case 'clear_chat':
+            $_SESSION['meeting_chat'][$meeting_id] = [];
+            out(['success' => true]);
+            break;
+
         case 'get_attendance':
             $sql = "SELECT ma.id, COALESCE(s.name, ma.guest_name) AS name, COALESCE(s.reg_no, ma.reg_no) AS reg_no, ma.joined_at, ma.duration_minutes AS duration, ma.active, ma.marks
                     FROM meeting_attendance ma
@@ -129,16 +156,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $st = $conn->prepare($sql);
             $st->bind_param("i", $meeting_id);
             $st->execute();
-            $res = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+            $rows = $st->get_result()->fetch_all(MYSQLI_ASSOC);
             $st->close();
-            out($res);
+            out($rows);
             break;
 
-        // award participation (marks) in meeting_attendance by attendance id
         case 'award_participation':
             $attendance_id = (int)($_POST['attendance_id'] ?? 0);
             $marks = floatval($_POST['marks'] ?? 0);
-            if ($attendance_id<=0) out(['success'=>false,'error'=>'invalid id']);
+            if ($attendance_id <= 0) out(['success' => false, 'error' => 'invalid id']);
             $st = $conn->prepare("UPDATE meeting_attendance SET marks = ? WHERE id = ? AND meeting_id = ?");
             $st->bind_param("dii", $marks, $attendance_id, $meeting_id);
             $ok = $st->execute();
@@ -146,46 +172,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             out(['success' => (bool)$ok]);
             break;
 
-        // take attendance snapshot:
-        // if there are joined rows in meeting_attendance, do nothing; otherwise optionally take provided student list.
-        // We'll support two modes:
-        //  - If client sends a JSON 'students' (array of {name, reg_no, student_id(optional)}), we insert them
-        //  - Otherwise we copy currently-joined participants (no-op).
         case 'take_attendance':
-            // Accept JSON payload 'students' (stringified JSON) from client
             $students_json = $_POST['students'] ?? null;
             $inserted = 0;
             if ($students_json) {
                 $arr = json_decode($students_json, true);
                 if (is_array($arr)) {
-                    $st = $conn->prepare("INSERT INTO meeting_attendance (meeting_id, student_id, guest_name, reg_no, joined_at, duration_minutes, status, active) VALUES (?, ?, ?, ?, NOW(), ?, 'joined', 1)");
                     foreach ($arr as $s) {
                         $student_id = isset($s['student_id']) ? (int)$s['student_id'] : null;
-                        $name = $s['name'] ?? null;
-                        $reg_no = $s['reg_no'] ?? null;
+                        $name = trim($s['name'] ?? '');
+                        $reg_no = trim($s['reg_no'] ?? '');
                         $duration = isset($s['duration']) ? (int)$s['duration'] : 0;
-                        // Prevent duplicate by checking if a record exists for same reg_no / student_id & meeting
-                        $chkSql = "SELECT id FROM meeting_attendance WHERE meeting_id = ? AND (student_id = ? OR reg_no = ? OR guest_name = ?) LIMIT 1";
-                        $chk = $conn->prepare($chkSql);
-                        $chk->bind_param("iiss", $meeting_id, $student_id, $reg_no, $name);
-                        $chk->execute();
-                        $g = $chk->get_result()->fetch_assoc();
-                        $chk->close();
-                        if ($g) continue;
-                        $st->bind_param("iisss", $meeting_id, $student_id, $name, $reg_no, $duration);
-                        // Note: binding 5 params above but we passed 5 types; adjust: we'll use a different prepare to avoid complexity.
-                    }
-                    // fallback: simpler insertion loop per-student to avoid binding complexity
-                    foreach ($arr as $s) {
-                        $student_id = isset($s['student_id']) ? (int)$s['student_id'] : null;
-                        $name = $conn->real_escape_string(trim($s['name'] ?? ''));
-                        $reg_no = $conn->real_escape_string(trim($s['reg_no'] ?? ''));
-                        $duration = isset($s['duration']) ? (int)$s['duration'] : 0;
-                        // skip if no name
-                        if ($name === '' && $student_id===null) continue;
-                        // check duplicate
-                        $q = $conn->prepare("SELECT id FROM meeting_attendance WHERE meeting_id = ? AND (student_id = ? OR (reg_no = ? AND reg_no <> '')) LIMIT 1");
-                        $q->bind_param("iis", $meeting_id, $student_id, $reg_no);
+                        if ($name === '' && $student_id === null) continue;
+                        // avoid duplicates
+                        $q = $conn->prepare("SELECT id FROM meeting_attendance WHERE meeting_id = ? AND (student_id = ? OR (reg_no = ? AND reg_no <> '') OR guest_name = ?) LIMIT 1");
+                        $q->bind_param("iiss", $meeting_id, $student_id, $reg_no, $name);
                         $q->execute();
                         $du = $q->get_result()->fetch_assoc();
                         $q->close();
@@ -197,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     }
                 }
             } else {
-                // No students provided: snapshot existing joined rows (no-op, just return count)
+                // No students provided: return count of current joined rows
                 $r = $conn->prepare("SELECT COUNT(*) AS cnt FROM meeting_attendance WHERE meeting_id = ? AND (status='joined' OR status IS NULL)");
                 $r->bind_param("i", $meeting_id);
                 $r->execute();
@@ -205,30 +206,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $r->close();
                 $inserted = (int)$c['cnt'];
             }
-            out(['success'=>true,'inserted'=>$inserted]);
+            out(['success' => true, 'inserted' => $inserted]);
             break;
 
-        // signaling (insert into meeting_signals) - basic placeholder with from_lecturer_id
         case 'send_signal':
             $to_user_id = isset($_POST['to_user_id']) ? (int)$_POST['to_user_id'] : 0;
             $type = $_POST['type'] ?? '';
             $data = $_POST['data'] ?? '';
-            $st = $conn->prepare("INSERT INTO meeting_signals (meeting_id, from_lecturer_id, to_student_id, to_lecturer_id, type, data, created_at) VALUES (?, ?, ?, NULL, ?, ?, NOW())");
-            // We populate to_student_id if to_user_id looks like student (not known here) — for simplicity put to_student_id = to_user_id
-            $st->bind_param("iisss", $meeting_id, $userId, $to_user_id, $type, $data);
+            $st = $conn->prepare("INSERT INTO meeting_signals (meeting_id, from_lecturer_id, to_student_id, type, data, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+            $st->bind_param("iiiss", $meeting_id, $userId, $to_user_id, $type, $data);
             $ok = $st->execute();
             $st->close();
             out(['success' => (bool)$ok]);
             break;
 
         case 'get_signals':
-            // Return signals directed to this lecturer (to_lecturer_id) or to_student_id==this user (unlikely for lecturer)
-            $st = $conn->prepare("SELECT id, from_lecturer_id AS from_user_id, type, data FROM meeting_signals WHERE meeting_id = ? AND (to_lecturer_id = ? OR to_student_id = ?) ORDER BY id ASC");
+            $st = $conn->prepare("SELECT id, COALESCE(from_lecturer_id, from_student_id) AS from_user_id, type, data FROM meeting_signals WHERE meeting_id = ? AND (to_lecturer_id = ? OR to_student_id = ?) ORDER BY id ASC");
             $st->bind_param("iii", $meeting_id, $userId, $userId);
             $st->execute();
             $rows = $st->get_result()->fetch_all(MYSQLI_ASSOC);
             $st->close();
-            // delete fetched signals
             if (!empty($rows)) {
                 $ids = array_column($rows, 'id');
                 $in = implode(',', array_map('intval', $ids));
@@ -237,13 +234,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             out($rows);
             break;
 
-        // upload recording blob (multipart/form-data)
         case 'upload_recording':
-            // Expect a file field 'recording'
-            if (!isset($_FILES['recording']) || $_FILES['recording']['error'] !== UPLOAD_ERR_OK) {
-                out(['success'=>false,'error'=>'No file uploaded or upload error.']);
-            }
-            // ensure upload dir
+            if (!isset($_FILES['recording']) || $_FILES['recording']['error'] !== UPLOAD_ERR_OK) out(['success' => false, 'error' => 'No file uploaded or upload error.']);
             $uploadDir = __DIR__ . '/uploads/recordings';
             if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
             $tmp = $_FILES['recording']['tmp_name'];
@@ -252,7 +244,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $filename = 'meeting_' . $meeting_id . '_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
             $dest = $uploadDir . '/' . $filename;
             if (move_uploaded_file($tmp, $dest)) {
-                // relative path for storing
                 $rel = 'uploads/recordings/' . $filename;
                 $ins = $conn->prepare("INSERT INTO recordings (meeting_id, lecturer_id, file_path, recorded_at) VALUES (?, ?, ?, NOW())");
                 $ins->bind_param("iis", $meeting_id, $userId, $rel);
@@ -265,7 +256,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             break;
 
         case 'end_meeting':
-            // set meetings.ended = 1
             $st = $conn->prepare("UPDATE meetings SET ended = 1 WHERE id = ?");
             $st->bind_param("i", $meeting_id);
             $ok = $st->execute();
@@ -278,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// If not AJAX POST, render the HTML page below (GET)
+// Render page (GET)
 ?>
 <!doctype html>
 <html lang="en">
@@ -409,17 +399,17 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let recording = false;
 
-/* Helper: POST to same file and return JSON */
+/* Helper: POST to this same file and return JSON */
 async function postAction(data, isForm=false) {
   const opts = { method:'POST' };
   if (isForm) {
-    // data is FormData
     opts.body = data;
   } else {
     opts.headers = {'Content-Type':'application/x-www-form-urlencoded'};
-    opts.body = new URLSearchParams(data);
+    opts.body = new URLSearchParams({...data});
   }
-  const res = await fetch(location.pathname + '?meeting_id=' + meetingId, opts);
+  const url = location.pathname + '?meeting_id=' + meetingId;
+  const res = await fetch(url, opts);
   if (!res.ok) {
     const text = await res.text();
     console.error('Server returned', res.status, text);
@@ -434,44 +424,32 @@ async function postAction(data, isForm=false) {
 async function initLocalMedia(){
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video:{ width:1280 }, audio:true });
-    const localVideo = document.getElementById('localVideo');
-    localVideo.srcObject = localStream;
+    document.getElementById('localVideo').srcObject = localStream;
   } catch (e) {
     alert('Camera/mic error: ' + e.message);
   }
 }
 
-// Camera toggle: icon only
+// Camera toggle
 document.getElementById('toggleCam').addEventListener('click', () => {
   const btn = document.getElementById('toggleCam');
   const state = btn.getAttribute('data-state') === 'on';
   if (!localStream) return;
   localStream.getVideoTracks().forEach(t => t.enabled = !state);
-  // Flip icon: fa-video -> fa-video-slash and data-state
   const icon = btn.querySelector('i');
-  if (state) {
-    icon.className = 'fa fa-video-slash';
-    btn.setAttribute('data-state', 'off');
-  } else {
-    icon.className = 'fa fa-video';
-    btn.setAttribute('data-state', 'on');
-  }
+  if (state) { icon.className = 'fa fa-video-slash'; btn.setAttribute('data-state','off'); }
+  else { icon.className = 'fa fa-video'; btn.setAttribute('data-state','on'); }
 });
 
-// Mic toggle: icon only
+// Mic toggle
 document.getElementById('toggleMic').addEventListener('click', () => {
   const btn = document.getElementById('toggleMic');
   const state = btn.getAttribute('data-state') === 'on';
   if (!localStream) return;
   localStream.getAudioTracks().forEach(t => t.enabled = !state);
   const icon = btn.querySelector('i');
-  if (state) {
-    icon.className = 'fa fa-microphone-slash';
-    btn.setAttribute('data-state', 'off');
-  } else {
-    icon.className = 'fa fa-microphone';
-    btn.setAttribute('data-state', 'on');
-  }
+  if (state) { icon.className = 'fa fa-microphone-slash'; btn.setAttribute('data-state','off'); }
+  else { icon.className = 'fa fa-microphone'; btn.setAttribute('data-state','on'); }
 });
 
 /* ===========================
@@ -481,7 +459,6 @@ const sidebar = document.getElementById('sidebar');
 const toggleChatBtn = document.getElementById('toggleChatBtn');
 toggleChatBtn.addEventListener('click', () => {
   const hidden = sidebar.classList.toggle('hidden');
-  // optionally change appearance of button (dim when hidden)
   toggleChatBtn.style.opacity = hidden ? 0.6 : 1;
 });
 
@@ -509,39 +486,26 @@ document.getElementById('muteAll').addEventListener('click', () => {
 });
 
 /* ===========================
-   Recording: MediaRecorder + upload when stopped
+   Recording
    =========================== */
 document.getElementById('recordBtn').addEventListener('click', async () => {
   if (!localStream) { alert('No local stream'); return; }
-  if (recording) {
-    mediaRecorder.stop();
-    return;
-  }
+  if (recording) { mediaRecorder.stop(); return; }
   recordedChunks = [];
-  try {
-    mediaRecorder = new MediaRecorder(localStream, { mimeType: 'video/webm' });
-  } catch (e) {
-    alert('Recording not supported: ' + e.message);
-    return;
-  }
+  try { mediaRecorder = new MediaRecorder(localStream, { mimeType: 'video/webm' }); }
+  catch (e) { alert('Recording not supported: ' + e.message); return; }
   mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) recordedChunks.push(e.data); };
   mediaRecorder.onstop = async () => {
     recording = false;
-    // create blob and upload to server
     const blob = new Blob(recordedChunks, { type: 'video/webm' });
     const fd = new FormData();
     fd.append('action', 'upload_recording');
     fd.append('recording', blob, `meeting_${meetingId}_${Date.now()}.webm`);
     try {
       const res = await postAction(fd, true);
-      if (res.success) {
-        alert('Recording uploaded: ' + (res.file || 'saved'));
-      } else {
-        alert('Recording upload failed: ' + (res.error || 'unknown'));
-      }
-    } catch (err) {
-      alert('Upload error: ' + err.message);
-    }
+      if (res.success) alert('Recording uploaded: ' + (res.file || 'saved'));
+      else alert('Recording upload failed: ' + (res.error || 'unknown'));
+    } catch (err) { alert('Upload error: ' + err.message); }
     recordedChunks = [];
   };
   mediaRecorder.start(1000);
@@ -559,16 +523,12 @@ document.getElementById('endBtn').addEventListener('click', async () => {
       alert('Meeting ended.');
       document.querySelectorAll('.control').forEach(c => c.classList.add('disabled'));
       document.getElementById('overlay').classList.add('active');
-    } else {
-      alert('Failed to end meeting');
-    }
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
+    } else alert('Failed to end meeting');
+  } catch (e) { alert('Error: ' + e.message); }
 });
 
 /* ===========================
-   Participants (refresh)
+   Participants
    =========================== */
 async function refreshParticipants() {
   try {
@@ -584,9 +544,7 @@ async function refreshParticipants() {
       div.appendChild(avatar); div.appendChild(meta);
       list.appendChild(div);
     });
-  } catch (e) {
-    console.error(e);
-  }
+  } catch (e) { console.error(e); }
 }
 document.getElementById('btnRefresh').addEventListener('click', refreshParticipants);
 
@@ -602,7 +560,8 @@ async function pollChat(){
     const log = document.getElementById('chatLog');
     log.innerHTML = '';
     res.forEach(m => {
-      const b = document.createElement('div'); b.className = 'bubble' + (m.user_id == userId ? ' me' : '');
+      const b = document.createElement('div');
+      b.className = 'bubble' + (m.user_id == userId ? ' me' : '');
       b.innerHTML = `<strong>${escapeHtml(m.user_name)}</strong><div style="margin-top:4px">${escapeHtml(m.message)}</div>`;
       log.appendChild(b);
     });
@@ -620,26 +579,36 @@ document.getElementById('sendChatBtn').addEventListener('click', async () => {
     pollChat();
   } catch (e) { console.error(e); }
 });
-document.getElementById('clearChatBtn').addEventListener('click', () => {
-  // clear session chat for this meeting
-  fetch(location.pathname + '?meeting_id=' + meetingId, { method:'POST', body: new URLSearchParams({ action:'clear_chat' }) })
-    .then(()=> pollChat()).catch(()=>{/*ignore*/});
+
+document.getElementById('clearChatBtn').addEventListener('click', async () => {
+  try {
+    await postAction({ action:'clear_chat' });
+    pollChat();
+  } catch (e) { console.error(e); }
 });
 
-/* Note: 'clear_chat' isn't implemented server-side to avoid destructive behaviour; if you want it, implement on PHP side. */
-
 /* ===========================
-   Attendance modal
+   Attendance panel toggle + logic
+   (click attendance to show/hide)
    =========================== */
-async function openAttendance(){
-  document.getElementById('attendancePanel').style.display = 'block';
+const attendancePanel = document.getElementById('attendancePanel');
+const attendanceBtn = document.getElementById('attendanceBtn');
+const attendanceClose = document.getElementById('closeAttendance');
+
+attendanceBtn.addEventListener('click', async () => {
+  // toggle
+  if (attendancePanel.style.display === 'block') {
+    attendancePanel.style.display = 'none';
+    return;
+  }
+  // show + load
+  attendancePanel.style.display = 'block';
   await refreshAttendance();
-}
-async function closeAttendance(){
-  document.getElementById('attendancePanel').style.display = 'none';
-}
-document.getElementById('attendanceBtn').addEventListener('click', openAttendance);
-document.getElementById('closeAttendance').addEventListener('click', closeAttendance);
+});
+
+attendanceClose.addEventListener('click', () => {
+  attendancePanel.style.display = 'none';
+});
 
 async function refreshAttendance(){
   try {
@@ -654,11 +623,12 @@ async function refreshAttendance(){
                       <td>${r.joined_at || ''}</td>
                       <td>${r.duration || ''}</td>
                       <td><input type="checkbox" ${r.active==1 ? 'checked' : ''} disabled></td>
-                      <td><input type="number" min="0" max="100" style="width:60px" data-id="${r.id}" class="awardInput"><button class="smallBtn" data-id="${r.id}">Award</button></td>`;
+                      <td><input type="number" min="0" max="100" style="width:60px" data-id="${r.id}" class="awardInput"><button class="smallBtn awardBtn" data-id="${r.id}">Award</button></td>`;
       tbody.appendChild(tr);
     });
+
     // attach award listeners
-    document.querySelectorAll('button.smallBtn[data-id]').forEach(btn=>{
+    document.querySelectorAll('.awardBtn').forEach(btn=>{
       btn.addEventListener('click', async (ev)=>{
         const id = btn.getAttribute('data-id');
         const input = document.querySelector(`.awardInput[data-id="${id}"]`);
@@ -666,20 +636,19 @@ async function refreshAttendance(){
         try {
           const res = await postAction({ action:'award_participation', attendance_id:id, marks:marks });
           if (res.success) alert('Awarded');
-          else alert('Failed');
-        } catch (e) { alert('Error'); }
+          else alert('Failed to award');
+        } catch (e) { alert('Error awarding'); }
       });
     });
+
   } catch (e) { console.error(e); }
 }
 document.getElementById('refreshAttendance').addEventListener('click', refreshAttendance);
 
-/* Auto-mark present: snapshot current participants into attendance via POST with JSON students list */
+/* Auto-mark present: snapshot current participants */
 document.getElementById('autoMarkPresent').addEventListener('click', async ()=>{
   try {
-    // fetch participants from server first
     const parts = await postAction({ action:'get_participants' });
-    // map into student objects expected by server
     const arr = (parts||[]).map(p => ({ student_id: p.student_id || null, name: p.name, reg_no: p.reg_no || '', duration: 0 }));
     const res = await postAction({ action:'take_attendance', students: JSON.stringify(arr) });
     if (res.success) { alert('Attendance snapshot taken: ' + (res.inserted || 0)); refreshAttendance(); }
@@ -687,7 +656,7 @@ document.getElementById('autoMarkPresent').addEventListener('click', async ()=>{
   } catch (e) { console.error(e); alert('Error'); }
 });
 
-/* Inline 'Take' button (sidebar) — calls same endpoint with no students: snapshot existing joined rows */
+/* Inline 'Take' button */
 document.getElementById('btnTakeInline').addEventListener('click', async ()=>{
   try {
     const res = await postAction({ action:'take_attendance' });
