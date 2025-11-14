@@ -1,7 +1,7 @@
 <?php
 require_once 'config/db.php';
 
-// Create 'recordings' table if it doesn't exist
+// --- Step 1: Create 'recordings' table if it doesn't exist ---
 $createRecordingsTableSQL = "
 CREATE TABLE IF NOT EXISTS recordings (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -20,7 +20,7 @@ if ($conn->query($createRecordingsTableSQL) === TRUE) {
     die("Error creating recordings table: " . $conn->error);
 }
 
-// Functions to get tables, columns, and foreign keys
+// --- Step 2: Functions to get tables, columns, and foreign keys ---
 function getTables($conn) {
     $tables = [];
     $result = $conn->query("SHOW TABLES");
@@ -60,23 +60,23 @@ function getForeignKeys($conn, $table) {
     return $fks;
 }
 
-// Display all tables, columns, and foreign keys
+// --- Step 3: Display all tables, columns, and foreign keys ---
 $tables = getTables($conn);
 foreach ($tables as $table) {
     echo "<h2>Table: $table</h2>";
-    
+
     // Columns
     echo "<h4>Columns:</h4><ul>";
     foreach (getColumns($conn, $table) as $col) {
         echo "<li>{$col['Field']} — {$col['Type']} — Null: {$col['Null']} — Key: {$col['Key']} — Default: {$col['Default']}</li>";
     }
     echo "</ul>";
-    
+
     // Foreign keys
     $fks = getForeignKeys($conn, $table);
-    if($fks){
+    if ($fks) {
         echo "<h4>Foreign Keys:</h4><ul>";
-        foreach($fks as $fk){
+        foreach ($fks as $fk) {
             echo "<li>{$fk['COLUMN_NAME']} references {$fk['REFERENCED_TABLE_NAME']}({$fk['REFERENCED_COLUMN_NAME']})</li>";
         }
         echo "</ul>";
