@@ -60,7 +60,8 @@ try {
         </a>
 
         <!-- Main Navigation Links (Desktop) -->
-        <div class="hidden md:flex space-x-8 items-center text-92400e">
+       <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 text-92400e">
+
     <a href="#" class="nav-link active font-medium px-3 py-2 rounded-lg text-green-600 hover:bg-green-100" data-target="dashboard-content">Dashboard</a>
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-orange-600 hover:bg-orange-100" data-target="courses-content">Courses</a>
     <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="assignments-content">Assignments</a>
