@@ -53,7 +53,7 @@ try {
 
 <body class="relative">
 
-    <!-- Top Navigation Bar -->
+   <!-- Top Navigation Bar -->
 <nav class="bg-white shadow-md p-4 flex justify-between items-center text-slate-800 sticky top-0 z-30 border-b border-f5e6b2">
 
     <!-- Logo -->
@@ -62,46 +62,13 @@ try {
     </a>
 
     <!-- Desktop Navigation Links -->
-    <div class="hidden md:flex space-x-8 items-center text-92400e">
+    <div class="hidden lg:flex space-x-8 items-center text-92400e">
         <a href="#" class="nav-link active font-medium px-3 py-2 rounded-lg text-green-600 hover:bg-green-100" data-target="dashboard-content">Dashboard</a>
         <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-orange-600 hover:bg-orange-100" data-target="courses-content">Courses</a>
         <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="assignments-content">Assignments</a>
         <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-green-600 hover:bg-green-100" data-target="notes-content">Notes</a>
         <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-orange-600 hover:bg-orange-100" data-target="meetings-content">Meetings</a>
         <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="profile-content">Profile</a>
-
-        <?php
-        // Ensure these session variables are set
-        $course_id = $_SESSION['course_id'] ?? null;
-        $year_of_study = $_SESSION['year_of_study'] ?? null;
-        $unread_count = 0;
-
-        if ($course_id && $year_of_study) {
-            $notif_count_query = $conn->prepare("
-                SELECT COUNT(DISTINCT n.id) AS unread_count
-                FROM notifications n
-                LEFT JOIN notes nt ON n.notes_id = nt.id
-                LEFT JOIN assignments a ON n.assignment_id = a.id
-                LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
-                LEFT JOIN meetings m ON n.meeting_id = m.id
-                LEFT JOIN units u 
-                    ON u.id = nt.unit_id 
-                    OR u.id = a.unit_id 
-                    OR u.id = ia.unit_id 
-                    OR u.id = m.unit_id
-                WHERE u.course_id = ? AND u.year = ? AND n.is_read = 0
-            ");
-            $notif_count_query->bind_param("ii", $course_id, $year_of_study);
-            $notif_count_query->execute();
-            $result = $notif_count_query->get_result();
-
-            if ($row = $result->fetch_assoc()) {
-                $unread_count = $row['unread_count'];
-            }
-
-            $notif_count_query->close();
-        }
-        ?>
 
         <!-- Notifications -->
         <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative text-green-700 hover:bg-green-100" data-target="notifications-content" id="notifBell">
@@ -113,7 +80,7 @@ try {
     </div>
 
     <!-- Mobile Hamburger Button -->
-    <button id="menu-toggle" class="md:hidden p-2 rounded-full text-92400e hover:bg-fef3c7 transition">
+    <button id="menu-toggle" class="lg:hidden p-2 rounded-full text-92400e hover:bg-fef3c7 transition">
         <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M4 6h16M4 12h16M4 18h16" />
@@ -122,7 +89,7 @@ try {
 </nav>
 
 <!-- Mobile Navigation Dropdown -->
-<div id="mobile-menu" class="hidden bg-white shadow-md md:hidden flex flex-col text-92400e py-4">
+<div id="mobile-menu" class="hidden bg-white shadow-md lg:hidden flex flex-col text-92400e py-4">
 
     <a href="#" class="block px-4 py-2 hover:bg-green-100" data-target="dashboard-content">Dashboard</a>
     <a href="#" class="block px-4 py-2 hover:bg-orange-100" data-target="courses-content">Courses</a>
@@ -147,6 +114,7 @@ document.getElementById("menu-toggle").addEventListener("click", () => {
     document.getElementById("mobile-menu").classList.toggle("hidden");
 });
 </script>
+
 
 
         <!-- Mobile Menu Toggle Button (right-aligned) -->
