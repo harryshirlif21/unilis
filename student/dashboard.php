@@ -1,1156 +1,956 @@
 <?php
-/**
- * STUDENT MEETING INTERFACE
- * Google Meet-style video conferencing for students
- * Features: View lecturer stream, request to publish, chat, auto-attendance
- */
-
+require_once '../config/db.php';
 session_start();
-require_once '../config/db.php'; // MySQLi connection as $conn
 
-// Authentication guard
+// Redirect if not logged in or not a student
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
-    header("Location: ../login.php");
+    header("Location: ../index.html");
     exit;
 }
 
-$student_id = (int)$_SESSION['user_id'];
-$student_name = $_SESSION['user_name'] ?? 'Student';
-$meeting_id = (int)($_GET['meeting_id'] ?? 0);
-
-if (!$meeting_id) {
-    die("Meeting ID required");
-}
-
-// Fetch meeting details
-$stmt = $conn->prepare("SELECT m.id, m.title, m.scheduled_time, m.duration, m.lecturer_id 
-                        FROM meetings m WHERE m.id = ?");
-$stmt->bind_param("i", $meeting_id);
-$stmt->execute();
-$meeting = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-
-if (!$meeting) {
-    die("Meeting not found");
-}
-
-$lecturer_id = (int)$meeting['lecturer_id'];
-
-// Ensure signals table exists
-$conn->query("CREATE TABLE IF NOT EXISTS meeting_signals (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id INT NOT NULL,
-    from_student_id INT NULL,
-    from_lecturer_id INT NULL,
-    to_student_id INT NULL,
-    to_lecturer_id INT NULL,
-    type VARCHAR(50) NOT NULL,
-    data TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_meeting (meeting_id),
-    INDEX idx_recipient (to_student_id, to_lecturer_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-// ==================== AJAX HANDLERS ====================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    
-    function respond($data) {
-        echo json_encode($data);
-        exit;
+$student_id = $_SESSION['user_id'];
+try {
+    $student_stmt = $conn->prepare("SELECT id, name, email, reg_no, course_id, year_of_study, year_joined FROM students WHERE id = ?");
+    $student_stmt->bind_param("i", $student_id);
+    $student_stmt->execute();
+    $student = $student_stmt->get_result()->fetch_assoc();
+    if (!$student) {
+        throw new Exception("Student not found.");
     }
-    
-    $action = $_POST['action'];
-    
-    switch ($action) {
-        // Auto-log attendance on join
-        case 'log_attendance':
-            $check = $conn->prepare("SELECT id FROM meeting_attendance 
-                                    WHERE meeting_id = ? AND student_id = ?");
-            $check->bind_param("ii", $meeting_id, $student_id);
-            $check->execute();
-            $existing = $check->get_result()->fetch_assoc();
-            $check->close();
-            
-            if ($existing) {
-                $update = $conn->prepare("UPDATE meeting_attendance 
-                                         SET joined_at = NOW(), status = 'joined', active = 1 
-                                         WHERE id = ?");
-                $update->bind_param("i", $existing['id']);
-                $update->execute();
-                $update->close();
-                respond(['success' => true, 'id' => $existing['id']]);
-            } else {
-                $insert = $conn->prepare("INSERT INTO meeting_attendance 
-                                         (meeting_id, student_id, joined_at, status, active) 
-                                         VALUES (?, ?, NOW(), 'joined', 1)");
-                $insert->bind_param("ii", $meeting_id, $student_id);
-                $insert->execute();
-                $id = $insert->insert_id;
-                $insert->close();
-                respond(['success' => true, 'id' => $id]);
-            }
-            break;
-            
-        // Get participants
-        case 'get_participants':
-            $sql = "SELECT ma.id, ma.student_id, COALESCE(s.name, ma.guest_name) as name, 
-                    COALESCE(s.reg_no, ma.reg_no) as reg_no
-                    FROM meeting_attendance ma
-                    LEFT JOIN students s ON ma.student_id = s.id
-                    WHERE ma.meeting_id = ? AND ma.status = 'joined'
-                    ORDER BY ma.joined_at ASC";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("i", $meeting_id);
-            $stmt->execute();
-            $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
-            respond($result);
-            break;
-            
-        // Chat messages
-        case 'get_chat':
-            $stmt = $conn->prepare("SELECT user_id, user_name, message, created_at 
-                                   FROM chat WHERE meeting_id = ? ORDER BY created_at ASC");
-            $stmt->bind_param("i", $meeting_id);
-            $stmt->execute();
-            $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
-            respond($result);
-            break;
-            
-        case 'send_chat':
-            $message = trim($_POST['message'] ?? '');
-            if ($message === '') respond(['success' => false]);
-            $stmt = $conn->prepare("INSERT INTO chat (meeting_id, user_id, user_name, message, created_at) 
-                                   VALUES (?, ?, ?, ?, NOW())");
-            $stmt->bind_param("iiss", $meeting_id, $student_id, $student_name, $message);
-            $success = $stmt->execute();
-            $stmt->close();
-            respond(['success' => $success]);
-            break;
-            
-        // WebRTC Signaling - send to lecturer
-        case 'send_signal':
-            $type = $_POST['type'] ?? '';
-            $data = $_POST['data'] ?? '';
-            
-            $stmt = $conn->prepare("INSERT INTO meeting_signals 
-                                   (meeting_id, from_student_id, to_lecturer_id, type, data, created_at) 
-                                   VALUES (?, ?, ?, ?, ?, NOW())");
-            $stmt->bind_param("iiiss", $meeting_id, $student_id, $lecturer_id, $type, $data);
-            $success = $stmt->execute();
-            $stmt->close();
-            respond(['success' => $success]);
-            break;
-            
-        // Get signals directed to this student
-        case 'get_signals':
-            $stmt = $conn->prepare("SELECT id, from_lecturer_id, type, data 
-                                   FROM meeting_signals 
-                                   WHERE meeting_id = ? AND to_student_id = ?
-                                   ORDER BY id ASC");
-            $stmt->bind_param("ii", $meeting_id, $student_id);
-            $stmt->execute();
-            $signals = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
-            
-            // Delete after fetching
-            if (!empty($signals)) {
-                $ids = array_column($signals, 'id');
-                $placeholders = implode(',', array_fill(0, count($ids), '?'));
-                $stmt = $conn->prepare("DELETE FROM meeting_signals WHERE id IN ($placeholders)");
-                $types = str_repeat('i', count($ids));
-                $stmt->bind_param($types, ...$ids);
-                $stmt->execute();
-                $stmt->close();
-            }
-            respond($signals);
-            break;
-            
-        default:
-            respond(['success' => false, 'error' => 'Unknown action']);
-    }
+    $course_id = $student['course_id'];
+    $year_of_study = $student['year_of_study'];
+
+    // Fetch course name
+    $course_stmt = $conn->prepare("SELECT name FROM courses WHERE id = ?");
+    $course_stmt->bind_param("i", $course_id);
+    $course_stmt->execute();
+    $course = $course_stmt->get_result()->fetch_assoc();
+    $course_name = $course ? $course['name'] : 'Unknown Course';
+    $course_stmt->close();
+    $student_stmt->close();
+} catch (Exception $e) {
+    error_log("Error fetching student/course: " . $e->getMessage());
+    $_SESSION['error'] = "Error loading student data.";
+    header("Location: ../index.php");
+    exit;
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($meeting['title']) ?> - Student</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        :root {
-            --bg-dark: #202124;
-            --bg-darker: #171717;
-            --bg-panel: #292929;
-            --text-primary: #e8eaed;
-            --text-secondary: #9aa0a6;
-            --accent-blue: #8ab4f8;
-            --accent-green: #81c995;
-            --accent-red: #f28b82;
-            --border-color: #3c4043;
-        }
-        
-        body {
-            font-family: 'Google Sans', Roboto, Arial, sans-serif;
-            background: var(--bg-dark);
-            color: var(--text-primary);
-            overflow: hidden;
-            height: 100vh;
-        }
-        
-        /* Top Navigation */
-        .top-nav {
-            height: 64px;
-            background: var(--bg-darker);
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 24px;
-            position: relative;
-            z-index: 100;
-        }
-        
-        .meeting-info h2 {
-            font-size: 18px;
-            font-weight: 400;
-        }
-        
-        .meeting-info p {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-top: 2px;
-        }
-        
-        /* Main Layout */
-        .meeting-container {
-            display: flex;
-            height: calc(100vh - 64px);
-            position: relative;
-        }
-        
-        /* Main Video Area (Lecturer) */
-        .main-video-area {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--bg-darker);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        #lecturerVideo {
-            max-width: 100%;
-            max-height: 100%;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            background: #000;
-        }
-        
-        .no-video-placeholder {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            color: var(--text-secondary);
-        }
-        
-        .no-video-placeholder i {
-            font-size: 64px;
-        }
-        
-        /* Self Preview (corner) */
-        .self-preview {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 240px;
-            height: 135px;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #000;
-            border: 2px solid var(--border-color);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-            z-index: 10;
-            display: none;
-        }
-        
-        .self-preview.visible {
-            display: block;
-        }
-        
-        .self-preview video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .self-preview .label {
-            position: absolute;
-            bottom: 8px;
-            left: 8px;
-            background: rgba(0,0,0,0.6);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-        
-        /* Control Bar */
-        .control-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 80px;
-            background: var(--bg-panel);
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            z-index: 50;
-        }
-        
-        .control-btn {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: var(--bg-darker);
-            border: none;
-            color: var(--text-primary);
-            font-size: 20px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-            position: relative;
-        }
-        
-        .control-btn:hover:not(.disabled) {
-            background: #3c4043;
-            transform: scale(1.05);
-        }
-        
-        .control-btn.active {
-            background: var(--accent-blue);
-        }
-        
-        .control-btn.danger {
-            background: var(--accent-red);
-        }
-        
-        .control-btn.disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-        
-        /* Side Panel */
-        .side-panel {
-            width: 360px;
-            background: var(--bg-panel);
-            border-left: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-            position: relative;
-            z-index: 40;
-        }
-        
-        .side-panel.open {
-            transform: translateX(0);
-        }
-        
-        .panel-tabs {
-            display: flex;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .panel-tab {
-            flex: 1;
-            padding: 16px;
-            text-align: center;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-        
-        .panel-tab.active {
-            border-bottom-color: var(--accent-blue);
-            color: var(--accent-blue);
-        }
-        
-        .panel-content {
-            flex: 1;
-            overflow-y: auto;
-            display: none;
-        }
-        
-        .panel-content.active {
-            display: block;
-        }
-        
-        /* Participants */
-        .participants-list {
-            padding: 16px;
-        }
-        
-        .participant-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            background: var(--bg-darker);
-        }
-        
-        .participant-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--accent-blue);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 16px;
-        }
-        
-        .participant-info {
-            flex: 1;
-        }
-        
-        .participant-name {
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        .participant-reg {
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
-        
-        /* Chat */
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-        
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-        }
-        
-        .chat-message {
-            margin-bottom: 16px;
-        }
-        
-        .chat-message.me {
-            text-align: right;
-        }
-        
-        .message-sender {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
-        }
-        
-        .message-bubble {
-            display: inline-block;
-            padding: 8px 12px;
-            border-radius: 12px;
-            background: var(--bg-darker);
-            max-width: 80%;
-            word-wrap: break-word;
-        }
-        
-        .chat-message.me .message-bubble {
-            background: var(--accent-blue);
-            color: var(--bg-darker);
-        }
-        
-        .chat-input-area {
-            padding: 16px;
-            border-top: 1px solid var(--border-color);
-        }
-        
-        .chat-input-area textarea {
-            width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            background: var(--bg-darker);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            resize: none;
-            font-family: inherit;
-        }
-        
-        .chat-input-area button {
-            margin-top: 8px;
-            width: 100%;
-            padding: 10px;
-            border-radius: 8px;
-            background: var(--accent-blue);
-            border: none;
-            color: var(--bg-darker);
-            font-weight: 500;
-            cursor: pointer;
-        }
-        
-        /* Notification Badge */
-        .badge {
-            position: absolute;
-            top: -4px;
-            right: -4px;
-            background: var(--accent-red);
-            color: white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        /* Status Message */
-        .status-message {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--bg-panel);
-            padding: 12px 24px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            z-index: 30;
-            display: none;
-        }
-        
-        .status-message.show {
-            display: block;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .side-panel {
-                position: absolute;
-                right: 0;
-                top: 0;
-                bottom: 80px;
-                width: 100%;
-                max-width: 360px;
-            }
-            
-            .self-preview {
-                width: 120px;
-                height: 68px;
-                bottom: 100px;
-                right: 10px;
-            }
-            
-            .control-btn {
-                width: 48px;
-                height: 48px;
-                font-size: 18px;
-            }
-        }
-    </style>
+    <title>Student Dashboard - UNILIS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="css/dashboard.css">
 </head>
-<body>
-    <!-- Top Navigation -->
-    <div class="top-nav">
-        <div class="meeting-info">
-            <h2><?= htmlspecialchars($meeting['title']) ?></h2>
-            <p>Meeting ID: <?= $meeting_id ?></p>
-        </div>
-        <div>
-            <a href="../student/dashboard.php" style="color: var(--text-secondary); text-decoration: none;">
-                <i class="fas fa-arrow-left"></i> Leave Meeting
-            </a>
-        </div>
-    </div>
-    
-    <!-- Main Meeting Container -->
-    <div class="meeting-container">
-        <!-- Main Video Area (Lecturer Stream) -->
-        <div class="main-video-area">
-            <video id="lecturerVideo" autoplay playsinline></video>
-            
-            <div id="noVideoPlaceholder" class="no-video-placeholder">
-                <i class="fas fa-video-slash"></i>
-                <p>Waiting for lecturer to start...</p>
-            </div>
-            
-            <!-- Self Preview (shown when publishing) -->
-            <div id="selfPreview" class="self-preview">
-                <video id="selfVideo" autoplay muted playsinline></video>
-                <div class="label">You</div>
-            </div>
-        </div>
-        
-        <!-- Side Panel (Participants/Chat) -->
-        <div id="sidePanel" class="side-panel">
-            <div class="panel-tabs">
-                <div class="panel-tab active" data-tab="participants">
-                    <i class="fas fa-users"></i> Participants (<span id="participantCount">0</span>)
-                </div>
-                <div class="panel-tab" data-tab="chat">
-                    <i class="fas fa-comment"></i> Chat
-                    <span id="chatBadge" class="badge" style="display: none;">0</span>
-                </div>
-            </div>
-            
-            <div id="participantsPanel" class="panel-content active">
-                <div class="participants-list" id="participantsList"></div>
-            </div>
-            
-            <div id="chatPanel" class="panel-content">
-                <div class="chat-container">
-                    <div class="chat-messages" id="chatMessages"></div>
-                    <div class="chat-input-area">
-                        <textarea id="chatInput" placeholder="Type a message..." rows="2"></textarea>
-                        <button id="sendChatBtn">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Control Bar -->
-    <div class="control-bar">
-        <button id="toggleMicBtn" class="control-btn disabled" title="Microphone" disabled>
-            <i class="fas fa-microphone-slash"></i>
-        </button>
-        
-        <button id="toggleCameraBtn" class="control-btn disabled" title="Camera" disabled>
-            <i class="fas fa-video-slash"></i>
-        </button>
-        
-        <button id="requestPublishBtn" class="control-btn" title="Request to Publish">
-            <i class="fas fa-hand"></i>
-        </button>
-        
-        <button id="requestScreenBtn" class="control-btn" title="Request Screen Share">
-            <i class="fas fa-desktop"></i>
-        </button>
-        
-        <button id="participantsBtn" class="control-btn" title="Participants">
-            <i class="fas fa-user-friends"></i>
-        </button>
-        
-        <button id="chatBtn" class="control-btn" title="Chat">
-            <i class="fas fa-comment-dots"></i>
-        </button>
-    </div>
-    
-    <!-- Status Message -->
-    <div id="statusMessage" class="status-message"></div>
 
-    <script>
-        // ==================== CONFIG ====================
-        const MEETING_ID = <?= $meeting_id ?>;
-        const STUDENT_ID = <?= $student_id ?>;
-        const STUDENT_NAME = <?= json_encode($student_name) ?>;
-        const LECTURER_ID = <?= $lecturer_id ?>;
-        
-        // ==================== STATE ====================
-        let localStream = null;
-        let screenStream = null;
-        let pcLecturer = null; // Connection to receive lecturer stream
-        let pcPublish = null; // Connection to send our stream when approved
-        let isPublishing = false;
-        let micEnabled = false;
-        let cameraEnabled = false;
-        let pendingCandidates = [];
-        
-        // ==================== UTILITY FUNCTIONS ====================
-        async function apiCall(action, data = {}) {
-            const formData = new URLSearchParams({ action, ...data });
-            const response = await fetch('', { method: 'POST', body: formData });
-            return await response.json();
-        }
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        function showStatus(message, duration = 3000) {
-            const statusEl = document.getElementById('statusMessage');
-            statusEl.textContent = message;
-            statusEl.classList.add('show');
-            setTimeout(() => statusEl.classList.remove('show'), duration);
-        }
-        
-        // ==================== MEDIA INITIALIZATION ====================
-        async function prepareLocalStream() {
+<body class="relative">
+
+    <!-- Top Navigation Bar -->
+    <nav class="bg-white shadow-md p-4 flex justify-between items-center text-slate-800 sticky top-0 z-30 border-b border-f5e6b2">
+        <a href="#" class="text-2xl font-bold text-92400e">
+            UNILIS
+        </a>
+
+        <!-- Main Navigation Links (Desktop) -->
+       <div class="flex space-x-8 items-center text-92400e">
+    <a href="#" class="nav-link active font-medium px-3 py-2 rounded-lg text-green-600 hover:bg-green-100" data-target="dashboard-content">Dashboard</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-orange-600 hover:bg-orange-100" data-target="courses-content">Courses</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="assignments-content">Assignments</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-green-600 hover:bg-green-100" data-target="notes-content">Notes</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-orange-600 hover:bg-orange-100" data-target="meetings-content">Meetings</a>
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg text-blue-600 hover:bg-blue-100" data-target="profile-content">Profile</a>
+
+    <?php
+// Ensure these session variables are set
+$course_id = $_SESSION['course_id'] ?? null;
+$year_of_study = $_SESSION['year_of_study'] ?? null;
+$unread_count = 0;
+
+if ($course_id && $year_of_study) {
+    // Query unread notifications related to this student's course and year
+    $notif_count_query = $conn->prepare("
+        SELECT COUNT(DISTINCT n.id) AS unread_count
+        FROM notifications n
+        LEFT JOIN notes nt ON n.notes_id = nt.id
+        LEFT JOIN assignments a ON n.assignment_id = a.id
+        LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
+        LEFT JOIN meetings m ON n.meeting_id = m.id
+        LEFT JOIN units u 
+            ON u.id = nt.unit_id 
+            OR u.id = a.unit_id 
+            OR u.id = ia.unit_id 
+            OR u.id = m.unit_id
+        WHERE u.course_id = ? AND u.year = ? AND n.is_read = 0
+    ");
+    $notif_count_query->bind_param("ii", $course_id, $year_of_study);
+    $notif_count_query->execute();
+    $result = $notif_count_query->get_result();
+
+    if ($row = $result->fetch_assoc()) {
+        $unread_count = $row['unread_count'];
+    }
+
+    $notif_count_query->close();
+}
+?>
+
+
+    <!-- Notifications Nav Item -->
+    <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg relative text-green-700 hover:bg-green-100" data-target="notifications-content" id="notifBell">
+        🔔 Notifications
+        <span id="notifCount" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-2">
+            <?= $unread_count ?>
+        </span>
+    </a>
+</div>
+
+
+        <!-- Mobile Menu Toggle Button (right-aligned) -->
+        <button id="menu-toggle" class="p-2 rounded-full text-92400e hover:bg-fef3c7 focus:outline-none focus:ring-2 focus:ring-f59e0b transition-all">
+            <svg class="hamburger-icon-menu h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
+    </nav>
+
+    <!-- Off-Canvas Sidebar -->
+    <!-- Off-Canvas Menu -->
+    <div id="offCanvasMenu" class="sidebar">
+        <button id="closeMenuBtn" class="close-btn">&times;</button>
+
+        <!-- Student Info -->
+        <h2 class="text-2xl font-bold mb-2 text-center text-92400e">
+            <?= htmlspecialchars($student['name']) ?>
+        </h2>
+        <p class="text-base mb-2 text-center text-a16207">
+            Student ID: <?= htmlspecialchars($student['reg_no']) ?>
+        </p>
+        <p class="text-base mb-2 text-center text-a16207">
+            Program: <?= htmlspecialchars($course_name) ?>
+        </p>
+        <p class="text-base mb-2 text-center text-a16207">
+            Year of Study: Year <?= htmlspecialchars($year_of_study) ?>
+        </p>
+        <p class="text-base mb-2 text-center text-a16207">
+            Email: <?= htmlspecialchars($student['email']) ?>
+        </p>
+        <p class="text-base mb-6 text-center text-a16207">
+            Joined: <?= htmlspecialchars($student['year_joined']) ?>
+        </p>
+
+        <!-- Dashboard -->
+        <button class="menu-item green" onclick="alert('Dashboard Overview clicked!')">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </button>
+
+        <!-- Academic Section -->
+        <div class="menu-section-title blue">Academic</div>
+        <button class="menu-item orange" onclick="alert('My Courses clicked!')">
+            <i class="fas fa-book"></i> My Courses
+        </button>
+        <a href="submit_assignment.php" class="menu-item orange">
+            <i class="fas fa-upload"></i> Submit Assignment
+        </a>
+        <button class="menu-item orange" onclick="alert('Grades clicked!')">
+            <i class="fas fa-medal"></i> Grades
+        </button>
+        <button class="menu-item orange" onclick="alert('Schedule clicked!')">
+            <i class="fas fa-calendar-alt"></i> Schedule
+        </button>
+
+        <!-- Resources Section -->
+        <div class="menu-section-title green">Resources</div>
+        <button class="menu-item orange" onclick="alert('Notes & Files clicked!')">
+            <i class="fas fa-file-alt"></i> Notes & Files
+        </button>
+        <button class="menu-item orange" onclick="alert('Library Services clicked!')">
+            <i class="fas fa-book-reader"></i> Library Services
+        </button>
+
+        <!-- Communication & Support Section -->
+        <div class="menu-section-title blue">Communication & Support</div>
+        <button class="menu-item" onclick="alert('Announcements clicked!')">
+            <i class="fas fa-bullhorn"></i> Announcements
+        </button>
+        <a href="#" class="menu-item" onclick="alert('Messages not implemented yet!')">
+            <i class="fas fa-envelope"></i> Messages
+        </a>
+        <button class="menu-item" onclick="alert('Help & Support clicked!')">
+            <i class="fas fa-question-circle"></i> Help & Support
+        </button>
+
+        <!-- Account Section -->
+        <div class="menu-section-title orange">Account</div>
+        <a href="#" class="menu-item" onclick="alert('Profile Settings not implemented yet!')">
+            <i class="fas fa-user-circle"></i> My Profile
+        </a>
+        <button class="menu-item" onclick="alert('Change Password clicked!')">
+            <i class="fas fa-key"></i> Change Password
+        </button>
+        <a href="../logout.php" class="menu-item logout">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
+
+
+    <!-- Overlay to close the sidebar -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Main Content Area -->
+    <div class="p-6 md:p-10">
+        <!-- New Hero Div with Image and Overlay Message -->
+        <div class="relative bg-cover bg-center h-[60vh] mb-8 md:mb-12 rounded-2xl overflow-hidden" style="background-image: url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');">
+            <div class="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                <h1 class="text-3xl md:text-4xl font-extrabold hero-text text-center px-4">
+                    Welcome to the University Integrated Learning System
+                </h1>
+            </div>
+        </div>
+
+        <!-- Dynamic Content Sections -->
+        <div id="dashboard-content">
+            <!-- Overview Statistics Section -->
+            <?php
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 1280, height: 720 },
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
-                
-                // Keep tracks disabled until approved
-                localStream.getTracks().forEach(track => track.enabled = false);
-                
-                document.getElementById('selfVideo').srcObject = localStream;
-                console.log('Local stream prepared');
-            } catch (error) {
-                console.error('Error accessing media:', error);
+                $units_stmt = $conn->prepare("SELECT COUNT(*) as count FROM units WHERE course_id = ? AND year = ?");
+                $units_stmt->bind_param("ii", $course_id, $year_of_study);
+                $units_stmt->execute();
+                $units_count = $units_stmt->get_result()->fetch_assoc()['count'];
+                $units_stmt->close();
+            } catch (mysqli_sql_exception $e) {
+                error_log("Error fetching units count: " . $e->getMessage());
+                $units_count = 0;
+                $_SESSION['error'] = "Unable to load units count.";
             }
-        }
-        
-        // ==================== WEBRTC FUNCTIONS ====================
-        function createPeerConnection(type) {
-            const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
-            });
-            
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    apiCall('send_signal', {
-                        type: 'candidate',
-                        data: JSON.stringify({ candidate: event.candidate })
-                    });
-                }
-            };
-            
-            pc.onconnectionstatechange = () => {
-                console.log(`${type} PC state:`, pc.connectionState);
-            };
-            
-            if (type === 'lecturer') {
-                // For receiving lecturer stream
-                pc.ontrack = (event) => {
-                    console.log('Received track from lecturer:', event.streams[0]);
-                    document.getElementById('lecturerVideo').srcObject = event.streams[0];
-                    document.getElementById('noVideoPlaceholder').style.display = 'none';
-                };
+
+            try {
+                $assignments_stmt = $conn->prepare("SELECT COUNT(*) as count FROM assignments WHERE unit_id IN (SELECT id FROM units WHERE course_id = ? AND year = ?) AND deadline >= NOW()");
+                $assignments_stmt->bind_param("ii", $course_id, $year_of_study);
+                $assignments_stmt->execute();
+                $assignments_count = $assignments_stmt->get_result()->fetch_assoc()['count'];
+                $assignments_stmt->close();
+            } catch (mysqli_sql_exception $e) {
+                error_log("Error fetching assignments count: " . $e->getMessage());
+                $assignments_count = 0;
+                $_SESSION['error'] = "Unable to load assignments count.";
             }
-            
-            return pc;
-        }
-        
-        async function handleSignal(signal) {
-            const { from_lecturer_id, type, data } = signal;
-            const parsedData = JSON.parse(data || '{}');
-            
-            switch (type) {
-                case 'offer':
-                    await handleLecturerOffer(parsedData);
-                    break;
-                    
-                case 'candidate':
-                    if (pcLecturer && parsedData.candidate) {
+
+            try {
+                $meetings_stmt = $conn->prepare("SELECT COUNT(*) as count FROM meetings WHERE unit_id IN (SELECT id FROM units WHERE course_id = ? AND year = ?) AND scheduled_time >= NOW()");
+                $meetings_stmt->bind_param("ii", $course_id, $year_of_study);
+                $meetings_stmt->execute();
+                $meetings_count = $meetings_stmt->get_result()->fetch_assoc()['count'];
+                $meetings_stmt->close();
+            } catch (mysqli_sql_exception $e) {
+                error_log("Error fetching meetings count: " . $e->getMessage());
+                $meetings_count = 0;
+                $_SESSION['error'] = "Unable to load meetings count.";
+            }
+
+            try {
+                $submitted_stmt = $conn->prepare("SELECT COUNT(*) as count FROM submissions WHERE student_id = ? AND assignment_id IN (SELECT id FROM assignments WHERE unit_id IN (SELECT id FROM units WHERE course_id = ? AND year = ?))");
+                $submitted_stmt->bind_param("iii", $student_id, $course_id, $year_of_study);
+                $submitted_stmt->execute();
+                $submitted_count = $submitted_stmt->get_result()->fetch_assoc()['count'];
+                $submitted_stmt->close();
+            } catch (mysqli_sql_exception $e) {
+                error_log("Error fetching submitted assignments count: " . $e->getMessage());
+                $submitted_count = 0;
+                $_SESSION['error'] = "Unable to load submitted assignments count.";
+            }
+            ?>
+            <!-- Stats Section -->
+            <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="card bg-white rounded-2xl p-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="p-3 rounded-full bg-amber-100 text-amber-700 stat-icon">
+                            <i class="fas fa-book-open h-6 w-6"></i>
+                        </div>
+                        <div>
+                           <p class="text-sm stat-text-primary" style="color: #6b8e23;">Active Units</p>
+
+                            <h2 class="text-3xl font-bold stat-text-secondary"><?= $units_count ?></h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white rounded-2xl p-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="p-3 rounded-full bg-orange-100 text-orange-700 stat-icon">
+                            <i class="fas fa-hourglass-half h-6 w-6"></i>
+                        </div>
+                        <div>
+                           <p class="text-sm stat-text-secondary" style="color: #2563eb;">Assignments Due</p>
+
+                            <h2 class="text-3xl font-bold stat-text-accent"><?= $assignments_count ?></h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white rounded-2xl p-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="p-3 rounded-full bg-yellow-100 text-yellow-700 stat-icon">
+                            <i class="fas fa-users h-6 w-6"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm stat-text-accent">Upcoming Meetings</p>
+                            <h2 class="text-3xl font-bold stat-text-primary"><?= $meetings_count ?></h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-white rounded-2xl p-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="p-3 rounded-full bg-amber-200 text-amber-800 stat-icon">
+                            <i class="fas fa-check-double h-6 w-6"></i>
+                        </div>
+                        <div>
+                           <p class="text-sm stat-text-primary" style="color: #fb923c;">Assignments Submitted</p>
+
+                            <h2 class="text-3xl font-bold stat-text-secondary"><?= $submitted_count ?></h2>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data Visualization Section (Placeholders) -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="card bg-white rounded-2xl p-6">
+                    <h3 class="text-xl font-semibold mb-4 stat-text-secondary">Unit Progress</h3>
+                    <div class="h-48 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 italic">Progress Bars Placeholder (e.g., per unit)</div>
+                </div>
+                <div class="card bg-white rounded-2xl p-6">
+                    <h3 class="text-xl font-semibold mb-4 stat-text-secondary">Assignment Status</h3>
+                    <div class="h-48 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 italic">Pie Chart Placeholder (Submitted vs. Pending)</div>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <?php
+            if (isset($_SESSION['submission_success'])) {
+                echo "<div class='bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6'>" . htmlspecialchars($_SESSION['submission_success']) . "</div>";
+                unset($_SESSION['submission_success']);
+            }
+            if (isset($_SESSION['submission_error'])) {
+                echo "<div class='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6'>" . htmlspecialchars($_SESSION['submission_error']) . "</div>";
+                unset($_SESSION['submission_error']);
+            }
+            if (isset($_SESSION['error'])) {
+                echo "<div class='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6'>" . htmlspecialchars($_SESSION['error']) . "</div>";
+                unset($_SESSION['error']);
+            }
+            ?>
+
+            <!-- Notes Section -->
+
+
+
+
+            <!-- Quick Action Cards -->
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <a href="submit_assignment.php" class="card bg-white rounded-2xl p-6 text-center hover:shadow-lg">
+                    <div class="flex flex-col items-center">
+                        <div class="p-4 rounded-full bg-amber-100 mb-4">
+                            <i class="fas fa-upload text-amber-600 h-10 w-10 stat-icon"></i>
+                        </div>
+                        <span class="font-semibold text-lg stat-text-accent">Submit Assignment</span>
+                        <p class="text-sm text-gray-600 mt-2">Upload your completed assignments.</p>
+                    </div>
+                </a>
+                <a href="#" onclick="alert('Messages not implemented yet!')" class="card bg-white rounded-2xl p-6 text-center hover:shadow-lg">
+                    <div class="flex flex-col items-center">
+                        <div class="p-4 rounded-full bg-orange-100 mb-4">
+                            <i class="fas fa-envelope text-orange-600 h-10 w-10 stat-icon"></i>
+                        </div>
+                        <span class="font-semibold text-lg stat-text-secondary">Check Messages</span>
+                        <p class="text-sm text-gray-600 mt-2">Communicate with lecturers and peers.</p>
+                    </div>
+                </a>
+                <a href="#" onclick="alert('Profile Settings not implemented yet!')" class="card bg-white rounded-2xl p-6 text-center hover:shadow-lg">
+                    <div class="flex flex-col items-center">
+                        <div class="p-4 rounded-full bg-yellow-100 mb-4">
+                            <i class="fas fa-user-circle text-yellow-600 h-10 w-10 stat-icon"></i>
+                        </div>
+                        <span class="font-semibold text-lg stat-text-accent">Update Profile</span>
+                        <p class="text-sm text-gray-600 mt-2">Manage your personal information.</p>
+                    </div>
+                </a>
+            </section>
+        </div>
+
+        <div id="courses-content" class="hidden">
+            <!-- Placeholder for courses content -->
+            <h2 class="text-3xl font-bold stat-text-primary mb-8">Available Courses</h2>
+            <p class="text-lg text-92400e">Courses content will be loaded here.</p>
+        </div>
+
+
+        <!-- Assignments Content (Hidden by default) -->
+        <div id="assignments-content" class="hidden">
+
+            <!-- Interactive Assignments / CATs Section -->
+            <section class="card bg-white rounded-2xl p-6 mb-8">
+                <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Interactive Assignments / CATs</h2>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium stat-text-primary mb-2"><b>Filter by Unit:</b></label>
+                    <select id="ia-unit-filter" class="w-full max-w-xs px-3 py-2 border border-f5e6b2 rounded-lg text-92400e">
+                        <option value="">-- Select Unit --</option>
+                        <?php
+                        // populate units for this student course/year
                         try {
-                            await pcLecturer.addIceCandidate(new RTCIceCandidate(parsedData.candidate));
-                        } catch (error) {
-                            console.error('Error adding ICE candidate:', error);
+                            $uf = $conn->prepare("SELECT id, name FROM units WHERE course_id = ? AND year = ? ORDER BY name ASC");
+                            $uf->bind_param("ii", $course_id, $year_of_study);
+                            $uf->execute();
+                            $ul = $uf->get_result();
+                            while ($urow = $ul->fetch_assoc()) {
+                                echo '<option value="' . intval($urow['id']) . '">' . htmlspecialchars($urow['name']) . "</option>";
+                            }
+                            $uf->close();
+                        } catch (mysqli_sql_exception $e) { /* ignore */
                         }
-                    } else {
-                        pendingCandidates.push(parsedData.candidate);
-                    }
-                    break;
-                    
-                case 'answer':
-                    // Lecturer answered our publish offer
-                    if (pcPublish && parsedData.sdp) {
-                        await pcPublish.setRemoteDescription(new RTCSessionDescription({
-                            type: 'answer',
-                            sdp: parsedData.sdp
-                        }));
-                        console.log('Received answer from lecturer');
-                    }
-                    break;
-                    
-                case 'allow-publish':
-                    await startPublishing(false);
-                    break;
-                    
-                case 'allow-screen':
-                    await startPublishing(true);
-                    break;
-                    
-                case 'end':
-                    alert('Meeting ended by lecturer');
-                    window.location.href = '../student/dashboard.php';
-                    break;
-            }
-        }
+                        ?>
+                    </select>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-f5e6b2">
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Unit</th>
+                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Title</th>
+                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Deadline</th>
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-92400e" id="ia-tbody">
+                            <?php
+                            try {
+                                $int_assignments_query = $conn->prepare("
+                                    SELECT a.id, a.title, a.due_date, u.name AS unit_name
+                                    FROM interactive_assignments a
+                                    JOIN units u ON a.unit_id = u.id
+                                    WHERE u.course_id = ?
+                                      AND u.year = ?
+                                    ORDER BY a.due_date ASC
+                                ");
+
+                                $int_assignments_query->bind_param("ii", $course_id, $year_of_study);
+                                $int_assignments_query->execute();
+                                $int_assignments = $int_assignments_query->get_result();
+
+                                if ($int_assignments->num_rows === 0) {
+                                    echo "<tr><td colspan='4' class='py-4 text-center'>No interactive assignments or CATs for your class.</td></tr>";
+                                } else {
+                                    while ($ia = $int_assignments->fetch_assoc()) {
+                                        $check_submitted = $conn->prepare("SELECT id FROM interactive_submissions WHERE assignment_id = ? AND student_id = ?");
+                                        $check_submitted->bind_param("ii", $ia['id'], $student_id);
+                                        $check_submitted->execute();
+                                        $check_submitted->store_result();
+                                        $submitted = $check_submitted->num_rows > 0;
+                                        $check_submitted->close();
+
+                                        $action = $submitted
+                                            ? "<span class='text-green-600'>Submitted</span>"
+                                            : "<a href='take_assignment.php?id=" . $ia['id'] . "' class='text-f59e0b hover:underline'>Answer MCQs</a>";
+
+                                        echo "<tr class='border-b border-f5e6b2 table-row-hover'>
+                                            <td class='py-4 table-text-primary'>" . htmlspecialchars($ia['unit_name']) . "</td>
+                                            <td class='py-4 table-text-secondary'>" . htmlspecialchars($ia['title']) . "</td>
+                                            <td class='py-4 text-sm table-text-accent'>" . date("d M Y, h:i A", strtotime($ia['due_date'])) . "</td>
+                                            <td class='py-4 table-text-primary'>$action</td>
+                                        </tr>";
+                                    }
+                                }
+                                $int_assignments_query->close();
+                            } catch (mysqli_sql_exception $e) {
+                                error_log("Error fetching interactive assignments: " . $e->getMessage());
+                                echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading interactive assignments.</td></tr>";
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+
+            <!-- Submitted Assignments Section -->
+            <section class="card bg-white rounded-2xl p-6 mb-8">
+                <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Submitted Assignments</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-f5e6b2">
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Unit</th>
+                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Title</th>
+                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Date Submitted</th>
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Marks</th>
+                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Comment</th>
+                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-92400e">
+                            <?php
+                            try {
+                                $submissions_query = $conn->prepare("
+                                    SELECT s.file_path, s.submitted_at, s.comment, s.marks, a.title, u.name AS unit_name
+                                    FROM submissions s
+                                    JOIN assignments a ON s.assignment_id = a.id
+                                    JOIN units u ON a.unit_id = u.id
+                                    WHERE s.student_id = ? AND u.course_id = ? AND u.year = ?
+                                    ORDER BY s.submitted_at DESC
+                                ");
+                                $submissions_query->bind_param("iii", $student_id, $course_id, $year_of_study);
+                                $submissions_query->execute();
+                                $submissions = $submissions_query->get_result();
+
+                                if ($submissions->num_rows === 0) {
+                                    echo "<tr><td colspan='6' class='py-4 text-center'>No assignments submitted yet.</td></tr>";
+                                } else {
+                                    while ($submission = $submissions->fetch_assoc()) {
+                                        $filePath = htmlspecialchars($submission['file_path']);
+                                        $fullPath = "../assets/uploads/submissions/" . $filePath;
+                                        $actions = file_exists($fullPath) ?
+                                            "<a href='$fullPath' target='_blank' class='text-f59e0b hover:underline mr-2'>View</a> | <a href='$fullPath' download class='text-f59e0b hover:underline'>Download</a>" :
+                                            "<span style='color: red;'>File missing</span>";
+
+                                        $marksDisplay = is_null($submission['marks']) ? "<em>Not graded</em>" : htmlspecialchars($submission['marks']);
+                                        $commentDisplay = !empty($submission['comment']) ? htmlspecialchars($submission['comment']) : "<em>No comment</em>";
+
+                                        echo "<tr class='border-b border-f5e6b2 table-row-hover'>
+                                            <td class='py-4 table-text-primary'>" . htmlspecialchars($submission['unit_name']) . "</td>
+                                            <td class='py-4 table-text-secondary'>" . htmlspecialchars($submission['title']) . "</td>
+                                            <td class='py-4 text-sm table-text-accent'>" . date("d M Y, h:i A", strtotime($submission['submitted_at'])) . "</td>
+                                            <td class='py-4 table-text-primary'>$marksDisplay</td>
+                                            <td class='py-4 table-text-secondary'>$commentDisplay</td>
+                                            <td class='py-4 table-text-accent'>$actions</td>
+                                        </tr>";
+                                    }
+                                }
+                                $submissions_query->close();
+                            } catch (mysqli_sql_exception $e) {
+                                error_log("Error fetching submissions: " . $e->getMessage());
+                                echo "<tr><td colspan='6' class='py-4 text-center text-red-500'>Error loading submitted assignments. Please contact the administrator.</td></tr>";
+                                $_SESSION['error'] = "Unable to load submitted assignments.";
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+
+
+            <!-- Assignments Section -->
+            <section class="card bg-white rounded-2xl p-6 mb-8">
+                <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Assignments for Year <?= htmlspecialchars($year_of_study) ?></h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-f5e6b2">
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Unit</th>
+                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Title</th>
+                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Deadline</th>
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-92400e">
+                            <?php
+                            try {
+                                $assignments_query = $conn->prepare("
+                                    SELECT a.id, a.title, a.description, a.deadline, a.file_path, u.name AS unit_name
+                                    FROM assignments a
+                                    JOIN units u ON a.unit_id = u.id
+                                    WHERE u.course_id = ? AND u.year = ?
+                                    ORDER BY a.deadline DESC
+                                ");
+                                $assignments_query->bind_param("ii", $course_id, $year_of_study);
+                                $assignments_query->execute();
+                                $assignments = $assignments_query->get_result();
+
+                                if ($assignments->num_rows === 0) {
+                                    echo "<tr><td colspan='4' class='py-4 text-center'>No assignments found for your course and year.</td></tr>";
+                                } else {
+                                    $now = new DateTime();
+                                    while ($assignment = $assignments->fetch_assoc()) {
+                                        $filePath = !empty($assignment['file_path']) ? htmlspecialchars($assignment['file_path']) : '';
+                                        $fullPath = "../assets/uploads/assignments/" . $filePath;
+
+                                        // Check if deadline passed
+                                        $deadline = new DateTime($assignment['deadline']);
+                                        $deadlinePassed = $now > $deadline;
+
+                                        $actions = '';
+                                        if (!empty($filePath) && file_exists($fullPath)) {
+                                            $actions .= "<a href='$fullPath' target='_blank' class='text-f59e0b hover:underline mr-2'>View</a> | <a href='$fullPath' download class='text-f59e0b hover:underline mr-2'>Download</a><br>";
+                                        }
+
+                                        // Submission form - disable if deadline passed
+                                        $disabledAttr = $deadlinePassed ? "disabled title='Deadline passed, submission closed'" : "";
+
+                                        $actions .= "
+                                            <form method='POST' enctype='multipart/form-data' action='submit_assignment.php' class='flex items-center space-x-2 mt-2'>
+                                                <input type='hidden' name='assignment_id' value='{$assignment['id']}'>
+                                                <input type='file' name='file' accept='.pdf,.doc,.docx' required $disabledAttr class='text-sm'>
+                                                <button type='submit' $disabledAttr class='btn-primary px-4 py-1 rounded-lg text-sm'>Submit</button>
+                                            </form>";
+
+                                        echo "<tr class='border-b border-f5e6b2 table-row-hover'>
+                                            <td class='py-4 table-text-primary'>" . htmlspecialchars($assignment['unit_name']) . "</td>
+                                            <td class='py-4 table-text-secondary'>" . htmlspecialchars($assignment['title']) . "</td>
+                                            <td class='py-4 text-sm table-text-accent'>" . date("d M Y, h:i A", strtotime($assignment['deadline'])) . "</td>
+                                            <td class='py-4 table-text-primary'>$actions</td>
+                                        </tr>";
+                                    }
+                                }
+                                $assignments_query->close();
+                            } catch (mysqli_sql_exception $e) {
+                                error_log("Error fetching assignments: " . $e->getMessage());
+                                echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading assignments. Please contact the administrator.</td></tr>";
+                                $_SESSION['error'] = "Unable to load assignments.";
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+
+
+        <div id="notes-content" class="hidden">
+            <section class="card bg-white rounded-2xl p-6 mb-8">
+                <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Notes for Year <?= htmlspecialchars($year_of_study) ?></h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-f5e6b2">
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Unit</th>
+                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Unit Code</th>
+                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">File</th>
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Uploaded At</th>
+                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-92400e">
+                            <?php
+                            try {
+                                $units_query = $conn->prepare("SELECT id, name, code FROM units WHERE course_id = ? AND year = ?");
+                                $units_query->bind_param("ii", $course_id, $year_of_study);
+                                $units_query->execute();
+                                $units = $units_query->get_result();
+
+                                if ($units->num_rows === 0) {
+                                    echo "<tr><td colspan='5' class='py-4 text-center'>No units found for your course and year.</td></tr>";
+                                } else {
+                                    while ($unit = $units->fetch_assoc()) {
+                                        $unit_id = $unit['id'];
+                                        $unit_name = htmlspecialchars($unit['name']);
+                                        $unit_code = htmlspecialchars($unit['code']);
+
+                                        $notes_query = $conn->prepare("SELECT file_path, uploaded_at FROM notes WHERE unit_id = ? ORDER BY uploaded_at DESC");
+                                        $notes_query->bind_param("i", $unit_id);
+                                        $notes_query->execute();
+                                        $notes = $notes_query->get_result();
+
+                                        if ($notes->num_rows > 0) {
+                                            while ($note = $notes->fetch_assoc()) {
+                                                $file = htmlspecialchars($note['file_path']);
+                                                $uploaded_at = date("d M Y, h:i A", strtotime($note['uploaded_at']));
+                                                $full_path = "../assets/uploads/" . $file;
+                                                $fileExists = file_exists($full_path);
+                                                $fileDisplay = $file ? $file : '<span style="color:red;">No filename</span>';
+
+                                                echo "<tr class='border-b border-f5e6b2 table-row-hover'>
+                                                    <td class='py-4 table-text-primary'>$unit_name</td>
+                                                    <td class='py-4 table-text-secondary'>$unit_code</td>
+                                                    <td class='py-4 table-text-accent'>$fileDisplay</td>
+                                                    <td class='py-4 text-sm table-text-primary'>$uploaded_at</td>
+                                                    <td class='py-4 table-text-secondary'>";
+                                                if ($fileExists) {
+                                                    echo "<a href='$full_path' target='_blank' class='text-f59e0b hover:underline mr-2'>View</a> | <a href='$full_path' download class='text-f59e0b hover:underline'>Download</a>";
+                                                } else {
+                                                    echo "<span style='color: red;'>File missing</span>";
+                                                }
+                                                echo "</td></tr>";
+                                            }
+                                        } else {
+                                            echo "<tr class='table-row-hover'>
+                                                <td class='py-4 table-text-primary'>$unit_name</td>
+                                                <td class='py-4 table-text-secondary'>$unit_code</td>
+                                                <td class='py-4 table-text-accent' colspan='3'>No notes uploaded yet.</td>
+                                            </tr>";
+                                        }
+                                        $notes_query->close();
+                                    }
+                                }
+                                $units_query->close();
+                            } catch (mysqli_sql_exception $e) {
+                                error_log("Error fetching notes: " . $e->getMessage());
+                                echo "<tr><td colspan='5' class='py-4 text-center text-red-500'>Error loading notes. Please contact the administrator.</td></tr>";
+                                $_SESSION['error'] = "Unable to load notes.";
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div id="meetings-content" class="hidden">
+            <!-- Meetings Section -->
+            <section class="card bg-white rounded-2xl p-6 mb-8">
+                <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Upcoming Meetings</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-f5e6b2">
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Title</th>
+                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Unit</th>
+                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Scheduled Time</th>
+                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-92400e">
+                            <?php
+                            try {
+                                $now = date('Y-m-d H:i:s');
+                                $meeting_query = $conn->prepare("
+                                    SELECT m.id, m.title, m.scheduled_time, u.name AS unit_name 
+                                    FROM meetings m 
+                                    JOIN units u ON m.unit_id = u.id 
+                                    WHERE u.course_id = ? AND u.year = ? AND m.scheduled_time >= ?
+                                    ORDER BY m.scheduled_time ASC
+                                ");
+                                $meeting_query->bind_param("iis", $course_id, $year_of_study, $now);
+                                $meeting_query->execute();
+                                $meetings = $meeting_query->get_result();
+
+                                if ($meetings->num_rows === 0) {
+                                    echo "<tr><td colspan='4' class='py-4 text-center'>No meetings scheduled.</td></tr>";
+                                } else {
+                                    while ($meeting = $meetings->fetch_assoc()) {
+                                        echo "<tr class='border-b border-f5e6b2 table-row-hover'>
+                                            <td class='py-4 table-text-primary'>" . htmlspecialchars($meeting['title']) . "</td>
+                                            <td class='py-4 table-text-secondary'>" . htmlspecialchars($meeting['unit_name']) . "</td>
+                                            <td class='py-4 text-sm table-text-accent'>" . date("d M Y, h:i A", strtotime($meeting['scheduled_time'])) . "</td>
+                                            <td class='py-4 table-text-primary'><a class='text-f59e0b hover:underline' href='meeting_ide.php?meeting_id=" . htmlspecialchars($meeting['id']) . "' target='_blank'>Join Meeting</a></td>
+                                        </tr>";
+                                    }
+                                }
+                                $meeting_query->close();
+                            } catch (mysqli_sql_exception $e) {
+                                error_log("Error fetching meetings: " . $e->getMessage());
+                                echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading meetings. Please contact the administrator.</td></tr>";
+                                $_SESSION['error'] = "Unable to load meetings.";
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
         
-        async function handleLecturerOffer(data) {
-            if (!pcLecturer) {
-                pcLecturer = createPeerConnection('lecturer');
-            }
-            
-            await pcLecturer.setRemoteDescription(new RTCSessionDescription({
-                type: 'offer',
-                sdp: data.sdp
-            }));
-            
-            const answer = await pcLecturer.createAnswer();
-            await pcLecturer.setLocalDescription(answer);
-            
-            await apiCall('send_signal', {
-                type: 'answer',
-                data: JSON.stringify({ sdp: answer.sdp })
-            });
-            
-            // Add pending candidates
-            while (pendingCandidates.length > 0) {
-                const candidate = pendingCandidates.shift();
-                try {
-                    await pcLecturer.addIceCandidate(new RTCIceCandidate(candidate));
-                } catch (error) {
-                    console.error('Error adding pending candidate:', error);
-                }
-            }
-            
-            console.log('Answer sent to lecturer');
-        }
-        
-        async function startPublishing(isScreen = false) {
-            if (isPublishing) {
-                showStatus('Already publishing');
-                return;
-            }
-            
-            try {
-                let streamToPublish;
-                
-                if (isScreen) {
-                    streamToPublish = await navigator.mediaDevices.getDisplayMedia({
-                        video: { cursor: 'always' }
+       <?php
+// Make sure PHP mode starts before this logic if you're mixing with HTML
+?>
+<div id="notifications-content" class="hidden">
+    <section class="card bg-white rounded-2xl p-6 mb-8">
+        <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Notifications</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b-2 border-f5e6b2">
+                        <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Title</th>
+                        <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Message</th>
+                        <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Date</th>
+                        <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="text-92400e">
+                    <?php
+                    try {
+                        
+                        $course_id = $_SESSION['course_id'] ?? null;
+                        $year_of_study = $_SESSION['year_of_study'] ?? null;
+
+                        if (!$course_id || !$year_of_study) {
+                            echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Missing student context.</td></tr>";
+                        } else {
+                            // Fetch notifications relevant to student's course and year
+                            $notif_query = $conn->prepare("
+                                SELECT DISTINCT n.id, n.title, n.message, n.link, n.is_read, n.created_at
+                                FROM notifications n
+                                LEFT JOIN notes nt ON n.notes_id = nt.id
+                                LEFT JOIN assignments a ON n.assignment_id = a.id
+                                LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
+                                LEFT JOIN meetings m ON n.meeting_id = m.id
+                                LEFT JOIN units u 
+                                    ON u.id = nt.unit_id 
+                                    OR u.id = a.unit_id 
+                                    OR u.id = ia.unit_id 
+                                    OR u.id = m.unit_id
+                                WHERE u.course_id = ? AND u.year = ?
+                                ORDER BY n.created_at DESC
+                            ");
+
+                            $notif_query->bind_param("ii", $course_id, $year_of_study);
+                            $notif_query->execute();
+                            $notifications = $notif_query->get_result();
+
+                            if ($notifications->num_rows === 0) {
+                                echo "<tr><td colspan='4' class='py-4 text-center'>No notifications yet.</td></tr>";
+                            } else {
+                                while ($notif = $notifications->fetch_assoc()) {
+                                    $title = htmlspecialchars($notif['title']);
+                                    $message = htmlspecialchars($notif['message']);
+                                    $created_at = date("d M Y, h:i A", strtotime($notif['created_at']));
+                                    $link = !empty($notif['link'])
+                                        ? "<a href='" . htmlspecialchars($notif['link']) . "' class='text-f59e0b hover:underline'>View</a>"
+                                        : "-";
+
+                                    // Highlight unread notifications
+                                    $row_style = $notif['is_read'] ? '' : "style='background-color:#fffbea;'";
+
+                                    echo "<tr class='border-b border-f5e6b2 table-row-hover' $row_style>
+                                        <td class='py-4 table-text-primary'>$title</td>
+                                        <td class='py-4 table-text-secondary'>$message</td>
+                                        <td class='py-4 text-sm table-text-accent'>$created_at</td>
+                                        <td class='py-4'>$link</td>
+                                    </tr>";
+                                }
+                            }
+
+                            $notif_query->close();
+                        }
+                    } catch (mysqli_sql_exception $e) {
+                        error_log('Error fetching notifications: ' . $e->getMessage());
+                        echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading notifications.</td></tr>";
+                    }
+                    ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+<?php
+// Optionally close PHP again after if more HTML follows
+?>
+
+
+        <script>
+            // Enhanced JavaScript for better UX: Navigation, Sidebar Toggle, and Content Switching
+            document.addEventListener('DOMContentLoaded', function() {
+                const menuToggle = document.getElementById('menu-toggle');
+                const sidebar = document.getElementById('offCanvasMenu');
+                const overlay = document.getElementById('overlay');
+                const closeBtn = document.getElementById('closeMenuBtn');
+                const navLinks = document.querySelectorAll('.nav-link');
+
+                // Sidebar Toggle
+                menuToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('open');
+                    overlay.classList.toggle('open');
+                    menuToggle.querySelector('svg').classList.toggle('open');
+                });
+
+                // Close sidebar on overlay click
+                overlay.addEventListener('click', function() {
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('open');
+                    menuToggle.querySelector('svg').classList.remove('open');
+                });
+
+                // Close sidebar on close button click
+                closeBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('open');
+                    menuToggle.querySelector('svg').classList.remove('open');
+                });
+
+                // Navigation Content Switching
+                navLinks.forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const target = this.getAttribute('data-target');
+                        if (target) {
+                            // Hide all sections
+                            const contentSections = document.querySelectorAll('[id$="-content"]');
+                            contentSections.forEach(section => section.classList.add('hidden'));
+                            // Show target section if it exists
+                            const targetSection = document.getElementById(target);
+                            if (targetSection) {
+                                targetSection.classList.remove('hidden');
+                            }
+                            // Update active nav
+                            navLinks.forEach(l => l.classList.remove('active'));
+                            this.classList.add('active');
+                            // Close sidebar on mobile
+                            if (window.innerWidth < 768) {
+                                sidebar.classList.remove('open');
+                                overlay.classList.remove('open');
+                                menuToggle.querySelector('svg').classList.remove('open');
+                            }
+                        }
                     });
-                    
-                    // Add audio from mic
-                    if (localStream) {
-                        const audioTrack = localStream.getAudioTracks()[0];
-                        if (audioTrack) {
-                            streamToPublish.addTrack(audioTrack.clone());
-                        }
-                    }
-                    
-                    streamToPublish.getVideoTracks()[0].onended = () => {
-                        stopPublishing();
-                    };
-                } else {
-                    if (!localStream) {
-                        await prepareLocalStream();
-                    }
-                    streamToPublish = localStream;
-                    streamToPublish.getTracks().forEach(track => track.enabled = true);
-                }
-                
-                pcPublish = createPeerConnection('publish');
-                streamToPublish.getTracks().forEach(track => {
-                    pcPublish.addTrack(track, streamToPublish);
                 });
-                
-                const offer = await pcPublish.createOffer();
-                await pcPublish.setLocalDescription(offer);
-                
-                await apiCall('send_signal', {
-                    type: 'offer',
-                    data: JSON.stringify({ sdp: offer.sdp, from_student_id: STUDENT_ID })
+
+                // Improved focus management for accessibility
+                menuToggle.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.click();
+                    }
                 });
-                
-                isPublishing = true;
-                document.getElementById('selfPreview').classList.add('visible');
-                
-                // Enable controls
-                document.getElementById('toggleMicBtn').classList.remove('disabled');
-                document.getElementById('toggleMicBtn').disabled = false;
-                document.getElementById('toggleCameraBtn').classList.remove('disabled');
-                document.getElementById('toggleCameraBtn').disabled = false;
-                
-                micEnabled = true;
-                cameraEnabled = true;
-                updateControlIcons();
-                
-                showStatus(isScreen ? 'Screen sharing started' : 'Publishing started');
-                
-            } catch (error) {
-                console.error('Error publishing:', error);
-                showStatus('Failed to publish: ' + error.message);
-            }
-        }
-        
-        function stopPublishing() {
-            if (pcPublish) {
-                pcPublish.close();
-                pcPublish = null;
-            }
-            
-            if (screenStream) {
-                screenStream.getTracks().forEach(track => track.stop());
-                screenStream = null;
-            }
-            
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.enabled = false);
-            }
-            
-            isPublishing = false;
-            document.getElementById('selfPreview').classList.remove('visible');
-            
-            // Disable controls
-            document.getElementById('toggleMicBtn').classList.add('disabled');
-            document.getElementById('toggleMicBtn').disabled = true;
-            document.getElementById('toggleCameraBtn').classList.add('disabled');
-            document.getElementById('toggleCameraBtn').disabled = true;
-            
-            showStatus('Publishing stopped');
-            
-            apiCall('send_signal', {
-                type: 'publish-stopped',
-                data: JSON.stringify({ student_id: STUDENT_ID })
+
+                // Unit filter functionality
+                (function() {
+                    const sel = document.getElementById('ia-unit-filter');
+                    const tbody = document.getElementById('ia-tbody');
+                    if (!sel || !tbody) return;
+                    sel.addEventListener('change', function() {
+                        const unitId = parseInt(this.value || '0', 10);
+                        if (!unitId) return;
+                        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center">Loading...</td></tr>';
+                        fetch(`../actions.php?action=get_interactive_assignments_by_unit&unit_id=${unitId}`)
+                            .then(r => r.json())
+                            .then(data => {
+                                const items = data.assignments || [];
+                                if (!items.length) {
+                                    tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center">No interactive assignments for this unit.</td></tr>';
+                                    return;
+                                }
+                                tbody.innerHTML = '';
+                                items.forEach(a => {
+                                    const d = a.due_date ? new Date(a.due_date).toLocaleString() : '';
+                                    const tr = document.createElement('tr');
+                                    tr.className = 'border-b border-f5e6b2 table-row-hover';
+                                    tr.innerHTML = `<td class="py-4 table-text-primary">-</td><td class="py-4 table-text-secondary">${a.title}</td><td class="py-4 text-sm table-text-accent">${d}</td><td class="py-4 table-text-primary"><a href="take_assignment.php?id=${a.id}" class="text-f59e0b hover:underline">Answer MCQs</a></td>`;
+                                    tbody.appendChild(tr);
+                                });
+                            })
+                            .catch(() => {
+                                tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-red-500">Failed to load.</td></tr>';
+                            });
+                    });
+                })();
             });
-        }
-        
-        function updateControlIcons() {
-            const micBtn = document.getElementById('toggleMicBtn');
-            const camBtn = document.getElementById('toggleCameraBtn');
-            
-            micBtn.innerHTML = micEnabled ? 
-                '<i class="fas fa-microphone"></i>' : 
-                '<i class="fas fa-microphone-slash"></i>';
-            micBtn.classList.toggle('active', !micEnabled);
-            
-            camBtn.innerHTML = cameraEnabled ? 
-                '<i class="fas fa-video"></i>' : 
-                '<i class="fas fa-video-slash"></i>';
-            camBtn.classList.toggle('active', !cameraEnabled);
-        }
-        
-        // ==================== PARTICIPANTS ====================
-        async function loadParticipants() {
-            const participants = await apiCall('get_participants');
-            const list = document.getElementById('participantsList');
-            list.innerHTML = '';
-            
-            document.getElementById('participantCount').textContent = participants.length;
-            
-            participants.forEach(p => {
-                const item = document.createElement('div');
-                item.className = 'participant-item';
-                item.innerHTML = `
-                    <div class="participant-avatar">
-                        ${escapeHtml((p.name || 'U').charAt(0).toUpperCase())}
-                    </div>
-                    <div class="participant-info">
-                        <div class="participant-name">${escapeHtml(p.name || 'Unknown')}</div>
-                        <div class="participant-reg">${escapeHtml(p.reg_no || '')}</div>
-                    </div>
-                `;
-                list.appendChild(item);
-            });
-        }
-        
-        // ==================== CHAT ====================
-        let lastChatCount = 0;
-        let isChatOpen = false;
-        
-        async function loadChat() {
-            const messages = await apiCall('get_chat');
-            const container = document.getElementById('chatMessages');
-            container.innerHTML = '';
-            
-            messages.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = `chat-message ${msg.user_id == STUDENT_ID ? 'me' : ''}`;
-                div.innerHTML = `
-                    <div class="message-sender">${escapeHtml(msg.user_name)}</div>
-                    <div class="message-bubble">${escapeHtml(msg.message)}</div>
-                `;
-                container.appendChild(div);
-            });
-            
-            container.scrollTop = container.scrollHeight;
-            
-            // Update badge
-            if (!isChatOpen && messages.length > lastChatCount) {
-                const badge = document.getElementById('chatBadge');
-                const newMessages = messages.length - lastChatCount;
-                badge.textContent = newMessages;
-                badge.style.display = 'flex';
-            }
-            
-            lastChatCount = messages.length;
-        }
-        
-        async function sendChat() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            
-            if (message) {
-                await apiCall('send_chat', { message });
-                input.value = '';
-                loadChat();
-            }
-        }
-        
-        // ==================== SIGNAL POLLING ====================
-        async function pollSignals() {
-            try {
-                const signals = await apiCall('get_signals');
-                for (const signal of signals) {
-                    await handleSignal(signal);
-                }
-            } catch (error) {
-                console.error('Error polling signals:', error);
-            }
-        }
-        
-        // ==================== UI CONTROLS ====================
-        document.getElementById('toggleMicBtn').addEventListener('click', () => {
-            if (!isPublishing || !localStream) return;
-            
-            micEnabled = !micEnabled;
-            localStream.getAudioTracks().forEach(track => {
-                track.enabled = micEnabled;
-            });
-            updateControlIcons();
-        });
-        
-        document.getElementById('toggleCameraBtn').addEventListener('click', () => {
-            if (!isPublishing || !localStream) return;
-            
-            cameraEnabled = !cameraEnabled;
-            localStream.getVideoTracks().forEach(track => {
-                track.enabled = cameraEnabled;
-            });
-            updateControlIcons();
-        });
-        
-        document.getElementById('requestPublishBtn').addEventListener('click', async () => {
-            if (isPublishing) {
-                stopPublishing();
-            } else {
-                await apiCall('send_signal', {
-                    type: 'request-publish',
-                    data: JSON.stringify({ 
-                        student_id: STUDENT_ID, 
-                        name: STUDENT_NAME 
+
+            document.getElementById("notifBell").addEventListener("click", function() {
+                // AJAX call to mark notifications as read
+                fetch("mark_notifications_read.php")
+                    .then(response => response.text())
+                    .then(data => {
+                        // Reset count to 0 in badge
+                        document.getElementById("notifCount").innerText = "0";
                     })
-                });
-                showStatus('Request sent to lecturer. Waiting for approval...');
-            }
-        });
-        
-        document.getElementById('requestScreenBtn').addEventListener('click', async () => {
-            await apiCall('send_signal', {
-                type: 'request-screen',
-                data: JSON.stringify({ 
-                    student_id: STUDENT_ID, 
-                    name: STUDENT_NAME 
-                })
+                    .catch(err => console.error("Error marking notifications:", err));
             });
-            showStatus('Screen share request sent. Waiting for approval...');
-        });
-        
-        document.getElementById('participantsBtn').addEventListener('click', () => {
-            const panel = document.getElementById('sidePanel');
-            panel.classList.toggle('open');
-            switchTab('participants');
-        });
-        
-        document.getElementById('chatBtn').addEventListener('click', () => {
-            const panel = document.getElementById('sidePanel');
-            panel.classList.toggle('open');
-            switchTab('chat');
-            isChatOpen = true;
-            document.getElementById('chatBadge').style.display = 'none';
-        });
-        
-        document.getElementById('sendChatBtn').addEventListener('click', sendChat);
-        
-        document.getElementById('chatInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendChat();
-            }
-        });
-        
-        // Panel tabs
-        document.querySelectorAll('.panel-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                switchTab(tab.dataset.tab);
-            });
-        });
-        
-        function switchTab(tabName) {
-            document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.panel-content').forEach(c => c.classList.remove('active'));
-            
-            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-            document.getElementById(`${tabName}Panel`).classList.add('active');
-            
-            if (tabName === 'chat') {
-                isChatOpen = true;
-                document.getElementById('chatBadge').style.display = 'none';
-            } else {
-                isChatOpen = false;
-            }
-        }
-        
-        // ==================== INITIALIZATION ====================
-        async function initialize() {
-            // Log attendance
-            await apiCall('log_attendance');
-            console.log('Attendance logged');
-            
-            // Prepare local stream (disabled by default)
-            await prepareLocalStream();
-            
-            // Load initial data
-            await loadParticipants();
-            await loadChat();
-            
-            // Start polling
-            setInterval(pollSignals, 1500);
-            setInterval(loadParticipants, 5000);
-            setInterval(loadChat, 3000);
-            
-            showStatus('Joined meeting successfully');
-        }
-        
-        // Handle page unload
-        window.addEventListener('beforeunload', () => {
-            if (pcLecturer) pcLecturer.close();
-            if (pcPublish) pcPublish.close();
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            if (screenStream) {
-                screenStream.getTracks().forEach(track => track.stop());
-            }
-        });
-        
-        // Start the application
-        initialize();
-    </script>
+        </script>
 </body>
+
 </html>
