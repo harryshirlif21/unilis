@@ -55,7 +55,7 @@ if (isset($_GET['ajax'])) {
 
 // --- Fetch units taught by lecturer and summary stats for tiles ---
 $unitsQuery = $conn->prepare(
-    "SELECT u.id AS unit_id, u.name AS unit_name, u.code AS unit_code, c.id AS course_id, c.name AS course_name, u.level AS year,
+    "SELECT u.id AS unit_id, u.name AS unit_name, u.code AS unit_code, c.id AS course_id, c.name AS course_name, u.year AS year,
     (SELECT COUNT(*) FROM assignments a WHERE a.unit_id = u.id) AS assignments_count,
     (SELECT COUNT(*) FROM submissions s JOIN assignments aa ON s.assignment_id = aa.id WHERE aa.unit_id = u.id) AS submissions_count,
     (SELECT MAX(created_at) FROM assignments a WHERE a.unit_id = u.id) AS last_sent,
