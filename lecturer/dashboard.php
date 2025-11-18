@@ -144,7 +144,10 @@ try {
             </div>
         </div>
        
-         <a class="menu-item" data-target="submissions-content" href="assignment_submissions.php"><i class="fas fa-inbox"></i> View Submissions</a>
+        <a class="menu-item" href="assignment_submissions.php">
+    <i class="fas fa-inbox"></i> View Submissions
+</a>
+
         <button class="menu-item" onclick="showModal('uploadModal')"><i class="fas fa-upload"></i> Upload Notes</button>
         <button class="menu-item" data-target="notes-content"><i class="fas fa-file-alt"></i> View Notes</button>
         <a href="meetings.php" class="menu-item"><i class="fas fa-calendar-alt"></i> Create Meeting</a>
