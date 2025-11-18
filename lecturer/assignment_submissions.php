@@ -11,14 +11,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 $lecturer_id = $_SESSION['user_id'];
 $lecturer_name = $_SESSION['user_name'];
 
-/* ================================================================
+/* ============================================================
    AJAX HANDLERS
-================================================================ */
+   ============================================================ */
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json; charset=utf-8');
     $action = $_GET['ajax'];
 
-    /* --- 1. GET ASSIGNMENTS FOR A UNIT --- */
+    // ========== LOAD ASSIGNMENTS FOR UNIT ==========
     if ($action === 'get_assignments' && isset($_GET['unit_id'])) {
         $unit_id = intval($_GET['unit_id']);
         $stmt = $conn->prepare("
@@ -28,21 +28,20 @@ if (isset($_GET['ajax'])) {
             WHERE a.unit_id = ?
             ORDER BY a.created_at DESC
         ");
-        $stmt->bind_param('i', $unit_id);
+        $stmt->bind_param("i", $unit_id);
         $stmt->execute();
-        $res = $stmt->get_result();
-
-        $assignments = [];
-        while ($r = $res->fetch_assoc()) $assignments[] = $r;
-
-        echo json_encode(['status' => 'ok', 'items' => $assignments]);
+        $rs = $stmt->get_result();
+        $items = [];
+        while ($r = $rs->fetch_assoc()) $items[] = $r;
+        echo json_encode(['status'=>'ok','items'=>$items]);
         exit;
     }
 
-    /* --- 2. GET ASSIGNMENT OVERVIEW --- */
+    // ========== LOAD ASSIGNMENT OVERVIEW ==========
     if ($action === 'get_assignment_overview' && isset($_GET['assignment_id'])) {
         $assignment_id = intval($_GET['assignment_id']);
 
+        // Validate lecturer permission
         $check = $conn->prepare("
             SELECT a.unit_id, u.course_id, a.deadline
             FROM assignments a
@@ -50,330 +49,304 @@ if (isset($_GET['ajax'])) {
             JOIN lecturer_units lu ON u.id = lu.unit_id
             WHERE a.id = ? AND lu.lecturer_id = ?
         ");
-        $check->bind_param('ii', $assignment_id, $lecturer_id);
+        $check->bind_param("ii", $assignment_id, $lecturer_id);
         $check->execute();
         $meta = $check->get_result()->fetch_assoc();
 
         if (!$meta) {
-            echo json_encode(['status' => 'error', 'message' => 'Unauthorized or assignment not found']);
+            echo json_encode(['status'=>'error','message'=>'Unauthorized']);
             exit;
         }
 
-        $unit_id = (int)$meta['unit_id'];
-        $course_id = (int)$meta['course_id'];
+        $unit_id = $meta['unit_id'];
+        $course_id = $meta['course_id'];
         $deadline = $meta['deadline'];
 
-        // Students in course
-        $totStmt = $conn->prepare("SELECT id, name, reg_no FROM students WHERE course_id = ?");
-        $totStmt->bind_param('i', $course_id);
-        $totStmt->execute();
-        $studentsRes = $totStmt->get_result();
+        // All students in course
+        $students = [];
+        $q = $conn->prepare("SELECT id,name,reg_no FROM students WHERE course_id=?");
+        $q->bind_param("i", $course_id);
+        $q->execute();
+        $rs = $q->get_result();
+        while ($s = $rs->fetch_assoc()) $students[$s['id']] = $s;
 
-        $allStudents = [];
-        while ($s = $studentsRes->fetch_assoc()) $allStudents[$s['id']] = $s;
-
-        // Submissions
-        $subStmt = $conn->prepare("
-            SELECT s.id AS submission_id, s.student_id, st.name AS student_name, 
-                   st.reg_no, s.file_path, s.created_at, s.marks, s.is_graded, s.comment
-            FROM submissions s
-            JOIN students st ON s.student_id = st.id
-            WHERE s.assignment_id = ?
-            ORDER BY s.created_at DESC
-        ");
-        $subStmt->bind_param('i', $assignment_id);
-        $subStmt->execute();
-
-        $subsRes = $subStmt->get_result();
+        // Submitted
         $submitted = [];
-        $submittedIds = [];
+        $submitted_ids = [];
+        $q2 = $conn->prepare("
+            SELECT s.*, st.name AS student_name, st.reg_no
+            FROM submissions s
+            JOIN students st ON st.id = s.student_id
+            WHERE s.assignment_id=?
+        ");
+        $q2->bind_param("i", $assignment_id);
+        $q2->execute();
+        $rs2 = $q2->get_result();
 
-        while ($r = $subsRes->fetch_assoc()) {
-            $submitted[] = $r;
-            $submittedIds[] = (int)$r['student_id'];
+        while ($r = $rs2->fetch_assoc()) {
+            $isLate = $deadline && $r['created_at'] > $deadline;
+            $submitted[] = [
+                'submission_id'=>$r['id'],
+                'student_id'=>$r['student_id'],
+                'student_name'=>$r['student_name'],
+                'reg_no'=>$r['reg_no'],
+                'file_path'=>$r['file_path'],
+                'submitted_at'=>$r['created_at'],
+                'is_late'=>$isLate,
+                'is_graded'=>$r['is_graded']
+            ];
+            $submitted_ids[] = $r['student_id'];
         }
 
-        // Not Submitted
-        $notSubmitted = [];
-        foreach ($allStudents as $sid => $s) {
-            if (!in_array($sid, $submittedIds, true)) {
-                $notSubmitted[] = $s;
+        // Not submitted
+        $not_submitted = [];
+        foreach ($students as $sid=>$s) {
+            if (!in_array($sid, $submitted_ids)) {
+                $not_submitted[] = [
+                    'student_id'=>$sid,
+                    'student_name'=>$s['name'],
+                    'reg_no'=>$s['reg_no']
+                ];
             }
         }
 
         echo json_encode([
-            'status' => 'ok',
-            'submitted' => $submitted,
-            'not_submitted' => $notSubmitted,
-            'total_expected' => count($allStudents),
-            'submitted_count' => count($submitted),
-            'not_submitted_count' => count($notSubmitted),
-            'deadline' => $deadline,
-            'unit_id' => $unit_id,
-            'course_id' => $course_id
+            'status'=>'ok',
+            'unit_id'=>$unit_id,
+            'course_id'=>$course_id,
+            'deadline'=>$deadline,
+            'total_expected'=>count($students),
+            'submitted_count'=>count($submitted),
+            'not_submitted_count'=>count($not_submitted),
+            'late_count'=>count(array_filter($submitted, fn($x)=>$x['is_late'])),
+            'submitted'=>$submitted,
+            'not_submitted'=>$not_submitted
         ]);
         exit;
     }
 
-    /* --- 3. GET SUBMISSIONS TABLE DATA --- */
+    // ========== LOAD SUBMISSIONS FOR TABLE ==========
     if ($action === 'get_submissions' && isset($_GET['assignment_id'])) {
         $assignment_id = intval($_GET['assignment_id']);
 
-        $stmt = $conn->prepare("
-            SELECT s.id AS submission_id, st.name AS student_name, 
-                   st.reg_no, s.file_path, s.marks, s.is_graded, s.comment
-            FROM submissions s
-            JOIN students st ON s.student_id = st.id
-            WHERE s.assignment_id = ?
-            ORDER BY st.name ASC
+        // Validate lecturer
+        $check = $conn->prepare("
+            SELECT u.id
+            FROM assignments a
+            JOIN units u ON u.id=a.unit_id
+            JOIN lecturer_units lu ON lu.unit_id=u.id
+            WHERE a.id=? AND lu.lecturer_id=?
         ");
-        $stmt->bind_param('i', $assignment_id);
-        $stmt->execute();
-        $res = $stmt->get_result();
+        $check->bind_param("ii", $assignment_id, $lecturer_id);
+        $check->execute();
+        if (!$check->get_result()->fetch_assoc()) {
+            echo json_encode(['status'=>'error','message'=>'Unauthorized']);
+            exit;
+        }
 
         $items = [];
-        while ($r = $res->fetch_assoc()) $items[] = $r;
+        $s = $conn->prepare("
+            SELECT s.id AS submission_id, st.name AS student_name, st.reg_no,
+                   s.file_path, s.marks, s.is_graded, s.comment
+            FROM submissions s
+            JOIN students st ON st.id = s.student_id
+            WHERE s.assignment_id=?
+        ");
+        $s->bind_param("i", $assignment_id);
+        $s->execute();
+        $rs = $s->get_result();
+        while ($r = $rs->fetch_assoc()) $items[] = $r;
 
-        echo json_encode(['status' => 'ok', 'items' => $items]);
+        echo json_encode(['status'=>'ok','items'=>$items]);
         exit;
     }
 
-    echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
+    echo json_encode(['status'=>'error','message'=>'Invalid action']);
     exit;
 }
 
-/* ==================================================================
-   FETCH UNITS FOR MAIN TILE VIEW
-================================================================== */
-
-$unitsQuery = $conn->prepare("
-    SELECT u.id AS unit_id, u.name AS unit_name, u.code AS unit_code, 
-           c.name AS course_name, u.year,
-           (SELECT COUNT(*) FROM assignments a WHERE a.unit_id = u.id) AS assignments_count,
-           (SELECT COUNT(*) FROM submissions s 
-                JOIN assignments aa ON s.assignment_id = aa.id 
-                WHERE aa.unit_id = u.id) AS submissions_count
+/* ============================================================
+   FETCH ALL UNITS FOR TILES VIEW
+   ============================================================ */
+$q = $conn->prepare("
+    SELECT u.id AS unit_id, u.name AS unit_name, u.code AS unit_code,
+           u.year, c.id AS course_id, c.name AS course_name,
+           (SELECT COUNT(*) FROM assignments a WHERE a.unit_id=u.id) AS assignments_count,
+           (SELECT COUNT(*) FROM submissions s
+                JOIN assignments a ON a.id=s.assignment_id
+                WHERE a.unit_id=u.id
+           ) AS submissions_count,
+           (SELECT MAX(created_at) FROM assignments a WHERE a.unit_id=u.id) AS last_sent,
+           (SELECT MIN(deadline) FROM assignments a WHERE a.unit_id=u.id AND a.deadline >= NOW()) AS nearest_deadline
     FROM units u
-    JOIN courses c ON u.course_id = c.id
-    JOIN lecturer_units lu ON u.id = lu.unit_id
-    WHERE lu.lecturer_id = ?
-    ORDER BY c.name, u.name
+    JOIN courses c ON c.id=u.course_id
+    JOIN lecturer_units lu ON lu.unit_id=u.id
+    WHERE lu.lecturer_id=?
 ");
-$unitsQuery->bind_param('i', $lecturer_id);
-$unitsQuery->execute();
-$units = $unitsQuery->get_result();
-$unitsQuery->close();
-
+$q->bind_param("i", $lecturer_id);
+$q->execute();
+$units = $q->get_result();
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Assignment Submissions — Dashboard</title>
+<meta charset="utf-8">
+<title>Assignment Dashboard</title>
 <style>
-/* ------- BASIC DASHBOARD UI STYLES (CLEAN & FIXED) ------- */
-body{font-family:Arial, sans-serif;background:#f7f8fc;margin:0;padding:20px;}
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;}
-.tile{background:white;padding:14px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.08);cursor:pointer;transition:.2s;}
-.tile:hover{transform:translateY(-4px);}
-.badge{background:#eef2ff;padding:4px 8px;border-radius:6px;font-size:12px;display:inline-block;margin-right:6px;}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:50;}
-.modal-overlay.show{display:flex;}
-.modal{background:white;padding:20px;border-radius:10px;width:90%;max-width:850px;position:relative;}
-.close-x{position:absolute;top:10px;right:14px;font-size:20px;cursor:pointer;}
-.assign-card{background:#fafafa;padding:12px;border-radius:8px;margin-bottom:8px;border:1px solid #eee;cursor:pointer;}
-.assign-card:hover{background:#f0f4ff;}
-.submissions-wrap{background:white;padding:20px;margin-top:20px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.1);display:none;}
-.table{width:100%;border-collapse:collapse;}
-.table th{background:#eef1ff;padding:8px;text-align:left;font-size:14px;}
-.table td{padding:8px;border-top:1px solid #eee;}
-.btn{background:#2563eb;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;}
-.btn.secondary{background:#e5edff;color:#2563eb;}
+body { font-family: Arial; background:#f4f6fa; padding:20px; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fill,260px); gap:14px; }
+.tile { background:#fff; padding:16px; border-radius:10px; cursor:pointer; box-shadow:0 4px 20px rgba(0,0,0,.06); }
+.tile:hover { transform:scale(1.02); }
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; justify-content:center; align-items:center; }
+.modal { background:#fff; padding:20px; border-radius:10px; width:800px; max-height:90vh; overflow:auto; }
+.close-x { float:right; cursor:pointer; font-size:22px; }
+.assign-grid { display:grid; grid-template-columns:repeat(auto-fill,200px); gap:10px; }
+.assign-card { background:#f5f7fb; padding:12px; border-radius:6px; cursor:pointer; }
+.submissions-wrap { display:none; background:#fff; padding:20px; border-radius:12px; margin-top:20px; }
+table { width:100%; border-collapse:collapse; margin-top:15px; }
+th,td { padding:10px; border:1px solid #ddd; }
+.btn { padding:8px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+.btn.secondary { background:#e0e7ff; color:#2563eb; }
 </style>
 </head>
-
 <body>
 
-<h2>📄 Assignment Submissions — Unit Dashboard</h2>
+<h1>📘 Assignment Submissions Dashboard</h1>
 
-<section class="tiles" id="tilesGrid">
-<?php while($u = $units->fetch_assoc()): ?>
+<div class="tiles" id="tilesGrid">
+<?php while ($u = $units->fetch_assoc()): ?>
     <div class="tile" data-unit-id="<?= $u['unit_id'] ?>">
         <h3><?= htmlspecialchars($u['unit_name']) ?></h3>
-        <div><?= htmlspecialchars($u['course_name']) ?> — Year <?= $u['year'] ?></div>
-        <div class="badge">Assignments: <?= $u['assignments_count'] ?></div>
-        <div class="badge">Submissions: <?= $u['submissions_count'] ?></div>
+        <small><?= htmlspecialchars($u['course_name']) ?> • Year <?= $u['year'] ?></small>
+        <p>Assignments: <?= $u['assignments_count'] ?></p>
+        <p>Submissions: <?= $u['submissions_count'] ?></p>
     </div>
 <?php endwhile; ?>
-</section>
+</div>
 
 <!-- ASSIGNMENTS MODAL -->
-<div id="modalOverlay" class="modal-overlay">
-    <div class="modal">
-        <div id="closeModal" class="close-x">✖</div>
-        <h3 id="modalUnitTitle">Assignments</h3>
-        <div id="assignGrid"></div>
-    </div>
+<div class="modal-overlay" id="modalOverlay">
+<div class="modal">
+    <div class="close-x" id="closeModal">✖</div>
+    <h3 id="modalUnitTitle"></h3>
+    <div class="assign-grid" id="assignGrid"></div>
+</div>
 </div>
 
 <!-- OVERVIEW MODAL -->
-<div id="overviewOverlay" class="modal-overlay">
-    <div class="modal">
-        <div id="closeOverview" class="close-x">✖</div>
-        <h3 id="overviewTitle">Overview</h3>
-        <div id="overviewContent"></div>
-        <button id="openTableBtn" class="btn">Open Submissions Table</button>
-    </div>
+<div class="modal-overlay" id="overviewOverlay">
+<div class="modal">
+    <div class="close-x" id="closeOverview">✖</div>
+    <h3 id="overviewTitle"></h3>
+    <div id="overviewContent"></div>
+    <button class="btn" id="openTableBtn">Open Full Table</button>
+</div>
 </div>
 
-<!-- SUBMISSIONS TABLE -->
+<!-- OLD TABLE SYSTEM EXACTLY AS BEFORE -->
 <section id="submissionsArea" class="submissions-wrap">
-    <h3 id="subTitle">Submissions</h3>
-    <div id="tableWrap"></div>
+    <h2 id="subTitle">Submissions Table</h2>
+    <p id="subMeta"></p>
+    <form method="POST" action="../actions.php" id="marksForm">
+        <input type="hidden" name="action" value="save_marks">
+        <input type="hidden" name="assignment_id" id="tableAssignmentId">
+        <div id="tableWrap"></div>
+        <br>
+        <button type="submit" class="btn">💾 Save Marks</button>
+    </form>
 </section>
 
 <script>
-/* ======================================================
-   FIXED & FULLY WORKING JAVASCRIPT
-====================================================== */
+const tiles = document.querySelectorAll(".tile");
+const modalOverlay = document.getElementById("modalOverlay");
+const overviewOverlay = document.getElementById("overviewOverlay");
+const closeModal = document.getElementById("closeModal");
+const closeOverview = document.getElementById("closeOverview");
 
-const $ = s => document.querySelector(s);
-
-const tilesGrid = $('#tilesGrid');
-const modalOverlay = $('#modalOverlay');
-const assignGrid = $('#assignGrid');
-const closeModal = $('#closeModal');
-
-const overviewOverlay = $('#overviewOverlay');
-const closeOverview = $('#closeOverview');
-
-const overviewContent = $('#overviewContent');
-const openTableBtn = $('#openTableBtn');
-
-const submissionsArea = $('#submissionsArea');
-const tableWrap = $('#tableWrap');
-
-/* ------ MODAL FUNCTIONS ------ */
-function openModal(el) {
-    el.classList.add('show');
-}
-function closeModalOverlay() {
-    modalOverlay.classList.remove('show');
-}
-function closeOverviewOverlay() {
-    overviewOverlay.classList.remove('show');
-}
-
-/* ------ TILE CLICK → LOAD ASSIGNMENTS ------ */
-tilesGrid.addEventListener('click', function(e) {
-    const tile = e.target.closest('.tile');
-    if (!tile) return;
-
-    const unitId = tile.dataset.unitId;
-
-    modalOverlay.classList.add('show');
-    assignGrid.innerHTML = "Loading...";
-
-    fetch(`?ajax=get_assignments&unit_id=${unitId}`)
-        .then(r => r.json())
-        .then(data => {
-            assignGrid.innerHTML = "";
-
-            if (!data.items.length) {
-                assignGrid.innerHTML = "<p>No assignments created for this unit.</p>";
-                return;
-            }
-
-            data.items.forEach(a => {
-                let div = document.createElement('div');
-                div.className = "assign-card";
-                div.innerHTML = `<strong>${a.title}</strong><br>
-                                 Deadline: ${a.deadline ?? '—'}<br>
-                                 Submissions: ${a.submissions_count}`;
-                div.onclick = () => openAssignmentOverview(a.id, a.title);
-
-                assignGrid.appendChild(div);
-            });
-        });
+tiles.forEach(t => {
+    t.addEventListener("click", () => loadAssignments(t.dataset.unitId, t));
 });
 
-/* ------ CLOSE BUTTONS FIXED ------ */
-closeModal.addEventListener('click', closeModalOverlay);
-closeOverview.addEventListener('click', closeOverviewOverlay);
+async function loadAssignments(unitId, tile) {
+    document.getElementById("modalUnitTitle").textContent = tile.querySelector("h3").textContent + " — Assignments";
+    modalOverlay.style.display = "flex";
 
-/* ------ ASSIGNMENT OVERVIEW ------ */
-function openAssignmentOverview(id, title) {
-    closeModalOverlay();
-    overviewOverlay.classList.add('show');
-    overviewContent.innerHTML = "Loading...";
+    const res = await fetch("?ajax=get_assignments&unit_id="+unitId);
+    const data = await res.json();
+    const grid = document.getElementById("assignGrid");
+    grid.innerHTML = "";
 
-    fetch(`?ajax=get_assignment_overview&assignment_id=${id}`)
-        .then(r => r.json())
-        .then(data => {
-            overviewContent.innerHTML = `
-                <p><strong>Total Expected:</strong> ${data.total_expected}</p>
-                <p><strong>Submitted:</strong> ${data.submitted_count}</p>
-                <p><strong>Not Submitted:</strong> ${data.not_submitted_count}</p>
-                <hr>
-                <h4>Submitted Students</h4>
-                ${data.submitted.map(s => `
-                    <div>
-                        ${s.student_name} — 
-                        <a href="../assets/uploads/submissions/${s.file_path}" target="_blank">View</a>
-                    </div>
-                `).join('')}
-                <hr>
-                <h4>Not Submitted</h4>
-                ${data.not_submitted.map(s => `<div>${s.name} (${s.reg_no})</div>`).join('')}
-            `;
-        });
-
-    openTableBtn.onclick = () => {
-        closeOverviewOverlay();
-        loadSubmissionTable(id, title);
-    };
+    data.items.forEach(a=>{
+        let d=document.createElement("div");
+        d.className="assign-card";
+        d.textContent=a.title;
+        d.onclick=()=>openOverview(a.id,a.title);
+        grid.appendChild(d);
+    });
 }
 
-/* ------ SUBMISSIONS TABLE ------ */
-function loadSubmissionTable(assignmentId, title) {
-    submissionsArea.style.display = 'block';
-    $('#subTitle').innerHTML = `${title} — Submissions`;
+function openOverview(id,title){
+    modalOverlay.style.display="none";
+    overviewOverlay.style.display="flex";
+    document.getElementById("overviewTitle").textContent=title+" — Overview";
 
-    tableWrap.innerHTML = "Loading...";
+    fetch("?ajax=get_assignment_overview&assignment_id="+id)
+        .then(r=>r.json())
+        .then(d=>{
+            document.getElementById("overviewContent").innerHTML =
+                `<p><strong>Total expected:</strong> ${d.total_expected}</p>
+                 <p><strong>Submitted:</strong> ${d.submitted_count}</p>
+                 <p><strong>Not submitted:</strong> ${d.not_submitted_count}</p>
+                 <p><strong>Late:</strong> ${d.late_count}</p>`;
+            document.getElementById("openTableBtn").onclick=()=>loadTable(id,title);
+        });
+}
 
-    fetch(`?ajax=get_submissions&assignment_id=${assignmentId}`)
-        .then(r => r.json())
-        .then(data => {
-            if (!data.items.length) {
-                tableWrap.innerHTML = "<p>No submissions yet.</p>";
-                return;
-            }
+async function loadTable(id,title){
+    overviewOverlay.style.display="none";
+    submissionsArea.style.display="block";
 
-            let rows = data.items.map(s => `
+    document.getElementById("subTitle").textContent = title+" — Submissions";
+    document.getElementById("tableAssignmentId").value=id;
+
+    const res=await fetch("?ajax=get_submissions&assignment_id="+id);
+    const data=await res.json();
+
+    document.getElementById("subMeta").textContent = data.items.length+" submissions";
+
+    // ==== OLD TABLE SYSTEM EXACTLY ====
+    let rows = "";
+    data.items.forEach(s=>{
+        rows += `
+        <tr>
+            <td>${s.student_name}</td>
+            <td>${s.reg_no}</td>
+            <td><a href="../assets/uploads/submissions/${s.file_path}" target="_blank">View</a></td>
+            <td><input type="number" name="marks[${s.submission_id}]" value="${s.marks ?? ''}" min="0" max="100"></td>
+            <td><input type="checkbox" name="is_graded[${s.submission_id}]" ${s.is_graded ? "checked":""}></td>
+            <td><textarea name="comment[${s.submission_id}]">${s.comment ?? ""}</textarea></td>
+        </tr>`;
+    });
+
+    document.getElementById("tableWrap").innerHTML = `
+        <table>
+            <thead>
                 <tr>
-                    <td>${s.student_name}</td>
-                    <td>${s.reg_no}</td>
-                    <td><a href="../assets/uploads/submissions/${s.file_path}" target="_blank">View</a></td>
-                    <td>${s.marks ?? '—'}</td>
-                    <td>${s.is_graded ? 'Graded' : 'Pending'}</td>
-                    <td>${s.comment ?? ''}</td>
+                    <th>Student Name</th>
+                    <th>Reg No</th>
+                    <th>Submission</th>
+                    <th>Marks (out of 100)</th>
+                    <th>Graded</th>
+                    <th>Comment</th>
                 </tr>
-            `).join('');
-
-            tableWrap.innerHTML = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Student</th><th>Reg No</th><th>Submission</th>
-                            <th>Marks</th><th>Status</th><th>Comment</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            `;
-        });
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `;
 }
 
+closeModal.onclick=()=>modalOverlay.style.display="none";
+closeOverview.onclick=()=>overviewOverlay.style.display="none";
 </script>
 
 </body>
