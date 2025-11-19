@@ -291,6 +291,9 @@ tr.graded { background:#d4edda; }
 
 <script>
 $(document).ready(function() {
+    // --- GLOBAL VARIABLE ---
+    let selectedUnitId = null; // stores currently selected unit
+
     // --- MODAL HELPERS ---
     function openModal(id) { $('#' + id).fadeIn(); }
     function closeModal(id) { $('#' + id).fadeOut(); }
@@ -299,9 +302,12 @@ $(document).ready(function() {
     // --- VIEW ASSIGNMENTS ---
     $('.btn-view-assignments').click(function(){
         const unit_id = $(this).data('unit-id');
+        selectedUnitId = unit_id; // store selected unit globally
+
         $.getJSON('?ajax=get_assignments&unit_id=' + unit_id, function(res){
             if(res.status==='ok'){
-                const tbody = $('#assignmentsTable tbody'); tbody.empty();
+                const tbody = $('#assignmentsTable tbody'); 
+                tbody.empty();
                 res.items.forEach(a=>{
                     tbody.append(`
                         <tr>
@@ -331,7 +337,8 @@ $(document).ready(function() {
         const assignment_id = $(this).data('assignment-id');
         $.getJSON('?ajax=get_submissions&assignment_id=' + assignment_id, function(res){
             if(res.status==='ok'){
-                const tbody = $('#submissionsTable tbody'); tbody.empty();
+                const tbody = $('#submissionsTable tbody'); 
+                tbody.empty();
                 res.items.forEach(s=>{
                     tbody.append(`
                         <tr class="${s.is_graded?'graded':''}">
@@ -403,9 +410,22 @@ $(document).ready(function() {
         doc.save(filename);
     }
 
-    $('#generateAssignmentsPDF').click(()=> generatePDF('#assignmentsTable', [0,1,2,3,4,5], 'assignments.pdf'));
+    // --- PDF BUTTONS ---
+    $('#generateAssignmentsPDF').click(function(){
+        if(!selectedUnitId){
+            alert('Please select a unit first.');
+            return;
+        }
+        // Open server-side PDF with unit_id
+        window.open('assgenpdf.php?unit_id=' + selectedUnitId, '_blank');
+
+        // Optional: generate client-side PDF as fallback
+        // generatePDF('#assignmentsTable', [0,1,2,3,4,5], 'assignments.pdf');
+    });
+
     $('#generateSubmissionsPDF').click(()=> generatePDF('#submissionsTable', [0,1,2,3,4,5,6,7], 'submissions.pdf'));
 });
 </script>
+
 </body>
 </html>
