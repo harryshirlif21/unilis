@@ -207,35 +207,32 @@ table.dataTable tbody tr:nth-child(even) {
         </thead>
         <tbody>
             <?php
-            if (empty($students)):
-                echo "<tr><td colspan='".(3 + count($assignments))."' style='text-align:center;'>No data available in table</td></tr>";
-            else:
-                $counter = 1;
-                foreach ($students as $student):
-                    echo "<tr>";
-                    echo "<td>{$counter}</td>";
-                    echo "<td>".htmlspecialchars($student['name'])."</td>";
-                    echo "<td>".htmlspecialchars($student['reg_no'])."</td>";
-                    
-                    // Dynamic grade columns
-                    if (!empty($assignments)):
-                        foreach ($assignments as $assignment):
-                            $ass_id = $assignment['id'];
-                            if (isset($submissions[$student['id']][$ass_id])):
-                                $sub = $submissions[$student['id']][$ass_id];
-                                echo "<td>".($sub['is_graded'] ? number_format($sub['marks'], 1) : "Pending")."</td>";
-                            else:
-                                echo "<td>-</td>";
-                            endif;
-                        endforeach;
-                    else:
-                        echo "<td>-</td>";
-                    endif;
-                    
-                    echo "</tr>";
-                    $counter++;
-                endforeach;
-            endif;
+            $counter = 1;
+            foreach ($students as $student):
+                echo "<tr>";
+                echo "<td>{$counter}</td>";
+                echo "<td>".htmlspecialchars($student['name'])."</td>";
+                echo "<td>".htmlspecialchars($student['reg_no'])."</td>";
+                
+                // Dynamic grade columns - always match the header count
+                if (!empty($assignments)):
+                    foreach ($assignments as $assignment):
+                        $ass_id = $assignment['id'];
+                        if (isset($submissions[$student['id']][$ass_id])):
+                            $sub = $submissions[$student['id']][$ass_id];
+                            echo "<td>".($sub['is_graded'] ? number_format($sub['marks'], 1) : "Pending")."</td>";
+                        else:
+                            echo "<td>-</td>";
+                        endif;
+                    endforeach;
+                else:
+                    // If no assignments, add one column to match header
+                    echo "<td>-</td>";
+                endif;
+                
+                echo "</tr>";
+                $counter++;
+            endforeach;
             ?>
         </tbody>
     </table>
@@ -243,11 +240,13 @@ table.dataTable tbody tr:nth-child(even) {
 
 <script>
 $(document).ready(function(){
-    // Initialize DataTable
+    // Initialize DataTable only if there are students
+    <?php if (!empty($students)): ?>
     $('#assignmentsTable').DataTable({
         pageLength: 25,
         order: [[1, 'asc']] // Sort by student name
     });
+    <?php endif; ?>
 
     // Generate PDF
     $('#generateAssignmentsPDF').click(function(){
