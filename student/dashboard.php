@@ -544,8 +544,7 @@ if ($course_id && $year_of_study) {
             </section>
 
 
-
-  <section class="mb-8">
+<section class="mb-8">
     <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Assignments for Year <?= htmlspecialchars($year_of_study) ?></h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -574,17 +573,14 @@ if ($course_id && $year_of_study) {
                 $now = new DateTime();
 
                 foreach ($units as $unitName => $unitAssignments) {
-                    $unitId = preg_replace('/[^a-zA-Z0-9]/', '', $unitName); // safe ID for modal
-
-                    // Unit Tile
                     echo "
-                    <div class='bg-white rounded-2xl p-6 shadow hover:shadow-lg transition flex flex-col justify-between'>
+                    <div x-data='{ open: false }' class='bg-white rounded-2xl p-6 shadow hover:shadow-lg transition flex flex-col justify-between'>
                         <h3 class='text-xl font-semibold mb-4 stat-text-primary'>" . htmlspecialchars($unitName) . "</h3>
-                        <button @click='$unitId = true' class='btn-primary px-4 py-2 rounded-lg mt-auto'>View Assignments</button>
+                        <button @click='open = true' class='btn-primary px-4 py-2 rounded-lg mt-auto'>View Assignments</button>
 
                         <!-- Modal -->
-                        <div x-data='{ $unitId: false }' x-show='$unitId' class='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
-                            <div @click.away='$unitId = false' class='bg-white p-6 rounded-2xl w-11/12 max-w-3xl overflow-auto max-h-[80vh]'>
+                        <div x-show='open' x-transition class='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' style='display: none;'>
+                            <div @click.away='open = false' class='bg-white p-6 rounded-2xl w-11/12 max-w-3xl overflow-auto max-h-[80vh]'>
                                 <h4 class='text-lg font-semibold mb-4'>Assignments for " . htmlspecialchars($unitName) . "</h4>
                                 <table class='w-full text-left border-collapse'>
                                     <thead>
@@ -626,7 +622,7 @@ if ($course_id && $year_of_study) {
                     echo "</tbody>
                                 </table>
                                 <div class='mt-4 text-right'>
-                                    <button @click='$unitId = false' class='btn-secondary px-4 py-2 rounded-lg'>Close</button>
+                                    <button @click='open = false' class='btn-secondary px-4 py-2 rounded-lg'>Close</button>
                                 </div>
                             </div>
                         </div>
@@ -643,6 +639,11 @@ if ($course_id && $year_of_study) {
         ?>
     </div>
 </section>
+
+
+
+
+            
         </div>
 
 
