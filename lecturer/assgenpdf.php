@@ -66,7 +66,7 @@ $studentQuery = $conn->prepare("
 ");
 $studentQuery->bind_param("i", $unit_id);
 $studentQuery->execute();
-$students = $studentQuery->get_result();
+$students = $studentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $studentQuery->close();
 
 // --- Fetch up to 6 assignments ---
@@ -82,17 +82,21 @@ $assignmentQuery->execute();
 $assignments = $assignmentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $assignmentQuery->close();
 
-// --- Preload submissions ---
-$assignment_ids = array_column($assignments, 'id');
+// --- Fetch submissions ---
 $submissions = [];
-if (!empty($assignment_ids)) {
-    $in = implode(',', array_fill(0, count($assignment_ids), '?'));
-    $types = str_repeat('i', count($assignment_ids));
+if (!empty($assignments)) {
+    $assignment_ids = array_column($assignments, 'id');
+    $ids_placeholder = implode(',', array_fill(0, count($assignment_ids), '?'));
     
-    $stmt = $conn->prepare("SELECT student_id, assignment_id, marks, is_graded FROM submissions WHERE assignment_id IN ($in)");
+    // Prepare dynamic query
+    $types = str_repeat('i', count($assignment_ids));
+    $sql = "SELECT student_id, assignment_id, marks, is_graded FROM submissions WHERE assignment_id IN ($ids_placeholder)";
+    $stmt = $conn->prepare($sql);
+    
     $stmt->bind_param($types, ...$assignment_ids);
     $stmt->execute();
     $res = $stmt->get_result();
+    
     while ($row = $res->fetch_assoc()) {
         $submissions[$row['student_id']][$row['assignment_id']] = $row;
     }
@@ -100,14 +104,15 @@ if (!empty($assignment_ids)) {
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title><?php echo htmlspecialchars($unit_name); ?> - Assignments</title>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<meta charset="UTF-8">
+<title><?php echo htmlspecialchars($unit_name); ?> - Assignments</title>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 <h2><?php echo htmlspecialchars($university_name); ?></h2>
@@ -116,7 +121,6 @@ if (!empty($assignment_ids)) {
 
 <!-- Buttons -->
 <button id="generateAssignmentsPDF">Generate Assignments PDF</button>
-<button id="generateSubmissionsPDF">Generate Submissions PDF</button>
 
 <!-- Table -->
 <table id="assignmentsTable" border="1" cellspacing="0" cellpadding="5" style="margin-top:20px;width:100%">
@@ -131,7 +135,7 @@ if (!empty($assignment_ids)) {
     <tbody>
         <?php
         $counter = 1;
-        while ($student = $students->fetch_assoc()):
+        foreach ($students as $student):
             echo "<tr>";
             echo "<td>{$counter}</td>";
             echo "<td>".htmlspecialchars($student['name'])."</td>";
@@ -151,7 +155,7 @@ if (!empty($assignment_ids)) {
             endfor;
             echo "</tr>";
             $counter++;
-        endwhile;
+        endforeach;
         ?>
     </tbody>
 </table>
@@ -169,11 +173,6 @@ $(document).ready(function(){
 
     $('#generateAssignmentsPDF').click(function(){
         generatePDF('Assignments_<?php echo preg_replace("/\s+/", "_", $unit_name); ?>.pdf');
-    });
-
-    $('#generateSubmissionsPDF').click(function(){
-        // Here you can make another table or fetch submissions data if needed
-        alert('You can implement submissions PDF similarly.');
     });
 });
 </script>
