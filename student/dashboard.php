@@ -210,9 +210,10 @@ if ($course_id && $year_of_study) {
         <!-- New Hero Div with Image and Overlay Message -->
         <div class="relative bg-cover bg-center h-[60vh] mb-8 md:mb-12 rounded-2xl overflow-hidden" style="background-image: url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');">
             <div class="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                <h1 class="text-3xl md:text-4xl font-extrabold hero-text text-center px-4">
-                    Welcome to the University Integrated Learning System
-                </h1>
+                <h1 class="text-3xl md:text-4xl font-extrabold hero-text text-white text-center px-4">
+    Welcome to the University Integrated Learning System
+</h1>
+
             </div>
         </div>
 
