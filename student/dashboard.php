@@ -1036,7 +1036,34 @@ document.querySelectorAll('.modal').forEach(modal => {
                     })
                     .catch(err => console.error("Error marking notifications:", err));
             });
-        </script>
+       
+// Open modal
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest("[data-modal-target]");
+    if (btn) {
+        const modalId = btn.getAttribute("data-modal-target");
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove("hidden");
+        }
+    }
+});
+
+// Close modal when clicking X buttons
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains("close-modal")) {
+        const modal = e.target.closest(".modal");
+        modal.classList.add("hidden");
+    }
+});
+
+// Close modal when clicking outside the modal box
+document.addEventListener('click', function(e) {
+    const modal = e.target.classList.contains("modal") ? e.target : null;
+    if (modal) modal.classList.add("hidden");
+});
+</script>
+
 </body>
 
 </html>
