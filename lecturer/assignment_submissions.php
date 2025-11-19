@@ -20,9 +20,7 @@ if (isset($_GET['ajax'])) {
     header("Content-Type: application/json; charset=utf-8");
     $action = $_GET['ajax'];
 
-    /* ============================================================
-       1) LOAD ASSIGNMENTS FOR A UNIT
-       ============================================================ */
+    // 1) LOAD ASSIGNMENTS FOR A UNIT
     if ($action === "get_assignments" && isset($_GET['unit_id'])) {
         $unit_id = intval($_GET['unit_id']);
 
@@ -63,13 +61,10 @@ if (isset($_GET['ajax'])) {
         exit;
     }
 
-    /* ============================================================
-       2) LOAD SUBMISSIONS FOR GRADING
-       ============================================================ */
+    // 2) LOAD SUBMISSIONS FOR GRADING
     if ($action === "get_submissions" && isset($_GET['assignment_id'])) {
         $aid = intval($_GET['assignment_id']);
 
-        // Verify lecturer owns the assignment
         $q = $conn->prepare("
             SELECT a.id
             FROM assignments a
@@ -84,7 +79,6 @@ if (isset($_GET['ajax'])) {
             exit;
         }
 
-        // Fetch submissions
         $sql = "
             SELECT 
                 s.id AS submission_id,
@@ -117,9 +111,7 @@ if (isset($_GET['ajax'])) {
         exit;
     }
 
-    /* ============================================================
-       3) GRADE SUBMISSION
-       ============================================================ */
+    // 3) GRADE SUBMISSION
     if ($action === "grade_submission" && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $submission_id = intval($_POST['submission_id']);
         $marks = floatval($_POST['marks']);
@@ -179,7 +171,6 @@ $units = $q->get_result();
 <title>Lecturer Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-
 <link rel="stylesheet" href="assets/css/modern-blue.css">
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -196,7 +187,7 @@ $units = $q->get_result();
 .unit-tile { background:#f0f8ff; padding:15px; border-radius:10px; width:250px; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
 .btn-view-assignments, .btn-view-submissions, .btn-grade, .btn-pdf { background:#3498db; color:#fff; border:none; padding:6px 12px; cursor:pointer; border-radius:5px; margin:2px; }
 .btn-grade { background:#28a745; }
-tr.graded { background:#d4edda; } /* Highlight graded */
+tr.graded { background:#d4edda; }
 </style>
 </head>
 <body>
@@ -222,53 +213,53 @@ tr.graded { background:#d4edda; } /* Highlight graded */
         <?php endwhile; ?>
     </div>
 
- <!-- ASSIGNMENTS MODAL -->
-<div id="assignmentsModal" class="modal">
-    <div class="modal-content">
-        <span class="close-modal">&times;</span>
-        <h3>Assignments</h3>
-        <button id="generateAssignmentsPDF" class="btn-pdf">Generate PDF</button>
-        <table id="assignmentsTable" class="display" width="100%">
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Created</th>
-                    <th>Deadline</th>
-                    <th>Submissions</th>
-                    <th>Late</th>
-                    <th>Progress</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+    <!-- ASSIGNMENTS MODAL -->
+    <div id="assignmentsModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Assignments</h3>
+            <button id="generateAssignmentsPDF" class="btn-pdf">Generate PDF</button>
+            <table id="assignmentsTable" class="display" width="100%">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Created</th>
+                        <th>Deadline</th>
+                        <th>Submissions</th>
+                        <th>Late</th>
+                        <th>Progress</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
-</div>
 
-<!-- SUBMISSIONS MODAL -->
-<div id="submissionsModal" class="modal">
-    <div class="modal-content">
-        <span class="close-modal">&times;</span>
-        <h3>Submissions</h3>
-        <button id="generateSubmissionsPDF" class="btn-pdf">Generate PDF</button>
-        <table id="submissionsTable" class="display" width="100%">
-            <thead>
-                <tr>
-                    <th>Student</th>
-                    <th>Reg No</th>
-                    <th>Submitted At</th>
-                    <th>File</th>
-                    <th>Late</th>
-                    <th>Graded</th>
-                    <th>Marks</th>
-                    <th>AI Feedback</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+    <!-- SUBMISSIONS MODAL -->
+    <div id="submissionsModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Submissions</h3>
+            <button id="generateSubmissionsPDF" class="btn-pdf">Generate PDF</button>
+            <table id="submissionsTable" class="display" width="100%">
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Reg No</th>
+                        <th>Submitted At</th>
+                        <th>File</th>
+                        <th>Late</th>
+                        <th>Graded</th>
+                        <th>Marks</th>
+                        <th>AI Feedback</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
-</div>
 
     <!-- GRADING MODAL -->
     <div id="gradingModal" class="modal">
@@ -296,11 +287,12 @@ tr.graded { background:#d4edda; } /* Highlight graded */
 
 <script>
 $(document).ready(function() {
+    // --- MODAL HELPERS ---
     function openModal(id) { $('#' + id).fadeIn(); }
     function closeModal(id) { $('#' + id).fadeOut(); }
-    $('.close-modal').click(function(){ $(this).closest('.modal').fadeOut(); });
+    $('.close-modal').click(function(){ closeModal($(this).closest('.modal').attr('id')); });
 
-    // VIEW ASSIGNMENTS
+    // --- VIEW ASSIGNMENTS ---
     $('.btn-view-assignments').click(function(){
         const unit_id = $(this).data('unit-id');
         $.getJSON('?ajax=get_assignments&unit_id=' + unit_id, function(res){
@@ -323,50 +315,7 @@ $(document).ready(function() {
                         </tr>
                     `);
                 });
-                if ($.fn.DataTable.isDataTable('#assignmentsTable')) {
-                    $('#assignmentsTable').DataTable().clear().destroy();
-                }
-                $('#assignmentsTable').DataTable();
-                openModal('assignmentsModal');
-            } else alert(res.message);
-        });
-    });
-
-    <script>
-$(document).ready(function() {
-
-    // --- MODAL HELPERS ---
-    function openModal(id) { $('#' + id).fadeIn(); }
-    function closeModal(id) { $('#' + id).fadeOut(); }
-    $('.close-modal').click(function(){ $(this).closest('.modal').fadeOut(); });
-
-    // --- VIEW ASSIGNMENTS ---
-    $('.btn-view-assignments').click(function(){
-        const unit_id = $(this).data('unit-id');
-        $.getJSON('?ajax=get_assignments&unit_id=' + unit_id, function(res){
-            if(res.status==='ok'){
-                const tbody = $('#assignmentsTable tbody'); 
-                tbody.empty();
-                res.items.forEach(a=>{
-                    tbody.append(`
-                        <tr>
-                            <td>${a.title}</td>
-                            <td>${a.created_at}</td>
-                            <td>${a.deadline}</td>
-                            <td>${a.submissions_count} / ${a.expected_students}</td>
-                            <td>${a.late_count}</td>
-                            <td>
-                                <div class="progress-bar-small">
-                                    <div class="progress-fill-small" style="width:${a.progress}%"></div>
-                                </div>
-                            </td>
-                            <td><button class="btn-view-submissions" data-assignment-id="${a.id}">View Submissions</button></td>
-                        </tr>
-                    `);
-                });
-                if ($.fn.DataTable.isDataTable('#assignmentsTable')) {
-                    $('#assignmentsTable').DataTable().clear().destroy();
-                }
+                if ($.fn.DataTable.isDataTable('#assignmentsTable')) $('#assignmentsTable').DataTable().clear().destroy();
                 $('#assignmentsTable').DataTable();
                 openModal('assignmentsModal');
             } else alert(res.message);
@@ -378,8 +327,7 @@ $(document).ready(function() {
         const assignment_id = $(this).data('assignment-id');
         $.getJSON('?ajax=get_submissions&assignment_id=' + assignment_id, function(res){
             if(res.status==='ok'){
-                const tbody = $('#submissionsTable tbody'); 
-                tbody.empty();
+                const tbody = $('#submissionsTable tbody'); tbody.empty();
                 res.items.forEach(s=>{
                     tbody.append(`
                         <tr class="${s.is_graded?'graded':''}">
@@ -395,9 +343,7 @@ $(document).ready(function() {
                         </tr>
                     `);
                 });
-                if ($.fn.DataTable.isDataTable('#submissionsTable')) {
-                    $('#submissionsTable').DataTable().clear().destroy();
-                }
+                if ($.fn.DataTable.isDataTable('#submissionsTable')) $('#submissionsTable').DataTable().clear().destroy();
                 $('#submissionsTable').DataTable();
                 openModal('submissionsModal');
             } else alert(res.message);
@@ -439,11 +385,8 @@ $(document).ready(function() {
             const row = [];
             columns.forEach(i=>{
                 const cell = data[i];
-                if(typeof cell === 'string') {
-                    row.push($(cell).text() || cell); // handles <div> or <a>
-                } else {
-                    row.push(cell);
-                }
+                if(typeof cell === 'string') row.push($('<div>').html(cell).text());
+                else row.push(cell);
             });
             rows.push(row);
         });
@@ -456,18 +399,9 @@ $(document).ready(function() {
         doc.save(filename);
     }
 
-    // --- ASSIGNMENTS PDF ---
-    $('#generateAssignmentsPDF').click(function(){
-        generatePDF('#assignmentsTable', [0,1,2,3,4,5], 'assignments.pdf');
-    });
-
-    // --- SUBMISSIONS PDF ---
-    $('#generateSubmissionsPDF').click(function(){
-        generatePDF('#submissionsTable', [0,1,2,3,4,5,6,7], 'submissions.pdf');
-    });
-
+    $('#generateAssignmentsPDF').click(()=> generatePDF('#assignmentsTable', [0,1,2,3,4,5], 'assignments.pdf'));
+    $('#generateSubmissionsPDF').click(()=> generatePDF('#submissionsTable', [0,1,2,3,4,5,6,7], 'submissions.pdf'));
 });
-
 </script>
 </body>
 </html>
