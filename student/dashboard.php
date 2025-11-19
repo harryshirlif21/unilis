@@ -564,23 +564,26 @@ if ($course_id && $year_of_study) {
             if ($assignments->num_rows === 0) {
                 echo "<p class='text-center col-span-full'>No assignments found for your course and year.</p>";
             } else {
-                // Group assignments by unit
                 $units = [];
                 while ($assignment = $assignments->fetch_assoc()) {
                     $units[$assignment['unit_name']][] = $assignment;
                 }
 
                 $now = new DateTime();
+                $unitIndex = 0;
 
                 foreach ($units as $unitName => $unitAssignments) {
+                    $modalId = "modal-" . $unitIndex;
                     echo "
-                    <div x-data='{ open: false }' class='bg-white rounded-2xl p-6 shadow hover:shadow-lg transition flex flex-col justify-between'>
+                    <div class='bg-white rounded-2xl p-6 shadow hover:shadow-lg transition flex flex-col justify-between'>
                         <h3 class='text-xl font-semibold mb-4 stat-text-primary'>" . htmlspecialchars($unitName) . "</h3>
-                        <button @click='open = true' class='btn-primary px-4 py-2 rounded-lg mt-auto'>View Assignments</button>
+                        <button data-modal-target='$modalId' class='bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg mt-auto shadow-md transition-colors duration-200'>
+                            View Assignments
+                        </button>
 
                         <!-- Modal -->
-                        <div x-show='open' x-transition class='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' style='display: none;'>
-                            <div @click.away='open = false' class='bg-white p-6 rounded-2xl w-11/12 max-w-3xl overflow-auto max-h-[80vh]'>
+                        <div id='$modalId' class='modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden'>
+                            <div class='bg-white p-6 rounded-2xl w-11/12 max-w-3xl overflow-auto max-h-[80vh] relative'>
                                 <h4 class='text-lg font-semibold mb-4'>Assignments for " . htmlspecialchars($unitName) . "</h4>
                                 <table class='w-full text-left border-collapse'>
                                     <thead>
@@ -591,7 +594,7 @@ if ($course_id && $year_of_study) {
                                         </tr>
                                     </thead>
                                     <tbody class='text-92400e'>";
-                    
+
                     foreach ($unitAssignments as $assignment) {
                         $filePath = !empty($assignment['file_path']) ? htmlspecialchars($assignment['file_path']) : '';
                         $fullPath = "../assets/uploads/assignments/" . $filePath;
@@ -621,13 +624,13 @@ if ($course_id && $year_of_study) {
 
                     echo "</tbody>
                                 </table>
-                                <div class='mt-4 text-right'>
-                                    <button @click='open = false' class='btn-secondary px-4 py-2 rounded-lg'>Close</button>
-                                </div>
+                                <button class='close-modal absolute top-4 right-4 text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg'>X</button>
                             </div>
                         </div>
                     </div>
                     ";
+
+                    $unitIndex++;
                 }
             }
             $assignments_query->close();
@@ -639,6 +642,29 @@ if ($course_id && $year_of_study) {
         ?>
     </div>
 </section>
+
+<script>
+// Vanilla JS modal logic
+document.querySelectorAll('[data-modal-target]').forEach(button => {
+    button.addEventListener('click', () => {
+        const modal = document.getElementById(button.getAttribute('data-modal-target'));
+        if(modal) modal.classList.remove('hidden');
+    });
+});
+
+document.querySelectorAll('.close-modal').forEach(button => {
+    button.addEventListener('click', () => {
+        button.closest('.modal').classList.add('hidden');
+    });
+});
+
+// Close modal on outside click
+document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+        if(e.target === modal) modal.classList.add('hidden');
+    });
+});
+</script>
 
 
 
