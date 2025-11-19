@@ -1,9 +1,6 @@
 <?php
 session_start();
 require_once '../config/db.php';
-require_once '../vendor/autoload.php'; // DOMPDF autoload
-
-use Dompdf\Dompdf;
 
 // --- Check if lecturer is logged in ---
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
@@ -27,14 +24,12 @@ $unitQuery->execute();
 $unitInfo = $unitQuery->get_result()->fetch_assoc();
 $unitQuery->close();
 
-if (!$unitInfo) {
-    die("Unit not found.");
-}
+if (!$unitInfo) die("Unit not found.");
 
 $unit_name = $unitInfo['name'];
 $course_id = $unitInfo['course_id'];
 
-// --- Fetch course info (and its department for university) ---
+// --- Fetch course info ---
 $courseQuery = $conn->prepare("
     SELECT c.name AS course_name, d.university_id 
     FROM courses c
@@ -46,12 +41,8 @@ $courseQuery->execute();
 $courseInfo = $courseQuery->get_result()->fetch_assoc();
 $courseQuery->close();
 
-if (!$courseInfo) {
-    die("Course not found.");
-}
-
 $course_name = $courseInfo['course_name'];
-$university_id = $courseInfo['university_id'];
+$university_id = $courseInfo['university_id'] ?? null;
 
 // --- Fetch university name ---
 $university_name = "Unknown University";
@@ -62,12 +53,10 @@ if ($university_id) {
     $uniInfo = $uniQuery->get_result()->fetch_assoc();
     $uniQuery->close();
 
-    if ($uniInfo) {
-        $university_name = $uniInfo['name'];
-    }
+    if ($uniInfo) $university_name = $uniInfo['name'];
 }
 
-// --- Fetch all students in this unit ---
+// --- Fetch students ---
 $studentQuery = $conn->prepare("
     SELECT st.id, st.name, st.reg_no
     FROM students st
@@ -80,7 +69,7 @@ $studentQuery->execute();
 $students = $studentQuery->get_result();
 $studentQuery->close();
 
-// --- Fetch up to 6 assignments for this unit ---
+// --- Fetch up to 6 assignments ---
 $assignmentQuery = $conn->prepare("
     SELECT id, title
     FROM assignments
@@ -93,55 +82,14 @@ $assignmentQuery->execute();
 $assignments = $assignmentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $assignmentQuery->close();
 
-// --- Generate HTML ---
-$html = '
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; }
-        h2, h3 { text-align: center; margin: 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        table, th, td { border: 1px solid #000; }
-        th, td { padding: 5px; text-align: center; }
-        th { background-color: #f2f2f2; }
-    </style>
-</head>
-<body>
-    <h2>' . htmlspecialchars($university_name) . '</h2>
-    <h3>Course: ' . htmlspecialchars($course_name) . ' | Unit: ' . htmlspecialchars($unit_name) . '</h3>
-    <h3>Lecturer: ' . htmlspecialchars($lecturer_name) . '</h3>
-    <p style="text-align:center;">Generated on: ' . date('d-m-Y H:i') . '</p>
-    <table>
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Student Name</th>
-                <th>Reg No</th>';
-
-// --- Table headers for A1 to A6 ---
-for ($i = 1; $i <= 6; $i++) {
-    $html .= '<th>A' . $i . ' Grade</th>';
-}
-
-$html .= '
-            </tr>
-        </thead>
-        <tbody>
-';
-
-// --- Preload all submissions for all students for efficiency ---
+// --- Preload submissions ---
 $assignment_ids = array_column($assignments, 'id');
 $submissions = [];
-
 if (!empty($assignment_ids)) {
     $in = implode(',', array_fill(0, count($assignment_ids), '?'));
     $types = str_repeat('i', count($assignment_ids));
     
-    $stmt = $conn->prepare("
-        SELECT student_id, assignment_id, marks, is_graded
-        FROM submissions
-        WHERE assignment_id IN ($in)
-    ");
+    $stmt = $conn->prepare("SELECT student_id, assignment_id, marks, is_graded FROM submissions WHERE assignment_id IN ($in)");
     $stmt->bind_param($types, ...$assignment_ids);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -150,51 +98,84 @@ if (!empty($assignment_ids)) {
     }
     $stmt->close();
 }
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <title><?php echo htmlspecialchars($unit_name); ?> - Assignments</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+<h2><?php echo htmlspecialchars($university_name); ?></h2>
+<h3>Course: <?php echo htmlspecialchars($course_name); ?> | Unit: <?php echo htmlspecialchars($unit_name); ?></h3>
+<h3>Lecturer: <?php echo htmlspecialchars($lecturer_name); ?></h3>
 
-// --- Fill table rows for each student ---
-$counter = 1;
-while ($student = $students->fetch_assoc()) {
-    $html .= '<tr>';
-    $html .= '<td>' . $counter . '</td>';
-    $html .= '<td>' . htmlspecialchars($student['name']) . '</td>';
-    $html .= '<td>' . htmlspecialchars($student['reg_no']) . '</td>';
+<!-- Buttons -->
+<button id="generateAssignmentsPDF">Generate Assignments PDF</button>
+<button id="generateSubmissionsPDF">Generate Submissions PDF</button>
 
-    for ($j = 0; $j < 6; $j++) {
-        if (isset($assignments[$j])) {
-            $ass_id = $assignments[$j]['id'];
+<!-- Table -->
+<table id="assignmentsTable" border="1" cellspacing="0" cellpadding="5" style="margin-top:20px;width:100%">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Student Name</th>
+            <th>Reg No</th>
+            <?php for ($i=1; $i<=6; $i++) echo "<th>A$i Grade</th>"; ?>
+        </tr>
+    </thead>
+    <tbody>
+        <?php
+        $counter = 1;
+        while ($student = $students->fetch_assoc()):
+            echo "<tr>";
+            echo "<td>{$counter}</td>";
+            echo "<td>".htmlspecialchars($student['name'])."</td>";
+            echo "<td>".htmlspecialchars($student['reg_no'])."</td>";
+            for ($j=0; $j<6; $j++):
+                if (isset($assignments[$j])):
+                    $ass_id = $assignments[$j]['id'];
+                    if (isset($submissions[$student['id']][$ass_id])):
+                        $sub = $submissions[$student['id']][$ass_id];
+                        echo "<td>".($sub['is_graded'] ? intval($sub['marks']) : "Pending")."</td>";
+                    else:
+                        echo "<td>Not Submitted</td>";
+                    endif;
+                else:
+                    echo "<td>N/A</td>";
+                endif;
+            endfor;
+            echo "</tr>";
+            $counter++;
+        endwhile;
+        ?>
+    </tbody>
+</table>
 
-            if (isset($submissions[$student['id']][$ass_id])) {
-                $sub = $submissions[$student['id']][$ass_id];
-                if ($sub['is_graded']) {
-                    $html .= '<td>' . intval($sub['marks']) . '</td>';
-                } else {
-                    $html .= '<td>Pending</td>';
-                }
-            } else {
-                $html .= '<td>Not Submitted</td>';
-            }
-        } else {
-            $html .= '<td>N/A</td>';
-        }
+<script>
+$(document).ready(function(){
+    $('#assignmentsTable').DataTable();
+
+    function generatePDF(filename){
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({orientation:'landscape'});
+        doc.autoTable({ html: '#assignmentsTable' });
+        doc.save(filename);
     }
 
-    $html .= '</tr>';
-    $counter++;
-}
+    $('#generateAssignmentsPDF').click(function(){
+        generatePDF('Assignments_<?php echo preg_replace("/\s+/", "_", $unit_name); ?>.pdf');
+    });
 
-$html .= '
-        </tbody>
-    </table>
+    $('#generateSubmissionsPDF').click(function(){
+        // Here you can make another table or fetch submissions data if needed
+        alert('You can implement submissions PDF similarly.');
+    });
+});
+</script>
 </body>
 </html>
-';
-
-// --- Generate PDF ---
-$dompdf = new Dompdf();
-$dompdf->loadHtml($html);
-$dompdf->setPaper('A4', 'landscape');
-$dompdf->render();
-$filename = 'Assignment_Report_' . preg_replace('/\s+/', '_', $unit_name) . '.pdf';
-$dompdf->stream($filename, ["Attachment" => true]);
-exit;
-?>
