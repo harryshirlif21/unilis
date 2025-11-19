@@ -332,12 +332,54 @@ $(document).ready(function() {
         });
     });
 
-    // VIEW SUBMISSIONS
+    <script>
+$(document).ready(function() {
+
+    // --- MODAL HELPERS ---
+    function openModal(id) { $('#' + id).fadeIn(); }
+    function closeModal(id) { $('#' + id).fadeOut(); }
+    $('.close-modal').click(function(){ $(this).closest('.modal').fadeOut(); });
+
+    // --- VIEW ASSIGNMENTS ---
+    $('.btn-view-assignments').click(function(){
+        const unit_id = $(this).data('unit-id');
+        $.getJSON('?ajax=get_assignments&unit_id=' + unit_id, function(res){
+            if(res.status==='ok'){
+                const tbody = $('#assignmentsTable tbody'); 
+                tbody.empty();
+                res.items.forEach(a=>{
+                    tbody.append(`
+                        <tr>
+                            <td>${a.title}</td>
+                            <td>${a.created_at}</td>
+                            <td>${a.deadline}</td>
+                            <td>${a.submissions_count} / ${a.expected_students}</td>
+                            <td>${a.late_count}</td>
+                            <td>
+                                <div class="progress-bar-small">
+                                    <div class="progress-fill-small" style="width:${a.progress}%"></div>
+                                </div>
+                            </td>
+                            <td><button class="btn-view-submissions" data-assignment-id="${a.id}">View Submissions</button></td>
+                        </tr>
+                    `);
+                });
+                if ($.fn.DataTable.isDataTable('#assignmentsTable')) {
+                    $('#assignmentsTable').DataTable().clear().destroy();
+                }
+                $('#assignmentsTable').DataTable();
+                openModal('assignmentsModal');
+            } else alert(res.message);
+        });
+    });
+
+    // --- VIEW SUBMISSIONS ---
     $(document).on('click','.btn-view-submissions',function(){
         const assignment_id = $(this).data('assignment-id');
         $.getJSON('?ajax=get_submissions&assignment_id=' + assignment_id, function(res){
             if(res.status==='ok'){
-                const tbody = $('#submissionsTable tbody'); tbody.empty();
+                const tbody = $('#submissionsTable tbody'); 
+                tbody.empty();
                 res.items.forEach(s=>{
                     tbody.append(`
                         <tr class="${s.is_graded?'graded':''}">
@@ -362,7 +404,7 @@ $(document).ready(function() {
         });
     });
 
-    // GRADING MODAL
+    // --- GRADING MODAL ---
     $(document).on('click','.btn-grade-submission',function(){
         const s = $(this).data('submission');
         $('#studentName').text(s.student_name);
@@ -386,34 +428,47 @@ $(document).ready(function() {
         },'json');
     });
 
-    // PDF GENERATION
-    $('#generateAssignmentsPDF').click(function(){
+    // --- PDF GENERATION HELPER ---
+    function generatePDF(tableId, columns, filename) {
         const doc = new jsPDF();
+        const table = $(tableId).DataTable();
         const rows = [];
-        $('#assignmentsTable tbody tr').each(function(){
-            const cols = [];
-            $(this).find('td').each(function(i){
-                if(i<6) cols.push($(this).text());
+
+        table.rows().every(function(){
+            const data = this.data();
+            const row = [];
+            columns.forEach(i=>{
+                const cell = data[i];
+                if(typeof cell === 'string') {
+                    row.push($(cell).text() || cell); // handles <div> or <a>
+                } else {
+                    row.push(cell);
+                }
             });
-            rows.push(cols);
+            rows.push(row);
         });
-        doc.autoTable({ head: [['Title','Created','Deadline','Submissions','Late','Progress']], body: rows });
-        doc.save('assignments.pdf');
+
+        doc.autoTable({
+            head: [columns.map(i => $(tableId + ' thead th').eq(i).text())],
+            body: rows
+        });
+
+        doc.save(filename);
+    }
+
+    // --- ASSIGNMENTS PDF ---
+    $('#generateAssignmentsPDF').click(function(){
+        generatePDF('#assignmentsTable', [0,1,2,3,4,5], 'assignments.pdf');
     });
 
+    // --- SUBMISSIONS PDF ---
     $('#generateSubmissionsPDF').click(function(){
-        const doc = new jsPDF();
-        const rows = [];
-        $('#submissionsTable tbody tr').each(function(){
-            const cols = [];
-            $(this).find('td').each(function(i){
-                if(i<8) cols.push($(this).text());
-            });
-            rows.push(cols);
-        });
-        doc.autoTable({ head: [['Student','Reg No','Submitted At','File','Late','Graded','Marks','AI Feedback']], body: rows });
-        doc.save('submissions.pdf');
+        generatePDF('#submissionsTable', [0,1,2,3,4,5,6,7], 'submissions.pdf');
     });
+
+});
+</script>
+
 });
 </script>
 </body>
