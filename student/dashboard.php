@@ -544,79 +544,77 @@ if ($course_id && $year_of_study) {
 
 
 
-            <!-- Assignments Section -->
-            <section class="card bg-white rounded-2xl p-6 mb-8">
-                <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Assignments for Year <?= htmlspecialchars($year_of_study) ?></h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="border-b-2 border-f5e6b2">
-                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Unit</th>
-                                <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Title</th>
-                                <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Deadline</th>
-                                <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="text-92400e">
-                            <?php
-                            try {
-                                $assignments_query = $conn->prepare("
-                                    SELECT a.id, a.title, a.description, a.deadline, a.file_path, u.name AS unit_name
-                                    FROM assignments a
-                                    JOIN units u ON a.unit_id = u.id
-                                    WHERE u.course_id = ? AND u.year = ?
-                                    ORDER BY a.deadline DESC
-                                ");
-                                $assignments_query->bind_param("ii", $course_id, $year_of_study);
-                                $assignments_query->execute();
-                                $assignments = $assignments_query->get_result();
+          <!-- Assignments Section -->
+<section class="mb-8">
+    <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Assignments for Year <?= htmlspecialchars($year_of_study) ?></h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <?php
+        try {
+            $assignments_query = $conn->prepare("
+                SELECT a.id, a.title, a.description, a.deadline, a.file_path, u.name AS unit_name
+                FROM assignments a
+                JOIN units u ON a.unit_id = u.id
+                WHERE u.course_id = ? AND u.year = ?
+                ORDER BY u.name ASC, a.deadline DESC
+            ");
+            $assignments_query->bind_param("ii", $course_id, $year_of_study);
+            $assignments_query->execute();
+            $assignments = $assignments_query->get_result();
 
-                                if ($assignments->num_rows === 0) {
-                                    echo "<tr><td colspan='4' class='py-4 text-center'>No assignments found for your course and year.</td></tr>";
-                                } else {
-                                    $now = new DateTime();
-                                    while ($assignment = $assignments->fetch_assoc()) {
-                                        $filePath = !empty($assignment['file_path']) ? htmlspecialchars($assignment['file_path']) : '';
-                                        $fullPath = "../assets/uploads/assignments/" . $filePath;
+            if ($assignments->num_rows === 0) {
+                echo "<p class='text-center col-span-full'>No assignments found for your course and year.</p>";
+            } else {
+                $units = [];
+                while ($assignment = $assignments->fetch_assoc()) {
+                    $units[$assignment['unit_name']][] = $assignment;
+                }
 
-                                        // Check if deadline passed
-                                        $deadline = new DateTime($assignment['deadline']);
-                                        $deadlinePassed = $now > $deadline;
+                $now = new DateTime();
 
-                                        $actions = '';
-                                        if (!empty($filePath) && file_exists($fullPath)) {
-                                            $actions .= "<a href='$fullPath' target='_blank' class='text-f59e0b hover:underline mr-2'>View</a> | <a href='$fullPath' download class='text-f59e0b hover:underline mr-2'>Download</a><br>";
-                                        }
+                foreach ($units as $unitName => $unitAssignments) {
+                    echo "<div class='card bg-white rounded-2xl p-6 shadow hover:shadow-lg transition'>";
+                    echo "<h3 class='text-xl font-semibold mb-4 stat-text-primary'>" . htmlspecialchars($unitName) . "</h3>";
 
-                                        // Submission form - disable if deadline passed
-                                        $disabledAttr = $deadlinePassed ? "disabled title='Deadline passed, submission closed'" : "";
+                    foreach ($unitAssignments as $assignment) {
+                        $filePath = !empty($assignment['file_path']) ? htmlspecialchars($assignment['file_path']) : '';
+                        $fullPath = "../assets/uploads/assignments/" . $filePath;
 
-                                        $actions .= "
-                                            <form method='POST' enctype='multipart/form-data' action='submit_assignment.php' class='flex items-center space-x-2 mt-2'>
-                                                <input type='hidden' name='assignment_id' value='{$assignment['id']}'>
-                                                <input type='file' name='file' accept='.pdf,.doc,.docx' required $disabledAttr class='text-sm'>
-                                                <button type='submit' $disabledAttr class='btn-primary px-4 py-1 rounded-lg text-sm'>Submit</button>
-                                            </form>";
+                        $deadline = new DateTime($assignment['deadline']);
+                        $deadlinePassed = $now > $deadline;
 
-                                        echo "<tr class='border-b border-f5e6b2 table-row-hover'>
-                                            <td class='py-4 table-text-primary'>" . htmlspecialchars($assignment['unit_name']) . "</td>
-                                            <td class='py-4 table-text-secondary'>" . htmlspecialchars($assignment['title']) . "</td>
-                                            <td class='py-4 text-sm table-text-accent'>" . date("d M Y, h:i A", strtotime($assignment['deadline'])) . "</td>
-                                            <td class='py-4 table-text-primary'>$actions</td>
-                                        </tr>";
-                                    }
-                                }
-                                $assignments_query->close();
-                            } catch (mysqli_sql_exception $e) {
-                                error_log("Error fetching assignments: " . $e->getMessage());
-                                echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading assignments. Please contact the administrator.</td></tr>";
-                                $_SESSION['error'] = "Unable to load assignments.";
-                            }
-                            ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                        $actions = '';
+                        if (!empty($filePath) && file_exists($fullPath)) {
+                            $actions .= "<a href='$fullPath' target='_blank' class='text-f59e0b hover:underline mr-2'>View</a> | <a href='$fullPath' download class='text-f59e0b hover:underline mr-2'>Download</a><br>";
+                        }
+
+                        $disabledAttr = $deadlinePassed ? "disabled title='Deadline passed, submission closed'" : "";
+
+                        $actions .= "
+                            <form method='POST' enctype='multipart/form-data' action='submit_assignment.php' class='flex items-center space-x-2 mt-2'>
+                                <input type='hidden' name='assignment_id' value='{$assignment['id']}'>
+                                <input type='file' name='file' accept='.pdf,.doc,.docx' required $disabledAttr class='text-sm'>
+                                <button type='submit' $disabledAttr class='btn-primary px-4 py-1 rounded-lg text-sm'>Submit</button>
+                            </form>";
+
+                        echo "<div class='mb-4 p-4 bg-gray-50 rounded-lg border'>
+                                <h4 class='font-medium table-text-secondary'>" . htmlspecialchars($assignment['title']) . "</h4>
+                                <p class='text-sm text-gray-600 mb-2'>Deadline: " . date("d M Y, h:i A", strtotime($assignment['deadline'])) . "</p>
+                                <div>$actions</div>
+                              </div>";
+                    }
+
+                    echo "</div>";
+                }
+            }
+            $assignments_query->close();
+        } catch (mysqli_sql_exception $e) {
+            error_log("Error fetching assignments: " . $e->getMessage());
+            echo "<p class='text-center text-red-500 col-span-full'>Error loading assignments. Please contact the administrator.</p>";
+            $_SESSION['error'] = "Unable to load assignments.";
+        }
+        ?>
+    </div>
+</section>
 
         </div>
 
