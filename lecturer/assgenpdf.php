@@ -69,18 +69,18 @@ $studentQuery->execute();
 $students = $studentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $studentQuery->close();
 
-// --- Fetch up to 6 assignments ---
-$assignmentQuery = $conn->prepare("
-    SELECT id, title
-    FROM assignments
-    WHERE unit_id = ?
-    ORDER BY id ASC
-    LIMIT 6
+// --- NEW: Fetch assignments that have submissions ---
+$assignmentsQuery = $conn->prepare("
+    SELECT DISTINCT a.id, a.title
+    FROM assignments a
+    INNER JOIN submissions sub ON a.id = sub.assignment_id
+    WHERE a.unit_id = ?
+    ORDER BY a.id ASC
 ");
-$assignmentQuery->bind_param("i", $unit_id);
-$assignmentQuery->execute();
-$assignments = $assignmentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
-$assignmentQuery->close();
+$assignmentsQuery->bind_param("i", $unit_id);
+$assignmentsQuery->execute();
+$assignments = $assignmentsQuery->get_result()->fetch_all(MYSQLI_ASSOC);
+$assignmentsQuery->close();
 
 // --- Fetch submissions ---
 $submissions = [];
@@ -129,7 +129,12 @@ if (!empty($assignments)) {
             <th>#</th>
             <th>Student Name</th>
             <th>Reg No</th>
-            <?php for ($i=1; $i<=6; $i++) echo "<th>A$i Grade</th>"; ?>
+            <?php 
+            // Dynamic columns based on actual assignments with submissions
+            foreach ($assignments as $index => $assignment): 
+                echo "<th title='".htmlspecialchars($assignment['title'])."'>A".($index+1)." Grade</th>";
+            endforeach;
+            ?>
         </tr>
     </thead>
     <tbody>
@@ -140,19 +145,18 @@ if (!empty($assignments)) {
             echo "<td>{$counter}</td>";
             echo "<td>".htmlspecialchars($student['name'])."</td>";
             echo "<td>".htmlspecialchars($student['reg_no'])."</td>";
-            for ($j=0; $j<6; $j++):
-                if (isset($assignments[$j])):
-                    $ass_id = $assignments[$j]['id'];
-                    if (isset($submissions[$student['id']][$ass_id])):
-                        $sub = $submissions[$student['id']][$ass_id];
-                        echo "<td>".($sub['is_graded'] ? intval($sub['marks']) : "Pending")."</td>";
-                    else:
-                        echo "<td>Not Submitted</td>";
-                    endif;
+            
+            // Dynamic grade columns
+            foreach ($assignments as $assignment):
+                $ass_id = $assignment['id'];
+                if (isset($submissions[$student['id']][$ass_id])):
+                    $sub = $submissions[$student['id']][$ass_id];
+                    echo "<td>".($sub['is_graded'] ? intval($sub['marks']) : "Pending")."</td>";
                 else:
-                    echo "<td>N/A</td>";
+                    echo "<td>Not Submitted</td>";
                 endif;
-            endfor;
+            endforeach;
+            
             echo "</tr>";
             $counter++;
         endforeach;
