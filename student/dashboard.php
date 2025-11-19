@@ -44,6 +44,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Dashboard - UNILIS</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="//unpkg.com/alpinejs" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -544,10 +545,10 @@ if ($course_id && $year_of_study) {
 
 
 
-          <!-- Assignments Section -->
-<section class="mb-8">
+  <section class="mb-8">
     <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Assignments for Year <?= htmlspecialchars($year_of_study) ?></h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <?php
         try {
             $assignments_query = $conn->prepare("
@@ -564,6 +565,7 @@ if ($course_id && $year_of_study) {
             if ($assignments->num_rows === 0) {
                 echo "<p class='text-center col-span-full'>No assignments found for your course and year.</p>";
             } else {
+                // Group assignments by unit
                 $units = [];
                 while ($assignment = $assignments->fetch_assoc()) {
                     $units[$assignment['unit_name']][] = $assignment;
@@ -572,13 +574,31 @@ if ($course_id && $year_of_study) {
                 $now = new DateTime();
 
                 foreach ($units as $unitName => $unitAssignments) {
-                    echo "<div class='card bg-white rounded-2xl p-6 shadow hover:shadow-lg transition'>";
-                    echo "<h3 class='text-xl font-semibold mb-4 stat-text-primary'>" . htmlspecialchars($unitName) . "</h3>";
+                    $unitId = preg_replace('/[^a-zA-Z0-9]/', '', $unitName); // safe ID for modal
 
+                    // Unit Tile
+                    echo "
+                    <div class='bg-white rounded-2xl p-6 shadow hover:shadow-lg transition flex flex-col justify-between'>
+                        <h3 class='text-xl font-semibold mb-4 stat-text-primary'>" . htmlspecialchars($unitName) . "</h3>
+                        <button @click='$unitId = true' class='btn-primary px-4 py-2 rounded-lg mt-auto'>View Assignments</button>
+
+                        <!-- Modal -->
+                        <div x-data='{ $unitId: false }' x-show='$unitId' class='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+                            <div @click.away='$unitId = false' class='bg-white p-6 rounded-2xl w-11/12 max-w-3xl overflow-auto max-h-[80vh]'>
+                                <h4 class='text-lg font-semibold mb-4'>Assignments for " . htmlspecialchars($unitName) . "</h4>
+                                <table class='w-full text-left border-collapse'>
+                                    <thead>
+                                        <tr class='border-b-2 border-f5e6b2'>
+                                            <th class='py-2 text-sm font-semibold stat-text-primary uppercase'>Title</th>
+                                            <th class='py-2 text-sm font-semibold stat-text-accent uppercase'>Deadline</th>
+                                            <th class='py-2 text-sm font-semibold stat-text-primary uppercase'>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class='text-92400e'>";
+                    
                     foreach ($unitAssignments as $assignment) {
                         $filePath = !empty($assignment['file_path']) ? htmlspecialchars($assignment['file_path']) : '';
                         $fullPath = "../assets/uploads/assignments/" . $filePath;
-
                         $deadline = new DateTime($assignment['deadline']);
                         $deadlinePassed = $now > $deadline;
 
@@ -590,20 +610,28 @@ if ($course_id && $year_of_study) {
                         $disabledAttr = $deadlinePassed ? "disabled title='Deadline passed, submission closed'" : "";
 
                         $actions .= "
-                            <form method='POST' enctype='multipart/form-data' action='submit_assignment.php' class='flex items-center space-x-2 mt-2'>
-                                <input type='hidden' name='assignment_id' value='{$assignment['id']}'>
-                                <input type='file' name='file' accept='.pdf,.doc,.docx' required $disabledAttr class='text-sm'>
-                                <button type='submit' $disabledAttr class='btn-primary px-4 py-1 rounded-lg text-sm'>Submit</button>
-                            </form>";
+                        <form method='POST' enctype='multipart/form-data' action='submit_assignment.php' class='flex items-center space-x-2 mt-2'>
+                            <input type='hidden' name='assignment_id' value='{$assignment['id']}'>
+                            <input type='file' name='file' accept='.pdf,.doc,.docx' required $disabledAttr class='text-sm'>
+                            <button type='submit' $disabledAttr class='btn-primary px-4 py-1 rounded-lg text-sm'>Submit</button>
+                        </form>";
 
-                        echo "<div class='mb-4 p-4 bg-gray-50 rounded-lg border'>
-                                <h4 class='font-medium table-text-secondary'>" . htmlspecialchars($assignment['title']) . "</h4>
-                                <p class='text-sm text-gray-600 mb-2'>Deadline: " . date("d M Y, h:i A", strtotime($assignment['deadline'])) . "</p>
-                                <div>$actions</div>
-                              </div>";
+                        echo "<tr class='border-b border-f5e6b2'>
+                                <td class='py-2 table-text-secondary'>" . htmlspecialchars($assignment['title']) . "</td>
+                                <td class='py-2 text-sm table-text-accent'>" . date("d M Y, h:i A", strtotime($assignment['deadline'])) . "</td>
+                                <td class='py-2 table-text-primary'>$actions</td>
+                              </tr>";
                     }
 
-                    echo "</div>";
+                    echo "</tbody>
+                                </table>
+                                <div class='mt-4 text-right'>
+                                    <button @click='$unitId = false' class='btn-secondary px-4 py-2 rounded-lg'>Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ";
                 }
             }
             $assignments_query->close();
@@ -615,7 +643,6 @@ if ($course_id && $year_of_study) {
         ?>
     </div>
 </section>
-
         </div>
 
 
