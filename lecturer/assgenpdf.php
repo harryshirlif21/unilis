@@ -5,16 +5,16 @@ require_once '../vendor/autoload.php'; // DOMPDF autoload
 
 use Dompdf\Dompdf;
 
-// Check if lecturer is logged in
+// --- Check if lecturer is logged in ---
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
     exit;
 }
 
 $lecturer_id = $_SESSION['user_id'];
-$lecturer_name = $_SESSION['user_name'];
+$lecturer_name = $_SESSION['user_name'] ?? '';
 
-// Get selected unit
+// --- Get selected unit ---
 $unit_id = $_GET['unit_id'] ?? null;
 if (!$unit_id) {
     die("Unit ID not provided.");
@@ -27,27 +27,47 @@ $unitQuery->execute();
 $unitInfo = $unitQuery->get_result()->fetch_assoc();
 $unitQuery->close();
 
+if (!$unitInfo) {
+    die("Unit not found.");
+}
+
 $unit_name = $unitInfo['name'];
 $course_id = $unitInfo['course_id'];
 
-// --- Fetch course info ---
-$courseQuery = $conn->prepare("SELECT name, university_id FROM courses WHERE id = ?");
+// --- Fetch course info (and its department for university) ---
+$courseQuery = $conn->prepare("
+    SELECT c.name AS course_name, d.university_id 
+    FROM courses c
+    LEFT JOIN departments d ON c.department_id = d.id
+    WHERE c.id = ?
+");
 $courseQuery->bind_param("i", $course_id);
 $courseQuery->execute();
 $courseInfo = $courseQuery->get_result()->fetch_assoc();
 $courseQuery->close();
 
-$course_name = $courseInfo['name'];
+if (!$courseInfo) {
+    die("Course not found.");
+}
+
+$course_name = $courseInfo['course_name'];
 $university_id = $courseInfo['university_id'];
 
 // --- Fetch university name ---
-$uniQuery = $conn->prepare("SELECT name FROM universities WHERE id = ?");
-$uniQuery->bind_param("i", $university_id);
-$uniQuery->execute();
-$university_name = $uniQuery->get_result()->fetch_assoc()['name'];
-$uniQuery->close();
+$university_name = "Unknown University";
+if ($university_id) {
+    $uniQuery = $conn->prepare("SELECT name FROM universities WHERE id = ?");
+    $uniQuery->bind_param("i", $university_id);
+    $uniQuery->execute();
+    $uniInfo = $uniQuery->get_result()->fetch_assoc();
+    $uniQuery->close();
 
-// --- Fetch all students in this unit (assuming all students enrolled in unit) ---
+    if ($uniInfo) {
+        $university_name = $uniInfo['name'];
+    }
+}
+
+// --- Fetch all students in this unit ---
 $studentQuery = $conn->prepare("
     SELECT st.id, st.name, st.reg_no
     FROM students st
@@ -73,7 +93,7 @@ $assignmentQuery->execute();
 $assignments = $assignmentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $assignmentQuery->close();
 
-// --- Prepare HTML content for PDF ---
+// --- Generate HTML ---
 $html = '
 <html>
 <head>
@@ -109,6 +129,28 @@ $html .= '
         <tbody>
 ';
 
+// --- Preload all submissions for all students for efficiency ---
+$assignment_ids = array_column($assignments, 'id');
+$submissions = [];
+
+if (!empty($assignment_ids)) {
+    $in = implode(',', array_fill(0, count($assignment_ids), '?'));
+    $types = str_repeat('i', count($assignment_ids));
+    
+    $stmt = $conn->prepare("
+        SELECT student_id, assignment_id, marks, is_graded
+        FROM submissions
+        WHERE assignment_id IN ($in)
+    ");
+    $stmt->bind_param($types, ...$assignment_ids);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $submissions[$row['student_id']][$row['assignment_id']] = $row;
+    }
+    $stmt->close();
+}
+
 // --- Fill table rows for each student ---
 $counter = 1;
 while ($student = $students->fetch_assoc()) {
@@ -117,28 +159,19 @@ while ($student = $students->fetch_assoc()) {
     $html .= '<td>' . htmlspecialchars($student['name']) . '</td>';
     $html .= '<td>' . htmlspecialchars($student['reg_no']) . '</td>';
 
-    // Loop through each assignment (1-6)
     for ($j = 0; $j < 6; $j++) {
         if (isset($assignments[$j])) {
             $ass_id = $assignments[$j]['id'];
 
-            // Fetch submission info
-            $subQuery = $conn->prepare("
-                SELECT marks, is_graded 
-                FROM submissions 
-                WHERE student_id = ? AND assignment_id = ?
-            ");
-            $subQuery->bind_param("ii", $student['id'], $ass_id);
-            $subQuery->execute();
-            $sub = $subQuery->get_result()->fetch_assoc();
-            $subQuery->close();
-
-            if (!$sub) {
-                $html .= '<td>Not Submitted</td>';
-            } else if ($sub['is_graded']) {
-                $html .= '<td>' . intval($sub['marks']) . '</td>';
+            if (isset($submissions[$student['id']][$ass_id])) {
+                $sub = $submissions[$student['id']][$ass_id];
+                if ($sub['is_graded']) {
+                    $html .= '<td>' . intval($sub['marks']) . '</td>';
+                } else {
+                    $html .= '<td>Pending</td>';
+                }
             } else {
-                $html .= '<td>Pending</td>';
+                $html .= '<td>Not Submitted</td>';
             }
         } else {
             $html .= '<td>N/A</td>';
@@ -156,7 +189,7 @@ $html .= '
 </html>
 ';
 
-// --- Generate PDF using DOMPDF ---
+// --- Generate PDF ---
 $dompdf = new Dompdf();
 $dompdf->loadHtml($html);
 $dompdf->setPaper('A4', 'landscape');
@@ -165,4 +198,3 @@ $filename = 'Assignment_Report_' . preg_replace('/\s+/', '_', $unit_name) . '.pd
 $dompdf->stream($filename, ["Attachment" => true]);
 exit;
 ?>
-
