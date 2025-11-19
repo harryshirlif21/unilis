@@ -218,7 +218,10 @@ tr.graded { background:#d4edda; }
         <div class="modal-content">
             <span class="close-modal">&times;</span>
             <h3>Assignments</h3>
-            <button id="generateAssignmentsPDF" class="btn-pdf">Generate PDF</button>
+          <a href="assgenpdf.php" target="_blank">
+    <button id="generateAssignmentsPDF" class="btn-pdf">Generate PDF</button>
+</a>
+
             <table id="assignmentsTable" class="display" width="100%">
                 <thead>
                     <tr>
