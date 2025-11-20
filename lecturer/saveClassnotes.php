@@ -75,10 +75,17 @@ try {
             
             // Handle inline images
             $subtopic_id = $processed_subtopic['id'];
-            if (isset($_FILES["subtopic_images"]["name"][$subtopic_id])) {
+            if (isset($_FILES["subtopic_images"]) && isset($_FILES["subtopic_images"]["name"][$subtopic_id])) {
                 $image_files = $_FILES["subtopic_images"]["name"][$subtopic_id];
                 $image_tmp_names = $_FILES["subtopic_images"]["tmp_name"][$subtopic_id];
                 $image_errors = $_FILES["subtopic_images"]["error"][$subtopic_id];
+                
+                // Ensure we have arrays
+                if (!is_array($image_files)) {
+                    $image_files = [$image_files];
+                    $image_tmp_names = [$image_tmp_names];
+                    $image_errors = [$image_errors];
+                }
                 
                 for ($i = 0; $i < count($image_files); $i++) {
                     if ($image_files[$i] && $image_tmp_names[$i] && $image_errors[$i] === UPLOAD_ERR_OK) {
@@ -91,22 +98,33 @@ try {
                                 'original_name' => $image_files[$i]
                             ];
                             
-                            // Replace data-placeholder in content with actual image path
-                            $processed_subtopic['content'] = str_replace(
-                                'data-placeholder="' . $subtopic['images'][$i]['placeholder'] . '"',
-                                'src="uploads/images/' . $image_name . '"',
-                                $processed_subtopic['content']
-                            );
+                            // Find the corresponding image placeholder from the subtopic data
+                            if (isset($subtopic['images'][$i])) {
+                                $placeholder = $subtopic['images'][$i]['placeholder'];
+                                // Replace the data URL with the actual file path
+                                $processed_subtopic['content'] = str_replace(
+                                    'src="data:image/', 
+                                    'data-placeholder="' . $placeholder . '" src="../uploads/images/' . $image_name . '"',
+                                    $processed_subtopic['content']
+                                );
+                            }
                         }
                     }
                 }
             }
             
             // Handle file attachments
-            if (isset($_FILES["subtopic_files"]["name"][$subtopic_id])) {
+            if (isset($_FILES["subtopic_files"]) && isset($_FILES["subtopic_files"]["name"][$subtopic_id])) {
                 $file_names = $_FILES["subtopic_files"]["name"][$subtopic_id];
                 $file_tmp_names = $_FILES["subtopic_files"]["tmp_name"][$subtopic_id];
                 $file_errors = $_FILES["subtopic_files"]["error"][$subtopic_id];
+                
+                // Ensure we have arrays
+                if (!is_array($file_names)) {
+                    $file_names = [$file_names];
+                    $file_tmp_names = [$file_tmp_names];
+                    $file_errors = [$file_errors];
+                }
                 
                 for ($i = 0; $i < count($file_names); $i++) {
                     if ($file_names[$i] && $file_tmp_names[$i] && $file_errors[$i] === UPLOAD_ERR_OK) {

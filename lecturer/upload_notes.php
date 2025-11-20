@@ -364,6 +364,7 @@ function insertInlineImage(event, topicId, subId) {
             placeholder: placeholder
         });
 
+        // Create image with data URL for preview and placeholder for server replacement
         const imgHTML = `<img src="${e.target.result}" 
                            class="inline-img" 
                            data-placeholder="${placeholder}">`;
@@ -394,6 +395,9 @@ function insertInlineImage(event, topicId, subId) {
         // Update HTML content
         s.content = div.innerHTML;
         renderPreview();
+        
+        // Clear the file input
+        event.target.value = '';
     };
 
     reader.readAsDataURL(file);
@@ -660,17 +664,15 @@ function submitNotes() {
     formData.append("topics", JSON.stringify(topics));
 
     // Collect images + files for upload
-    let hasFiles = false;
     topics.forEach(topic => {
         topic.subtopics.forEach(sub => {
             // Inline images
-            sub.images.forEach(img => {
+            sub.images.forEach((img, index) => {
                 formData.append(
                     `subtopic_images[${sub.id}][]`,
                     img.file,
                     img.file.name
                 );
-                hasFiles = true;
             });
 
             // Files
@@ -680,7 +682,6 @@ function submitNotes() {
                     f.file,
                     f.file.name
                 );
-                hasFiles = true;
             });
         });
     });
