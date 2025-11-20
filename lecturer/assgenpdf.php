@@ -53,9 +53,9 @@ if ($university_id) {
     if ($uniInfo) $university_name = $uniInfo['name'];
 }
 
-/* FETCH STUDENTS IN THIS UNIT'S COURSE ORDERED BY REG NO */
+/* FETCH STUDENTS REGISTERED IN THE COURSE OF THIS UNIT ORDERED BY reg_no */
 $studentQuery = $conn->prepare("
-    SELECT id, CONCAT(first_name, ' ', last_name) AS name, reg_no
+    SELECT id, name, reg_no
     FROM students
     WHERE course_id = ?
     ORDER BY reg_no ASC
@@ -166,13 +166,12 @@ table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
 
 <script>
 $(document).ready(function(){
-    $('#assignmentsTable').DataTable({ pageLength: 25, order: [[2,'asc']] }); // order by Reg No
+    $('#assignmentsTable').DataTable({ pageLength: 25, order: [[2,'asc']] }); // order by Reg No column
 
     $('#generateAssignmentsPDF').click(function(){
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
 
-        // Add header info
         doc.setFontSize(16);
         doc.text('<?php echo addslashes($university_name); ?>', 14, 15);
         doc.setFontSize(12);
@@ -182,7 +181,6 @@ $(document).ready(function(){
         doc.setFontSize(10);
         doc.text('Generated: ' + new Date().toLocaleString(), 14, 40);
 
-        // Extract table data
         const headers = [];
         const rows = [];
         $('#assignmentsTable thead th').each(function(){ headers.push($(this).text()); });
@@ -192,7 +190,6 @@ $(document).ready(function(){
             rows.push(row);
         });
 
-        // Add table to PDF
         doc.autoTable({
             head: [headers],
             body: rows,
