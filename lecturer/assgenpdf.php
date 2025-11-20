@@ -53,7 +53,7 @@ if ($university_id) {
     if ($uniInfo) $university_name = $uniInfo['name'];
 }
 
-/* FETCH STUDENTS REGISTERED IN THE COURSE OF THIS UNIT ORDERED BY reg_no */
+/* FETCH STUDENTS */
 $studentQuery = $conn->prepare("
     SELECT id, name, reg_no
     FROM students
@@ -84,7 +84,10 @@ if (!empty($assignments)) {
     $ids_placeholder = implode(',', array_fill(0, count($assignment_ids), '?'));
     
     $types = str_repeat('i', count($assignment_ids));
-    $sql = "SELECT student_id, assignment_id, marks, is_graded FROM submissions WHERE assignment_id IN ($ids_placeholder)";
+    $sql = "SELECT student_id, assignment_id, marks, is_graded 
+            FROM submissions 
+            WHERE assignment_id IN ($ids_placeholder)";
+
     $stmt = $conn->prepare($sql);
     $stmt->bind_param($types, ...$assignment_ids);
     $stmt->execute();
@@ -101,20 +104,21 @@ if (!empty($assignments)) {
 <head>
 <meta charset="UTF-8">
 <title><?php echo htmlspecialchars($unit_name); ?> - Assignments Report</title>
+
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.2/dist/xlsx.full.min.js"></script>
+
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
 .header-section { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 .header-section h2, .header-section h3 { margin: 5px 0; color: #2c3e50; }
-.header-section h3 { font-weight: normal; color: #34495e; }
 .table-container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-table.dataTable thead th { background: #3498db; color: white; }
-table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
 .btn-pdf { background: #3498db; color: #fff; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; font-size: 16px; margin-bottom: 20px; margin-right:10px; }
 .btn-pdf:hover { background: #2980b9; }
 </style>
@@ -167,7 +171,43 @@ table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
 
 <script>
 $(document).ready(function(){
-    $('#assignmentsTable').DataTable({ pageLength: 25, order: [[2,'asc']] });
+
+    // Initialize DataTables
+    var dt = $('#assignmentsTable').DataTable({
+        pageLength: 25,
+        order: [[2,'asc']]
+    });
+
+    /* Excel Export */
+    $('#generateExcel').click(function(){
+
+        const wb = XLSX.utils.book_new();
+
+        var headers = [];
+        $('#assignmentsTable thead th').each(function(){
+            headers.push($(this).text());
+        });
+
+        var data = [];
+        dt.rows({ search: 'applied' }).every(function(){
+            data.push(this.data());
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+
+        const colWidths = [{ wpx: 30 }, { wpx: 120 }, { wpx: 80 }];
+        <?php foreach ($assignments as $assignment): ?>
+            colWidths.push({ wpx: 80 });
+        <?php endforeach; ?>
+        ws['!cols'] = colWidths;
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Assignments');
+
+        const filename = 'Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/", "_", $unit_name); ?>_' +
+            new Date().toISOString().split('T')[0] + '.xlsx';
+
+        XLSX.writeFile(wb, filename);
+    });
 
     /* PDF Export */
     $('#generateAssignmentsPDF').click(function(){
@@ -176,15 +216,18 @@ $(document).ready(function(){
 
         doc.setFontSize(16);
         doc.text('<?php echo addslashes($university_name); ?>', 14, 15);
+
         doc.setFontSize(12);
         doc.text('Course: <?php echo addslashes($course_name); ?>', 14, 22);
         doc.text('Unit: <?php echo addslashes($unit_name); ?> (<?php echo addslashes($unit_code); ?>)', 14, 28);
         doc.text('Lecturer: <?php echo addslashes($lecturer_name); ?>', 14, 34);
+
         doc.setFontSize(10);
         doc.text('Generated: ' + new Date().toLocaleString(), 14, 40);
 
         const headers = [];
         const rows = [];
+
         $('#assignmentsTable thead th').each(function(){ headers.push($(this).text()); });
         $('#assignmentsTable tbody tr').each(function(){
             const row = [];
@@ -202,27 +245,10 @@ $(document).ready(function(){
             columnStyles: { 0:{cellWidth:10}, 1:{cellWidth:40}, 2:{cellWidth:30} }
         });
 
-        doc.save('Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/","_",$unit_name); ?>_' + new Date().toISOString().split('T')[0] + '.pdf');
+       doc.save('Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/", "_", $unit_name); ?>_' + 
+         new Date().toISOString().split('T')[0] + '.pdf');
     });
 
-    /* Excel Export */
-    $('#generateExcel').click(function(){
-        const table = document.getElementById('assignmentsTable');
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.table_to_sheet(table);
-
-        /* Set column widths for better readability */
-        const colWidths = [{wpx:30},{wpx:120},{wpx:80}];
-        <?php foreach ($assignments as $assignment): ?>
-        colWidths.push({wpx:80});
-        <?php endforeach; ?>
-        ws['!cols'] = colWidths;
-
-        XLSX.utils.book_append_sheet(wb, ws, 'Assignments');
-
-        const filename = 'Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/","_",$unit_name); ?>_' + new Date().toISOString().split('T')[0] + '.xlsx';
-        XLSX.writeFile(wb, filename);
-    });
 });
 </script>
 
