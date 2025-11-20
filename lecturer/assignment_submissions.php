@@ -386,17 +386,41 @@ $(document).ready(function() {
     });
 
  // --- PDF GENERATION HELPER (UPDATED) ---
-function generatePDF(tableId, filename) {
+function generatePDF(tableId, filename, unitCode = "", assignmentTitle = "") {
     const doc = new jspdf.jsPDF();
     const table = $(tableId).DataTable();
 
-    // Extract table headers
+    // ==== HEADER SECTION ====
+    let topY = 10;
+
+    doc.setFontSize(14);
+    doc.text("Assignment Submissions Report", 14, topY);
+    topY += 8;
+
+    if (unitCode !== "") {
+        doc.setFontSize(12);
+        doc.text("Unit Code: " + unitCode, 14, topY);
+        topY += 6;
+    }
+
+    if (assignmentTitle !== "") {
+        doc.setFontSize(12);
+        doc.text("Assignment: " + assignmentTitle, 14, topY);
+        topY += 6;
+    }
+
+    const today = new Date().toLocaleDateString();
+    doc.setFontSize(10);
+    doc.text("Generated on: " + today, 14, topY);
+    topY += 10;
+
+    // ====== TABLE HEADERS ======
     let headers = [];
     $(tableId + ' thead th').each(function () {
         headers.push($(this).text());
     });
 
-    // Extract rows
+    // ====== TABLE ROWS ======
     let rows = [];
     table.rows({ search: 'applied' }).every(function () {
         let cleanRow = [];
@@ -414,7 +438,9 @@ function generatePDF(tableId, filename) {
         rows.push(cleanRow);
     });
 
+    // ==== AUTOTABLE ====
     doc.autoTable({
+        startY: topY,
         head: [headers],
         body: rows,
         theme: 'grid'
@@ -422,6 +448,7 @@ function generatePDF(tableId, filename) {
 
     doc.save(filename);
 }
+
 
     // --- PDF BUTTONS ---
     $('#generateAssignmentsPDF').click(function(){
