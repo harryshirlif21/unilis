@@ -53,7 +53,7 @@ if ($university_id) {
     if ($uniInfo) $university_name = $uniInfo['name'];
 }
 
-/* FETCH STUDENTS REGISTERED IN THE COURSE ORDERED BY REG NO */
+/* FETCH STUDENTS REGISTERED IN THE COURSE OF THIS UNIT ORDERED BY reg_no */
 $studentQuery = $conn->prepare("
     SELECT id, name, reg_no
     FROM students
@@ -65,9 +65,9 @@ $studentQuery->execute();
 $students = $studentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $studentQuery->close();
 
-/* FETCH ASSIGNMENTS FOR THIS UNIT */
+/* FETCH ASSIGNMENTS */
 $assignmentsQuery = $conn->prepare("
-    SELECT id, title
+    SELECT DISTINCT id, title
     FROM assignments
     WHERE unit_id = ?
     ORDER BY id ASC
@@ -82,14 +82,14 @@ $submissions = [];
 if (!empty($assignments)) {
     $assignment_ids = array_column($assignments, 'id');
     $ids_placeholder = implode(',', array_fill(0, count($assignment_ids), '?'));
+    
     $types = str_repeat('i', count($assignment_ids));
-
     $sql = "SELECT student_id, assignment_id, marks, is_graded FROM submissions WHERE assignment_id IN ($ids_placeholder)";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param($types, ...$assignment_ids);
     $stmt->execute();
     $res = $stmt->get_result();
-
+    
     while ($row = $res->fetch_assoc()) {
         $submissions[$row['student_id']][$row['assignment_id']] = $row;
     }
@@ -135,8 +135,8 @@ table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
                 <th>#</th>
                 <th>Student Name</th>
                 <th>Reg No</th>
-                <?php foreach ($assignments as $index => $assignment): ?>
-                    <th>A<?= $index+1 ?> Grade</th>
+                <?php foreach ($assignments as $assignment): ?>
+                    <th><?= htmlspecialchars($assignment['title']) ?></th>
                 <?php endforeach; ?>
             </tr>
         </thead>
