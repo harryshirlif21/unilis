@@ -53,7 +53,7 @@ if ($university_id) {
     if ($uniInfo) $university_name = $uniInfo['name'];
 }
 
-/* FETCH STUDENTS REGISTERED IN THE COURSE OF THIS UNIT ORDERED BY reg_no */
+/* FETCH STUDENTS REGISTERED IN THE COURSE ORDERED BY REG NO */
 $studentQuery = $conn->prepare("
     SELECT id, name, reg_no
     FROM students
@@ -65,13 +65,12 @@ $studentQuery->execute();
 $students = $studentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $studentQuery->close();
 
-/* FETCH ASSIGNMENTS WITH SUBMISSIONS */
+/* FETCH ASSIGNMENTS FOR THIS UNIT */
 $assignmentsQuery = $conn->prepare("
-    SELECT DISTINCT a.id, a.title
-    FROM assignments a
-    INNER JOIN submissions sub ON a.id = sub.assignment_id
-    WHERE a.unit_id = ?
-    ORDER BY a.id ASC
+    SELECT id, title
+    FROM assignments
+    WHERE unit_id = ?
+    ORDER BY id ASC
 ");
 $assignmentsQuery->bind_param("i", $unit_id);
 $assignmentsQuery->execute();
@@ -83,14 +82,14 @@ $submissions = [];
 if (!empty($assignments)) {
     $assignment_ids = array_column($assignments, 'id');
     $ids_placeholder = implode(',', array_fill(0, count($assignment_ids), '?'));
-    
     $types = str_repeat('i', count($assignment_ids));
+
     $sql = "SELECT student_id, assignment_id, marks, is_graded FROM submissions WHERE assignment_id IN ($ids_placeholder)";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param($types, ...$assignment_ids);
     $stmt->execute();
     $res = $stmt->get_result();
-    
+
     while ($row = $res->fetch_assoc()) {
         $submissions[$row['student_id']][$row['assignment_id']] = $row;
     }
@@ -166,7 +165,7 @@ table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
 
 <script>
 $(document).ready(function(){
-    $('#assignmentsTable').DataTable({ pageLength: 25, order: [[2,'asc']] }); // order by Reg No column
+    $('#assignmentsTable').DataTable({ pageLength: 25, order: [[2,'asc']] });
 
     $('#generateAssignmentsPDF').click(function(){
         const { jsPDF } = window.jspdf;
