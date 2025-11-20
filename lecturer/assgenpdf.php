@@ -64,7 +64,7 @@ if ($university_id) {
 }
 
 /* ============================================================
-   FETCH STUDENTS ENROLLED IN THIS UNIT
+   FETCH STUDENTS IN THIS UNIT
    ============================================================ */
 $studentQuery = $conn->prepare("
     SELECT st.id, st.name, st.reg_no
@@ -79,7 +79,7 @@ $students = $studentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $studentQuery->close();
 
 /* ============================================================
-   FETCH ASSIGNMENTS THAT HAVE SUBMISSIONS (DYNAMIC)
+   FETCH ASSIGNMENTS FOR THE UNIT (ONLY WITH SUBMISSIONS)
    ============================================================ */
 $assignmentsQuery = $conn->prepare("
     SELECT DISTINCT a.id, a.title
@@ -94,24 +94,29 @@ $assignments = $assignmentsQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $assignmentsQuery->close();
 
 /* ============================================================
-   FETCH ALL SUBMISSIONS FOR THESE ASSIGNMENTS
+   FETCH SUBMISSIONS FOR THESE ASSIGNMENTS
    ============================================================ */
 $submissions = [];
+
 if (!empty($assignments)) {
+
     $assignment_ids = array_column($assignments, 'id');
-    $ids_placeholder = implode(',', array_fill(0, count($assignment_ids), '?'));
-    
+    $placeholders = implode(',', array_fill(0, count($assignment_ids), '?'));
     $types = str_repeat('i', count($assignment_ids));
-    $sql = "SELECT student_id, assignment_id, marks, is_graded FROM submissions WHERE assignment_id IN ($ids_placeholder)";
+
+    $sql = "SELECT student_id, assignment_id, marks, is_graded 
+            FROM submissions 
+            WHERE assignment_id IN ($placeholders)";
+
     $stmt = $conn->prepare($sql);
-    
     $stmt->bind_param($types, ...$assignment_ids);
     $stmt->execute();
     $res = $stmt->get_result();
-    
+
     while ($row = $res->fetch_assoc()) {
         $submissions[$row['student_id']][$row['assignment_id']] = $row;
     }
+
     $stmt->close();
 }
 ?>
@@ -119,12 +124,22 @@ if (!empty($assignments)) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title><?php echo htmlspecialchars($unit_name); ?> - Assignments Report</title>
+<title><?= htmlspecialchars($unit_name); ?> - Assignments Report</title>
+
+<!-- DataTables -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+
+<!-- JS Libraries -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+<!-- PDF Libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+<!-- Excel Export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 <style>
 body {
     font-family: Arial, sans-serif;
@@ -138,16 +153,10 @@ body {
     margin-bottom: 20px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
-.header-section h2 {
+.header-section h2, .header-section h3 {
     margin: 5px 0;
-    color: #2c3e50;
 }
-.header-section h3 {
-    margin: 5px 0;
-    color: #34495e;
-    font-weight: normal;
-}
-.btn-pdf {
+.btn {
     background: #3498db;
     color: #fff;
     border: none;
@@ -155,35 +164,43 @@ body {
     cursor: pointer;
     border-radius: 5px;
     font-size: 16px;
+    margin-right: 10px;
     margin-bottom: 20px;
 }
-.btn-pdf:hover {
-    background: #2980b9;
+.btn.excel {
+    background: #27ae60;
 }
+.btn:hover { opacity: 0.8; }
+
 .table-container {
     background: #fff;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+table.dataTable th, table.dataTable td {
+    border: 1px solid #ccc !important;
+    padding: 8px;
+}
+table.dataTable {
+    border-collapse: collapse !important;
 }
 table.dataTable thead th {
     background: #3498db;
     color: white;
-}
-table.dataTable tbody tr:nth-child(even) {
-    background-color: #f2f2f2;
 }
 </style>
 </head>
 <body>
 
 <div class="header-section">
-    <h2><?php echo htmlspecialchars($university_name); ?></h2>
-    <h3>Course: <?php echo htmlspecialchars($course_name); ?> | Unit: <?php echo htmlspecialchars($unit_name); ?> (<?php echo htmlspecialchars($unit_code); ?>)</h3>
-    <h3>Lecturer: <?php echo htmlspecialchars($lecturer_name); ?></h3>
+    <h2><?= htmlspecialchars($university_name); ?></h2>
+    <h3>Course: <?= htmlspecialchars($course_name); ?></h3>
+    <h3>Unit: <?= htmlspecialchars($unit_name); ?> (<?= htmlspecialchars($unit_code); ?>)</h3>
+    <h3>Lecturer: <?= htmlspecialchars($lecturer_name); ?></h3>
 </div>
 
-<button id="generateAssignmentsPDF" class="btn-pdf">Generate Assignments PDF</button>
+<button id="generatePDF" class="btn">Download PDF</button>
+<button id="downloadExcel" class="btn excel">Download Excel</button>
 
 <div class="table-container">
     <table id="assignmentsTable" class="display" style="width:100%">
@@ -192,129 +209,109 @@ table.dataTable tbody tr:nth-child(even) {
                 <th>#</th>
                 <th>Student Name</th>
                 <th>Reg No</th>
-                <?php 
-                // Dynamic assignment columns
-                foreach ($assignments as $index => $assignment): 
-                    echo "<th title='".htmlspecialchars($assignment['title'])."'>A".($index+1)." Grade</th>";
-                endforeach;
-                
-                // If no assignments, show placeholder message
-                if (empty($assignments)):
-                    echo "<th>No Assignments</th>";
-                endif;
-                ?>
+
+                <?php if (!empty($assignments)): ?>
+                    <?php foreach ($assignments as $a): ?>
+                        <th><?= htmlspecialchars($a['title']); ?></th>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <th>No Assignments</th>
+                <?php endif; ?>
             </tr>
         </thead>
+
         <tbody>
-            <?php
-            $counter = 1;
-            foreach ($students as $student):
-                echo "<tr>";
-                echo "<td>{$counter}</td>";
-                echo "<td>".htmlspecialchars($student['name'])."</td>";
-                echo "<td>".htmlspecialchars($student['reg_no'])."</td>";
-                
-                // Dynamic grade columns - always match the header count
-                if (!empty($assignments)):
-                    foreach ($assignments as $assignment):
-                        $ass_id = $assignment['id'];
-                        if (isset($submissions[$student['id']][$ass_id])):
-                            $sub = $submissions[$student['id']][$ass_id];
-                            echo "<td>".($sub['is_graded'] ? number_format($sub['marks'], 1) : "Pending")."</td>";
-                        else:
-                            echo "<td>-</td>";
-                        endif;
-                    endforeach;
-                else:
-                    // If no assignments, add one column to match header
-                    echo "<td>-</td>";
-                endif;
-                
-                echo "</tr>";
-                $counter++;
-            endforeach;
+            <?php 
+            $i = 1;
+            foreach ($students as $st):
             ?>
+            <tr>
+                <td><?= $i++; ?></td>
+                <td><?= htmlspecialchars($st['name']); ?></td>
+                <td><?= htmlspecialchars($st['reg_no']); ?></td>
+
+                <?php if (!empty($assignments)): ?>
+                    <?php foreach ($assignments as $a): 
+                        $aid = $a['id'];
+                    ?>
+                        <td>
+                            <?php
+                            if (isset($submissions[$st['id']][$aid])) {
+                                $s = $submissions[$st['id']][$aid];
+                                echo $s['is_graded'] ? number_format($s['marks'], 1) : "Pending";
+                            } else {
+                                echo "-";
+                            }
+                            ?>
+                        </td>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <td>-</td>
+                <?php endif; ?>
+            </tr>
+            <?php endforeach; ?>
         </tbody>
+
     </table>
 </div>
 
 <script>
 $(document).ready(function(){
-    // Initialize DataTable only if there are students
-    <?php if (!empty($students)): ?>
     $('#assignmentsTable').DataTable({
         pageLength: 25,
-        order: [[1, 'asc']] // Sort by student name
+        order: [[1, 'asc']]
     });
-    <?php endif; ?>
+});
 
-    // Generate PDF
-    $('#generateAssignmentsPDF').click(function(){
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({
-            orientation: 'landscape',
-            unit: 'mm',
-            format: 'a4'
-        });
+/* ==========================================
+   PDF EXPORT
+   ========================================== */
+document.getElementById('generatePDF').addEventListener('click', function () {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
 
-        // Add header information
-        doc.setFontSize(16);
-        doc.text('<?php echo addslashes($university_name); ?>', 14, 15);
-        
-        doc.setFontSize(12);
-        doc.text('Course: <?php echo addslashes($course_name); ?>', 14, 22);
-        doc.text('Unit: <?php echo addslashes($unit_name); ?> (<?php echo addslashes($unit_code); ?>)', 14, 28);
-        doc.text('Lecturer: <?php echo addslashes($lecturer_name); ?>', 14, 34);
-        
-        doc.setFontSize(10);
-        doc.text('Generated: ' + new Date().toLocaleString(), 14, 40);
+    doc.setFontSize(16);
+    doc.text('<?= addslashes($university_name); ?>', 14, 15);
 
-        // Get table data
-        const table = $('#assignmentsTable').DataTable();
-        const headers = [];
-        const rows = [];
+    doc.setFontSize(12);
+    doc.text('Course: <?= addslashes($course_name); ?>', 14, 22);
+    doc.text('Unit: <?= addslashes($unit_name); ?> (<?= addslashes($unit_code); ?>)', 14, 28);
+    doc.text('Lecturer: <?= addslashes($lecturer_name); ?>', 14, 34);
 
-        // Extract headers
-        $('#assignmentsTable thead th').each(function(){
-            headers.push($(this).text());
-        });
+    const table = $('#assignmentsTable').DataTable();
+    const headers = [];
+    const rows = [];
 
-        // Extract rows (use DataTable's data to respect sorting/filtering)
-        table.rows({search: 'applied'}).every(function(){
-            const rowData = [];
-            $(this.node()).find('td').each(function(){
-                rowData.push($(this).text());
-            });
-            rows.push(rowData);
-        });
-
-        // Generate table in PDF
-        doc.autoTable({
-            head: [headers],
-            body: rows,
-            startY: 45,
-            theme: 'grid',
-            headStyles: {
-                fillColor: [52, 152, 219],
-                textColor: 255,
-                fontStyle: 'bold'
-            },
-            styles: {
-                fontSize: 8,
-                cellPadding: 2
-            },
-            columnStyles: {
-                0: { cellWidth: 10 },  // # column
-                1: { cellWidth: 40 },  // Student Name
-                2: { cellWidth: 30 }   // Reg No
-            }
-        });
-
-        // Save the PDF
-        const filename = 'Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/", "_", $unit_name); ?>_' + 
-                        new Date().toISOString().split('T')[0] + '.pdf';
-        doc.save(filename);
+    $('#assignmentsTable thead th').each(function(){
+        headers.push($(this).text());
     });
+
+    table.rows({ search: 'applied' }).every(function(){
+        const rowData = [];
+        $(this.node()).find('td').each(function(){
+            rowData.push($(this).text());
+        });
+        rows.push(rowData);
+    });
+
+    doc.autoTable({
+        head: [headers],
+        body: rows,
+        startY: 45,
+        theme: 'grid',
+        headStyles: { fillColor: [52, 152, 219], textColor: 255 }
+    });
+
+    doc.save("Assignments_Report.pdf");
+});
+
+/* ==========================================
+   EXCEL EXPORT
+   ========================================== */
+document.getElementById('downloadExcel').addEventListener('click', function () {
+    let table = document.getElementById('assignmentsTable');
+    let wb = XLSX.utils.table_to_book(table, {sheet: "Assignments"});
+    XLSX.writeFile(wb, "Assignments_Report.xlsx");
 });
 </script>
 
