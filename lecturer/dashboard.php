@@ -120,7 +120,6 @@ try {
             <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="submissions-content">Submissions</a>
             <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="notes-content">Notes</a>
             <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="meetings-content">Meetings</a>
-        <!-- New Nav Item -->
         <a href="upload_notes.php" class="nav-link font-medium px-3 py-2 rounded-lg">Upload interactive Notes</a>
     </div>
         </div>
