@@ -385,30 +385,43 @@ $(document).ready(function() {
         },'json');
     });
 
-    // --- PDF GENERATION HELPER ---
-    function generatePDF(tableId, columns, filename) {
-        const doc = new jsPDF();
-        const table = $(tableId).DataTable();
-        const rows = [];
+ // --- PDF GENERATION HELPER (UPDATED) ---
+function generatePDF(tableId, filename) {
+    const doc = new jspdf.jsPDF();
+    const table = $(tableId).DataTable();
 
-        table.rows().every(function(){
-            const data = this.data();
-            const row = [];
-            columns.forEach(i=>{
-                const cell = data[i];
-                if(typeof cell === 'string') row.push($('<div>').html(cell).text());
-                else row.push(cell);
-            });
-            rows.push(row);
+    // Extract table headers
+    let headers = [];
+    $(tableId + ' thead th').each(function () {
+        headers.push($(this).text());
+    });
+
+    // Extract rows
+    let rows = [];
+    table.rows({ search: 'applied' }).every(function () {
+        let cleanRow = [];
+        let rowData = this.data();
+
+        rowData.forEach(cell => {
+            if (typeof cell === "string") {
+                let clean = $('<div>').html(cell).text().trim();
+                cleanRow.push(clean);
+            } else {
+                cleanRow.push(cell);
+            }
         });
 
-        doc.autoTable({
-            head: [columns.map(i => $(tableId + ' thead th').eq(i).text())],
-            body: rows
-        });
+        rows.push(cleanRow);
+    });
 
-        doc.save(filename);
-    }
+    doc.autoTable({
+        head: [headers],
+        body: rows,
+        theme: 'grid'
+    });
+
+    doc.save(filename);
+}
 
     // --- PDF BUTTONS ---
     $('#generateAssignmentsPDF').click(function(){
