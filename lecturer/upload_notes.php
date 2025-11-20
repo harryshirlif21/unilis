@@ -398,6 +398,7 @@ function insertInlineImage(event, topicId, subId) {
 
     reader.readAsDataURL(file);
 }
+
 // ---------------------------------------------------------
 // CHOICES (MCQ)
 // ---------------------------------------------------------
@@ -622,10 +623,6 @@ function loadForEditing(topicId) {
 }
 
 // ---------------------------------------------------------
-// SUBMIT NOTES
-// ---------------------------------------------------------
-
-// ---------------------------------------------------------
 // SUBMIT NOTES - IMPROVED VERSION
 // ---------------------------------------------------------
 
@@ -724,106 +721,11 @@ function submitNotes() {
     });
 }
 
-    const formData = new FormData();
-
-    // Append main JSON
-    formData.append("unit_id", selectedUnitId);
-    formData.append("topics", JSON.stringify(topics));
-
-    // Collect images + files for upload
-    topics.forEach(topic => {
-        topic.subtopics.forEach(sub => {
-
-            // Inline images
-            sub.images.forEach(img => {
-                formData.append(
-                    `subtopic_images[${sub.id}][]`,
-                    img.file,
-                    img.file.name
-                );
-            });
-
-            // Files
-            sub.files.forEach(f => {
-                formData.append(
-                    `subtopic_files[${sub.id}][]`,
-                    f.file,
-                    f.file.name
-                );
-            });
-
-        });
-    });
-
-    fetch("saveClassnotes.php", {
-        method: "POST",
-        body: formData
-    })
-        .then(r => r.json())
-        .then(res => {
-            alert(res.message);
-            if (res.success) location.reload();
-        });
-}
-
 // Update notes function (placeholder - implement as needed)
 function updateNotes() {
     alert("Update functionality to be implemented");
 }
-function insertInlineImage(event, topicId, subId) {
-    const file = event.target.files[0];
-    if (!file) return;
 
-    const reader = new FileReader();
-
-    reader.onload = function (e) {
-        const t = topics.find(x => x.id === topicId);
-        const s = t.subtopics.find(x => x.id === subId);
-
-        const placeholder = "img_" + generateId();
-
-        // Save image reference (will upload later server-side)
-        s.images.push({
-            id: generateId(),
-            file: file,
-            placeholder: placeholder
-        });
-
-        // Use data-placeholder attribute instead of data-placeholder
-        const imgHTML = `<img src="${e.target.result}" 
-                           class="inline-img" 
-                           data-placeholder="${placeholder}">`;
-
-        const div = document.getElementById(`content-${subId}`);
-
-        let range = cursorPositions[subId];
-        if (!range) {
-            range = document.createRange();
-            range.selectNodeContents(div);
-            range.collapse(false);
-        }
-
-        const temp = document.createElement("div");
-        temp.innerHTML = imgHTML;
-        const imgNode = temp.firstChild;
-
-        range.insertNode(imgNode);
-
-        // Move cursor after the image
-        range.setStartAfter(imgNode);
-        range.setEndAfter(imgNode);
-
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-
-        // Update HTML content
-        s.content = div.innerHTML;
-        renderPreview();
-    };
-
-    reader.readAsDataURL(file);
-}
 // ---------------------------------------------------------
 </script>
 
