@@ -145,14 +145,15 @@ try {
             $processed_subtopics[] = $processed_subtopic;
         }
         
-        // Insert into database
+        // FIXED: Use the correct column names for your database
+        // Your table has: unit_id, lecturer_id, title, subtopics_json, uploaded_at
         $stmt = $conn->prepare("
-            INSERT INTO classnotes (unit_id, title, subtopics_json, uploaded_by, uploaded_at) 
+            INSERT INTO classnotes (unit_id, lecturer_id, title, subtopics_json, uploaded_at) 
             VALUES (?, ?, ?, ?, NOW())
         ");
         
         $subtopics_json = json_encode($processed_subtopics);
-        $stmt->bind_param("issi", $unit_id, $topic_title, $subtopics_json, $lecturer_id);
+        $stmt->bind_param("iiss", $unit_id, $lecturer_id, $topic_title, $subtopics_json);
         
         if (!$stmt->execute()) {
             throw new Exception('Failed to save topic: ' . $stmt->error);
