@@ -53,13 +53,13 @@ if ($university_id) {
     if ($uniInfo) $university_name = $uniInfo['name'];
 }
 
-/* FETCH STUDENTS ENROLLED IN THIS UNIT */
+/* FETCH STUDENTS ENROLLED IN THIS UNIT ORDERED BY REG NO */
 $studentQuery = $conn->prepare("
     SELECT st.id, st.name, st.reg_no
     FROM students st
     JOIN student_units su ON su.student_id = st.id
     WHERE su.unit_id = ?
-    ORDER BY st.name ASC
+    ORDER BY st.reg_no ASC
 ");
 $studentQuery->bind_param("i", $unit_id);
 $studentQuery->execute();
@@ -167,7 +167,7 @@ table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
 
 <script>
 $(document).ready(function(){
-    $('#assignmentsTable').DataTable({ pageLength: 25, order: [[1,'asc']] });
+    $('#assignmentsTable').DataTable({ pageLength: 25, order: [[2,'asc']] }); // order by Reg No column
 
     $('#generateAssignmentsPDF').click(function(){
         const { jsPDF } = window.jspdf;
