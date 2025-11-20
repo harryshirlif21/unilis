@@ -2,20 +2,23 @@
 // include your db connection
 require_once __DIR__ . "/config/db.php";
 
-// SQL to alter the table
-$sql = "
-ALTER TABLE notifications
-ADD COLUMN note_id INT NULL,
-ADD COLUMN assignment_id INT NULL,
-ADD COLUMN interactive_assignment_id INT NULL,
-ADD COLUMN meeting_id INT NULL
-";
+// Fix for classnotes table - add missing subtopics_json column
+$check_sql = "SHOW COLUMNS FROM classnotes LIKE 'subtopics_json'";
+$result = $conn->query($check_sql);
 
-// execute query
-if ($conn->query($sql) === TRUE) {
-    echo "✅ Notifications table updated successfully!";
+if ($result->num_rows == 0) {
+    // Column doesn't exist, so add it
+    $alter_sql = "ALTER TABLE classnotes ADD COLUMN subtopics_json LONGTEXT NOT NULL AFTER title";
+    
+    if ($conn->query($alter_sql) === TRUE) {
+        echo "✅ SUCCESS: Added 'subtopics_json' column to classnotes table.<br>";
+        echo "The notes save functionality should now work properly!";
+    } else {
+        echo "❌ ERROR: Failed to add subtopics_json column: " . $conn->error;
+    }
 } else {
-    echo "❌ Error updating table: " . $conn->error;
+    echo "✅ 'subtopics_json' column already exists in classnotes table.<br>";
+    echo "The notes save functionality should work properly!";
 }
 
 // close connection
