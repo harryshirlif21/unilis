@@ -106,6 +106,7 @@ if (!empty($assignments)) {
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.2/dist/xlsx.full.min.js"></script>
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
 .header-section { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -114,7 +115,7 @@ body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
 .table-container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 table.dataTable thead th { background: #3498db; color: white; }
 table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
-.btn-pdf { background: #3498db; color: #fff; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; font-size: 16px; margin-bottom: 20px; }
+.btn-pdf { background: #3498db; color: #fff; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; font-size: 16px; margin-bottom: 20px; margin-right:10px; }
 .btn-pdf:hover { background: #2980b9; }
 </style>
 </head>
@@ -128,6 +129,7 @@ table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
 
 <div class="table-container">
     <button id="generateAssignmentsPDF" class="btn-pdf">Generate Assignments PDF</button>
+    <button id="generateExcel" class="btn-pdf" style="background:#27ae60;">Export to Excel</button>
 
     <table id="assignmentsTable" class="display" style="width:100%">
         <thead>
@@ -167,6 +169,7 @@ table.dataTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
 $(document).ready(function(){
     $('#assignmentsTable').DataTable({ pageLength: 25, order: [[2,'asc']] });
 
+    /* PDF Export */
     $('#generateAssignmentsPDF').click(function(){
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
@@ -200,6 +203,25 @@ $(document).ready(function(){
         });
 
         doc.save('Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/","_",$unit_name); ?>_' + new Date().toISOString().split('T')[0] + '.pdf');
+    });
+
+    /* Excel Export */
+    $('#generateExcel').click(function(){
+        const table = document.getElementById('assignmentsTable');
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.table_to_sheet(table);
+
+        /* Set column widths for better readability */
+        const colWidths = [{wpx:30},{wpx:120},{wpx:80}];
+        <?php foreach ($assignments as $assignment): ?>
+        colWidths.push({wpx:80});
+        <?php endforeach; ?>
+        ws['!cols'] = colWidths;
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Assignments');
+
+        const filename = 'Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/","_",$unit_name); ?>_' + new Date().toISOString().split('T')[0] + '.xlsx';
+        XLSX.writeFile(wb, filename);
     });
 });
 </script>
