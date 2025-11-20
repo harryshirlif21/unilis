@@ -30,6 +30,8 @@ try {
     $lecturer_id = $_SESSION['user_id'];
     $unit_id = $_POST['unit_id'] ?? null;
     $topics_json = $_POST['topics'] ?? '[]';
+    $action = $_POST['action'] ?? 'create'; // 'create' or 'update'
+    $topic_id = $_POST['topic_id'] ?? null;
     
     if (!$unit_id) {
         throw new Exception('Unit ID is required');
@@ -145,26 +147,57 @@ try {
             $processed_subtopics[] = $processed_subtopic;
         }
         
-        // FIXED: Use the correct column names for your database
-        // Your table has: unit_id, lecturer_id, title, subtopics_json, uploaded_at
-        $stmt = $conn->prepare("
-            INSERT INTO classnotes (unit_id, lecturer_id, title, subtopics_json, uploaded_at) 
-            VALUES (?, ?, ?, ?, NOW())
-        ");
-        
         $subtopics_json = json_encode($processed_subtopics);
-        $stmt->bind_param("iiss", $unit_id, $lecturer_id, $topic_title, $subtopics_json);
         
-        if (!$stmt->execute()) {
-            throw new Exception('Failed to save topic: ' . $stmt->error);
+        if ($action === 'update' && $topic_id) {
+            // UPDATE existing topic
+            // Verify the topic belongs to this lecturer
+            $check_stmt = $conn->prepare("SELECT id FROM classnotes WHERE id = ? AND lecturer_id = ?");
+            $check_stmt->bind_param("ii", $topic_id, $lecturer_id);
+            $check_stmt->execute();
+            $check_result = $check_stmt->get_result();
+            
+            if ($check_result->num_rows === 0) {
+                throw new Exception('Topic not found or you do not have permission to edit it');
+            }
+            $check_stmt->close();
+            
+            // Update the topic
+            $stmt = $conn->prepare("
+                UPDATE classnotes 
+                SET title = ?, subtopics_json = ?, uploaded_at = NOW()
+                WHERE id = ? AND lecturer_id = ?
+            ");
+            
+            $stmt->bind_param("ssii", $topic_title, $subtopics_json, $topic_id, $lecturer_id);
+            
+            if (!$stmt->execute()) {
+                throw new Exception('Failed to update topic: ' . $stmt->error);
+            }
+            
+            $message = 'Notes updated successfully!';
+            $stmt->close();
+        } else {
+            // CREATE new topic
+            $stmt = $conn->prepare("
+                INSERT INTO classnotes (unit_id, lecturer_id, title, subtopics_json, uploaded_at) 
+                VALUES (?, ?, ?, ?, NOW())
+            ");
+            
+            $stmt->bind_param("iiss", $unit_id, $lecturer_id, $topic_title, $subtopics_json);
+            
+            if (!$stmt->execute()) {
+                throw new Exception('Failed to save topic: ' . $stmt->error);
+            }
+            
+            $message = 'Notes saved successfully!';
+            $stmt->close();
         }
-        
-        $stmt->close();
     }
     
     echo json_encode([
         'success' => true, 
-        'message' => 'Notes saved successfully!'
+        'message' => $message
     ]);
     
 } catch (Exception $e) {

@@ -115,8 +115,14 @@ img.inline-img { max-width:200px; display:inline-block; margin:4px; border-radiu
         <div id="topics"></div>
         <button onclick="addTopic()">+ Add Topic</button>
         <hr>
-        <button onclick="submitNotes()">Save Notes</button>
-        <button onclick="updateNotes()">Update Notes</button>
+       <hr>
+<button onclick="submitNotes()" style="background: #10b981; color: white;">💾 Save as New Notes</button>
+<button onclick="updateNotes()" style="background: #3b82f6; color: white;">✏️ Update Existing Notes</button>
+<div style="margin-top: 10px; font-size: 12px; color: #666;">
+    <strong>Instructions:</strong> 
+    • Use "Save as New" to create new notes<br>
+    • Use "Edit" button on existing topics, then "Update Existing" to save changes
+</div>
     </div>
 
     <div class="preview-section">
@@ -726,7 +732,191 @@ function submitNotes() {
 function updateNotes() {
     alert("Update functionality to be implemented");
 }
+// ---------------------------------------------------------
+// UPDATE NOTES FUNCTIONALITY
+// ---------------------------------------------------------
 
+function updateNotes() {
+    if (!selectedUnitId) {
+        alert("Select a unit first.");
+        return;
+    }
+
+    if (topics.length === 0) {
+        alert("Please load a topic to edit first.");
+        return;
+    }
+
+    // Check if we're editing an existing topic
+    const isEditing = topics[0] && existingTopics.find(t => t.id === topics[0].id);
+    
+    if (!isEditing) {
+        alert("Please load an existing topic to edit using the 'Edit' button.");
+        return;
+    }
+
+    // Validate that all topics have titles
+    for (let topic of topics) {
+        if (!topic.title.trim()) {
+            alert("Please provide a title for all topics.");
+            return;
+        }
+        
+        // Validate subtopics
+        for (let subtopic of topic.subtopics) {
+            if (!subtopic.title.trim()) {
+                alert("Please provide a title for all subtopics.");
+                return;
+            }
+        }
+    }
+
+    const formData = new FormData();
+
+    // Append main JSON with update flag
+    formData.append("unit_id", selectedUnitId);
+    formData.append("topics", JSON.stringify(topics));
+    formData.append("action", "update");
+    formData.append("topic_id", topics[0].id); // The topic being edited
+
+    // Collect images + files for upload
+    topics.forEach(topic => {
+        topic.subtopics.forEach(sub => {
+            // Inline images
+            sub.images.forEach(img => {
+                formData.append(
+                    `subtopic_images[${sub.id}][]`,
+                    img.file,
+                    img.file.name
+                );
+            });
+
+            // Files
+            sub.files.forEach(f => {
+                formData.append(
+                    `subtopic_files[${sub.id}][]`,
+                    f.file,
+                    f.file.name
+                );
+            });
+        });
+    });
+
+    // Show loading state
+    const updateBtn = document.querySelector('button[onclick="updateNotes()"]');
+    const originalText = updateBtn.textContent;
+    updateBtn.textContent = 'Updating...';
+    updateBtn.disabled = true;
+
+    fetch("saveClassnotes.php", {
+        method: "POST",
+        body: formData
+    })
+    .then(r => {
+        if (!r.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return r.json();
+    })
+    .then(res => {
+        alert(res.message);
+        if (res.success) {
+            // Clear the form and reload existing topics
+            topics = [];
+            renderForm();
+            loadUnitTopics();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating notes: ' + error.message);
+    })
+    .finally(() => {
+        // Restore button state
+        updateBtn.textContent = originalText;
+        updateBtn.disabled = false;
+    });
+}
+
+// Modify the loadForEditing function to show which topic is being edited
+function loadForEditing(topicId) {
+    const t = existingTopics.find(x => x.id === topicId);
+    if (!t) return;
+
+    topics = [{
+        id: t.id,
+        title: t.title,
+        subtopics: t.subtopics
+    }];
+
+    renderForm();
+    
+    // Scroll to the form section and show a message
+    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
+    alert(`Now editing: "${t.title}"\n\nMake your changes and click "Update Notes" to save.`);
+}
+
+// Add a function to clear current editing
+function clearEditing() {
+    topics = [];
+    renderForm();
+    renderPreview();
+}
+
+// Update the renderExistingTopics function to include a clear button
+function renderExistingTopics() {
+    const box = document.getElementById("topicsList");
+    box.innerHTML = "";
+
+    // Add clear editing button if we're currently editing
+    if (topics.length > 0) {
+        const clearDiv = document.createElement("div");
+        clearDiv.style.padding = "10px";
+        clearDiv.style.margin = "10px 0";
+        clearDiv.style.border = "2px solid #f59e0b";
+        clearDiv.style.backgroundColor = "#fffbeb";
+        
+        const editingText = document.createElement("strong");
+        editingText.textContent = `Editing: ${topics[0].title}`;
+        editingText.style.color = "#d97706";
+        
+        const clearBtn = document.createElement("button");
+        clearBtn.textContent = "Cancel Editing";
+        clearBtn.style.background = "#ef4444";
+        clearBtn.style.color = "white";
+        clearBtn.style.border = "none";
+        clearBtn.style.padding = "4px 8px";
+        clearBtn.style.borderRadius = "4px";
+        clearBtn.style.marginLeft = "10px";
+        clearBtn.style.cursor = "pointer";
+        clearBtn.onclick = clearEditing;
+        
+        clearDiv.appendChild(editingText);
+        clearDiv.appendChild(clearBtn);
+        box.appendChild(clearDiv);
+    }
+
+    existingTopics.forEach(t => {
+        const div = document.createElement("div");
+        div.style.padding = "10px";
+        div.style.margin = "5px 0";
+        div.style.border = "1px solid #ddd";
+        div.style.backgroundColor = topics[0] && topics[0].id === t.id ? "#f0f9ff" : "white";
+
+        const titleSpan = document.createElement("strong");
+        titleSpan.textContent = t.title;
+        
+        const editBtn = document.createElement("button");
+        editBtn.className = "edit-btn";
+        editBtn.textContent = topics[0] && topics[0].id === t.id ? "Currently Editing" : "Edit";
+        editBtn.disabled = topics[0] && topics[0].id === t.id;
+        editBtn.onclick = () => loadForEditing(t.id);
+
+        div.appendChild(titleSpan);
+        div.appendChild(editBtn);
+        box.appendChild(div);
+    });
+}
 // ---------------------------------------------------------
 </script>
 
