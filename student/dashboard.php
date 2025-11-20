@@ -713,6 +713,11 @@ document.querySelectorAll('.modal').forEach(modal => {
         <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">
             Notes for Year <?= htmlspecialchars($year_of_study) ?>
         </h2>
+<a href="viewnotes.php"
+   class="bg-orange-500 hover:bg-green-600 text-white font-semibold px-4 py-2 
+          rounded-lg mt-auto shadow-md transition-colors duration-200 inline-block">
+    go to notes page
+</a>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <?php
