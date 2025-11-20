@@ -120,6 +120,9 @@ try {
             <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="submissions-content">Submissions</a>
             <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="notes-content">Notes</a>
             <a href="#" class="nav-link font-medium px-3 py-2 rounded-lg" data-target="meetings-content">Meetings</a>
+        <!-- New Nav Item -->
+        <a href="upload_notes.php" class="nav-link font-medium px-3 py-2 rounded-lg">Upload interactive Notes</a>
+    </div>
         </div>
         <button id="menu-toggle" class="p-2 rounded-full text-92400e hover:bg-fef3c7 focus:outline-none focus:ring-2 focus:ring-f59e0b transition-all">
             <svg class="hamburger-icon-menu h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
