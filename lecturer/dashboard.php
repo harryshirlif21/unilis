@@ -145,7 +145,7 @@ try {
                 <a href="AIGrading.php"><i class="fas fa-robot"></i> AI Grading</a>
             </div>
         </div>
-       <a href="upload_notes.php" class="nav-link font-medium px-3 py-2 rounded-lg">Upload interactive Notes</a>
+       <a  class="menu-item" href="upload_notes.php">Upload interactive Notes</a><i class="fas fa-inbox"></i>
         <a class="menu-item" href="assignment_submissions.php">
     <i class="fas fa-inbox"></i> View Submissions
 </a>
