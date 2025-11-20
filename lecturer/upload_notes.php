@@ -166,6 +166,24 @@ function loadUnitTopics() {
             renderExistingTopics();
         });
 }
+
+// Proper HTML escaping function (replaces the problematic escape() function)
+function htmlEscape(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// Escape for HTML attribute values (for input values)
+function attrEscape(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/"/g, '&quot;');
+}
+
 // ---------------------------------------------------------
 // TOPIC & SUBTOPIC CREATION
 // ---------------------------------------------------------
@@ -220,7 +238,7 @@ function renderForm() {
             <div style="display:flex; justify-content:space-between;">
                 <div>
                     <label class='topic-pill label-pill'>Topic</label>
-                    <input type='text' value='${escape(topic.title)}'
+                    <input type='text' value='${attrEscape(topic.title)}'
                         oninput="updateTopicTitle(${topic.id}, this.value)">
                 </div>
                 <button class="remove-btn" onclick="removeTopic(${topic.id})">Delete</button>
@@ -245,7 +263,7 @@ function renderForm() {
                 <div style="display:flex; justify-content:space-between;">
                     <div style="flex:1;">
                         <label class='subtopic-pill label-pill'>Subtopic</label>
-                        <input type="text" value="${escape(sub.title)}"
+                        <input type="text" value="${attrEscape(sub.title)}"
                             oninput="updateSubtopicTitle(${topic.id}, ${sub.id}, this.value)">
                     </div>
 
@@ -436,7 +454,7 @@ function renderChoices(topicId, subId) {
                    ${s.correctChoice === choice.id ? "checked" : ""}>
 
             <input type="text" 
-                   value="${escape(choice.text)}"
+                   value="${attrEscape(choice.text)}"
                    oninput="updateChoiceText(${topicId}, ${subId}, ${choice.id}, this.value)">
 
             <button class="remove-btn" 
@@ -481,7 +499,7 @@ function renderSubtopicFiles(topicId, subId) {
     s.files.forEach(f => {
         const div = document.createElement("div");
         div.innerHTML = `
-            <span class="file-pill label-pill">${f.label}</span>
+            <span class="file-pill label-pill">${htmlEscape(f.label)}</span>
             <button class="remove-btn" onclick="removeSubtopicFile(${topicId}, ${subId}, ${f.id})">X</button>
         `;
         box.appendChild(div);
@@ -509,21 +527,29 @@ function renderPreview() {
 
     topics.forEach(topic => {
         const div = document.createElement("div");
-        div.innerHTML = `<h2>${escape(topic.title)}</h2>`;
+        
+        // Use textContent for text elements to avoid HTML escaping issues
+        const topicTitle = document.createElement("h2");
+        topicTitle.textContent = topic.title;
+        div.appendChild(topicTitle);
 
         topic.subtopics.forEach(sub => {
             const sdiv = document.createElement("div");
-            sdiv.innerHTML = `
-                <h3>${escape(sub.title)}</h3>
-                <div>${sub.content}</div>
-            `;
+            
+            const subTitle = document.createElement("h3");
+            subTitle.textContent = sub.title;
+            sdiv.appendChild(subTitle);
+
+            const contentDiv = document.createElement("div");
+            contentDiv.innerHTML = sub.content; // This is already HTML
+            sdiv.appendChild(contentDiv);
 
             // Choices
             if (sub.choices.length) {
                 const ul = document.createElement("ul");
                 sub.choices.forEach(c => {
                     const li = document.createElement("li");
-                    li.innerHTML = c.text + (sub.correctChoice === c.id ? " (✔)" : "");
+                    li.textContent = c.text + (sub.correctChoice === c.id ? " (✔)" : "");
                     ul.appendChild(li);
                 });
                 sdiv.appendChild(ul);
@@ -532,9 +558,16 @@ function renderPreview() {
             // Files
             if (sub.files.length) {
                 const fdiv = document.createElement("div");
-                fdiv.innerHTML = "<strong>Files:</strong><br>";
+                const strong = document.createElement("strong");
+                strong.textContent = "Files:";
+                fdiv.appendChild(strong);
+                fdiv.appendChild(document.createElement("br"));
+                
                 sub.files.forEach(f => {
-                    fdiv.innerHTML += `<span class="file-pill label-pill">${f.label}</span>`;
+                    const span = document.createElement("span");
+                    span.className = "file-pill label-pill";
+                    span.textContent = f.label;
+                    fdiv.appendChild(span);
                 });
                 sdiv.appendChild(fdiv);
             }
@@ -560,11 +593,16 @@ function renderExistingTopics() {
         div.style.margin = "5px 0";
         div.style.border = "1px solid #ddd";
 
-        div.innerHTML = `
-            <strong>${t.title}</strong>
-            <button class="edit-btn" onclick="loadForEditing(${t.id})">Edit</button>
-        `;
+        const titleSpan = document.createElement("strong");
+        titleSpan.textContent = t.title;
+        
+        const editBtn = document.createElement("button");
+        editBtn.className = "edit-btn";
+        editBtn.textContent = "Edit";
+        editBtn.onclick = () => loadForEditing(t.id);
 
+        div.appendChild(titleSpan);
+        div.appendChild(editBtn);
         box.appendChild(div);
     });
 }
@@ -635,9 +673,13 @@ function submitNotes() {
         });
 }
 
+// Update notes function (placeholder - implement as needed)
+function updateNotes() {
+    alert("Update functionality to be implemented");
+}
+
 // ---------------------------------------------------------
 </script>
 
 </body>
 </html>
-
