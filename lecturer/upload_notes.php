@@ -625,11 +625,104 @@ function loadForEditing(topicId) {
 // SUBMIT NOTES
 // ---------------------------------------------------------
 
+// ---------------------------------------------------------
+// SUBMIT NOTES - IMPROVED VERSION
+// ---------------------------------------------------------
+
 function submitNotes() {
     if (!selectedUnitId) {
         alert("Select a unit first.");
         return;
     }
+
+    if (topics.length === 0) {
+        alert("Please add at least one topic before saving.");
+        return;
+    }
+
+    // Validate that all topics have titles
+    for (let topic of topics) {
+        if (!topic.title.trim()) {
+            alert("Please provide a title for all topics.");
+            return;
+        }
+        
+        // Validate subtopics
+        for (let subtopic of topic.subtopics) {
+            if (!subtopic.title.trim()) {
+                alert("Please provide a title for all subtopics.");
+                return;
+            }
+        }
+    }
+
+    const formData = new FormData();
+
+    // Append main JSON
+    formData.append("unit_id", selectedUnitId);
+    formData.append("topics", JSON.stringify(topics));
+
+    // Collect images + files for upload
+    let hasFiles = false;
+    topics.forEach(topic => {
+        topic.subtopics.forEach(sub => {
+            // Inline images
+            sub.images.forEach(img => {
+                formData.append(
+                    `subtopic_images[${sub.id}][]`,
+                    img.file,
+                    img.file.name
+                );
+                hasFiles = true;
+            });
+
+            // Files
+            sub.files.forEach(f => {
+                formData.append(
+                    `subtopic_files[${sub.id}][]`,
+                    f.file,
+                    f.file.name
+                );
+                hasFiles = true;
+            });
+        });
+    });
+
+    // Show loading state
+    const saveBtn = document.querySelector('button[onclick="submitNotes()"]');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = 'Saving...';
+    saveBtn.disabled = true;
+
+    fetch("saveClassnotes.php", {
+        method: "POST",
+        body: formData
+    })
+    .then(r => {
+        if (!r.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return r.json();
+    })
+    .then(res => {
+        alert(res.message);
+        if (res.success) {
+            // Clear the form and reload existing topics
+            topics = [];
+            renderForm();
+            loadUnitTopics();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error saving notes: ' + error.message);
+    })
+    .finally(() => {
+        // Restore button state
+        saveBtn.textContent = originalText;
+        saveBtn.disabled = false;
+    });
+}
 
     const formData = new FormData();
 
@@ -677,7 +770,60 @@ function submitNotes() {
 function updateNotes() {
     alert("Update functionality to be implemented");
 }
+function insertInlineImage(event, topicId, subId) {
+    const file = event.target.files[0];
+    if (!file) return;
 
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+        const t = topics.find(x => x.id === topicId);
+        const s = t.subtopics.find(x => x.id === subId);
+
+        const placeholder = "img_" + generateId();
+
+        // Save image reference (will upload later server-side)
+        s.images.push({
+            id: generateId(),
+            file: file,
+            placeholder: placeholder
+        });
+
+        // Use data-placeholder attribute instead of data-placeholder
+        const imgHTML = `<img src="${e.target.result}" 
+                           class="inline-img" 
+                           data-placeholder="${placeholder}">`;
+
+        const div = document.getElementById(`content-${subId}`);
+
+        let range = cursorPositions[subId];
+        if (!range) {
+            range = document.createRange();
+            range.selectNodeContents(div);
+            range.collapse(false);
+        }
+
+        const temp = document.createElement("div");
+        temp.innerHTML = imgHTML;
+        const imgNode = temp.firstChild;
+
+        range.insertNode(imgNode);
+
+        // Move cursor after the image
+        range.setStartAfter(imgNode);
+        range.setEndAfter(imgNode);
+
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        // Update HTML content
+        s.content = div.innerHTML;
+        renderPreview();
+    };
+
+    reader.readAsDataURL(file);
+}
 // ---------------------------------------------------------
 </script>
 
