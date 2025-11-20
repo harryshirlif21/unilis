@@ -28,9 +28,9 @@ $unit_name = $unitInfo['name'];
 $unit_code = $unitInfo['code'];
 $course_id = $unitInfo['course_id'];
 
-/* FETCH COURSE & UNIVERSITY INFO */
+/* FETCH COURSE AND UNIVERSITY INFO */
 $courseQuery = $conn->prepare("
-    SELECT c.name AS course_name, d.university_id 
+    SELECT c.name AS course_name, d.university_id
     FROM courses c
     LEFT JOIN departments d ON c.department_id = d.id
     WHERE c.id = ?
@@ -82,7 +82,7 @@ $submissions = [];
 if (!empty($assignments)) {
     $assignment_ids = array_column($assignments, 'id');
     $ids_placeholder = implode(',', array_fill(0, count($assignment_ids), '?'));
-    
+
     $types = str_repeat('i', count($assignment_ids));
     $sql = "SELECT student_id, assignment_id, marks, is_graded 
             FROM submissions 
@@ -92,7 +92,7 @@ if (!empty($assignments)) {
     $stmt->bind_param($types, ...$assignment_ids);
     $stmt->execute();
     $res = $stmt->get_result();
-    
+
     while ($row = $res->fetch_assoc()) {
         $submissions[$row['student_id']][$row['assignment_id']] = $row;
     }
@@ -103,7 +103,7 @@ if (!empty($assignments)) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title><?php echo htmlspecialchars($unit_name); ?> - Assignments Report</title>
+<title><?= htmlspecialchars($unit_name); ?> - Assignments Report</title>
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -117,23 +117,23 @@ if (!empty($assignments)) {
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
 .header-section { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-.header-section h2, .header-section h3 { margin: 5px 0; color: #2c3e50; }
 .table-container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-.btn-pdf { background: #3498db; color: #fff; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; font-size: 16px; margin-bottom: 20px; margin-right:10px; }
-.btn-pdf:hover { background: #2980b9; }
+.btn-main { background: #3498db; color: #fff; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; font-size: 16px; }
+.btn-main:hover { background: #2980b9; }
+.btn-green { background: #27ae60 !important; }
 </style>
 </head>
 <body>
 
 <div class="header-section">
-    <h2><?php echo htmlspecialchars($university_name); ?></h2>
-    <h3>Course: <?php echo htmlspecialchars($course_name); ?> | Unit: <?php echo htmlspecialchars($unit_name); ?> (<?php echo htmlspecialchars($unit_code); ?>)</h3>
-    <h3>Lecturer: <?php echo htmlspecialchars($lecturer_name); ?></h3>
+    <h2><?= htmlspecialchars($university_name); ?></h2>
+    <h3>Course: <?= htmlspecialchars($course_name); ?> | Unit: <?= htmlspecialchars($unit_name); ?> (<?= htmlspecialchars($unit_code); ?>)</h3>
+    <h3>Lecturer: <?= htmlspecialchars($lecturer_name); ?></h3>
 </div>
 
 <div class="table-container">
-    <button id="generateAssignmentsPDF" class="btn-pdf">Generate Assignments PDF</button>
-    <button id="generateExcel" class="btn-pdf" style="background:#27ae60;">Export to Excel</button>
+    <button id="generateAssignmentsPDF" class="btn-main">Generate Assignments PDF</button>
+    <button id="generateExcel" class="btn-main btn-green">Export to Excel</button>
 
     <table id="assignmentsTable" class="display" style="width:100%">
         <thead>
@@ -147,23 +147,24 @@ body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
             </tr>
         </thead>
         <tbody>
-            <?php $counter = 1; ?>
-            <?php foreach ($students as $student): ?>
-                <tr>
-                    <td><?= $counter ?></td>
-                    <td><?= htmlspecialchars($student['name']) ?></td>
-                    <td><?= htmlspecialchars($student['reg_no']) ?></td>
-                    <?php foreach ($assignments as $assignment):
-                        $ass_id = $assignment['id'];
-                        if (isset($submissions[$student['id']][$ass_id])):
-                            $sub = $submissions[$student['id']][$ass_id];
-                            echo "<td>" . ($sub['is_graded'] ? number_format($sub['marks'],1) : "Pending") . "</td>";
-                        else:
-                            echo "<td>-</td>";
-                        endif;
-                    endforeach; ?>
-                </tr>
-                <?php $counter++; ?>
+            <?php $i=1; foreach ($students as $s): ?>
+            <tr>
+                <td><?= $i++; ?></td>
+                <td><?= htmlspecialchars($s['name']); ?></td>
+                <td><?= htmlspecialchars($s['reg_no']); ?></td>
+
+                <?php foreach ($assignments as $a):
+                    $aid = $a['id']; ?>
+                    <td>
+                    <?php
+                        if (isset($submissions[$s['id']][$aid])) {
+                            $sub = $submissions[$s['id']][$aid];
+                            echo $sub['is_graded'] ? number_format($sub['marks'],1) : "Pending";
+                        } else echo "-";
+                    ?>
+                    </td>
+                <?php endforeach; ?>
+            </tr>
             <?php endforeach; ?>
         </tbody>
     </table>
@@ -172,81 +173,105 @@ body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
 <script>
 $(document).ready(function(){
 
-    // Initialize DataTables
     var dt = $('#assignmentsTable').DataTable({
         pageLength: 25,
-        order: [[2,'asc']]
+        order: [[2, 'asc']]
     });
 
-    /* Excel Export */
-    $('#generateExcel').click(function(){
+    /* -------------------------
+       WORKING EXCEL EXPORT
+    -------------------------*/
+    $('#generateExcel').click(function () {
 
         const wb = XLSX.utils.book_new();
 
-        var headers = [];
-        $('#assignmentsTable thead th').each(function(){
-            headers.push($(this).text());
+        let headers = [];
+        $('#assignmentsTable thead th').each(function () {
+            headers.push($(this).text().trim());
         });
 
-        var data = [];
-        dt.rows({ search: 'applied' }).every(function(){
-            data.push(this.data());
+        let data = [];
+        dt.rows({ search: 'applied' }).nodes().each(function (row) {
+            let rowData = [];
+            $(row).find("td").each(function () {
+                rowData.push($(this).text().trim());
+            });
+            data.push(rowData);
         });
 
         const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
 
-        const colWidths = [{ wpx: 30 }, { wpx: 120 }, { wpx: 80 }];
+        const colWidths = [
+            { wpx: 40 },
+            { wpx: 140 },
+            { wpx: 100 }
+        ];
+
         <?php foreach ($assignments as $assignment): ?>
-            colWidths.push({ wpx: 80 });
+            colWidths.push({ wpx: 100 });
         <?php endforeach; ?>
-        ws['!cols'] = colWidths;
 
-        XLSX.utils.book_append_sheet(wb, ws, 'Assignments');
+        ws["!cols"] = colWidths;
 
-        const filename = 'Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/", "_", $unit_name); ?>_' +
-            new Date().toISOString().split('T')[0] + '.xlsx';
+        XLSX.utils.book_append_sheet(wb, ws, "Assignments");
+
+        const filename =
+            "Assignments_<?= preg_replace('/[^a-zA-Z0-9]/','_',$unit_name); ?>_" +
+            new Date().toISOString().split("T")[0] +
+            ".xlsx";
 
         XLSX.writeFile(wb, filename);
     });
 
-    /* PDF Export */
-    $('#generateAssignmentsPDF').click(function(){
+
+    /* -------------------------
+       WORKING PDF EXPORT
+    -------------------------*/
+    $('#generateAssignmentsPDF').click(function () {
+
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+        const doc = new jsPDF({ orientation: "landscape" });
 
         doc.setFontSize(16);
-        doc.text('<?php echo addslashes($university_name); ?>', 14, 15);
+        doc.text("<?= addslashes($university_name); ?>", 14, 15);
 
         doc.setFontSize(12);
-        doc.text('Course: <?php echo addslashes($course_name); ?>', 14, 22);
-        doc.text('Unit: <?php echo addslashes($unit_name); ?> (<?php echo addslashes($unit_code); ?>)', 14, 28);
-        doc.text('Lecturer: <?php echo addslashes($lecturer_name); ?>', 14, 34);
+        doc.text("Course: <?= addslashes($course_name); ?>", 14, 22);
+        doc.text("Unit: <?= addslashes($unit_name); ?> (<?= addslashes($unit_code); ?>)", 14, 28);
+        doc.text("Lecturer: <?= addslashes($lecturer_name); ?>", 14, 34);
 
         doc.setFontSize(10);
-        doc.text('Generated: ' + new Date().toLocaleString(), 14, 40);
+        doc.text("Generated: " + new Date().toLocaleString(), 14, 40);
 
-        const headers = [];
-        const rows = [];
+        let headers = [];
+        let rows = [];
 
-        $('#assignmentsTable thead th').each(function(){ headers.push($(this).text()); });
-        $('#assignmentsTable tbody tr').each(function(){
-            const row = [];
-            $(this).find('td').each(function(){ row.push($(this).text()); });
-            rows.push(row);
+        $("#assignmentsTable thead th").each(function () {
+            headers.push($(this).text().trim());
+        });
+
+        dt.rows({ search: "applied" }).nodes().each(function (row) {
+            let rowData = [];
+            $(row).find("td").each(function () {
+                rowData.push($(this).text().trim());
+            });
+            rows.push(rowData);
         });
 
         doc.autoTable({
             head: [headers],
             body: rows,
             startY: 45,
-            theme: 'grid',
-            headStyles: { fillColor:[52,152,219], textColor:255, fontStyle:'bold' },
-            styles: { fontSize:8, cellPadding:2 },
-            columnStyles: { 0:{cellWidth:10}, 1:{cellWidth:40}, 2:{cellWidth:30} }
+            theme: "grid",
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [52, 152, 219], textColor: 255 }
         });
 
-       doc.save('Assignments_<?php echo preg_replace("/[^a-zA-Z0-9]/", "_", $unit_name); ?>_' + 
-         new Date().toISOString().split('T')[0] + '.pdf');
+        doc.save(
+            "Assignments_<?= preg_replace('/[^a-zA-Z0-9]/', '_', $unit_name); ?>_" +
+            new Date().toISOString().split("T")[0] +
+            ".pdf"
+        );
     });
 
 });
