@@ -111,14 +111,14 @@ img.inline-img { max-width:200px; display:inline-block; margin:4px; border-radiu
 
 <div class="container">
     <div class="form-section">
-    <h2>Input Notes</h2>
-    <div id="topics"></div>
-    <button onclick="addTopic()">+ Add Topic</button>
-    <hr>
-    <button onclick="submitNotes()">Save Notes</button>
-    <button onclick="updateNotes()" style="display:none;">Update Notes</button>
-    <button onclick="cancelEdit()" style="display:none; background: #6b7280;">Cancel Edit</button>
-</div>
+        <h2>Input Notes</h2>
+        <div id="topics"></div>
+        <button onclick="addTopic()">+ Add Topic</button>
+        <hr>
+        <button onclick="submitNotes()">Save Notes</button>
+        <button onclick="updateNotes()">Update Notes</button>
+    </div>
+
     <div class="preview-section">
         <h2>Live Preview</h2>
         <div id="preview"></div>
@@ -134,7 +134,7 @@ img.inline-img { max-width:200px; display:inline-block; margin:4px; border-radiu
 // ---------------------------------------------------------
 // FULL JAVASCRIPT BEGINS HERE — DATA MODEL + STRUCTURES
 // ---------------------------------------------------------
-
+let editingTopicId = null;
 let topics = [];
 let existingTopics = [];
 let selectedUnitId = null;
@@ -617,18 +617,35 @@ function loadForEditing(topicId) {
     const t = existingTopics.find(x => x.id === topicId);
     if (!t) return;
 
+    editingTopicId = topicId;
+
+    // Load topic + subtopics directly into form
     topics = [{
         id: t.id,
         title: t.title,
-        subtopics: t.subtopics
+        subtopics: t.subtopics.map(sub => ({
+            id: sub.id,
+            title: sub.title,
+            content: sub.content,
+            choices: sub.choices || [],
+            correctChoice: sub.correctChoice || null,
+            images: [],  // existing images already in content, so empty array
+            files: sub.files || []
+        }))
     }];
 
     renderForm();
+
+    // Switch buttons
+    document.querySelector('button[onclick="submitNotes()"]').style.display = "none";
+    document.querySelector('button[onclick="updateNotes()"]').style.display = "inline-block";
 }
+
 
 // ---------------------------------------------------------
 // SUBMIT NOTES - IMPROVED VERSION
 // ---------------------------------------------------------
+
 function submitNotes() {
     if (!selectedUnitId) {
         alert("Select a unit first.");
@@ -658,8 +675,7 @@ function submitNotes() {
 
     const formData = new FormData();
 
-    // Append main JSON - ADD THE ACTION PARAMETER
-    formData.append("action", "create");
+    // Append main JSON
     formData.append("unit_id", selectedUnitId);
     formData.append("topics", JSON.stringify(topics));
 
@@ -722,205 +738,92 @@ function submitNotes() {
     });
 }
 
-// ---------------------------------------------------------
-// UPDATE NOTES FUNCTIONALITY
-// ---------------------------------------------------------
-
-let editingTopicId = null; // Track which topic we're editing
-
+// Update notes function (placeholder - implement as needed)
 function updateNotes() {
     if (!selectedUnitId) {
         alert("Select a unit first.");
         return;
     }
 
-    if (topics.length === 0) {
-        alert("Please add at least one topic before updating.");
-        return;
-    }
-
-    // Check if we're actually editing an existing topic
     if (!editingTopicId) {
-        alert("Please select an existing topic to edit first by clicking the 'Edit' button next to it in the 'Already Added Topics' section.");
+        alert("No topic loaded for editing.");
         return;
     }
 
-    // Validate that all topics have titles
-    for (let topic of topics) {
-        if (!topic.title.trim()) {
-            alert("Please provide a title for all topics.");
+    const editedTopic = topics[0];
+
+    if (!editedTopic.title.trim()) {
+        alert("Topic title is required.");
+        return;
+    }
+
+    for (let sub of editedTopic.subtopics) {
+        if (!sub.title.trim()) {
+            alert("Each subtopic needs a title.");
             return;
-        }
-        
-        // Validate subtopics
-        for (let subtopic of topic.subtopics) {
-            if (!subtopic.title.trim()) {
-                alert("Please provide a title for all subtopics.");
-                return;
-            }
         }
     }
 
     const formData = new FormData();
-
-    // Append update data
     formData.append("action", "update");
     formData.append("topic_id", editingTopicId);
     formData.append("unit_id", selectedUnitId);
     formData.append("topics", JSON.stringify(topics));
 
-    // Collect images + files for upload
-    let hasNewFiles = false;
-    topics.forEach(topic => {
-        topic.subtopics.forEach(sub => {
-            // Inline images
-            sub.images.forEach((img, index) => {
-                // Only upload new images (those with file objects)
-                if (img.file) {
-                    formData.append(
-                        `subtopic_images[${sub.id}][]`,
-                        img.file,
-                        img.file.name
-                    );
-                    hasNewFiles = true;
-                }
-            });
+    // Attach images + files
+    editedTopic.subtopics.forEach(sub => {
 
-            // Files
-            sub.files.forEach(f => {
-                // Only upload new files (those with file objects)
-                if (f.file) {
-                    formData.append(
-                        `subtopic_files[${sub.id}][]`,
-                        f.file,
-                        f.file.name
-                    );
-                    hasNewFiles = true;
-                }
-            });
+        // Inline images (new uploads only)
+        sub.images.forEach(img => {
+            formData.append(`subtopic_images[${sub.id}][]`, img.file, img.file.name);
+        });
+
+        // Attachment files (new uploads only)
+        sub.files.forEach(f => {
+            if (f.file) {
+                formData.append(`subtopic_files[${sub.id}][]`, f.file, f.file.name);
+            }
         });
     });
 
-    // Show loading state
     const updateBtn = document.querySelector('button[onclick="updateNotes()"]');
     const originalText = updateBtn.textContent;
-    updateBtn.textContent = 'Updating...';
+    updateBtn.textContent = "Updating...";
     updateBtn.disabled = true;
 
     fetch("saveClassnotes.php", {
         method: "POST",
         body: formData
     })
-    .then(r => {
-        if (!r.ok) {
-            throw new Error('Network response was not ok');
-        }
-        return r.json();
-    })
-    .then(res => {
-        alert(res.message);
-        if (res.success) {
-            // Clear the form and reload existing topics
-            topics = [];
-            editingTopicId = null;
-            renderForm();
-            loadUnitTopics();
-            
-            // Reset button text
-            const updateBtn = document.querySelector('button[onclick="updateNotes()"]');
-            updateBtn.textContent = 'Update Notes';
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error updating notes: ' + error.message);
-    })
-    .finally(() => {
-        // Restore button state
-        updateBtn.textContent = originalText;
-        updateBtn.disabled = false;
-    });
-}
+        .then(r => r.json())
+        .then(res => {
+            alert(res.message);
 
-// Enhanced loadForEditing function
-function loadForEditing(topicId) {
-    const t = existingTopics.find(x => x.id === topicId);
-    if (!t) return;
+            if (res.success) {
 
-    editingTopicId = topicId;
-    
-    // Convert existing topic data to the format needed for editing
-    topics = [{
-        id: t.id,
-        title: t.title,
-        subtopics: t.subtopics.map(sub => ({
-            id: sub.id || generateId(),
-            title: sub.title || "",
-            content: sub.content || "",
-            choices: sub.choices || [],
-            correctChoice: sub.correctChoice || null,
-            images: sub.images || [],
-            files: sub.files || []
-        }))
-    }];
+                // Reset editor state
+                editingTopicId = null;
+                topics = [];
+                renderForm();
 
-    renderForm();
-    
-    // Update button visibility/state
-    updateUIForEditing();
-}
+                // Reload list
+                loadUnitTopics();
 
-function updateUIForEditing() {
-    const saveBtn = document.querySelector('button[onclick="submitNotes()"]');
-    const updateBtn = document.querySelector('button[onclick="updateNotes()"]');
-    
-    if (editingTopicId) {
-        saveBtn.style.display = 'none';
-        updateBtn.style.display = 'inline-block';
-    } else {
-        saveBtn.style.display = 'inline-block';
-        updateBtn.style.display = 'none';
-    }
-}
-
-// Add this to your existing renderForm function (inside the renderForm function, at the end):
-function renderForm() {
-    // ... your existing renderForm code ...
-    
-    // Add this at the end of your existing renderForm function:
-    updateUIForEditing();
-}
-
-// Also update your loadUnitTopics function to reset editing state:
-function loadUnitTopics() {
-    selectedUnitId = unitDropdown.value;
-    editingTopicId = null; // Reset editing state when unit changes
-
-    if (!selectedUnitId) {
-        topics = [];
-        existingTopics = [];
-        renderForm();
-        renderExistingTopics();
-        return;
-    }
-
-    fetch(`?getTopics=1&unit_id=${selectedUnitId}`)
-        .then(res => res.json())
-        .then(data => {
-            existingTopics = data;
-            topics = [];
-            renderForm();
-            renderExistingTopics();
+                // Switch UI back to Save mode
+                document.querySelector('button[onclick="submitNotes()"]').style.display = "inline-block";
+                document.querySelector('button[onclick="updateNotes()"]').style.display = "none";
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Update failed.");
+        })
+        .finally(() => {
+            updateBtn.textContent = originalText;
+            updateBtn.disabled = false;
         });
 }
 
-// Add this to handle cancel editing
-function cancelEdit() {
-    editingTopicId = null;
-    topics = [];
-    renderForm();
-    loadUnitTopics();
-}
 
 // ---------------------------------------------------------
 </script>
