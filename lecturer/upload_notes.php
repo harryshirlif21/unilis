@@ -116,14 +116,14 @@ img.inline-img { max-width:200px; display:inline-block; margin:4px; border-radiu
         <button onclick="addTopic()">+ Add Topic</button>
         <hr>
        <hr>
-<button onclick="submitNotes()" style="background: #10b981; color: white;">💾 Save as New Notes</button>
-<button onclick="updateNotes()" style="background: #3b82f6; color: white;">✏️ Update Existing Notes</button>
+<hr>
+<button id="saveBtn" style="background: #10b981; color: white;">💾 Save as New Notes</button>
+<button id="updateBtn" style="background: #3b82f6; color: white;">✏️ Update Existing Notes</button>
 <div style="margin-top: 10px; font-size: 12px; color: #666;">
     <strong>Instructions:</strong> 
     • Use "Save as New" to create new notes<br>
     • Use "Edit" button on existing topics, then "Update Existing" to save changes
 </div>
-    </div>
 
     <div class="preview-section">
         <h2>Live Preview</h2>
@@ -910,6 +910,96 @@ function testUpdate() {
         console.log("No topic loaded for editing");
     }
 }
+// ---------------------------------------------------------
+// BUTTON EVENT LISTENERS - FIX FOR BUTTONS NOT WORKING
+// ---------------------------------------------------------
+
+// Wait for DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM loaded - attaching button event listeners");
+    
+    // Add event listeners to buttons
+    const saveBtn = document.getElementById('saveBtn');
+    const updateBtn = document.getElementById('updateBtn');
+    
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            console.log("Save button clicked via event listener");
+            submitNotes();
+        });
+    } else {
+        console.error("Save button not found!");
+    }
+    
+    if (updateBtn) {
+        updateBtn.addEventListener('click', function() {
+            console.log("Update button clicked via event listener");
+            updateNotes();
+        });
+    } else {
+        console.error("Update button not found!");
+    }
+    
+    console.log("Button event listeners attached");
+});
+
+// Alternative: Direct button assignment (if DOM ready doesn't work)
+setTimeout(function() {
+    console.log("Setting up button handlers via timeout");
+    
+    const saveBtn = document.getElementById('saveBtn');
+    const updateBtn = document.getElementById('updateBtn');
+    
+    if (saveBtn && typeof submitNotes === 'function') {
+        saveBtn.onclick = submitNotes;
+        console.log("Save button handler assigned");
+    }
+    
+    if (updateBtn && typeof updateNotes === 'function') {
+        updateBtn.onclick = updateNotes;
+        console.log("Update button handler assigned");
+    }
+}, 1000);
+
+// Test if functions are available
+console.log("submitNotes function available:", typeof submitNotes);
+console.log("updateNotes function available:", typeof updateNotes);
+
+// Simple test function to check button functionality
+function testButtons() {
+    console.log("=== BUTTON TEST ===");
+    console.log("Save button:", document.getElementById('saveBtn'));
+    console.log("Update button:", document.getElementById('updateBtn'));
+    console.log("submitNotes function:", typeof submitNotes);
+    console.log("updateNotes function:", typeof updateNotes);
+    
+    // Test if we can call the functions directly
+    try {
+        console.log("Testing submitNotes...");
+        // Don't actually submit, just test if function exists
+        if (typeof submitNotes === 'function') {
+            console.log("✅ submitNotes function is callable");
+        }
+    } catch (e) {
+        console.error("❌ submitNotes error:", e);
+    }
+    
+    try {
+        console.log("Testing updateNotes...");
+        // Don't actually update, just test if function exists
+        if (typeof updateNotes === 'function') {
+            console.log("✅ updateNotes function is callable");
+        }
+    } catch (e) {
+        console.error("❌ updateNotes error:", e);
+    }
+}
+
+// Run test when page loads
+window.addEventListener('load', function() {
+    console.log("Page fully loaded");
+    testButtons();
+});
 // ---------------------------------------------------------
 </script>
 
