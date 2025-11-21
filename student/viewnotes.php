@@ -232,11 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_complete']) && i
             $update_stmt = $conn->prepare("UPDATE student_classnotes_progress SET status = 'completed', last_accessed = NOW() WHERE student_id = ? AND classnote_id = ?");
             $update_stmt->bind_param("ii", $student_id, $classnote_id);
         } else {
-            $update_stmt = $conn->prepare("
-                INSERT INTO student_classnotes_progress (student_id, classnote_id, status, last_accessed) 
-                VALUES (?, ?, 'completed', NOW())
-                ON DUPLICATE KEY UPDATE status = 'completed', last_accessed = NOW()
-            ");
+            $update_stmt = $conn->prepare("INSERT INTO student_classnotes_progress (student_id, classnote_id, status, last_accessed) VALUES (?, ?, 'completed', NOW())");
             $update_stmt->bind_param("ii", $student_id, $classnote_id);
         }
         
@@ -258,9 +254,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unit_id'])):
     
     // Get notes ordered by oldest first (ASC)
     $stmt = $conn->prepare("
-        SELECT cn.id AS classnote_id, cn.title, cn.subtopics_json, cn.uploaded_at, 
-               (SELECT status FROM student_classnotes_progress WHERE classnote_id = cn.id AND student_id = ?) AS status
+        SELECT cn.id AS classnote_id, cn.title, cn.subtopics_json, cn.uploaded_at, scp.status
         FROM classnotes cn
+        LEFT JOIN student_classnotes_progress scp 
+            ON scp.classnote_id = cn.id AND scp.student_id = ?
         WHERE cn.unit_id = ?
         ORDER BY cn.uploaded_at ASC
     ");
@@ -280,16 +277,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unit_id'])):
     }
     $stmt->close();
     
-    // Mark all not_started notes as in_progress (using INSERT...ON DUPLICATE KEY with unique constraint)
+    // Mark all not_started notes as in_progress
     foreach ($classnote_ids as $cn_id) {
-        $ins = $conn->prepare("
-            INSERT INTO student_classnotes_progress (student_id, classnote_id, status, last_accessed) 
-            VALUES (?, ?, 'in_progress', NOW())
-            ON DUPLICATE KEY UPDATE last_accessed = NOW()
-        ");
-        $ins->bind_param("ii", $student_id, $cn_id);
-        $ins->execute();
-        $ins->close();
+        $check = $conn->prepare("SELECT id FROM student_classnotes_progress WHERE student_id = ? AND classnote_id = ?");
+        $check->bind_param("ii", $student_id, $cn_id);
+        $check->execute();
+        $exists = $check->get_result()->num_rows > 0;
+        $check->close();
+        
+        if (!$exists) {
+            $ins = $conn->prepare("INSERT INTO student_classnotes_progress (student_id, classnote_id, status, last_accessed) VALUES (?, ?, 'in_progress', NOW())");
+            $ins->bind_param("ii", $student_id, $cn_id);
+            $ins->execute();
+            $ins->close();
+        }
     }
     ?>
     <?php if(count($notes_data) > 0): ?>
