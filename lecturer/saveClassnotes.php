@@ -153,56 +153,27 @@ try {
 }
 
 function processSubtopics($subtopics) {
-    global $conn;
-    
     $processed_subtopics = [];
+    
     foreach ($subtopics as $subtopic) {
+        $subtopic_id = $subtopic['id'] ?? generateId();
+        $content = $subtopic['content'] ?? '';
+        
         $processed_subtopic = [
-            'id' => $subtopic['id'] ?? generateId(),
+            'id' => $subtopic_id,
             'title' => $subtopic['title'] ?? '',
-            'content' => $subtopic['content'] ?? '',
+            'content' => $content,
             'choices' => $subtopic['choices'] ?? [],
             'correctChoice' => $subtopic['correctChoice'] ?? null,
             'images' => [],
             'files' => []
         ];
         
-        $subtopic_id = $processed_subtopic['id'];
+        // Extract and save base64 images from content
+        $content = saveBase64Images($content, $processed_subtopic['images']);
+        $processed_subtopic['content'] = $content;
         
-        // Handle inline images
-        if (isset($_FILES["subtopic_images"]) && isset($_FILES["subtopic_images"]["name"][$subtopic_id])) {
-            $image_files = rearrayFiles($_FILES["subtopic_images"]["name"][$subtopic_id]);
-            $image_tmp_names = rearrayFiles($_FILES["subtopic_images"]["tmp_name"][$subtopic_id]);
-            $image_errors = rearrayFiles($_FILES["subtopic_images"]["error"][$subtopic_id]);
-            
-            foreach ($image_files as $index => $image_file) {
-                if ($image_file && $image_tmp_names[$index] && $image_errors[$index] === UPLOAD_ERR_OK) {
-                    $image_name = uniqid() . '_' . basename($image_file);
-                    $image_path = "../uploads/images/" . $image_name;
-                    
-                    if (move_uploaded_file($image_tmp_names[$index], $image_path)) {
-                        $processed_subtopic['images'][] = [
-                            'name' => $image_name,
-                            'original_name' => $image_file
-                        ];
-                        
-                        // Replace placeholder with actual image path
-                        if (isset($subtopic['images'][$index])) {
-                            $placeholder = $subtopic['images'][$index]['placeholder'] ?? '';
-                            if ($placeholder) {
-                                $processed_subtopic['content'] = str_replace(
-                                    'data-placeholder="' . $placeholder . '"', 
-                                    'src="../uploads/images/' . $image_name . '"',
-                                    $processed_subtopic['content']
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Handle file attachments
+        // Handle file attachments from $_FILES
         if (isset($_FILES["subtopic_files"]) && isset($_FILES["subtopic_files"]["name"][$subtopic_id])) {
             $file_names = rearrayFiles($_FILES["subtopic_files"]["name"][$subtopic_id]);
             $file_tmp_names = rearrayFiles($_FILES["subtopic_files"]["tmp_name"][$subtopic_id]);
@@ -228,6 +199,61 @@ function processSubtopics($subtopics) {
     }
     
     return $processed_subtopics;
+}
+
+/**
+ * Find all base64 images in content, save them to files, and replace with file paths
+ */
+function saveBase64Images($content, &$images_array) {
+    // Pattern to match base64 image in src attribute
+    $pattern = '/(<img[^>]*?)src=["\']data:image\/([a-zA-Z]+);base64,([^"\']+)["\']([^>]*>)/i';
+    
+    $content = preg_replace_callback($pattern, function($matches) use (&$images_array) {
+        $before = $matches[1];  // Everything before src
+        $type = $matches[2];    // image type (jpeg, png, gif, etc.)
+        $base64 = $matches[3];  // base64 data
+        $after = $matches[4];   // Everything after the src value including >
+        
+        // Decode base64 data
+        $image_data = base64_decode($base64);
+        
+        if ($image_data === false) {
+            // If decoding fails, return original
+            return $matches[0];
+        }
+        
+        // Generate filename
+        $ext = ($type === 'jpeg') ? 'jpg' : $type;
+        $filename = uniqid() . '_image.' . $ext;
+        $filepath = "../uploads/images/" . $filename;
+        
+        // Save the image
+        if (file_put_contents($filepath, $image_data)) {
+            // Add to images array
+            $images_array[] = [
+                'name' => $filename,
+                'original_name' => $filename
+            ];
+            
+            // Remove data-placeholder attribute if present
+            $before = preg_replace('/\s*data-placeholder=["\'][^"\']*["\']\s*/i', ' ', $before);
+            $after = preg_replace('/\s*data-placeholder=["\'][^"\']*["\']\s*/i', ' ', $after);
+            
+            // Build new img tag with file path
+            $new_tag = $before . 'src="../uploads/images/' . $filename . '"' . $after;
+            
+            // Clean up extra spaces
+            $new_tag = preg_replace('/\s+/', ' ', $new_tag);
+            
+            return $new_tag;
+        }
+        
+        // If save fails, return original
+        return $matches[0];
+        
+    }, $content);
+    
+    return $content;
 }
 
 function rearrayFiles($file_array) {

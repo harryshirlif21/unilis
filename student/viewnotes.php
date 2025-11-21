@@ -32,6 +32,19 @@ $units_stmt = $conn->prepare("
 $units_stmt->bind_param("ii", $course_id, $year_of_study);
 $units_stmt->execute();
 $units_result = $units_stmt->get_result();
+
+// Function to fix image paths in content
+function fixImagePaths($content) {
+    // Fix relative paths - convert ../uploads to absolute path from web root
+    $content = str_replace('src="../uploads/', 'src="/uploads/', $content);
+    $content = str_replace("src='../uploads/", "src='/uploads/", $content);
+    
+    // Also fix double-relative paths if any
+    $content = str_replace('src="../../uploads/', 'src="/uploads/', $content);
+    $content = str_replace("src='../../uploads/", "src='/uploads/", $content);
+    
+    return $content;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -171,7 +184,6 @@ function openNotesModal(unitId) {
         .then(res => res.text())
         .then(html => { 
             contentDiv.innerHTML = html; 
-            // Initialize image click handlers after content loads
             initializeImageModals();
         })
         .catch(err => { 
@@ -185,7 +197,6 @@ function closeModal() {
 }
 
 function initializeImageModals() {
-    // Add click handlers to all images in the modal
     document.querySelectorAll('.content-area img').forEach(img => {
         img.onclick = function() {
             openImageModal(this.src);
@@ -203,7 +214,6 @@ function closeImageModal() {
     document.getElementById('imageModal').style.display = 'none';
 }
 
-// Close modals on outside click
 window.onclick = function(event) {
     const notesModal = document.getElementById('notesModal');
     const imageModal = document.getElementById('imageModal');
@@ -212,7 +222,6 @@ window.onclick = function(event) {
     if(event.target == imageModal) imageModal.style.display = 'none';
 }
 
-// Close modals with ESC key
 document.addEventListener('keydown', function(event) {
     if(event.key === 'Escape') {
         closeModal();
@@ -220,7 +229,6 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// Handle mark as complete
 function markAsComplete(classnoteId) {
     fetch('', {
         method: 'POST',
@@ -284,10 +292,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['unit_id'])):
                         
                         <?php if(!empty($sub['content'])): ?>
                             <div class="content-area">
-                                <?php 
-                                // JUST OUTPUT THE CONTENT AS-IS - images are already base64 data URLs
-                                echo $sub['content']; 
-                                ?>
+                                <?= fixImagePaths($sub['content']); ?>
                             </div>
                         <?php endif; ?>
 
@@ -309,7 +314,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['unit_id'])):
                             <div class="files-section">
                                 <strong>Attached Files:</strong><br>
                                 <?php foreach($sub['files'] as $f): ?>
-                                    <a href="../../uploads/files/<?= htmlspecialchars($f['name'] ?? '') ?>" 
+                                    <a href="/uploads/files/<?= htmlspecialchars($f['name'] ?? '') ?>" 
                                        target="_blank" 
                                        class="file-item" 
                                        download="<?= htmlspecialchars($f['original_name'] ?? $f['name'] ?? 'file') ?>">
@@ -340,7 +345,6 @@ endif;
 if (isset($_POST['mark_complete']) && isset($_POST['classnote_id'])) {
     $classnote_id = intval($_POST['classnote_id']);
     
-    // Update progress in database
     $update_stmt = $conn->prepare("
         INSERT INTO student_classnotes_progress (student_id, classnote_id, status, last_accessed) 
         VALUES (?, ?, 'completed', NOW())
