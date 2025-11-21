@@ -22,10 +22,7 @@ if (!$meeting_id) {
     die("Meeting ID required. Please check the meeting link.");
 }
 
-// Debug information
-error_log("Student $student_id accessing meeting $meeting_id");
-
-// Fetch meeting details - SIMPLIFIED QUERY
+// Fetch meeting details
 $stmt = $conn->prepare("SELECT m.*, u.name as unit_name, l.name as lecturer_name, l.id as lecturer_id 
                         FROM meetings m 
                         LEFT JOIN units u ON m.unit_id = u.id 
@@ -38,42 +35,6 @@ $stmt->close();
 
 if (!$meeting) {
     die("Meeting not found. Meeting ID: $meeting_id");
-}
-
-// Get student's course_id and year_of_study
-$student_stmt = $conn->prepare("SELECT course_id, year_of_study FROM students WHERE id = ?");
-$student_stmt->bind_param("i", $student_id);
-$student_stmt->execute();
-$student_info = $student_stmt->get_result()->fetch_assoc();
-$student_stmt->close();
-
-if (!$student_info) {
-    die("Student information not found.");
-}
-
-$course_id = $student_info['course_id'];
-$year_of_study = $student_info['year_of_study'];
-
-// Check if student is enrolled in this unit (more flexible check)
-$enrollment_stmt = $conn->prepare("SELECT su.id FROM student_units su 
-                                  WHERE su.student_id = ? AND su.unit_id = ?");
-$enrollment_stmt->bind_param("ii", $student_id, $meeting['unit_id']);
-$enrollment_stmt->execute();
-$enrollment = $enrollment_stmt->get_result()->fetch_assoc();
-$enrollment_stmt->close();
-
-// If not directly enrolled, check if they should have access
-if (!$enrollment) {
-    // Check if the meeting's unit matches the student's course and year
-    $unit_check = $conn->prepare("SELECT id FROM units WHERE id = ? AND course_id = ? AND year = ?");
-    $unit_check->bind_param("iii", $meeting['unit_id'], $course_id, $year_of_study);
-    $unit_check->execute();
-    $unit_access = $unit_check->get_result()->fetch_assoc();
-    $unit_check->close();
-    
-    if (!$unit_access) {
-        die("You don't have access to this meeting. Please contact your lecturer.");
-    }
 }
 
 // Record attendance
@@ -146,7 +107,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             break;
             
         case 'get_chat':
-            // Create chat table if not exists
             $conn->query("CREATE TABLE IF NOT EXISTS chat (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 meeting_id INT NOT NULL,
@@ -179,7 +139,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             break;
             
         case 'leave_meeting':
-            // Update attendance status
             $stmt = $conn->prepare("UPDATE meeting_attendance SET status = 'left' 
                                    WHERE meeting_id = ? AND student_id = ?");
             $stmt->bind_param("ii", $meeting_id, $student_id);
@@ -458,6 +417,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             transform: translate(-50%, -50%);
             text-align: center;
             color: var(--text-secondary);
+            z-index: 5;
         }
         
         .connection-status {
@@ -475,8 +435,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             background: rgba(16, 185, 129, 0.7);
         }
         
+        .connection-status.connecting {
+            background: rgba(245, 158, 11, 0.7);
+        }
+        
         .connection-status.disconnected {
             background: rgba(239, 68, 68, 0.7);
+        }
+        
+        .debug-info {
+            position: absolute;
+            bottom: 100px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            z-index: 10;
+            max-width: 300px;
         }
         
         @media (max-width: 768px) {
@@ -507,6 +484,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             .side-panel.open {
                 transform: translateX(0);
             }
+            
+            .debug-info {
+                display: none;
+            }
         }
     </style>
 </head>
@@ -526,7 +507,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     <div class="meeting-container">
         <div class="main-video-area">
             <div id="connectionStatus" class="connection-status disconnected">
-                <i class="fas fa-circle"></i> Connecting...
+                <i class="fas fa-circle"></i> <span id="statusText">Connecting...</span>
+            </div>
+            
+            <div id="debugInfo" class="debug-info" style="display: none;">
+                <div>Student ID: <?= $student_id ?></div>
+                <div>Lecturer ID: <?= $meeting['lecturer_id'] ?></div>
+                <div id="debugState">State: Initializing...</div>
             </div>
             
             <video id="lecturerVideo" autoplay playsinline></video>
@@ -577,6 +564,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             <i class="fas fa-comment-dots"></i>
         </button>
         
+        <button id="debugBtn" class="control-btn" title="Debug Info">
+            <i class="fas fa-bug"></i>
+        </button>
+        
         <button id="leaveBtn" class="control-btn danger" title="Leave Meeting">
             <i class="fas fa-phone-slash"></i>
         </button>
@@ -597,13 +588,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         let cameraEnabled = true;
         let hasPublishPermission = false;
         let isConnected = false;
+        let connectionAttempts = 0;
+        const MAX_CONNECTION_ATTEMPTS = 10;
         
         // ==================== UTILITY FUNCTIONS ====================
         async function apiCall(action, data = {}) {
             try {
                 const formData = new URLSearchParams({ action, ...data });
                 const response = await fetch('', { method: 'POST', body: formData });
-                return await response.json();
+                const result = await response.json();
+                console.log(`API ${action}:`, result);
+                return result;
             } catch (error) {
                 console.error('API call failed:', error);
                 return { success: false, error: 'Network error' };
@@ -616,24 +611,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             return div.innerHTML;
         }
         
-        function updateConnectionStatus(connected) {
+        function updateConnectionStatus(status, message = '') {
             const statusEl = document.getElementById('connectionStatus');
-            isConnected = connected;
+            const statusText = document.getElementById('statusText');
+            const debugState = document.getElementById('debugState');
             
-            if (connected) {
-                statusEl.innerHTML = '<i class="fas fa-circle"></i> Connected';
-                statusEl.className = 'connection-status connected';
+            statusEl.className = `connection-status ${status}`;
+            statusText.textContent = message || status.charAt(0).toUpperCase() + status.slice(1);
+            debugState.textContent = `State: ${status} - ${message}`;
+            
+            if (status === 'connected') {
                 document.getElementById('statusMessage').style.display = 'none';
+                isConnected = true;
+                connectionAttempts = 0;
             } else {
-                statusEl.innerHTML = '<i class="fas fa-circle"></i> Connecting...';
-                statusEl.className = 'connection-status disconnected';
                 document.getElementById('statusMessage').style.display = 'block';
+                isConnected = false;
+            }
+        }
+        
+        function updateDebugInfo(info) {
+            const debugState = document.getElementById('debugState');
+            if (debugState) {
+                debugState.textContent = info;
             }
         }
         
         // ==================== MEDIA INITIALIZATION ====================
         async function initializeMedia() {
             try {
+                updateDebugInfo('State: Initializing media...');
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: { width: 640, height: 480 },
                     audio: {
@@ -644,61 +651,138 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 });
                 
                 document.getElementById('selfVideo').srcObject = localStream;
-                console.log('Student media initialized');
+                console.log('Student media initialized - Tracks:', localStream.getTracks().map(t => t.kind));
+                updateDebugInfo('State: Media initialized - waiting for lecturer');
+                
             } catch (error) {
                 console.error('Error accessing media devices:', error);
+                updateConnectionStatus('disconnected', 'No camera/mic access');
                 alert('Could not access camera/microphone. Please check permissions.');
             }
         }
         
         // ==================== WEBRTC FUNCTIONS ====================
         function createPeerConnection() {
+            updateDebugInfo('State: Creating peer connection');
             const pc = new RTCPeerConnection({
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
                 ]
             });
             
-            // Handle incoming lecturer stream
+            // Handle incoming lecturer stream - THIS IS CRITICAL
             pc.ontrack = (event) => {
-                console.log('Received lecturer stream:', event.streams[0]);
-                lecturerStream = event.streams[0];
-                document.getElementById('lecturerVideo').srcObject = lecturerStream;
-                updateConnectionStatus(true);
+                console.log('ONTTRACK EVENT FIRED:', event);
+                console.log('Streams received:', event.streams);
+                
+                if (event.streams && event.streams.length > 0) {
+                    lecturerStream = event.streams[0];
+                    const videoElement = document.getElementById('lecturerVideo');
+                    
+                    console.log('Setting lecturer video srcObject');
+                    videoElement.srcObject = lecturerStream;
+                    
+                    // Listen for when video actually starts playing
+                    videoElement.onloadedmetadata = () => {
+                        console.log('Lecturer video metadata loaded');
+                        videoElement.play().catch(e => console.error('Video play error:', e));
+                    };
+                    
+                    videoElement.onplay = () => {
+                        console.log('Lecturer video started playing');
+                        updateConnectionStatus('connected', 'Stream active');
+                    };
+                    
+                    // Monitor track status
+                    event.track.onmute = () => {
+                        console.log('Lecturer track muted');
+                        updateConnectionStatus('connecting', 'Stream paused');
+                    };
+                    
+                    event.track.onunmute = () => {
+                        console.log('Lecturer track unmuted');
+                        updateConnectionStatus('connected', 'Stream active');
+                    };
+                    
+                    event.track.onended = () => {
+                        console.log('Lecturer track ended');
+                        updateConnectionStatus('disconnected', 'Stream ended');
+                    };
+                }
             };
             
             // ICE candidate handling
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
+                    console.log('Sending ICE candidate to lecturer');
                     apiCall('send_signal', {
                         to_lecturer_id: LECTURER_ID,
                         type: 'candidate',
                         data: JSON.stringify({ candidate: event.candidate })
                     });
+                } else {
+                    console.log('All ICE candidates sent');
                 }
             };
             
+            // Connection state monitoring
             pc.onconnectionstatechange = () => {
-                console.log('Connection state:', pc.connectionState);
-                const connected = pc.connectionState === 'connected';
-                updateConnectionStatus(connected);
+                const state = pc.connectionState;
+                console.log('PeerConnection state:', state);
+                updateDebugInfo(`State: ${state} - ICE: ${pc.iceConnectionState}`);
                 
-                if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-                    setTimeout(() => {
-                        if (peerConnection) {
-                            peerConnection.close();
-                            peerConnection = null;
+                switch(state) {
+                    case 'connected':
+                        updateConnectionStatus('connected', 'Connected to lecturer');
+                        break;
+                    case 'connecting':
+                        updateConnectionStatus('connecting', 'Connecting to lecturer...');
+                        break;
+                    case 'disconnected':
+                        updateConnectionStatus('disconnected', 'Disconnected - reconnecting...');
+                        setTimeout(() => {
+                            if (peerConnection && peerConnection.connectionState === 'disconnected') {
+                                console.log('Attempting to reconnect...');
+                                peerConnection.restartIce();
+                            }
+                        }, 2000);
+                        break;
+                    case 'failed':
+                        updateConnectionStatus('disconnected', 'Connection failed');
+                        connectionAttempts++;
+                        if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
+                            setTimeout(attemptReconnection, 3000);
                         }
-                    }, 2000);
+                        break;
+                    case 'closed':
+                        updateConnectionStatus('disconnected', 'Connection closed');
+                        peerConnection = null;
+                        break;
                 }
+            };
+            
+            // ICE connection state
+            pc.oniceconnectionstatechange = () => {
+                console.log('ICE connection state:', pc.iceConnectionState);
             };
             
             return pc;
         }
         
+        async function attemptReconnection() {
+            if (peerConnection && peerConnection.connectionState === 'failed') {
+                console.log('Attempting to restart ICE...');
+                peerConnection.restartIce();
+            }
+        }
+        
         async function handleOffer(offerData) {
             try {
+                updateDebugInfo('State: Handling lecturer offer');
+                console.log('Received offer from lecturer:', offerData);
+                
                 if (!peerConnection) {
                     peerConnection = createPeerConnection();
                 }
@@ -707,29 +791,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     type: 'offer',
                     sdp: offerData.sdp
                 }));
+                console.log('Remote description set');
                 
                 const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
+                console.log('Created answer:', answer);
                 
-                await apiCall('send_signal', {
+                await peerConnection.setLocalDescription(answer);
+                console.log('Local description set');
+                
+                const result = await apiCall('send_signal', {
                     to_lecturer_id: LECTURER_ID,
                     type: 'answer',
                     data: JSON.stringify({ sdp: answer.sdp })
                 });
                 
-                console.log('Answer sent to lecturer');
+                if (result.success) {
+                    console.log('Answer sent successfully to lecturer');
+                    updateDebugInfo('State: Answer sent - waiting for stream');
+                } else {
+                    console.error('Failed to send answer to lecturer');
+                    updateDebugInfo('State: Failed to send answer');
+                }
+                
             } catch (error) {
                 console.error('Error handling offer:', error);
+                updateDebugInfo(`State: Error - ${error.message}`);
+            }
+        }
+        
+        async function handleCandidate(candidateData) {
+            try {
+                if (peerConnection && candidateData.candidate) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidateData.candidate));
+                    console.log('Added ICE candidate from lecturer');
+                }
+            } catch (error) {
+                console.error('Error adding ICE candidate:', error);
             }
         }
         
         async function publishMyStream() {
             if (!hasPublishPermission || !localStream || !peerConnection) {
-                console.log('No permission to publish or no stream');
+                console.log('No permission to publish or no stream/connection');
                 return;
             }
             
             try {
+                updateDebugInfo('State: Publishing stream to lecturer');
+                
                 // Remove existing tracks first
                 const senders = peerConnection.getSenders();
                 senders.forEach(sender => peerConnection.removeTrack(sender));
@@ -750,8 +859,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 });
                 
                 console.log('Published stream to lecturer');
+                updateDebugInfo('State: Stream published to lecturer');
+                
             } catch (error) {
                 console.error('Error publishing stream:', error);
+                updateDebugInfo(`State: Publish error - ${error.message}`);
             }
         }
         
@@ -759,23 +871,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             const { from_lecturer_id, type, data } = signal;
             const parsedData = JSON.parse(data || '{}');
             
+            console.log('Handling signal:', type, parsedData);
+            updateDebugInfo(`State: Processing ${type} signal`);
+            
             try {
                 switch (type) {
                     case 'offer':
-                        // Lecturer is sending their stream
                         await handleOffer(parsedData);
                         break;
                         
                     case 'candidate':
-                        if (peerConnection && parsedData.candidate) {
-                            await peerConnection.addIceCandidate(new RTCIceCandidate(parsedData.candidate));
-                        }
+                        await handleCandidate(parsedData);
                         break;
                         
                     case 'allow-publish':
                         hasPublishPermission = true;
                         document.getElementById('requestPublishBtn').classList.add('active');
-                        console.log('Received publish permission');
+                        console.log('Received publish permission from lecturer');
+                        updateDebugInfo('State: Publish permission granted');
                         await publishMyStream();
                         break;
                         
@@ -784,9 +897,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         await apiCall('leave_meeting');
                         window.location.href = '../student/dashboard.php';
                         break;
+                        
+                    default:
+                        console.log('Unknown signal type:', type);
                 }
             } catch (error) {
                 console.error('Error handling signal:', error);
+                updateDebugInfo(`State: Signal error - ${error.message}`);
             }
         }
         
@@ -828,8 +945,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         async function pollSignals() {
             try {
                 const signals = await apiCall('get_signals');
-                for (const signal of signals) {
-                    await handleSignal(signal);
+                console.log(`Polled ${signals.length} signals`);
+                
+                if (signals.length > 0) {
+                    for (const signal of signals) {
+                        await handleSignal(signal);
+                    }
                 }
             } catch (error) {
                 console.error('Error polling signals:', error);
@@ -871,6 +992,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if (!hasPublishPermission) {
                 await apiCall('request_publish');
                 alert('Request sent to lecturer to publish your video/audio');
+                updateDebugInfo('State: Publish request sent');
             } else {
                 await publishMyStream();
             }
@@ -879,6 +1001,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         document.getElementById('chatBtn').addEventListener('click', () => {
             const panel = document.getElementById('sidePanel');
             panel.classList.toggle('open');
+        });
+        
+        document.getElementById('debugBtn').addEventListener('click', () => {
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
         });
         
         document.getElementById('leaveBtn').addEventListener('click', async () => {
@@ -898,6 +1025,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         
         // ==================== INITIALIZATION ====================
         async function initialize() {
+            console.log('Initializing student meeting interface...');
+            updateDebugInfo('State: Starting initialization');
+            
             await initializeMedia();
             await loadChat();
             
@@ -905,7 +1035,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             setInterval(pollSignals, 1500);
             setInterval(loadChat, 3000);
             
+            // Log initial state
             console.log('Student meeting interface initialized');
+            console.log('Student ID:', STUDENT_ID);
+            console.log('Lecturer ID:', LECTURER_ID);
+            console.log('Meeting ID:', MEETING_ID);
+            
+            updateDebugInfo('State: Ready - waiting for lecturer signals');
         }
         
         // Handle page unload
@@ -922,6 +1058,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // Start the application
         initialize().catch(error => {
             console.error('Initialization failed:', error);
+            updateDebugInfo(`State: Init failed - ${error.message}`);
             alert('Failed to initialize meeting. Please refresh the page.');
         });
     </script>

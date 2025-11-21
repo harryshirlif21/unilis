@@ -874,47 +874,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         
         // ==================== WEBRTC FUNCTIONS ====================
-        function createPeerConnection(studentId) {
-            const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
+function createPeerConnection(studentId) {
+    const pc = new RTCPeerConnection({
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+    });
+    
+    // Add local tracks (lecturer sending to student)
+    if (isScreenSharing && screenStream) {
+        screenStream.getTracks().forEach(track => {
+            pc.addTrack(track, screenStream);
+        });
+    } else if (localStream) {
+        localStream.getTracks().forEach(track => {
+            pc.addTrack(track, localStream);
+        });
+    }
+    
+    // ICE candidate handling
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            apiCall('send_signal', {
+                to_student_id: studentId,
+                type: 'candidate',
+                data: JSON.stringify({ candidate: event.candidate })
             });
-            
-            // Add local tracks
-            if (isScreenSharing && screenStream) {
-                screenStream.getTracks().forEach(track => {
-                    pc.addTrack(track, screenStream);
-                });
-            } else if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    pc.addTrack(track, localStream);
-                });
-            }
-            
-            // ICE candidate handling
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    apiCall('send_signal', {
-                        to_student_id: studentId,
-                        type: 'candidate',
-                        data: JSON.stringify({ candidate: event.candidate })
-                    });
-                }
-            };
-            
-            pc.onconnectionstatechange = () => {
-                console.log(`PC state for student ${studentId}:`, pc.connectionState);
-                if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-                    delete peerConnections[studentId];
-                }
-            };
-            
-            peerConnections[studentId] = pc;
-            return pc;
         }
+    };
+    
+    // ADD THIS: Handle incoming tracks from students
+    pc.ontrack = (event) => {
+        console.log('Received track from student:', studentId, event.track.kind);
+        const [stream] = event.streams;
         
+        // You can display student streams here
+        // For example, create a video element for each student
+        displayStudentStream(studentId, stream);
+    };
+    
+    pc.onconnectionstatechange = () => {
+        console.log(`PC state for student ${studentId}:`, pc.connectionState);
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            delete peerConnections[studentId];
+            // Also remove their video element if you created one
+            removeStudentStream(studentId);
+        }
+    };
+    
+    peerConnections[studentId] = pc;
+    return pc;
+}
+
+// Function to display student streams (optional)
+function displayStudentStream(studentId, stream) {
+    // You can create a grid of student videos or just log them
+    console.log(`Student ${studentId} stream available:`, stream);
+    
+    // Example: Create video element for student
+    const videoElement = document.createElement('video');
+    videoElement.id = `studentVideo_${studentId}`;
+    videoElement.autoplay = true;
+    videoElement.playsinline = true;
+    videoElement.srcObject = stream;
+    videoElement.style.width = '200px';
+    videoElement.style.margin = '5px';
+    
+    // Add to a container (you'll need to create this in your HTML)
+    const container = document.getElementById('studentStreamsContainer') || createStudentStreamsContainer();
+    container.appendChild(videoElement);
+}
+
+function removeStudentStream(studentId) {
+    const videoElement = document.getElementById(`studentVideo_${studentId}`);
+    if (videoElement) {
+        videoElement.remove();
+    }
+}
+
+function createStudentStreamsContainer() {
+    const container = document.createElement('div');
+    container.id = 'studentStreamsContainer';
+    container.style.position = 'absolute';
+    container.style.top = '10px';
+    container.style.left = '10px';
+    container.style.zIndex = '20';
+    document.querySelector('.main-video-area').appendChild(container);
+    return container;
+}
         async function sendOfferToStudent(studentId) {
             const pc = createPeerConnection(studentId);
             const offer = await pc.createOffer();
