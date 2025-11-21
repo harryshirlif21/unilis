@@ -19,22 +19,61 @@ $student_reg = $_SESSION['reg_no'] ?? '';
 $meeting_id = (int)($_GET['meeting_id'] ?? 0);
 
 if (!$meeting_id) {
-    die("Meeting ID required");
+    die("Meeting ID required. Please check the meeting link.");
 }
 
-// Fetch meeting details and check if student is enrolled
-$stmt = $conn->prepare("SELECT m.*, u.course_id, u.year 
+// Debug information
+error_log("Student $student_id accessing meeting $meeting_id");
+
+// Fetch meeting details - SIMPLIFIED QUERY
+$stmt = $conn->prepare("SELECT m.*, u.name as unit_name, l.name as lecturer_name, l.id as lecturer_id 
                         FROM meetings m 
                         LEFT JOIN units u ON m.unit_id = u.id 
-                        LEFT JOIN student_units su ON u.id = su.unit_id 
-                        WHERE m.id = ? AND su.student_id = ?");
-$stmt->bind_param("ii", $meeting_id, $student_id);
+                        LEFT JOIN lecturers l ON m.lecturer_id = l.id 
+                        WHERE m.id = ?");
+$stmt->bind_param("i", $meeting_id);
 $stmt->execute();
 $meeting = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$meeting) {
-    die("Meeting not found or access denied");
+    die("Meeting not found. Meeting ID: $meeting_id");
+}
+
+// Get student's course_id and year_of_study
+$student_stmt = $conn->prepare("SELECT course_id, year_of_study FROM students WHERE id = ?");
+$student_stmt->bind_param("i", $student_id);
+$student_stmt->execute();
+$student_info = $student_stmt->get_result()->fetch_assoc();
+$student_stmt->close();
+
+if (!$student_info) {
+    die("Student information not found.");
+}
+
+$course_id = $student_info['course_id'];
+$year_of_study = $student_info['year_of_study'];
+
+// Check if student is enrolled in this unit (more flexible check)
+$enrollment_stmt = $conn->prepare("SELECT su.id FROM student_units su 
+                                  WHERE su.student_id = ? AND su.unit_id = ?");
+$enrollment_stmt->bind_param("ii", $student_id, $meeting['unit_id']);
+$enrollment_stmt->execute();
+$enrollment = $enrollment_stmt->get_result()->fetch_assoc();
+$enrollment_stmt->close();
+
+// If not directly enrolled, check if they should have access
+if (!$enrollment) {
+    // Check if the meeting's unit matches the student's course and year
+    $unit_check = $conn->prepare("SELECT id FROM units WHERE id = ? AND course_id = ? AND year = ?");
+    $unit_check->bind_param("iii", $meeting['unit_id'], $course_id, $year_of_study);
+    $unit_check->execute();
+    $unit_access = $unit_check->get_result()->fetch_assoc();
+    $unit_check->close();
+    
+    if (!$unit_access) {
+        die("You don't have access to this meeting. Please contact your lecturer.");
+    }
 }
 
 // Record attendance
@@ -107,6 +146,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             break;
             
         case 'get_chat':
+            // Create chat table if not exists
+            $conn->query("CREATE TABLE IF NOT EXISTS chat (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                meeting_id INT NOT NULL,
+                user_id INT NOT NULL,
+                user_name VARCHAR(100) NOT NULL,
+                message TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_meeting (meeting_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            
             $stmt = $conn->prepare("SELECT user_id, user_name, message, created_at 
                                    FROM chat WHERE meeting_id = ? ORDER BY created_at ASC");
             $stmt->bind_param("i", $meeting_id);
@@ -119,17 +169,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         case 'send_chat':
             $message = trim($_POST['message'] ?? '');
             if ($message === '') respond(['success' => false]);
-            
-            // Check if chat table exists, create if not
-            $conn->query("CREATE TABLE IF NOT EXISTS chat (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                meeting_id INT NOT NULL,
-                user_id INT NOT NULL,
-                user_name VARCHAR(100) NOT NULL,
-                message TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_meeting (meeting_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             
             $stmt = $conn->prepare("INSERT INTO chat (meeting_id, user_id, user_name, message, created_at) 
                                    VALUES (?, ?, ?, ?, NOW())");
@@ -152,6 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         default:
             respond(['success' => false, 'error' => 'Unknown action']);
     }
+    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -474,7 +514,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     <div class="top-nav">
         <div class="meeting-info">
             <h2><?= htmlspecialchars($meeting['title']) ?></h2>
-            <p>Meeting ID: <?= $meeting_id ?> | Joined as: <?= htmlspecialchars($student_name) ?></p>
+            <p>Meeting ID: <?= $meeting_id ?> | Unit: <?= htmlspecialchars($meeting['unit_name']) ?> | Lecturer: <?= htmlspecialchars($meeting['lecturer_name']) ?></p>
         </div>
         <div>
             <a href="../student/dashboard.php" style="color: var(--text-secondary); text-decoration: none;">
@@ -497,7 +537,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             
             <div class="self-preview">
                 <video id="selfVideo" autoplay muted playsinline></video>
-                <div class="label">You</div>
+                <div class="label">You (<?= htmlspecialchars($student_name) ?>)</div>
             </div>
         </div>
         
@@ -652,10 +692,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         }
                     }, 2000);
                 }
-            };
-            
-            pc.oniceconnectionstatechange = () => {
-                console.log('ICE connection state:', pc.iceConnectionState);
             };
             
             return pc;
@@ -870,13 +906,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             setInterval(loadChat, 3000);
             
             console.log('Student meeting interface initialized');
-            
-            // Auto-connect to lecturer
-            setTimeout(() => {
-                if (!isConnected) {
-                    console.log('Attempting to connect to lecturer...');
-                }
-            }, 1000);
         }
         
         // Handle page unload
@@ -887,15 +916,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
-            }
-        });
-        
-        // Handle page visibility change
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                console.log('Page hidden');
-            } else {
-                console.log('Page visible');
             }
         });
         
