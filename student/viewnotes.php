@@ -109,32 +109,178 @@ if (isset($_POST['mark_complete']) && isset($_POST['classnote_id'])) {
 <meta charset="UTF-8">
 <title>Student Notes</title>
 <style>
-    body { font-family: Arial, sans-serif; background: #f3f4f6; padding: 2rem; }
-    h1 { margin-bottom: 2rem; }
-    .units-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-    .unit-tile { background: #fff; padding: 1rem; border-radius: 1rem; box-shadow: 0 2px 6px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.2s; }
-    .unit-tile:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-    .card { background: #fff; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 2rem; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 0.75rem; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
-    .table-row-hover:hover { background: #f9fafb; }
-    .topic-title { color: #dc2626; font-weight: bold; }
-    .subtopic-title { color: #16a34a; font-weight: bold; margin-left: 1rem; }
-    .content-area { margin: 1rem 0; line-height: 1.6; }
-    .content-area img { max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; }
-    .choices-list { background: #e2e8f0; padding: 15px; border-radius: 8px; margin: 10px 0; }
-    .choice-item { padding: 5px 0; }
-    .choice-correct { color: #16a34a; font-weight: bold; }
-    .files-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0; }
-    .file-item { display: inline-block; background: #f59e0b; color: white; padding: 4px 12px; border-radius: 20px; margin: 5px 5px 5px 0; font-size: 0.9em; text-decoration: none; }
-    .file-item:hover { background: #d97706; }
-    .progress-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: 600; text-transform: uppercase; }
-    .progress-not-started { background: #f1f5f9; color: #6b7280; }
-    .progress-in-progress { background: #fef3c7; color: #f59e0b; }
-    .progress-completed { background: #d1fae5; color: #10b981; }
-    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
-    .btn-primary { background: #3b82f6; color: white; }
-    .btn-primary:hover { background: #2563eb; }
+body { 
+    font-family: Arial, sans-serif; 
+    background: #f3f4f6; 
+    padding: 2rem; 
+}
+
+h1 { 
+    margin-bottom: 2rem; 
+}
+
+.units-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+    gap: 1rem; 
+    margin-bottom: 2rem; 
+}
+
+.unit-tile { 
+    background: #fff; 
+    padding: 1rem; 
+    border-radius: 1rem; 
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1); 
+    cursor: pointer; 
+    transition: all 0.2s; 
+}
+
+.unit-tile:hover { 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); 
+}
+
+.card { 
+    background: #fff; 
+    border-radius: 1rem; 
+    padding: 1.5rem; 
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1); 
+    margin-bottom: 2rem; 
+}
+
+table { 
+    width: 100%; 
+    border-collapse: collapse; 
+}
+
+th, td { 
+    padding: 0.75rem; 
+    border-bottom: 1px solid #e2e8f0; 
+    text-align: left; 
+    vertical-align: top; 
+}
+
+.table-row-hover:hover { 
+    background: #f9fafb; 
+}
+
+.topic-title { 
+    color: #dc2626; 
+    font-weight: bold; 
+}
+
+.subtopic-title { 
+    color: #16a34a; 
+    font-weight: bold; 
+    margin-left: 1rem; 
+}
+
+.content-area { 
+    margin: 1rem 0; 
+    line-height: 1.6; 
+}
+
+/* Updated image styling */
+.content-area img { 
+    width: 200px;               /* fixed width */
+    height: 180px;              /* fixed height */
+    object-fit: cover;          /* fill frame while keeping aspect ratio */
+    border-radius: 12px;        /* rounded corners */
+    padding: 5px;               /* padding inside frame */
+    margin: 10px 0;             /* spacing outside frame */
+    display: block; 
+    cursor: pointer;            /* indicate clickable */
+    transition: transform 0.2s ease; /* smooth hover zoom */
+}
+
+.content-area img:hover { 
+    transform: scale(1.05);     /* subtle zoom on hover */
+}
+
+/* Wrap images in a clickable link using JS or PHP to open full size */
+.content-area a img { 
+    display: block; 
+}
+
+/* Questions/choices styling */
+.choices-list { 
+    background: #e2e8f0; 
+    padding: 15px; 
+    border-radius: 8px; 
+    margin: 10px 0; 
+}
+
+.choice-item { 
+    padding: 5px 0; 
+}
+
+.choice-correct { 
+    color: #16a34a; 
+    font-weight: bold; 
+}
+
+/* Files section styling */
+.files-section { 
+    margin-top: 15px; 
+    padding-top: 15px; 
+    border-top: 1px solid #e2e8f0; 
+}
+
+.file-item { 
+    display: inline-block; 
+    background: #f59e0b; 
+    color: white; 
+    padding: 4px 12px; 
+    border-radius: 20px; 
+    margin: 5px 5px 5px 0; 
+    font-size: 0.9em; 
+    text-decoration: none; 
+}
+
+.file-item:hover { 
+    background: #d97706; 
+}
+
+/* Progress badges */
+.progress-badge { 
+    padding: 4px 12px; 
+    border-radius: 20px; 
+    font-size: 0.8em; 
+    font-weight: 600; 
+    text-transform: uppercase; 
+}
+
+.progress-not-started { 
+    background: #f1f5f9; 
+    color: #6b7280; 
+}
+
+.progress-in-progress { 
+    background: #fef3c7; 
+    color: #f59e0b; 
+}
+
+.progress-completed { 
+    background: #d1fae5; 
+    color: #10b981; 
+}
+
+/* Buttons */
+.btn { 
+    padding: 8px 16px; 
+    border: none; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    font-weight: 600; 
+}
+
+.btn-primary { 
+    background: #3b82f6; 
+    color: white; 
+}
+
+.btn-primary:hover { 
+    background: #2563eb; 
+}
 </style>
 </head>
 <body>
