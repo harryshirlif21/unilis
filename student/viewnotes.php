@@ -254,10 +254,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unit_id'])):
     
     // Get notes ordered by oldest first (ASC)
     $stmt = $conn->prepare("
-        SELECT cn.id AS classnote_id, cn.title, cn.subtopics_json, cn.uploaded_at, scp.status
+        SELECT cn.id AS classnote_id, cn.title, cn.subtopics_json, cn.uploaded_at, 
+               (SELECT status FROM student_classnotes_progress WHERE classnote_id = cn.id AND student_id = ?) AS status
         FROM classnotes cn
-        LEFT JOIN student_classnotes_progress scp 
-            ON scp.classnote_id = cn.id AND scp.student_id = ?
         WHERE cn.unit_id = ?
         ORDER BY cn.uploaded_at ASC
     ");
