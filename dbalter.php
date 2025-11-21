@@ -77,7 +77,7 @@ foreach ($tables as $table) {
             $display = $value;
             
             // Truncate long content (like JSON)
-            if (strlen($display) > 100) {
+            if ($display !== null && strlen($display) > 100) {
                 $display = substr($display, 0, 100) . '...';
             }
             
