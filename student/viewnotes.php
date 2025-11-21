@@ -81,8 +81,20 @@ h1 { text-align:center; margin-bottom:2rem; }
 .topic-card { background:#fefefe; border-radius:8px; margin-bottom:1.5rem; padding:1rem; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
 .topic-card h3 { color:#dc2626; margin-bottom:0.5rem; }
 .subtopic-title { color:#16a34a; font-weight:bold; margin-top:1rem; }
-.content-area img { max-width:200px; max-height:180px; object-fit:cover; border-radius:12px; margin:5px; cursor:pointer; transition:transform 0.2s; }
-.content-area img:hover { transform:scale(1.05); }
+.content-area img { 
+    max-width: 300px; 
+    max-height: 250px; 
+    object-fit: contain; 
+    border-radius: 12px; 
+    margin: 10px; 
+    cursor: pointer; 
+    transition: transform 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.content-area img:hover { 
+    transform: scale(1.05); 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
 .choices-list { background:#e2e8f0; padding:10px; border-radius:8px; margin:5px 0; }
 .choice-correct { color:#16a34a; font-weight:bold; }
 .files-section { margin-top:10px; }
@@ -99,6 +111,12 @@ h1 { text-align:center; margin-bottom:2rem; }
 .btn { padding:6px 12px; border:none; border-radius:6px; cursor:pointer; font-weight:600; }
 .btn-primary { background:#3b82f6; color:white; }
 .btn-primary:hover { background:#2563eb; }
+
+/* Image Modal */
+.image-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; justify-content:center; align-items:center; }
+.image-modal-content { max-width:90%; max-height:90%; object-fit:contain; border-radius:8px; }
+.image-modal-close { position:absolute; top:20px; right:35px; color:#fff; font-size:40px; font-weight:bold; cursor:pointer; }
+.image-modal-close:hover { color:#ccc; }
 </style>
 </head>
 <body>
@@ -115,12 +133,18 @@ h1 { text-align:center; margin-bottom:2rem; }
 <?php endwhile; ?>
 </div>
 
-<!-- Modal -->
+<!-- Notes Modal -->
 <div id="notesModal" class="modal">
     <div class="modal-content">
         <span class="modal-close" onclick="closeModal()">&times;</span>
         <div id="modalNotesContent"></div>
     </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="image-modal">
+    <span class="image-modal-close" onclick="closeImageModal()">&times;</span>
+    <img class="image-modal-content" id="expandedImage">
 </div>
 
 <script>
@@ -134,17 +158,56 @@ function openNotesModal(unitId) {
 
     fetch('', { method:'POST', body: formData })
         .then(res => res.text())
-        .then(html => { contentDiv.innerHTML = html; })
-        .catch(err => { contentDiv.innerHTML = "<p>Error loading notes</p>"; console.error(err); });
+        .then(html => { 
+            contentDiv.innerHTML = html; 
+            // Initialize image click handlers after content loads
+            initializeImageModals();
+        })
+        .catch(err => { 
+            contentDiv.innerHTML = "<p>Error loading notes</p>"; 
+            console.error(err); 
+        });
 }
 
-function closeModal() { document.getElementById('notesModal').style.display = 'none'; }
+function closeModal() { 
+    document.getElementById('notesModal').style.display = 'none'; 
+}
 
-// Close modal on outside click
+function initializeImageModals() {
+    // Add click handlers to all images in the modal
+    document.querySelectorAll('.content-area img').forEach(img => {
+        img.onclick = function() {
+            openImageModal(this.src);
+        };
+    });
+}
+
+function openImageModal(imgSrc) {
+    const expandedImg = document.getElementById('expandedImage');
+    expandedImg.src = imgSrc;
+    document.getElementById('imageModal').style.display = 'flex';
+}
+
+function closeImageModal() {
+    document.getElementById('imageModal').style.display = 'none';
+}
+
+// Close modals on outside click
 window.onclick = function(event) {
-    const modal = document.getElementById('notesModal');
-    if(event.target == modal) modal.style.display = 'none';
+    const notesModal = document.getElementById('notesModal');
+    const imageModal = document.getElementById('imageModal');
+    
+    if(event.target == notesModal) notesModal.style.display = 'none';
+    if(event.target == imageModal) imageModal.style.display = 'none';
 }
+
+// Close modals with ESC key
+document.addEventListener('keydown', function(event) {
+    if(event.key === 'Escape') {
+        closeModal();
+        closeImageModal();
+    }
+});
 </script>
 
 <?php
@@ -174,29 +237,44 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['unit_id'])):
             <p>Uploaded: <?= date("d M Y, h:i A", strtotime($note['uploaded_at'])) ?></p>
 
             <?php foreach($subtopics as $sub): ?>
-                <h4 class="subtopic-title"><?= htmlspecialchars($sub['title'] ?? 'Untitled Subtopic') ?></h4>
-                <?php if(!empty($sub['content'])): ?>
-                    <div class="content-area"><?= $sub['content'] ?></div>
-                <?php endif; ?>
+                <?php if(is_array($sub)): ?>
+                    <h4 class="subtopic-title"><?= htmlspecialchars($sub['title'] ?? 'Untitled Subtopic') ?></h4>
+                    
+                    <?php if(!empty($sub['content'])): ?>
+                        <div class="content-area">
+                            <?php 
+                            // Fix image paths in content
+                            $content = $sub['content'];
+                            // Replace incorrect image paths with correct ones
+                            $content = str_replace('src="../uploads/images/', 'src="../../uploads/images/', $content);
+                            $content = str_replace('src="uploads/images/', 'src="../../uploads/images/', $content);
+                            $content = str_replace('src="/uploads/images/', 'src="../../uploads/images/', $content);
+                            echo $content; 
+                            ?>
+                        </div>
+                    <?php endif; ?>
 
-                <?php if(!empty($sub['choices'])): ?>
-                    <div class="choices-list">
-                        <strong>Questions:</strong>
-                        <?php foreach($sub['choices'] as $c): ?>
-                            <div class="choice-item <?= ($sub['correctChoice']==$c['id'])?'choice-correct':'' ?>">
-                                <?= htmlspecialchars($c['text'] ?? '') ?> <?= ($sub['correctChoice']==$c['id'])?'✓':'' ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
+                    <?php if(!empty($sub['choices'])): ?>
+                        <div class="choices-list">
+                            <strong>Questions:</strong>
+                            <?php foreach($sub['choices'] as $c): ?>
+                                <div class="choice-item <?= ($sub['correctChoice']==$c['id'])?'choice-correct':'' ?>">
+                                    <?= htmlspecialchars($c['text'] ?? '') ?> <?= ($sub['correctChoice']==$c['id'])?'✓':'' ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
 
-                <?php if(!empty($sub['files'])): ?>
-                    <div class="files-section">
-                        <strong>Files:</strong>
-                        <?php foreach($sub['files'] as $f): ?>
-                            <a href="../uploads/files/<?= htmlspecialchars($f['name']) ?>" target="_blank" class="file-item" download="<?= htmlspecialchars($f['original_name'] ?? $f['name']) ?>">📎 <?= htmlspecialchars($f['label'] ?? $f['original_name'] ?? 'File') ?></a>
-                        <?php endforeach; ?>
-                    </div>
+                    <?php if(!empty($sub['files'])): ?>
+                        <div class="files-section">
+                            <strong>Files:</strong>
+                            <?php foreach($sub['files'] as $f): ?>
+                                <a href="../../uploads/files/<?= htmlspecialchars($f['name'] ?? '') ?>" target="_blank" class="file-item" download="<?= htmlspecialchars($f['original_name'] ?? $f['name'] ?? 'file') ?>">
+                                    📎 <?= htmlspecialchars($f['label'] ?? $f['original_name'] ?? 'File') ?>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             <?php endforeach; ?>
         </div>
