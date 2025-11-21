@@ -135,7 +135,6 @@ img.inline-img { max-width:200px; display:inline-block; margin:4px; border-radiu
     <h3>Already Added Topics in this Unit</h3>
     <div id="topicsList"></div>
 </div>
-
 <script>
 // ---------------------------------------------------------
 // FULL JAVASCRIPT BEGINS HERE — DATA MODEL + STRUCTURES
@@ -598,18 +597,48 @@ function renderExistingTopics() {
     const box = document.getElementById("topicsList");
     box.innerHTML = "";
 
+    // Add clear editing button if we're currently editing
+    if (topics.length > 0) {
+        const clearDiv = document.createElement("div");
+        clearDiv.style.padding = "10px";
+        clearDiv.style.margin = "10px 0";
+        clearDiv.style.border = "2px solid #f59e0b";
+        clearDiv.style.backgroundColor = "#fffbeb";
+        
+        const editingText = document.createElement("strong");
+        editingText.textContent = `Editing: ${topics[0].title}`;
+        editingText.style.color = "#d97706";
+        
+        const clearBtn = document.createElement("button");
+        clearBtn.textContent = "Cancel Editing";
+        clearBtn.style.background = "#ef4444";
+        clearBtn.style.color = "white";
+        clearBtn.style.border = "none";
+        clearBtn.style.padding = "4px 8px";
+        clearBtn.style.borderRadius = "4px";
+        clearBtn.style.marginLeft = "10px";
+        clearBtn.style.cursor = "pointer";
+        clearBtn.onclick = clearEditing;
+        
+        clearDiv.appendChild(editingText);
+        clearDiv.appendChild(clearBtn);
+        box.appendChild(clearDiv);
+    }
+
     existingTopics.forEach(t => {
         const div = document.createElement("div");
         div.style.padding = "10px";
         div.style.margin = "5px 0";
         div.style.border = "1px solid #ddd";
+        div.style.backgroundColor = topics[0] && topics[0].id === t.id ? "#f0f9ff" : "white";
 
         const titleSpan = document.createElement("strong");
         titleSpan.textContent = t.title;
         
         const editBtn = document.createElement("button");
         editBtn.className = "edit-btn";
-        editBtn.textContent = "Edit";
+        editBtn.textContent = topics[0] && topics[0].id === t.id ? "Currently Editing" : "Edit";
+        editBtn.disabled = topics[0] && topics[0].id === t.id;
         editBtn.onclick = () => loadForEditing(t.id);
 
         div.appendChild(titleSpan);
@@ -630,13 +659,26 @@ function loadForEditing(topicId) {
     }];
 
     renderForm();
+    
+    // Scroll to the form section and show a message
+    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
+    alert(`Now editing: "${t.title}"\n\nMake your changes and click "Update Notes" to save.`);
+}
+
+// Add a function to clear current editing
+function clearEditing() {
+    topics = [];
+    renderForm();
+    renderPreview();
 }
 
 // ---------------------------------------------------------
-// SUBMIT NOTES - IMPROVED VERSION
+// SUBMIT NOTES - CREATE NEW
 // ---------------------------------------------------------
 
 function submitNotes() {
+    console.log("Save as New button clicked");
+    
     if (!selectedUnitId) {
         alert("Select a unit first.");
         return;
@@ -668,6 +710,7 @@ function submitNotes() {
     // Append main JSON
     formData.append("unit_id", selectedUnitId);
     formData.append("topics", JSON.stringify(topics));
+    formData.append("action", "create");
 
     // Collect images + files for upload
     topics.forEach(topic => {
@@ -728,15 +771,13 @@ function submitNotes() {
     });
 }
 
-// Update notes function (placeholder - implement as needed)
-function updateNotes() {
-    alert("Update functionality to be implemented");
-}
 // ---------------------------------------------------------
 // UPDATE NOTES FUNCTIONALITY
 // ---------------------------------------------------------
 
 function updateNotes() {
+    console.log("Update button clicked");
+    
     if (!selectedUnitId) {
         alert("Select a unit first.");
         return;
@@ -748,10 +789,14 @@ function updateNotes() {
     }
 
     // Check if we're editing an existing topic
-    const isEditing = topics[0] && existingTopics.find(t => t.id === topics[0].id);
+    const currentTopic = topics[0];
+    const existingTopic = existingTopics.find(t => t.id === currentTopic.id);
     
-    if (!isEditing) {
-        alert("Please load an existing topic to edit using the 'Edit' button.");
+    console.log("Current topic:", currentTopic);
+    console.log("Existing topic found:", existingTopic);
+    
+    if (!existingTopic) {
+        alert("Please load an existing topic to edit using the 'Edit' button from the list below.");
         return;
     }
 
@@ -777,9 +822,15 @@ function updateNotes() {
     formData.append("unit_id", selectedUnitId);
     formData.append("topics", JSON.stringify(topics));
     formData.append("action", "update");
-    formData.append("topic_id", topics[0].id); // The topic being edited
+    formData.append("topic_id", currentTopic.id); // The topic being edited
+
+    console.log("FormData contents:");
+    for (let [key, value] of formData.entries()) {
+        console.log(key, value);
+    }
 
     // Collect images + files for upload
+    let fileCount = 0;
     topics.forEach(topic => {
         topic.subtopics.forEach(sub => {
             // Inline images
@@ -789,6 +840,7 @@ function updateNotes() {
                     img.file,
                     img.file.name
                 );
+                fileCount++;
             });
 
             // Files
@@ -798,9 +850,12 @@ function updateNotes() {
                     f.file,
                     f.file.name
                 );
+                fileCount++;
             });
         });
     });
+
+    console.log(`Total files to upload: ${fileCount}`);
 
     // Show loading state
     const updateBtn = document.querySelector('button[onclick="updateNotes()"]');
@@ -813,12 +868,14 @@ function updateNotes() {
         body: formData
     })
     .then(r => {
+        console.log("Response status:", r.status);
         if (!r.ok) {
-            throw new Error('Network response was not ok');
+            throw new Error(`Network response was not ok: ${r.status}`);
         }
         return r.json();
     })
     .then(res => {
+        console.log("Server response:", res);
         alert(res.message);
         if (res.success) {
             // Clear the form and reload existing topics
@@ -838,84 +895,20 @@ function updateNotes() {
     });
 }
 
-// Modify the loadForEditing function to show which topic is being edited
-function loadForEditing(topicId) {
-    const t = existingTopics.find(x => x.id === topicId);
-    if (!t) return;
-
-    topics = [{
-        id: t.id,
-        title: t.title,
-        subtopics: t.subtopics
-    }];
-
-    renderForm();
+// Test function to check update functionality
+function testUpdate() {
+    console.log("=== TESTING UPDATE FUNCTIONALITY ===");
+    console.log("Selected Unit ID:", selectedUnitId);
+    console.log("Current topics:", topics);
+    console.log("Existing topics:", existingTopics);
     
-    // Scroll to the form section and show a message
-    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
-    alert(`Now editing: "${t.title}"\n\nMake your changes and click "Update Notes" to save.`);
-}
-
-// Add a function to clear current editing
-function clearEditing() {
-    topics = [];
-    renderForm();
-    renderPreview();
-}
-
-// Update the renderExistingTopics function to include a clear button
-function renderExistingTopics() {
-    const box = document.getElementById("topicsList");
-    box.innerHTML = "";
-
-    // Add clear editing button if we're currently editing
     if (topics.length > 0) {
-        const clearDiv = document.createElement("div");
-        clearDiv.style.padding = "10px";
-        clearDiv.style.margin = "10px 0";
-        clearDiv.style.border = "2px solid #f59e0b";
-        clearDiv.style.backgroundColor = "#fffbeb";
-        
-        const editingText = document.createElement("strong");
-        editingText.textContent = `Editing: ${topics[0].title}`;
-        editingText.style.color = "#d97706";
-        
-        const clearBtn = document.createElement("button");
-        clearBtn.textContent = "Cancel Editing";
-        clearBtn.style.background = "#ef4444";
-        clearBtn.style.color = "white";
-        clearBtn.style.border = "none";
-        clearBtn.style.padding = "4px 8px";
-        clearBtn.style.borderRadius = "4px";
-        clearBtn.style.marginLeft = "10px";
-        clearBtn.style.cursor = "pointer";
-        clearBtn.onclick = clearEditing;
-        
-        clearDiv.appendChild(editingText);
-        clearDiv.appendChild(clearBtn);
-        box.appendChild(clearDiv);
+        const currentTopic = topics[0];
+        const existingTopic = existingTopics.find(t => t.id == currentTopic.id);
+        console.log("Can update?", !!existingTopic);
+    } else {
+        console.log("No topic loaded for editing");
     }
-
-    existingTopics.forEach(t => {
-        const div = document.createElement("div");
-        div.style.padding = "10px";
-        div.style.margin = "5px 0";
-        div.style.border = "1px solid #ddd";
-        div.style.backgroundColor = topics[0] && topics[0].id === t.id ? "#f0f9ff" : "white";
-
-        const titleSpan = document.createElement("strong");
-        titleSpan.textContent = t.title;
-        
-        const editBtn = document.createElement("button");
-        editBtn.className = "edit-btn";
-        editBtn.textContent = topics[0] && topics[0].id === t.id ? "Currently Editing" : "Edit";
-        editBtn.disabled = topics[0] && topics[0].id === t.id;
-        editBtn.onclick = () => loadForEditing(t.id);
-
-        div.appendChild(titleSpan);
-        div.appendChild(editBtn);
-        box.appendChild(div);
-    });
 }
 // ---------------------------------------------------------
 </script>
