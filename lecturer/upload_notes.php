@@ -629,7 +629,6 @@ function loadForEditing(topicId) {
 // ---------------------------------------------------------
 // SUBMIT NOTES - IMPROVED VERSION
 // ---------------------------------------------------------
-
 function submitNotes() {
     if (!selectedUnitId) {
         alert("Select a unit first.");
@@ -659,7 +658,8 @@ function submitNotes() {
 
     const formData = new FormData();
 
-    // Append main JSON
+    // Append main JSON - ADD THE ACTION PARAMETER
+    formData.append("action", "create");
     formData.append("unit_id", selectedUnitId);
     formData.append("topics", JSON.stringify(topics));
 

@@ -30,7 +30,7 @@ try {
     $lecturer_id = $_SESSION['user_id'];
     $unit_id = $_POST['unit_id'] ?? null;
     $topics_json = $_POST['topics'] ?? '[]';
-    $action = $_POST['action'] ?? 'create'; // 'create' or 'update'
+    $action = $_POST['action'] ?? 'create';
     $topic_id = $_POST['topic_id'] ?? null;
     
     if (!$unit_id) {
@@ -54,7 +54,11 @@ try {
     }
     
     // Handle UPDATE action
-    if ($action === 'update' && $topic_id) {
+    if ($action === 'update') {
+        if (!$topic_id) {
+            throw new Exception('Topic ID is required for update');
+        }
+        
         // Verify the topic belongs to this lecturer
         $check_stmt = $conn->prepare("SELECT id FROM classnotes WHERE id = ? AND lecturer_id = ?");
         $check_stmt->bind_param("ii", $topic_id, $lecturer_id);
@@ -66,7 +70,7 @@ try {
         }
         $check_stmt->close();
         
-        // Process the topic for update (assuming single topic for update)
+        // Process the topic for update
         $topic = $topics[0] ?? null;
         if (!$topic) {
             throw new Exception('No topic data provided for update');
@@ -79,99 +83,8 @@ try {
             throw new Exception('Topic title is required');
         }
         
-        // Process subtopics to handle images and files
-        $processed_subtopics = [];
-        foreach ($subtopics as $subtopic) {
-            $processed_subtopic = [
-                'id' => $subtopic['id'] ?? generateId(),
-                'title' => $subtopic['title'] ?? '',
-                'content' => $subtopic['content'] ?? '',
-                'choices' => $subtopic['choices'] ?? [],
-                'correctChoice' => $subtopic['correctChoice'] ?? null,
-                'images' => [],
-                'files' => []
-            ];
-            
-            // Handle inline images for update
-            $subtopic_id = $processed_subtopic['id'];
-            if (isset($_FILES["subtopic_images"]) && isset($_FILES["subtopic_images"]["name"][$subtopic_id])) {
-                $image_files = $_FILES["subtopic_images"]["name"][$subtopic_id];
-                $image_tmp_names = $_FILES["subtopic_images"]["tmp_name"][$subtopic_id];
-                $image_errors = $_FILES["subtopic_images"]["error"][$subtopic_id];
-                
-                // Ensure we have arrays
-                if (!is_array($image_files)) {
-                    $image_files = [$image_files];
-                    $image_tmp_names = [$image_tmp_names];
-                    $image_errors = [$image_errors];
-                }
-                
-                for ($i = 0; $i < count($image_files); $i++) {
-                    if ($image_files[$i] && $image_tmp_names[$i] && $image_errors[$i] === UPLOAD_ERR_OK) {
-                        $image_name = uniqid() . '_' . basename($image_files[$i]);
-                        $image_path = "../uploads/images/" . $image_name;
-                        
-                        if (move_uploaded_file($image_tmp_names[$i], $image_path)) {
-                            $processed_subtopic['images'][] = [
-                                'name' => $image_name,
-                                'original_name' => $image_files[$i]
-                            ];
-                            
-                            // Replace data URL with actual file path in content
-                            if (isset($subtopic['images'][$i])) {
-                                $placeholder = $subtopic['images'][$i]['placeholder'] ?? '';
-                                // Replace the data URL with the actual file path
-                                $processed_subtopic['content'] = str_replace(
-                                    'data-placeholder="' . $placeholder . '"', 
-                                    'src="../uploads/images/' . $image_name . '"',
-                                    $processed_subtopic['content']
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Handle file attachments for update
-            if (isset($_FILES["subtopic_files"]) && isset($_FILES["subtopic_files"]["name"][$subtopic_id])) {
-                $file_names = $_FILES["subtopic_files"]["name"][$subtopic_id];
-                $file_tmp_names = $_FILES["subtopic_files"]["tmp_name"][$subtopic_id];
-                $file_errors = $_FILES["subtopic_files"]["error"][$subtopic_id];
-                
-                // Ensure we have arrays
-                if (!is_array($file_names)) {
-                    $file_names = [$file_names];
-                    $file_tmp_names = [$file_tmp_names];
-                    $file_errors = [$file_errors];
-                }
-                
-                for ($i = 0; $i < count($file_names); $i++) {
-                    if ($file_names[$i] && $file_tmp_names[$i] && $file_errors[$i] === UPLOAD_ERR_OK) {
-                        $file_name = uniqid() . '_' . basename($file_names[$i]);
-                        $file_path = "../uploads/files/" . $file_name;
-                        
-                        if (move_uploaded_file($file_tmp_names[$i], $file_path)) {
-                            $processed_subtopic['files'][] = [
-                                'name' => $file_name,
-                                'original_name' => $file_names[$i],
-                                'label' => $file_names[$i]
-                            ];
-                        }
-                    }
-                }
-            }
-            
-            // Preserve existing images and files that weren't changed
-            if (isset($subtopic['existing_images'])) {
-                $processed_subtopic['images'] = array_merge($processed_subtopic['images'], $subtopic['existing_images']);
-            }
-            if (isset($subtopic['existing_files'])) {
-                $processed_subtopic['files'] = array_merge($processed_subtopic['files'], $subtopic['existing_files']);
-            }
-            
-            $processed_subtopics[] = $processed_subtopic;
-        }
-        
+        // Process subtopics
+        $processed_subtopics = processSubtopics($subtopics);
         $subtopics_json = json_encode($processed_subtopics);
         
         // Update the topic
@@ -192,103 +105,23 @@ try {
         
     } else {
         // Handle CREATE action
-        // Process each topic for creation
+        if (empty($topics)) {
+            throw new Exception('No topics to save');
+        }
+        
         foreach ($topics as $topic) {
             $topic_title = $topic['title'] ?? '';
             $subtopics = $topic['subtopics'] ?? [];
             
             if (empty($topic_title)) {
-                continue; // Skip empty topics
+                continue;
             }
             
-            // Process subtopics to handle images and files
-            $processed_subtopics = [];
-            foreach ($subtopics as $subtopic) {
-                $processed_subtopic = [
-                    'id' => $subtopic['id'] ?? generateId(),
-                    'title' => $subtopic['title'] ?? '',
-                    'content' => $subtopic['content'] ?? '',
-                    'choices' => $subtopic['choices'] ?? [],
-                    'correctChoice' => $subtopic['correctChoice'] ?? null,
-                    'images' => [],
-                    'files' => []
-                ];
-                
-                // Handle inline images for create
-                $subtopic_id = $processed_subtopic['id'];
-                if (isset($_FILES["subtopic_images"]) && isset($_FILES["subtopic_images"]["name"][$subtopic_id])) {
-                    $image_files = $_FILES["subtopic_images"]["name"][$subtopic_id];
-                    $image_tmp_names = $_FILES["subtopic_images"]["tmp_name"][$subtopic_id];
-                    $image_errors = $_FILES["subtopic_images"]["error"][$subtopic_id];
-                    
-                    // Ensure we have arrays
-                    if (!is_array($image_files)) {
-                        $image_files = [$image_files];
-                        $image_tmp_names = [$image_tmp_names];
-                        $image_errors = [$image_errors];
-                    }
-                    
-                    for ($i = 0; $i < count($image_files); $i++) {
-                        if ($image_files[$i] && $image_tmp_names[$i] && $image_errors[$i] === UPLOAD_ERR_OK) {
-                            $image_name = uniqid() . '_' . basename($image_files[$i]);
-                            $image_path = "../uploads/images/" . $image_name;
-                            
-                            if (move_uploaded_file($image_tmp_names[$i], $image_path)) {
-                                $processed_subtopic['images'][] = [
-                                    'name' => $image_name,
-                                    'original_name' => $image_files[$i]
-                                ];
-                                
-                                // Replace data URL with actual file path in content
-                                if (isset($subtopic['images'][$i])) {
-                                    $placeholder = $subtopic['images'][$i]['placeholder'] ?? '';
-                                    // Replace the data URL with the actual file path
-                                    $processed_subtopic['content'] = str_replace(
-                                        'data-placeholder="' . $placeholder . '"', 
-                                        'src="../uploads/images/' . $image_name . '"',
-                                        $processed_subtopic['content']
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Handle file attachments for create
-                if (isset($_FILES["subtopic_files"]) && isset($_FILES["subtopic_files"]["name"][$subtopic_id])) {
-                    $file_names = $_FILES["subtopic_files"]["name"][$subtopic_id];
-                    $file_tmp_names = $_FILES["subtopic_files"]["tmp_name"][$subtopic_id];
-                    $file_errors = $_FILES["subtopic_files"]["error"][$subtopic_id];
-                    
-                    // Ensure we have arrays
-                    if (!is_array($file_names)) {
-                        $file_names = [$file_names];
-                        $file_tmp_names = [$file_tmp_names];
-                        $file_errors = [$file_errors];
-                    }
-                    
-                    for ($i = 0; $i < count($file_names); $i++) {
-                        if ($file_names[$i] && $file_tmp_names[$i] && $file_errors[$i] === UPLOAD_ERR_OK) {
-                            $file_name = uniqid() . '_' . basename($file_names[$i]);
-                            $file_path = "../uploads/files/" . $file_name;
-                            
-                            if (move_uploaded_file($file_tmp_names[$i], $file_path)) {
-                                $processed_subtopic['files'][] = [
-                                    'name' => $file_name,
-                                    'original_name' => $file_names[$i],
-                                    'label' => $file_names[$i]
-                                ];
-                            }
-                        }
-                    }
-                }
-                
-                $processed_subtopics[] = $processed_subtopic;
-            }
-            
+            // Process subtopics
+            $processed_subtopics = processSubtopics($subtopics);
             $subtopics_json = json_encode($processed_subtopics);
             
-            // CREATE new topic
+            // Create new topic
             $stmt = $conn->prepare("
                 INSERT INTO classnotes (unit_id, lecturer_id, title, subtopics_json, uploaded_at) 
                 VALUES (?, ?, ?, ?, NOW())
@@ -300,14 +133,15 @@ try {
                 throw new Exception('Failed to save topic: ' . $stmt->error);
             }
             
-            $message = 'Notes saved successfully!';
             $stmt->close();
         }
+        
+        $message = 'Notes saved successfully!';
     }
     
     echo json_encode([
         'success' => true, 
-        'message' => $message ?? 'Operation completed successfully'
+        'message' => $message
     ]);
     
 } catch (Exception $e) {
@@ -316,6 +150,96 @@ try {
         'success' => false, 
         'message' => 'Error: ' . $e->getMessage()
     ]);
+}
+
+function processSubtopics($subtopics) {
+    global $conn;
+    
+    $processed_subtopics = [];
+    foreach ($subtopics as $subtopic) {
+        $processed_subtopic = [
+            'id' => $subtopic['id'] ?? generateId(),
+            'title' => $subtopic['title'] ?? '',
+            'content' => $subtopic['content'] ?? '',
+            'choices' => $subtopic['choices'] ?? [],
+            'correctChoice' => $subtopic['correctChoice'] ?? null,
+            'images' => [],
+            'files' => []
+        ];
+        
+        $subtopic_id = $processed_subtopic['id'];
+        
+        // Handle inline images
+        if (isset($_FILES["subtopic_images"]) && isset($_FILES["subtopic_images"]["name"][$subtopic_id])) {
+            $image_files = rearrayFiles($_FILES["subtopic_images"]["name"][$subtopic_id]);
+            $image_tmp_names = rearrayFiles($_FILES["subtopic_images"]["tmp_name"][$subtopic_id]);
+            $image_errors = rearrayFiles($_FILES["subtopic_images"]["error"][$subtopic_id]);
+            
+            foreach ($image_files as $index => $image_file) {
+                if ($image_file && $image_tmp_names[$index] && $image_errors[$index] === UPLOAD_ERR_OK) {
+                    $image_name = uniqid() . '_' . basename($image_file);
+                    $image_path = "../uploads/images/" . $image_name;
+                    
+                    if (move_uploaded_file($image_tmp_names[$index], $image_path)) {
+                        $processed_subtopic['images'][] = [
+                            'name' => $image_name,
+                            'original_name' => $image_file
+                        ];
+                        
+                        // Replace placeholder with actual image path
+                        if (isset($subtopic['images'][$index])) {
+                            $placeholder = $subtopic['images'][$index]['placeholder'] ?? '';
+                            if ($placeholder) {
+                                $processed_subtopic['content'] = str_replace(
+                                    'data-placeholder="' . $placeholder . '"', 
+                                    'src="../uploads/images/' . $image_name . '"',
+                                    $processed_subtopic['content']
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Handle file attachments
+        if (isset($_FILES["subtopic_files"]) && isset($_FILES["subtopic_files"]["name"][$subtopic_id])) {
+            $file_names = rearrayFiles($_FILES["subtopic_files"]["name"][$subtopic_id]);
+            $file_tmp_names = rearrayFiles($_FILES["subtopic_files"]["tmp_name"][$subtopic_id]);
+            $file_errors = rearrayFiles($_FILES["subtopic_files"]["error"][$subtopic_id]);
+            
+            foreach ($file_names as $index => $file_name) {
+                if ($file_name && $file_tmp_names[$index] && $file_errors[$index] === UPLOAD_ERR_OK) {
+                    $saved_file_name = uniqid() . '_' . basename($file_name);
+                    $file_path = "../uploads/files/" . $saved_file_name;
+                    
+                    if (move_uploaded_file($file_tmp_names[$index], $file_path)) {
+                        $processed_subtopic['files'][] = [
+                            'name' => $saved_file_name,
+                            'original_name' => $file_name,
+                            'label' => $file_name
+                        ];
+                    }
+                }
+            }
+        }
+        
+        $processed_subtopics[] = $processed_subtopic;
+    }
+    
+    return $processed_subtopics;
+}
+
+function rearrayFiles($file_array) {
+    $rearrayed = [];
+    if (is_array($file_array)) {
+        foreach ($file_array as $key => $value) {
+            $rearrayed[] = $value;
+        }
+    } else {
+        $rearrayed[] = $file_array;
+    }
+    return $rearrayed;
 }
 
 function generateId() {
