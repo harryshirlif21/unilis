@@ -2,49 +2,73 @@
 // include your db connection
 require_once __DIR__ . "/config/db.php";
 
-echo "Fixing classnotes table structure...<br>";
+echo "Fixing student_classnotes_subtopic_progress table structure...<br>";
 
-// Check and add missing columns
-$missing_columns = [];
+// Check if table exists
+$check_table_sql = "SHOW TABLES LIKE 'student_classnotes_subtopic_progress'";
+$result = $conn->query($check_table_sql);
 
-// Check subtopics_json column
-$check_sql = "SHOW COLUMNS FROM classnotes LIKE 'subtopics_json'";
-$result = $conn->query($check_sql);
 if ($result->num_rows == 0) {
-    $missing_columns[] = "ADD COLUMN subtopics_json LONGTEXT NOT NULL AFTER title";
-}
-
-// Check uploaded_by column
-$check_sql = "SHOW COLUMNS FROM classnotes LIKE 'uploaded_by'";
-$result = $conn->query($check_sql);
-if ($result->num_rows == 0) {
-    $missing_columns[] = "ADD COLUMN uploaded_by INT NOT NULL AFTER subtopics_json";
-}
-
-// Check uploaded_at column
-$check_sql = "SHOW COLUMNS FROM classnotes LIKE 'uploaded_at'";
-$result = $conn->query($check_sql);
-if ($result->num_rows == 0) {
-    $missing_columns[] = "ADD COLUMN uploaded_at DATETIME NOT NULL AFTER uploaded_by";
-}
-
-// Add all missing columns at once
-if (!empty($missing_columns)) {
-    $alter_sql = "ALTER TABLE classnotes " . implode(", ", $missing_columns);
+    // Table does not exist, create it
+    $create_table_sql = "
+        CREATE TABLE student_classnotes_subtopic_progress (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            student_id INT NOT NULL,
+            classnote_id INT NOT NULL,
+            subtopic_id INT NOT NULL,
+            viewed TINYINT(1) DEFAULT 0,
+            completed TINYINT(1) DEFAULT 0,
+            selected_choice INT NULL,
+            is_correct TINYINT(1) DEFAULT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES students(id),
+            FOREIGN KEY (classnote_id) REFERENCES classnotes(id)
+        )
+    ";
     
-    if ($conn->query($alter_sql) === TRUE) {
-        echo "✅ SUCCESS: Added missing columns to classnotes table:<br>";
-        foreach ($missing_columns as $column) {
-            echo "&nbsp;&nbsp;• " . str_replace("ADD COLUMN ", "", $column) . "<br>";
-        }
+    if ($conn->query($create_table_sql) === TRUE) {
+        echo "✅ SUCCESS: student_classnotes_subtopic_progress table created.<br>";
     } else {
-        echo "❌ ERROR: Failed to add columns: " . $conn->error . "<br>";
+        echo "❌ ERROR: Failed to create table: " . $conn->error . "<br>";
     }
 } else {
-    echo "✅ All required columns already exist in classnotes table.<br>";
-}
+    echo "✅ Table student_classnotes_subtopic_progress already exists.<br>";
 
-echo "The notes save functionality should now work properly!";
+    // Check and add missing columns dynamically
+    $required_columns = [
+        'student_id' => 'INT NOT NULL',
+        'classnote_id' => 'INT NOT NULL',
+        'subtopic_id' => 'INT NOT NULL',
+        'viewed' => 'TINYINT(1) DEFAULT 0',
+        'completed' => 'TINYINT(1) DEFAULT 0',
+        'selected_choice' => 'INT NULL',
+        'is_correct' => 'TINYINT(1) DEFAULT NULL',
+        'updated_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+    ];
+
+    $missing_columns = [];
+    foreach ($required_columns as $col => $definition) {
+        $check_sql = "SHOW COLUMNS FROM student_classnotes_subtopic_progress LIKE '$col'";
+        $res = $conn->query($check_sql);
+        if ($res->num_rows == 0) {
+            $missing_columns[] = "ADD COLUMN $col $definition";
+        }
+    }
+
+    if (!empty($missing_columns)) {
+        $alter_sql = "ALTER TABLE student_classnotes_subtopic_progress " . implode(", ", $missing_columns);
+        if ($conn->query($alter_sql) === TRUE) {
+            echo "✅ SUCCESS: Added missing columns:<br>";
+            foreach ($missing_columns as $col) {
+                echo "&nbsp;&nbsp;• " . str_replace("ADD COLUMN ", "", $col) . "<br>";
+            }
+        } else {
+            echo "❌ ERROR: Failed to add columns: " . $conn->error . "<br>";
+        }
+    } else {
+        echo "✅ All required columns already exist.<br>";
+    }
+}
 
 // close connection
 $conn->close();

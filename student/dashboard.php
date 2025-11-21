@@ -157,8 +157,8 @@ if ($course_id && $year_of_study) {
         <button class="menu-item orange" onclick="alert('My Courses clicked!')">
             <i class="fas fa-book"></i> My Courses
         </button>
-        <a href="submit_assignment.php" class="menu-item orange">
-            <i class="fas fa-upload"></i> Submit Assignment
+        <a href="student_notes.php" class="menu-item orange">
+            <i class="fas fa-upload"></i> Read Notes
         </a>
         <button class="menu-item orange" onclick="alert('Grades clicked!')">
             <i class="fas fa-medal"></i> Grades
