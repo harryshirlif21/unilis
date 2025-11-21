@@ -35,14 +35,10 @@ $units_result = $units_stmt->get_result();
 
 // Function to fix image paths in content
 function fixImagePaths($content) {
-    // Fix relative paths - convert ../uploads to absolute path from web root
     $content = str_replace('src="../uploads/', 'src="/uploads/', $content);
     $content = str_replace("src='../uploads/", "src='/uploads/", $content);
-    
-    // Also fix double-relative paths if any
     $content = str_replace('src="../../uploads/', 'src="/uploads/', $content);
     $content = str_replace("src='../../uploads/", "src='/uploads/", $content);
-    
     return $content;
 }
 ?>
@@ -54,8 +50,6 @@ function fixImagePaths($content) {
 <style>
 body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 2rem; }
 h1 { text-align:center; margin-bottom:2rem; }
-
-/* Unit tiles */
 .units-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -70,9 +64,7 @@ h1 { text-align:center; margin-bottom:2rem; }
     text-align: center;
     transition: all 0.2s;
 }
-.unit-tile:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-}
+.unit-tile:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
 .unit-tile button {
     margin-top: 8px;
     padding: 6px 12px;
@@ -83,59 +75,37 @@ h1 { text-align:center; margin-bottom:2rem; }
     cursor: pointer;
 }
 .unit-tile button:hover { background:#2563eb; }
-
-/* Modal */
 .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:1000; }
 .modal-content { background:#fff; padding:1.5rem; width:90%; max-width:900px; max-height:90%; overflow-y:auto; border-radius:1rem; position:relative; }
 .modal-close { position:absolute; top:10px; right:10px; font-size:1.5rem; font-weight:bold; cursor:pointer; color:#555; }
 .modal-close:hover { color:#000; }
-
-/* Topic/Subtopic */
 .topic-card { background:#fefefe; border-radius:8px; margin-bottom:1.5rem; padding:1rem; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
 .topic-card h3 { color:#dc2626; margin-bottom:0.5rem; }
 .subtopic-title { color:#16a34a; font-weight:bold; margin-top:1rem; }
-.content-area { 
-    line-height: 1.6;
-    margin: 1rem 0;
-}
+.content-area { line-height: 1.6; margin: 1rem 0; }
 .content-area img { 
-    max-width: 100%; 
-    height: auto; 
-    border-radius: 8px; 
-    margin: 10px 0; 
-    cursor: pointer; 
-    transition: transform 0.2s;
+    max-width: 100%; height: auto; border-radius: 8px; 
+    margin: 10px 0; cursor: pointer; transition: transform 0.2s;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
-.content-area img:hover { 
-    transform: scale(1.02); 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-}
+.content-area img:hover { transform: scale(1.02); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 .choices-list { background:#e2e8f0; padding:15px; border-radius:8px; margin:10px 0; }
 .choice-item { padding: 8px 0; }
 .choice-correct { color:#16a34a; font-weight:bold; }
 .files-section { margin-top:15px; padding-top:15px; border-top: 1px solid #e2e8f0; }
 .file-item { display:inline-block; background:#f59e0b; color:#fff; padding:6px 12px; border-radius:20px; margin:5px; text-decoration:none; font-size:0.9em; }
 .file-item:hover { background:#d97706; }
-
-/* Progress badges */
 .progress-badge { padding:4px 12px; border-radius:20px; font-size:0.8em; font-weight:600; text-transform:uppercase; display: inline-block; margin-left: 10px; }
 .progress-not_started { background:#f1f5f9; color:#6b7280; }
 .progress-in_progress { background:#fef3c7; color:#f59e0b; }
 .progress-completed { background:#d1fae5; color:#10b981; }
-
-/* Buttons */
 .btn { padding:6px 12px; border:none; border-radius:6px; cursor:pointer; font-weight:600; margin: 5px; }
 .btn-primary { background:#3b82f6; color:white; }
 .btn-primary:hover { background:#2563eb; }
-
-/* Image Modal */
 .image-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; justify-content:center; align-items:center; }
 .image-modal-content { max-width:90%; max-height:90%; object-fit:contain; border-radius:8px; }
 .image-modal-close { position:absolute; top:20px; right:35px; color:#fff; font-size:40px; font-weight:bold; cursor:pointer; z-index: 2001; }
 .image-modal-close:hover { color:#ccc; }
-
-/* Content formatting */
 .content-area p { margin-bottom: 1rem; }
 .content-area strong { font-weight: bold; }
 .content-area em { font-style: italic; }
@@ -157,7 +127,6 @@ h1 { text-align:center; margin-bottom:2rem; }
 <?php endwhile; ?>
 </div>
 
-<!-- Notes Modal -->
 <div id="notesModal" class="modal">
     <div class="modal-content">
         <span class="modal-close" onclick="closeModal()">&times;</span>
@@ -165,7 +134,6 @@ h1 { text-align:center; margin-bottom:2rem; }
     </div>
 </div>
 
-<!-- Image Modal -->
 <div id="imageModal" class="image-modal">
     <span class="image-modal-close" onclick="closeImageModal()">&times;</span>
     <img class="image-modal-content" id="expandedImage">
@@ -198,15 +166,12 @@ function closeModal() {
 
 function initializeImageModals() {
     document.querySelectorAll('.content-area img').forEach(img => {
-        img.onclick = function() {
-            openImageModal(this.src);
-        };
+        img.onclick = function() { openImageModal(this.src); };
     });
 }
 
 function openImageModal(imgSrc) {
-    const expandedImg = document.getElementById('expandedImage');
-    expandedImg.src = imgSrc;
+    document.getElementById('expandedImage').src = imgSrc;
     document.getElementById('imageModal').style.display = 'flex';
 }
 
@@ -215,72 +180,130 @@ function closeImageModal() {
 }
 
 window.onclick = function(event) {
-    const notesModal = document.getElementById('notesModal');
-    const imageModal = document.getElementById('imageModal');
-    
-    if(event.target == notesModal) notesModal.style.display = 'none';
-    if(event.target == imageModal) imageModal.style.display = 'none';
+    if(event.target == document.getElementById('notesModal')) document.getElementById('notesModal').style.display = 'none';
+    if(event.target == document.getElementById('imageModal')) document.getElementById('imageModal').style.display = 'none';
 }
 
 document.addEventListener('keydown', function(event) {
-    if(event.key === 'Escape') {
-        closeModal();
-        closeImageModal();
-    }
+    if(event.key === 'Escape') { closeModal(); closeImageModal(); }
 });
 
 function markAsComplete(classnoteId) {
-    fetch('', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'mark_complete=1&classnote_id=' + classnoteId
-    })
+    const formData = new FormData();
+    formData.append('mark_complete', '1');
+    formData.append('classnote_id', classnoteId);
+
+    fetch('', { method: 'POST', body: formData })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             const badge = document.querySelector('[data-classnote-id="' + classnoteId + '"] .progress-badge');
-            badge.textContent = 'completed';
-            badge.className = 'progress-badge progress-completed';
+            if (badge) {
+                badge.textContent = 'Completed';
+                badge.className = 'progress-badge progress-completed';
+            }
             alert('Note marked as completed!');
         } else {
-            alert('Error: ' + data.message);
+            alert('Error: ' + (data.message || 'Unknown error'));
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Error updating progress');
+        alert('Error updating progress: ' + error.message);
     });
 }
 </script>
 
 <?php
+// Handle mark complete (must be before notes loading)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_complete']) && isset($_POST['classnote_id'])) {
+    header('Content-Type: application/json');
+    $classnote_id = intval($_POST['classnote_id']);
+    
+    try {
+        // Check if record exists
+        $check = $conn->prepare("SELECT id FROM student_classnotes_progress WHERE student_id = ? AND classnote_id = ?");
+        $check->bind_param("ii", $student_id, $classnote_id);
+        $check->execute();
+        $exists = $check->get_result()->num_rows > 0;
+        $check->close();
+        
+        if ($exists) {
+            $update_stmt = $conn->prepare("UPDATE student_classnotes_progress SET status = 'completed', last_accessed = NOW() WHERE student_id = ? AND classnote_id = ?");
+            $update_stmt->bind_param("ii", $student_id, $classnote_id);
+        } else {
+            $update_stmt = $conn->prepare("INSERT INTO student_classnotes_progress (student_id, classnote_id, status, last_accessed) VALUES (?, ?, 'completed', NOW())");
+            $update_stmt->bind_param("ii", $student_id, $classnote_id);
+        }
+        
+        if ($update_stmt->execute()) {
+            echo json_encode(['success' => true, 'message' => 'Marked as completed']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $update_stmt->error]);
+        }
+        $update_stmt->close();
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
 // Load notes for modal
-if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['unit_id'])):
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unit_id'])):
     $unit_id = intval($_POST['unit_id']);
+    
+    // Get notes ordered by oldest first (ASC)
     $stmt = $conn->prepare("
         SELECT cn.id AS classnote_id, cn.title, cn.subtopics_json, cn.uploaded_at, scp.status
         FROM classnotes cn
         LEFT JOIN student_classnotes_progress scp 
-            ON scp.classnote_id=cn.id AND scp.student_id=?
-        WHERE cn.unit_id=?
-        ORDER BY cn.uploaded_at DESC
+            ON scp.classnote_id = cn.id AND scp.student_id = ?
+        WHERE cn.unit_id = ?
+        ORDER BY cn.uploaded_at ASC
     ");
-    $stmt->bind_param("ii",$student_id,$unit_id);
+    $stmt->bind_param("ii", $student_id, $unit_id);
     $stmt->execute();
     $res = $stmt->get_result();
+    
+    // Collect all classnote IDs to mark as in_progress
+    $classnote_ids = [];
+    $notes_data = [];
+    while ($row = $res->fetch_assoc()) {
+        $notes_data[] = $row;
+        // If status is null (not_started), mark for update
+        if ($row['status'] === null) {
+            $classnote_ids[] = $row['classnote_id'];
+        }
+    }
+    $stmt->close();
+    
+    // Mark all not_started notes as in_progress
+    foreach ($classnote_ids as $cn_id) {
+        $check = $conn->prepare("SELECT id FROM student_classnotes_progress WHERE student_id = ? AND classnote_id = ?");
+        $check->bind_param("ii", $student_id, $cn_id);
+        $check->execute();
+        $exists = $check->get_result()->num_rows > 0;
+        $check->close();
+        
+        if (!$exists) {
+            $ins = $conn->prepare("INSERT INTO student_classnotes_progress (student_id, classnote_id, status, last_accessed) VALUES (?, ?, 'in_progress', NOW())");
+            $ins->bind_param("ii", $student_id, $cn_id);
+            $ins->execute();
+            $ins->close();
+        }
+    }
     ?>
-    <?php if($res->num_rows>0): ?>
-        <?php while($note=$res->fetch_assoc()):
-            $subtopics = json_decode($note['subtopics_json'],true) ?? [];
-            $progress_status = $note['status'] ?? 'not_started';
+    <?php if(count($notes_data) > 0): ?>
+        <?php foreach($notes_data as $note):
+            $subtopics = json_decode($note['subtopics_json'], true) ?? [];
+            // If was null, now it's in_progress
+            $progress_status = $note['status'] ?? 'in_progress';
         ?>
         <div class="topic-card" data-classnote-id="<?= $note['classnote_id'] ?>">
             <div style="display: flex; align-items: center; justify-content: space-between;">
                 <h3 style="margin: 0;"><?= htmlspecialchars($note['title']) ?></h3>
                 <span class="progress-badge progress-<?= $progress_status ?>">
-                    <?= ucfirst(str_replace('_',' ',$progress_status)) ?>
+                    <?= ucfirst(str_replace('_', ' ', $progress_status)) ?>
                 </span>
             </div>
             <p><small>Uploaded: <?= date("d M Y, h:i A", strtotime($note['uploaded_at'])) ?></small></p>
@@ -300,9 +323,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['unit_id'])):
                             <div class="choices-list">
                                 <strong>Questions:</strong>
                                 <?php foreach($sub['choices'] as $c): ?>
-                                    <div class="choice-item <?= ($sub['correctChoice']==$c['id'])?'choice-correct':'' ?>">
+                                    <div class="choice-item <?= ($sub['correctChoice'] == $c['id']) ? 'choice-correct' : '' ?>">
                                         <?= htmlspecialchars($c['text'] ?? '') ?> 
-                                        <?php if ($sub['correctChoice']==$c['id']): ?>
+                                        <?php if ($sub['correctChoice'] == $c['id']): ?>
                                             <span style="color: #16a34a; font-weight: bold;">✓ Correct Answer</span>
                                         <?php endif; ?>
                                     </div>
@@ -327,36 +350,20 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['unit_id'])):
                 <?php endif; ?>
             <?php endforeach; ?>
             
+            <?php if($progress_status !== 'completed'): ?>
             <div style="margin-top: 15px;">
                 <button class="btn btn-primary" onclick="markAsComplete(<?= $note['classnote_id'] ?>)">
                     Mark as Completed
                 </button>
             </div>
+            <?php endif; ?>
         </div>
-        <?php endwhile; ?>
+        <?php endforeach; ?>
     <?php else: ?>
         <p>No notes uploaded for this unit.</p>
     <?php endif;
-    $stmt->close();
     exit;
 endif;
-
-// Handle progress updates
-if (isset($_POST['mark_complete']) && isset($_POST['classnote_id'])) {
-    $classnote_id = intval($_POST['classnote_id']);
-    
-    $update_stmt = $conn->prepare("
-        INSERT INTO student_classnotes_progress (student_id, classnote_id, status, last_accessed) 
-        VALUES (?, ?, 'completed', NOW())
-        ON DUPLICATE KEY UPDATE status='completed', last_accessed=NOW()
-    ");
-    $update_stmt->bind_param("ii", $student_id, $classnote_id);
-    $update_stmt->execute();
-    $update_stmt->close();
-    
-    echo json_encode(['success' => true, 'message' => 'Marked as completed']);
-    exit;
-}
 
 $conn->close();
 ?>
