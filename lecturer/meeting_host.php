@@ -3,17 +3,21 @@ session_start();
 require_once '../config/database.php';
 
 // Check if user is logged in and is a lecturer
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'lecturer') {
-    header('Location: ../login.php');
+session_start();
+
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+    header("Location: ../login.php");
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
-$meeting_id = $_GET['meeting_id'] ?? 0;
+$lecturer_id = (int)$_SESSION['user_id'];
+$lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
+$meeting_id = (int)($_GET['meeting_id'] ?? 0);
 
 if (!$meeting_id) {
     die('Meeting ID is required');
 }
+
 
 // Get meeting details
 $sql = "SELECT m.*, u.name as unit_name, l.name as lecturer_name 
