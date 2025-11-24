@@ -1,9 +1,8 @@
 <?php
 session_start();
-require_once '../config/database.php';
+require_once __DIR__ . '/../config/database.php';
 
 // Check if user is logged in and is a lecturer
-
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
     exit;
@@ -17,14 +16,14 @@ if (!$meeting_id) {
     die('Meeting ID is required');
 }
 
-
 // Get meeting details
 $sql = "SELECT m.*, u.name as unit_name, l.name as lecturer_name 
         FROM meetings m 
         JOIN units u ON m.unit_id = u.id 
         JOIN lecturers l ON m.lecturer_id = l.id 
         WHERE m.id = ? AND m.lecturer_id = ?";
-$meeting = executeQuery($sql, [$meeting_id, $user_id], "ii");
+
+$meeting = executeQuery($sql, [$meeting_id, $lecturer_id], "ii");
 
 if (empty($meeting)) {
     die('Meeting not found or access denied');
@@ -32,6 +31,7 @@ if (empty($meeting)) {
 
 $meeting = $meeting[0];
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
