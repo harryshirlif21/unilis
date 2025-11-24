@@ -120,7 +120,7 @@ if (isset($_SESSION['meeting_error'])) {
         <td><?= htmlspecialchars($meeting['unit_name']) ?></td>
         <td><?= date('d M Y, h:i A', strtotime($meeting['scheduled_time'])) ?></td>
         <td>
-            <a class="btn" href="meeting_ide.php?meeting_id=<?= $meeting['id'] ?>">🔗 Join Meeting</a>
+            <a class="btn" href="meeting_host.php?meeting_id=<?= $meeting['id'] ?>">🔗 Join Meeting</a>
             <a class="btn" href="../actions.php?action=download_register&type=single&meeting_id=<?= $meeting['id'] ?>">📝 Single Register</a>
             <a class="btn" href="../actions.php?action=download_register&type=full&unit_id=<?= $meeting['unit_id'] ?>">📊 Full Register</a>
             <a class="btn" href="#">🎥 Record</a> <!-- future feature -->
