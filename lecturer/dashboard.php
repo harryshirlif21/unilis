@@ -152,7 +152,7 @@ try {
 
         <button class="menu-item" onclick="showModal('uploadModal')"><i class="fas fa-upload"></i> Upload Notes</button>
         <button class="menu-item" data-target="notes-content"><i class="fas fa-file-alt"></i> View Notes</button>
-        <a href="meetings_host.php" class="menu-item"><i class="fas fa-calendar-alt"></i> Create Meeting</a>
+        <a href="meeting_host.php" class="menu-item"><i class="fas fa-calendar-alt"></i> Create Meeting</a>
         <button class="menu-item" onclick="showModal('addUnitModal')"><i class="fas fa-plus-circle"></i> Add Unit</button>
         <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
     </div>
