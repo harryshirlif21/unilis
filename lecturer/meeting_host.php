@@ -3,7 +3,6 @@ session_start();
 require_once '../config/database.php';
 
 // Check if user is logged in and is a lecturer
-session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
