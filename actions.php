@@ -287,7 +287,7 @@ if ($action === 'universal_login') {
         $field_list = implode(', ', $fields);
 
         $sql = "SELECT $field_list FROM $table WHERE email = :email LIMIT 1";
-        $stmt = $pdo->prepare($sql);
+        $stmt = $conn->prepare($sql);
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
