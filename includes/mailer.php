@@ -9,8 +9,8 @@ function send_verification_email($email, $token, $name = '') {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis717@gmail.com';
-        $mail->Password   = 'Man-18hattan';  // ← PUT YOUR REAL APP PASSWORD
+        $mail->Username   = 'unilis512@gmail.com';
+       $mail->Password = 'cornnvrapsuinyvk';   // ← NO SPACES! Just 16 characters
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
