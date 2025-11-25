@@ -1,7 +1,7 @@
 <?php
 // Database configuration
 global $conn;
-
+define('TOKEN_EXPIRY_MINUTES', 60); // <-- set to your desired expiry
 $maxRetries = 5;
 $retryDelay = 3; // seconds
 
