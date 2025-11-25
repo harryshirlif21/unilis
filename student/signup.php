@@ -6,186 +6,442 @@ include '../actions.php';
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Student Signup</title>
-  <link rel="stylesheet" href="css/signup.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Signup - JKUAT</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #10b981;
+      --danger: #ef4444;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-500: #6b7280;
+      --gray-700: #374151;
+      --gray-900: #111827;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      background: white;
+      max-width: 560px;
+      width: 100%;
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+      overflow: hidden;
+    }
+
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 24px;
+      text-align: center;
+      position: relative;
+    }
+
+    .home-btn {
+      position: absolute;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+      transition: 0.3s;
+    }
+    .home-btn:hover { background: rgba(255,255,255,0.3); }
+
+    .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+    .header p { opacity: 0.9; font-size: 15px; }
+
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      padding: 30px 40px 10px;
+      gap: 16px;
+    }
+    .step {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--gray-200);
+      color: var(--gray-500);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 16px;
+      position: relative;
+      transition: all 0.3s;
+    }
+    .step::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 44px;
+      width: 60px;
+      height: 3px;
+      background: var(--gray-200);
+      z-index: -1;
+    }
+    .step:last-child::before { display: none; }
+    .step.active {
+      background: var(--primary);
+      color: white;
+      transform: scale(1.15);
+    }
+    .step.completed {
+      background: var(--success);
+      color: white;
+    }
+    .step.completed::after {
+      content: "✓";
+      font-weight: bold;
+    }
+    .step.active ~ .step::before,
+    .step.completed ~ .step::before { background: var(--gray-200); }
+    .step:not(.active):not(.completed)::before { background: var(--gray-200); }
+
+    .form-body { padding: 40px; }
+    .form-step { display: none; animation: fadeIn 0.5s; }
+    .form-step.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    .form-group { margin-bottom: 24px; }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: var(--gray-700);
+      font-size: 14px;
+    }
+    input, select {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid var(--gray-200);
+      border-radius: 12px;
+      font-size: 16px;
+      transition: 0.3s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
+    }
+
+    .password-wrapper {
+      position: relative;
+    }
+    .toggle-password {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: var(--gray-500);
+      font-size: 18px;
+    }
+
+    .password-strength {
+      margin-top: 10px;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--gray-200);
+      overflow: hidden;
+    }
+    .strength-bar {
+      height: 100%;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+    .strength-text {
+      margin-top: 8px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* Strength levels */
+    .weak .strength-bar { background: var(--danger); width: 25%; }
+    .medium .strength-bar { background: #f59e0b; width: 50%; }
+    .strong .strength-bar { background: #10b981; width: 75%; }
+    .very-strong .strength-bar { background: #059669; width: 100%; }
+
+    .success, .error {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: center;
+      font-weight: 500;
+    }
+    .success { background: #d1fae5; color: #065f46; }
+    .error { background: #fee2e2; color: #991b1b; }
+
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 32px;
+      justify-content: space-between;
+    }
+    button {
+      padding: 14px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.3s;
+      flex: 1;
+    }
+    .btn-back {
+      background: var(--gray-200);
+      color: var(--gray-700);
+    }
+    .btn-next, #submitBtn {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-next:hover, #submitBtn:hover:not(:disabled) {
+      background: var(--primary-dark);
+      transform: translateY(-2px);
+    }
+    #submitBtn:disabled {
+      background: var(--gray-500);
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 480px) {
+      .container { margin: 10px; }
+      .form-body { padding: 24px; }
+      .step-indicator { padding: 20px; gap: 10px; }
+      .step { width: 38px; height: 38px; }
+      .step::before { width: 40px; }
+    }
+  </style>
 </head>
 <body>
-  <div class="form-container">
-    <h2>Student Signup</h2>
+  <div class="container">
+    <div class="header">
+      <button type="button" class="home-btn" onclick="window.location.href='index.html'">
+        <i class="fas fa-home"></i>
+      </button>
+      <h1>Student Registration</h1>
+      <p>Join JKUAT Student Portal</p>
+    </div>
 
-    <?php if (!empty($success)): ?><p class="success"><?= $success ?></p><?php endif; ?>
-    <?php if (!empty($error)): ?><p class="error"><?= $error ?></p><?php endif; ?>
+    <div class="step-indicator">
+      <div class="step active">1</div>
+      <div class="step">2</div>
+      <div class="step">3</div>
+      <div class="step">4</div>
+      <div class="step">5</div>
+    </div>
 
-    <form method="POST" id="signupForm">
-      <input type="hidden" name="action" value="signup_student">
+    <div class="form-body">
+      <?php if (!empty($success)): ?><div class="success"><?= htmlspecialchars($success) ?></div><?php endif; ?>
+      <?php if (!empty($error)): ?><div class="error"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 
-      <!-- Step 1 -->
-      <div class="form-step active">
-        <label>Reg No:</label>
-        <input type="text" name="reg_no" required>
+      <form method="POST" id="signupForm" novalidate>
+        <input type="hidden" name="action" value="signup_student">
+        <!-- University is now hidden but always sends JKUAT -->
+        <input type="hidden" name="university" value="JKUAT">
 
-        <label>Full Name:</label>
-        <input type="text" name="name" required>
+        <!-- Step 1 -->
+        <div class="form-step active">
+          <div class="form-group">
+            <label>Registration Number <span style="color:var(--danger)">*</span></label>
+            <input type="text" name="reg_no" required placeholder="e.g. CS/001/2024">
+          </div>
+          <div class="form-group">
+            <label>Full Name <span style="color:var(--danger)">*</span></label>
+            <input type="text" name="name" required placeholder="John Doe">
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="form-step">
+          <div class="form-group">
+            <label>Email Address <span style="color:var(--danger)">*</span></label>
+            <input type="email" name="email" required placeholder="student@jkuat.ac.ke">
+          </div>
+          <div class="form-group">
+            <label>School / Faculty <span style="color:var(--danger)">*</span></label>
+            <select name="school" required>
+              <option value="">-- Select School --</option>
+              <option value="School of Computing & IT">School of Computing & IT</option>
+              <option value="School of Engineering">School of Engineering</option>
+              <option value="School of Business">School of Business</option>
+              <option value="School of Health Sciences">School of Health Sciences</option>
+              <!-- Add more from DB later -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="form-step">
+          <div class="form-group">
+            <label>Department <span style="color:var(--danger)">*</span></label>
+            <select name="department" required>
+              <option value="">-- Select Department --</option>
+              <?php
+              $res = $conn->query("SELECT * FROM departments");
+              while ($row = $res->fetch_assoc()) {
+                  echo "<option value='{$row['id']}'>{$row['name']}</option>";
+              }
+              ?>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Course <span style="color:var(--danger)">*</span></label>
+            <select name="course" required>
+              <option value="">-- Select Course --</option>
+              <?php
+              $res = $conn->query("SELECT * FROM courses");
+              while ($row = $res->fetch_assoc()) {
+                  echo "<option value='{$row['id']}'>{$row['name']}</option>";
+              }
+              ?>
+            </select>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="form-step">
+          <div class="form-group">
+            <label>Year of Study <span style="color:var(--danger)">*</span></label>
+            <input type="number" name="year_of_study" min="1" max="6" required placeholder="e.g. 3">
+          </div>
+          <div class="form-group">
+            <label>Year Joined <span style="color:var(--danger)">*</span></label>
+            <input type="number" name="year_joined" min="2000" max="<?= date('Y') ?>" required placeholder="<?= date('Y') ?>">
+          </div>
+        </div>
+
+        <!-- Step 5 - Password -->
+        <div class="form-step">
+          <div class="form-group">
+            <label>Password <span style="color:var(--danger)">*</span></label>
+            <div class="password-wrapper">
+              <input type="password" name="password" id="password" required placeholder="Create a very strong password">
+              <i class="fas fa-eye toggle-password" id="togglePassword"></i>
+            </div>
+            <div class="password-strength"><div class="strength-bar"></div></div>
+            <div class="strength-text" id="strengthText">Enter a password (must be very strong)</div>
+          </div>
+
+          <div class="form-group">
+            <label>Confirm Password <span style="color:var(--danger)">*</span></label>
+            <input type="password" name="confirm_password" id="confirmPassword" required placeholder="Re-type password">
+          </div>
+        </div>
 
         <div class="btn-group">
-          <span></span>
-          <button type="button" class="btn next-step">Next</button>
+          <button type="button" class="btn-back" id="prevBtn">Back</button>
+          <button type="button" class="btn-next" id="nextBtn">Next</button>
+          <button type="submit" id="submitBtn" class="btn-next" disabled>Register</button>
         </div>
-      </div>
-
-      <!-- Step 2 -->
-      <div class="form-step">
-        <label>Email:</label>
-        <input type="email" name="email" required>
-
-        <label>University:</label>
-        <select name="university" required>
-          <option value="">-- Select University --</option>
-          <?php
-          $res = $conn->query("SELECT * FROM universities");
-          while ($row = $res->fetch_assoc()) {
-              echo "<option value='{$row['id']}'>{$row['name']}</option>";
-          }
-          ?>
-        </select>
-
-        <div class="btn-group">
-          <button type="button" class="btn prev-step">Back</button>
-          <button type="button" class="btn next-step">Next</button>
-        </div>
-      </div>
-
-      <!-- Step 3 -->
-      <div class="form-step">
-        <label>Department:</label>
-        <select name="department" required>
-          <option value="">-- Select Department --</option>
-          <?php
-          $res = $conn->query("SELECT * FROM departments");
-          while ($row = $res->fetch_assoc()) {
-              echo "<option value='{$row['id']}'>{$row['name']}</option>";
-          }
-          ?>
-        </select>
-
-        <label>Course:</label>
-        <select name="course" required>
-          <option value="">-- Select Course --</option>
-          <?php
-          $res = $conn->query("SELECT * FROM courses");
-          while ($row = $res->fetch_assoc()) {
-              echo "<option value='{$row['id']}'>{$row['name']}</option>";
-          }
-          ?>
-        </select>
-
-        <div class="btn-group">
-          <button type="button" class="btn prev-step">Back</button>
-          <button type="button" class="btn next-step">Next</button>
-        </div>
-      </div>
-
-      <!-- Step 4 -->
-      <div class="form-step">
-        <label>Year of Study:</label>
-        <input type="number" name="year_of_study" min="1" max="6" required>
-
-        <label>Year Joined:</label>
-        <input type="number" name="year_joined" min="2000" max="<?= date('Y') ?>" required>
-
-        <div class="btn-group">
-          <button type="button" class="btn prev-step">Back</button>
-          <button type="button" class="btn next-step">Next</button>
-        </div>
-      </div>
-
-      <!-- Step 5 (Password) -->
-      <div class="form-step">
-        <label>Password:</label>
-        <div class="password-container">
-          <input type="password" name="password" id="password" required>
-          <span class="toggle-password" onclick="togglePassword()">👁️</span>
-        </div>
-        <div id="strengthMessage" class="strength"></div>
-
-        <label>Confirm Password:</label>
-        <input type="password" name="confirm_password" required>
-
-        <div class="btn-group">
-          <button type="button" class="btn prev-step">Back</button>
-          <button type="submit" id="submitBtn" class="btn" disabled>Register</button>
-        </div>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
 
   <script>
-    const steps = document.querySelectorAll(".form-step");
-    const nextBtns = document.querySelectorAll(".next-step");
-    const prevBtns = document.querySelectorAll(".prev-step");
+    const steps = document.querySelectorAll('.form-step');
+    const indicators = document.querySelectorAll('.step');
+    const nextBtn = document.getElementById('nextBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const passwordInput = document.getElementById('password');
+    const confirmInput = document.getElementById('confirmPassword');
+    const strengthBar = document.querySelector('.strength-bar');
+    const strengthText = document.getElementById('strengthText');
+    const togglePassword = document.getElementById('togglePassword');
     let currentStep = 0;
 
-    nextBtns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        const inputs = steps[currentStep].querySelectorAll("input, select");
-        let valid = true;
-        inputs.forEach(input => {
-          if (!input.checkValidity()) valid = false;
-        });
-        if (valid) {
-          steps[currentStep].classList.remove("active");
-          currentStep++;
-          steps[currentStep].classList.add("active");
-        }
+    function showStep(n) {
+      steps.forEach((s, i) => s.classList.toggle('active', i === n));
+      indicators.forEach((ind, i) => {
+        ind.classList.remove('active', 'completed');
+        if (i < n) ind.classList.add('completed');
+        if (i === n) ind.classList.add('active');
       });
-    });
 
-    prevBtns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        steps[currentStep].classList.remove("active");
-        currentStep--;
-        steps[currentStep].classList.add("active");
-      });
-    });
+      prevBtn.style.display = n === 0 ? 'none' : 'block';
+      nextBtn.style.display = n === steps.length - 1 ? 'none' : 'block';
+      submitBtn.style.display = n === steps.length - 1 ? 'block' : 'none';
 
-    // Password strength checker
-    const passwordInput = document.getElementById("password");
-    const strengthMessage = document.getElementById("strengthMessage");
-    const submitBtn = document.getElementById("submitBtn");
+      currentStep = n;
+    }
 
-    passwordInput.addEventListener("input", () => {
-      const val = passwordInput.value;
-      let strength = 0;
+    function validateCurrentStep() {
+      const inputs = steps[currentStep].querySelectorAll('input[required], select[required]');
+      let valid = true;
+      inputs.forEach(input => { if (!input.value.trim()) valid = false; });
+      return valid;
+    }
 
-      if (val.length >= 8) strength++;
-      if (/[A-Z]/.test(val)) strength++;
-      if (/[0-9]/.test(val)) strength++;
-      if (/[^A-Za-z0-9]/.test(val)) strength++;
-
-      if (strength <= 1) {
-        strengthMessage.textContent = "Weak password";
-        strengthMessage.className = "strength weak";
-        submitBtn.disabled = true;
-      } else if (strength === 2) {
-        strengthMessage.textContent = "Medium strength";
-        strengthMessage.className = "strength medium";
-        submitBtn.disabled = true;
-      } else if (strength === 3) {
-        strengthMessage.textContent = "Strong password";
-        strengthMessage.className = "strength strong";
-        submitBtn.disabled = true;
-      } else if (strength === 4) {
-        strengthMessage.textContent = "Very Strong password";
-        strengthMessage.className = "strength very-strong";
-        submitBtn.disabled = false;
+    nextBtn.addEventListener('click', () => {
+      if (validateCurrentStep() && currentStep < steps.length - 1) {
+        showStep(currentStep + 1);
       }
     });
 
-    // Toggle password visibility
-    function togglePassword() {
-      const input = document.getElementById("password");
-      input.type = input.type === "password" ? "text" : "password";
-    }
+    prevBtn.addEventListener('click', () => {
+      if (currentStep > 0) showStep(currentStep - 1);
+    });
+
+    // Password strength (very strict)
+    passwordInput.addEventListener('input', () => {
+      const val = passwordInput.value;
+      let score = 0;
+      if (val.length >= 12) score++;
+      if (val.length >= 16) score++;
+      if (/[a-z]/.test(val)) score++;
+      if (/[A-Z]/.test(val)) score++;
+      if (/[0-9]/.test(val)) score++;
+      if (/[^A-Za-z0-9]/.test(val)) score++;
+
+      let level = 'weak';
+      let text = 'Too weak';
+      if (score >= 5) { level = 'very-strong'; text = 'Very Strong - Excellent!'; }
+      else if (score >= 4) { level = 'strong'; text = 'Strong'; }
+      else if (score >= 3) { level = 'medium'; text = 'Medium'; }
+
+      strengthBar.parentElement.className = `password-strength ${level}`;
+      strengthText.textContent = text;
+      strengthText.style.color = score >= 5 ? '#059669' : score >= 4 ? '#10b981' : score >= 3 ? '#f59e0b' : '#ef4444';
+
+      submitBtn.disabled = score < 5 || passwordInput.value !== confirmInput.value;
+    });
+
+    confirmInput.addEventListener('input', () => {
+      submitBtn.disabled = passwordInput.value !== confirmInput.value || !passwordInput.value;
+    });
+
+    togglePassword.addEventListener('click', () => {
+      const type = passwordInput.type === 'password' ? 'text' : 'password';
+      passwordInput.type = type;
+      togglePassword.classList.toggle('fa-eye');
+      togglePassword.classList.toggle('fa-eye-slash');
+    });
+
+    // Initial
+    showStep(0);
   </script>
 </body>
 </html>
