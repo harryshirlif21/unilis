@@ -121,38 +121,38 @@ if ($res->num_rows === 0) {
 }
 
 // -------------------------
-// 5. CLEANUP: Remove duplicates & add unique keys
+// 5. CREATE missing subtopic_index field
 // -------------------------
-echo "\n--- Running Duplicate Cleanup & Unique Constraints ---\n";
+$res = $conn->query("SHOW COLUMNS FROM student_classnotes_subtopic_progress LIKE 'subtopic_index'");
+if ($res->num_rows === 0) {
+    runQuery($conn, "ALTER TABLE student_classnotes_subtopic_progress ADD COLUMN subtopic_index INT NOT NULL DEFAULT 0 AFTER classnote_id", "Added subtopic_index column to student_classnotes_subtopic_progress");
+} else {
+    echo "⚪ Skipped: subtopic_index already exists\n";
+}
 
-// Check if subtopic_index exists before trying
-$subtopic_col_exists = $conn->query("SHOW COLUMNS FROM student_classnotes_subtopic_progress LIKE 'subtopic_index'")->num_rows > 0;
-
+// -------------------------
+// 6. CLEANUP: Remove duplicates & add unique keys
+// -------------------------
 $cleanup_queries = [
     "DELETE t1 FROM student_classnotes_progress t1
      INNER JOIN student_classnotes_progress t2
      WHERE t1.student_id = t2.student_id 
        AND t1.classnote_id = t2.classnote_id 
        AND t1.id > t2.id" => "Cleaned student_classnotes_progress duplicates",
-];
 
-if ($subtopic_col_exists) {
-    $cleanup_queries["DELETE t1 FROM student_classnotes_subtopic_progress t1
+    "DELETE t1 FROM student_classnotes_subtopic_progress t1
      INNER JOIN student_classnotes_subtopic_progress t2
      WHERE t1.student_id = t2.student_id 
        AND t1.classnote_id = t2.classnote_id 
        AND t1.subtopic_index = t2.subtopic_index 
-       AND t1.id > t2.id"] = "Cleaned subtopic progress duplicates";
-} else {
-    echo "⚪ Skipped: student_classnotes_subtopic_progress.subtopic_index does not exist\n";
-}
+       AND t1.id > t2.id" => "Cleaned student_classnotes_subtopic_progress duplicates",
 
-$cleanup_queries += [
     "DELETE t1 FROM student_units t1
      INNER JOIN student_units t2
      WHERE t1.student_id = t2.student_id 
        AND t1.unit_id = t2.unit_id 
        AND t1.id > t2.id" => "Cleaned student_units duplicates",
+
     "DELETE t1 FROM lecturer_units t1
      INNER JOIN lecturer_units t2
      WHERE t1.lecturer_id = t2.lecturer_id 
@@ -160,21 +160,12 @@ $cleanup_queries += [
        AND t1.id > t2.id" => "Cleaned lecturer_units duplicates",
 ];
 
-// Run cleanup
 foreach ($cleanup_queries as $sql => $msg) runQuery($conn, $sql, $msg);
 
-// -------------------------
-// Add unique indexes safely
-// -------------------------
+// Add unique indexes
 $unique_constraints = [
     "student_classnotes_progress" => ["uniq_progress" => "(student_id, classnote_id)"],
-];
-
-if ($subtopic_col_exists) {
-    $unique_constraints["student_classnotes_subtopic_progress"] = ["uniq_subtopic" => "(student_id, classnote_id, subtopic_index)"];
-}
-
-$unique_constraints += [
+    "student_classnotes_subtopic_progress" => ["uniq_subtopic" => "(student_id, classnote_id, subtopic_index)"],
     "student_units" => ["uniq_su" => "(student_id, unit_id)"],
     "lecturer_units" => ["uniq_lu" => "(lecturer_id, unit_id)"],
 ];
@@ -187,6 +178,19 @@ foreach ($unique_constraints as $table => $indexes) {
         } else {
             echo "⚪ Skipped: unique index $index_name already exists on $table\n";
         }
+    }
+}
+
+// -------------------------
+// 7. SHOW TABLE INFO
+// -------------------------
+$tables = ['schools','departments','students','student_classnotes_progress','student_classnotes_subtopic_progress','student_units','lecturer_units'];
+echo "\n--- Table Info ---\n";
+foreach ($tables as $table) {
+    echo "\n$table structure:\n";
+    $res = $conn->query("SHOW CREATE TABLE $table");
+    if ($res && $row = $res->fetch_assoc()) {
+        echo $row['Create Table'] . "\n";
     }
 }
 
