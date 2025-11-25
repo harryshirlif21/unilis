@@ -25,7 +25,7 @@
     h1,h2,h3,h4,h5,h6 { font-family: 'Inter', sans-serif; font-weight: 700; line-height: 1.2; }
     a { text-decoration: none; color: inherit; }
     .container { width: 90%; max-width: 1280px; margin: 0 auto; }
-    
+
     .btn {
       display: inline-block;
       padding: 14px 32px;
@@ -40,7 +40,7 @@
     .btn-outline { background: transparent; color: var(--gold); border: 2px solid var(--gold); }
     .btn-outline:hover { background: var(--gold); color: white; }
 
-    /* Header */
+    /* ===== HEADER — Mobile: Hide everything except Menu button ===== */
     header {
       position: fixed;
       top: 0; left: 0; right: 0;
@@ -57,11 +57,12 @@
       padding: 20px 0;
     }
     .logo img { height: 48px; }
+
+    /* Desktop Nav */
     .nav-links {
       display: flex;
       align-items: center;
       gap: 60px;
-      list-style: none;
     }
     .nav-links a {
       font-weight: 600;
@@ -70,21 +71,53 @@
       transition: color 0.3s;
     }
     .nav-links a:hover { color: var(--gold); }
-    .mobile-toggle { display: none; font-size: 1.9rem; cursor: pointer; color: var(--gold); }
 
+    /* Mobile: Hide logo + nav completely */
+    @media (max-width: 768px) {
+      .logo, .nav-links, .header-actions { display: none !important; }
+    }
+
+    /* Only Menu button visible on mobile */
+    .mobile-toggle {
+      display: none;
+      font-size: 1.9rem;
+      cursor: pointer;
+      color: var(--gold);
+      background: none;
+      border: none;
+      padding: 8px;
+    }
+    @media (max-width: 768px) {
+      .mobile-toggle { display: block; }
+    }
+
+    /* Full-screen Mobile Menu */
     .mobile-menu {
       position: fixed;
-      top: 0; right: -100%;
-      width: 100%; max-width: 360px;
+      top: 0; left: 0;
+      width: 100%;
       height: 100vh;
       background: white;
-      padding: 120px 40px 40px;
-      box-shadow: -10px 0 40px rgba(0,0,0,0.2);
-      transition: right 0.45s ease;
+      padding: 140px 40px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 32px;
+      transform: translateX(-100%);
+      transition: transform 0.45s cubic-bezier(0.77, 0, 0.18, 1);
       z-index: 999;
     }
-    .mobile-menu.open { right: 0; }
-    .mobile-menu a { display: block; padding: 16px 0; font-size: 1.3rem; font-weight: 500; }
+    .mobile-menu.open {
+      transform: translateX(0);
+    }
+    .mobile-menu a {
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: var(--dark);
+      transition: color 0.3s;
+    }
+    .mobile-menu a:hover { color: var(--gold); }
 
     /* Hero */
     .hero {
@@ -133,7 +166,7 @@
     .slide h3 { font-size: 2.4rem; margin: 20px 0; color: var(--gold); }
     .slide p { font-size: 1.3rem; }
 
-    /* === FULL FEATURE SLIDESHOW === */
+    /* Feature Slideshow */
     .features-showcase {
       padding: 160px 0;
       background: linear-gradient(to bottom, var(--light), white);
@@ -144,59 +177,22 @@
       gap: 80px;
       align-items: center;
     }
-    .showcase-left h2 {
-      font-size: 3.4rem;
-      margin-bottom: 40px;
-      color: var(--green);
-    }
-    .showcase-left p {
-      font-size: 1.2rem;
-      color: #444;
-      margin-bottom: 32px;
-    }
-
-    .showcase-right {
-      position: relative;
-      height: 640px;
-      border-radius: 32px;
-      overflow: hidden;
-      box-shadow: 0 40px 100px rgba(0,0,0,0.18);
-    }
+    .showcase-left h2 { font-size: 3.4rem; margin-bottom: 40px; color: var(--green); }
+    .showcase-right { position: relative; height: 640px; border-radius: 32px; overflow: hidden; box-shadow: 0 40px 100px rgba(0,0,0,0.18); }
     .feature-slide {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      transition: opacity 1.4s ease;
-      background-size: cover;
-      background-position: center;
-      display: flex;
-      align-items: flex-end;
-      padding: 70px;
+      position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease;
+      background-size: cover; background-position: center;
+      display: flex; align-items: flex-end; padding: 70px;
     }
     .feature-slide.active { opacity: 1; }
     .feature-slide::before {
-      content: '';
-      position: absolute;
-      inset: 0;
+      content: ''; position: absolute; inset: 0;
       background: linear-gradient(135deg, transparent 40%, rgba(31,31,31,0.9));
     }
-    .feature-content {
-      position: relative;
-      z-index: 2;
-      max-width: 600px;
-      color: white;
-    }
-    .feature-content h3 {
-      font-size: 2.8rem;
-      margin-bottom: 20px;
-      color: var(--gold);
-    }
-    .feature-content p {
-      font-size: 1.35rem;
-      line-height: 1.7;
-    }
+    .feature-content { position: relative; z-index: 2; max-width: 600px; color: white; }
+    .feature-content h3 { font-size: 2.8rem; margin-bottom: 20px; color: var(--gold); }
+    .feature-content p { font-size: 1.35rem; line-height: 1.7; }
 
-    /* Feature Backgrounds */
     .fs1 { background-image: url('https://images.unsplash.com/photo-1517248135467-2c7ed3ed2b2d?w=1600&fit=crop'); }
     .fs2 { background-image: url('https://images.unsplash.com/photo-1591115765373-5207764f72e7?w=1600&fit=crop'); }
     .fs3 { background-image: url('https://images.unsplash.com/photo-1516321310764-9b61a08d765f?w=1600&fit=crop'); }
@@ -261,11 +257,8 @@
 
     @media (max-width: 1024px) {
       .hero-grid, .showcase-grid { grid-template-columns: 1fr; text-align: center; }
-      .hero-buttons, .showcase-left { justify-content: center; text-align: center; }
     }
     @media (max-width: 768px) {
-      .nav-links { display: none; }
-      .mobile-toggle { display: block; }
       .hero, .features-showcase, .dashboard-preview { padding: 120px 0; }
       .hero-left h1 { font-size: 3.4rem; }
       .showcase-right { height: 500px; }
@@ -275,30 +268,36 @@
 </head>
 <body>
 
-  <!-- HEADER -->
+  <!-- HEADER — Only Menu button on mobile -->
   <header>
     <div class="container header-inner">
       <a href="#" class="logo"><img src="logo.png" alt="UNILIS"></a>
+
+      <!-- Desktop Nav -->
       <nav class="nav-links">
         <a href="#hero">Home</a>
         <a href="#features">Features</a>
         <a href="#about">About</a>
         <a href="#contact">Contact</a>
       </nav>
+
       <div class="header-actions hidden md:flex gap-4">
         <a href="login.php" class="btn btn-outline">Login</a>
         <a href="student/signup.php" class="btn btn-gold">Register</a>
       </div>
-      <div class="mobile-toggle" id="mobileToggle">Menu</div>
+
+      <!-- Only this Menu button shows on mobile -->
+      <button class="mobile-toggle" id="mobileToggle">Menu</button>
     </div>
 
+    <!-- Full-screen Mobile Menu -->
     <div class="mobile-menu" id="mobileMenu">
       <a href="#hero">Home</a>
       <a href="#features">Features</a>
       <a href="#about">About</a>
       <a href="#contact">Contact</a>
       <a href="login.php">Login</a>
-      <a href="student/signup.php" class="btn btn-gold mt-8 inline-block">Student Registration</a>
+      <a href="student/signup.php" class="btn btn-gold mt-8 px-12 py-4 text-lg">Student Registration</a>
     </div>
   </header>
 
@@ -307,7 +306,7 @@
     <div class="container hero-grid">
       <div class="hero-left">
         <h1>Future for Kenyan Universities</h1>
-        <p>UNILIS — one platform to replace WhatsApp groups, Google Drive folders, and scattered systems.</p>
+        <p>Built by JKUAT students for JKUAT students — one platform to replace WhatsApp groups, Google Drive folders, and scattered systems.</p>
         <div class="hero-buttons">
           <a href="student/signup.php" class="btn btn-gold">Start Free</a>
           <a href="#contact" class="btn btn-outline">Talk to Us</a>
@@ -333,65 +332,26 @@
       </div>
 
       <div class="showcase-right">
-        <div class="feature-slide fs1 active">
-          <div class="feature-content">
-            <h3>Smart Course Management</h3>
-            <p>All your course materials, schedules, and resources in one organized, beautiful space.</p>
-          </div>
-        </div>
-        <div class="feature-slide fs2">
-          <div class="feature-content">
-            <h3>Virtual Classrooms</h3>
-            <p>Join live lectures, ask questions in real-time, and access recordings anytime.</p>
-          </div>
-        </div>
-        <div class="feature-slide fs3">
-          <div class="feature-content">
-            <h3>Assignments & Assessments</h3>
-            <p>Submit work digitally, get instant receipts, and receive feedback faster than ever.</p>
-          </div>
-        </div>
-        <div class="feature-slide fs4">
-          <div class="feature-content">
-            <h3>AI-Powered Learning Assistant</h3>
-            <p>Get instant help with explanations, summaries, and study tips — available 24/7.</p>
-          </div>
-        </div>
-        <div class="feature-slide fs5">
-          <div class="feature-content">
-            <h3>Performance Analytics</h3>
-            <p>Track your progress, attendance, and get early warnings before problems grow.</p>
-          </div>
-        </div>
-        <div class="feature-slide fs6">
-          <div class="feature-content">
-            <h3>Works Offline</h3>
-            <p>Download notes and submit assignments even without internet. Syncs when you're back online.</p>
-          </div>
-        </div>
+        <div class="feature-slide fs1 active"><div class="feature-content"><h3>Smart Course Management</h3><p>All your course materials, schedules, and resources in one organized space.</p></div></div>
+        <div class="feature-slide fs2"><div class="feature-content"><h3>Virtual Classrooms</h3><p>Join live lectures and access recordings anytime.</p></div></div>
+        <div class="feature-slide fs3"><div class="feature-content"><h3>Assignments & Assessments</h3><p>Submit work digitally and get feedback faster.</p></div></div>
+        <div class="feature-slide fs4"><div class="feature-content"><h3>AI-Powered Learning</h3><p>Get instant help with explanations and study tips.</p></div></div>
+        <div class="feature-slide fs5"><div class="feature-content"><h3>Performance Analytics</h3><p>Track progress and get early warnings.</p></div></div>
+        <div class="feature-slide fs6"><div class="feature-content"><h3>Works Offline</h3><p>Download materials and submit even without internet.</p></div></div>
       </div>
     </div>
   </section>
 
-  <!-- DASHBOARD PREVIEW -->
+  <!-- DASHBOARD -->
   <section class="dashboard-preview">
     <div class="container">
       <h2 class="text-4xl font-bold mb-6" style="color:var(--gold);">Beautiful. Simple. Powerful.</h2>
       <div class="dashboard-mock">
         <div class="dashboard-header">UNILIS • Faculty Dashboard</div>
         <div class="dashboard-body">
-          <div class="dashboard-card">
-            <h4 style="color:var(--blue);">CS 501 — Advanced Algorithms</h4>
-            <p>Live session in 1h 42m • 52 enrolled</p>
-          </div>
-          <div class="dashboard-card">
-            <h4 style="color:var(--green);">Pending Reviews</h4>
-            <p>31 assignments awaiting feedback</p>
-          </div>
-          <div class="dashboard-card">
-            <h4 style="color:var(--gold);">Student Success Alerts</h4>
-            <p>4 students flagged for early support</p>
-          </div>
+          <div class="dashboard-card"><h4 style="color:var(--blue);">CS 501 — Advanced Algorithms</h4><p>Live session in 1h 42m • 52 enrolled</p></div>
+          <div class="dashboard-card"><h4 style="color:var(--green);">Pending Reviews</h4><p>31 assignments awaiting feedback</p></div>
+          <div class="dashboard-card"><h4 style="color:var(--gold);">Student Success Alerts</h4><p>4 students flagged for early support</p></div>
         </div>
         <div class="callout callout-ai">AI Grading Assistant</div>
         <div class="callout callout-attendance">Live Attendance</div>
@@ -412,7 +372,7 @@
   </section>
 
   <script>
-    // Mobile Menu
+    // Mobile Menu Toggle
     document.getElementById('mobileToggle').addEventListener('click', () => {
       document.getElementById('mobileMenu').classList.toggle('open');
     });
@@ -427,7 +387,7 @@
     }, 5000);
     heroSlides[0].classList.add('active');
 
-    // Feature Showcase Slideshow
+    // Feature Slideshow
     const featureSlides = document.querySelectorAll('.feature-slide');
     let fi = 0;
     setInterval(() => {
