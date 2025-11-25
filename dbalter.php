@@ -37,7 +37,6 @@ runQuery($conn, "
 // 2. ADD school_id TO departments + FK
 // -------------------------
 echo "\n--- Updating departments table ---\n";
-// Check if column exists
 $res = $conn->query("SHOW COLUMNS FROM departments LIKE 'school_id'");
 if ($res->num_rows === 0) {
     runQuery($conn, "ALTER TABLE departments ADD COLUMN school_id INT NULL AFTER university_id", "Added school_id column to departments");
@@ -45,7 +44,6 @@ if ($res->num_rows === 0) {
     echo "⚪ Skipped: school_id already exists\n";
 }
 
-// Check if foreign key exists
 $res = $conn->query("
     SELECT CONSTRAINT_NAME 
     FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
@@ -63,13 +61,9 @@ if ($res->num_rows === 0) {
 // 3. INSERT JKUAT SCHOOLS
 // -------------------------
 echo "\n--- Inserting JKUAT Schools ---\n";
-
-// Get JKUAT university ID
 $jkuat_id = 1; // fallback
 $res = $conn->query("SELECT id FROM universities WHERE name LIKE '%Jomo Kenyatta%' OR name LIKE '%JKUAT%' LIMIT 1");
-if ($res && $row = $res->fetch_assoc()) {
-    $jkuat_id = $row['id'];
-}
+if ($res && $row = $res->fetch_assoc()) $jkuat_id = $row['id'];
 
 $schools = [
     ['School of Computing & Information Technology', 'SCIT'],
@@ -98,7 +92,6 @@ if ($scit_id_res && $row = $scit_id_res->fetch_assoc()) {
 // -------------------------
 // 4. ADD EMAIL VERIFICATION FIELDS TO students TABLE
 // -------------------------
-// Check if columns exist before adding
 $columns = ['verification_code', 'is_verified', 'verified_at'];
 foreach ($columns as $col) {
     $res = $conn->query("SHOW COLUMNS FROM students LIKE '$col'");
@@ -132,26 +125,34 @@ if ($res->num_rows === 0) {
 // -------------------------
 echo "\n--- Running Duplicate Cleanup & Unique Constraints ---\n";
 
+// Check if subtopic_index exists before trying
+$subtopic_col_exists = $conn->query("SHOW COLUMNS FROM student_classnotes_subtopic_progress LIKE 'subtopic_index'")->num_rows > 0;
+
 $cleanup_queries = [
     "DELETE t1 FROM student_classnotes_progress t1
      INNER JOIN student_classnotes_progress t2
      WHERE t1.student_id = t2.student_id 
        AND t1.classnote_id = t2.classnote_id 
        AND t1.id > t2.id" => "Cleaned student_classnotes_progress duplicates",
+];
 
-    "DELETE t1 FROM student_classnotes_subtopic_progress t1
+if ($subtopic_col_exists) {
+    $cleanup_queries["DELETE t1 FROM student_classnotes_subtopic_progress t1
      INNER JOIN student_classnotes_subtopic_progress t2
      WHERE t1.student_id = t2.student_id 
        AND t1.classnote_id = t2.classnote_id 
        AND t1.subtopic_index = t2.subtopic_index 
-       AND t1.id > t2.id" => "Cleaned subtopic progress duplicates",
+       AND t1.id > t2.id"] = "Cleaned subtopic progress duplicates";
+} else {
+    echo "⚪ Skipped: student_classnotes_subtopic_progress.subtopic_index does not exist\n";
+}
 
+$cleanup_queries += [
     "DELETE t1 FROM student_units t1
      INNER JOIN student_units t2
      WHERE t1.student_id = t2.student_id 
        AND t1.unit_id = t2.unit_id 
        AND t1.id > t2.id" => "Cleaned student_units duplicates",
-
     "DELETE t1 FROM lecturer_units t1
      INNER JOIN lecturer_units t2
      WHERE t1.lecturer_id = t2.lecturer_id 
@@ -159,17 +160,23 @@ $cleanup_queries = [
        AND t1.id > t2.id" => "Cleaned lecturer_units duplicates",
 ];
 
-// Run duplicate cleanup
-foreach ($cleanup_queries as $sql => $msg) {
-    runQuery($conn, $sql, $msg);
-}
+// Run cleanup
+foreach ($cleanup_queries as $sql => $msg) runQuery($conn, $sql, $msg);
 
-// Add unique constraints safely
+// -------------------------
+// Add unique indexes safely
+// -------------------------
 $unique_constraints = [
     "student_classnotes_progress" => ["uniq_progress" => "(student_id, classnote_id)"],
-    "student_classnotes_subtopic_progress" => ["uniq_subtopic" => "(student_id, classnote_id, subtopic_index)"],
+];
+
+if ($subtopic_col_exists) {
+    $unique_constraints["student_classnotes_subtopic_progress"] = ["uniq_subtopic" => "(student_id, classnote_id, subtopic_index)"];
+}
+
+$unique_constraints += [
     "student_units" => ["uniq_su" => "(student_id, unit_id)"],
-    "lecturer_units" => ["uniq_lu" => "(lecturer_id, unit_id)"]
+    "lecturer_units" => ["uniq_lu" => "(lecturer_id, unit_id)"],
 ];
 
 foreach ($unique_constraints as $table => $indexes) {
