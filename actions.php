@@ -267,16 +267,17 @@ if ($action === 'universal_login') {
             'session_map' => ['name' => 'user_name']
         ],
         'student' => [
-            'table' => 'students',
-            'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'verified'],
-            'redirect' => 'student/dashboard.php',
-            'session_map' => [
-                'name' => 'user_name',
-                'course_id' => 'course_id',
-                'year_of_study' => 'year_of_study'
-            ],
-            'requires_verification' => true
-        ]
+    'table' => 'students',
+    'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'is_verified'], // <-- changed here
+    'redirect' => 'student/dashboard.php',
+    'session_map' => [
+        'name' => 'user_name',
+        'course_id' => 'course_id',
+        'year_of_study' => 'year_of_study'
+    ],
+    'requires_verification' => true
+]
+
     ];
 
     $login_success = false;
@@ -301,11 +302,12 @@ if ($action === 'universal_login') {
 
         if ($user && password_verify($password, $user['password'])) {
             // Verification check for students
-            if (!empty($config['requires_verification']) && $user['verified'] == 0) {
-                $_SESSION['pending_verification_email'] = $email;
-                header("Location: verify.php?unverified=1");
-                exit;
-            }
+            if (!empty($config['requires_verification']) && $user['is_verified'] == 0) {
+    $_SESSION['pending_verification_email'] = $email;
+    header("Location: verify.php?unverified=1");
+    exit;
+}
+
 
             // SUCCESS: create session
             $_SESSION['user_id']    = $user['id'];
