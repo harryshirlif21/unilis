@@ -11,21 +11,14 @@ function runQuery($conn, $sql, $successMsg = null) {
             return true;
         }
     } catch (Exception $e) {
-        // Suppress expected errors (already exists, etc.)
-        if (strpos($e->getMessage(), "already exists") !== false || 
-            strpos($e->getMessage(), "Duplicate column") !== false ||
-            strpos($e->getMessage(), "Duplicate key") !== false) {
-            echo "⚪ Skipped (already done): " . ($successMsg ?? $sql) . "\n";
-        } else {
-            echo "❌ ERROR: " . $e->getMessage() . "\n";
-        }
+        echo "❌ ERROR: " . $e->getMessage() . "\n";
     }
     return false;
 }
 
-// ==================================================================
+// -------------------------
 // 1. CREATE schools TABLE
-// ==================================================================
+// -------------------------
 echo "\n--- Creating schools table ---\n";
 runQuery($conn, "
     CREATE TABLE IF NOT EXISTS schools (
@@ -40,28 +33,39 @@ runQuery($conn, "
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ", "schools table ready");
 
-// ==================================================================
+// -------------------------
 // 2. ADD school_id TO departments + FK
-// ==================================================================
+// -------------------------
 echo "\n--- Updating departments table ---\n";
-runQuery($conn, "
-    ALTER TABLE departments 
-    ADD COLUMN IF NOT EXISTS school_id INT NULL AFTER university_id
-", "Added school_id column to departments");
+// Check if column exists
+$res = $conn->query("SHOW COLUMNS FROM departments LIKE 'school_id'");
+if ($res->num_rows === 0) {
+    runQuery($conn, "ALTER TABLE departments ADD COLUMN school_id INT NULL AFTER university_id", "Added school_id column to departments");
+} else {
+    echo "⚪ Skipped: school_id already exists\n";
+}
 
-runQuery($conn, "
-    ALTER TABLE departments 
-    ADD CONSTRAINT fk_dept_school 
-    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL
-", "Linked departments → schools");
+// Check if foreign key exists
+$res = $conn->query("
+    SELECT CONSTRAINT_NAME 
+    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+    WHERE TABLE_NAME = 'departments' 
+      AND COLUMN_NAME = 'school_id' 
+      AND CONSTRAINT_SCHEMA = DATABASE()
+");
+if ($res->num_rows === 0) {
+    runQuery($conn, "ALTER TABLE departments ADD CONSTRAINT fk_dept_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL", "Linked departments → schools");
+} else {
+    echo "⚪ Skipped: foreign key already exists\n";
+}
 
-// ==================================================================
-// 3. INSERT JKUAT SCHOOLS (if not exist)
-// ==================================================================
+// -------------------------
+// 3. INSERT JKUAT SCHOOLS
+// -------------------------
 echo "\n--- Inserting JKUAT Schools ---\n";
 
-// Get JKUAT university ID (adjust name if needed)
-$jkuat_id = 1; // Change if your JKUAT has different ID
+// Get JKUAT university ID
+$jkuat_id = 1; // fallback
 $res = $conn->query("SELECT id FROM universities WHERE name LIKE '%Jomo Kenyatta%' OR name LIKE '%JKUAT%' LIMIT 1");
 if ($res && $row = $res->fetch_assoc()) {
     $jkuat_id = $row['id'];
@@ -83,90 +87,102 @@ foreach ($schools as $s) {
     echo "   • $s[0] ($s[1])\n";
 }
 
-// Assign ALL existing departments to SCIT
-$scit_id_res = $conn->query("SELECT id FROM schools WHERE short_name = 'SCIT' AND university_id = $jkuat_id");
+// Assign all existing departments to SCIT
+$scit_id_res = $conn->query("SELECT id FROM schools WHERE short_name='SCIT' AND university_id=$jkuat_id");
 if ($scit_id_res && $row = $scit_id_res->fetch_assoc()) {
     $scit_id = $row['id'];
     $conn->query("UPDATE departments SET school_id = $scit_id WHERE school_id IS NULL OR school_id = 0");
     echo "✔️ All existing departments assigned to SCIT (School ID: $scit_id)\n";
 }
 
-// ==================================================================
+// -------------------------
 // 4. ADD EMAIL VERIFICATION FIELDS TO students TABLE
-// ==================================================================
-echo "\n--- Adding verification fields to students ---\n";
+// -------------------------
+// Check if columns exist before adding
+$columns = ['verification_code', 'is_verified', 'verified_at'];
+foreach ($columns as $col) {
+    $res = $conn->query("SHOW COLUMNS FROM students LIKE '$col'");
+    if ($res->num_rows === 0) {
+        switch ($col) {
+            case 'verification_code':
+                runQuery($conn, "ALTER TABLE students ADD COLUMN verification_code VARCHAR(100) NULL", "Added verification_code column");
+                break;
+            case 'is_verified':
+                runQuery($conn, "ALTER TABLE students ADD COLUMN is_verified TINYINT(1) DEFAULT 0", "Added is_verified column");
+                break;
+            case 'verified_at':
+                runQuery($conn, "ALTER TABLE students ADD COLUMN verified_at DATETIME NULL", "Added verified_at column");
+                break;
+        }
+    } else {
+        echo "⚪ Skipped: $col already exists\n";
+    }
+}
 
-runQuery($conn, "
-    ALTER TABLE students 
-    ADD COLUMN IF NOT EXISTS verification_code VARCHAR(100) NULL,
-    ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS verified_at DATETIME NULL
-", "Added verification_code, is_verified, verified_at");
+// Index verification_code if not exists
+$res = $conn->query("SHOW INDEX FROM students WHERE Key_name='idx_verification_code'");
+if ($res->num_rows === 0) {
+    runQuery($conn, "ALTER TABLE students ADD INDEX idx_verification_code (verification_code)", "Indexed verification_code for fast lookup");
+} else {
+    echo "⚪ Skipped: idx_verification_code already exists\n";
+}
 
-runQuery($conn, "
-    ALTER TABLE students 
-    ADD INDEX idx_verification_code (verification_code)
-", "Indexed verification_code for fast lookup");
-
-// ==================================================================
-// 5. YOUR ORIGINAL CLEANUP: Remove Duplicates + Add Unique Keys
-// ==================================================================
+// -------------------------
+// 5. CLEANUP: Remove duplicates & add unique keys
+// -------------------------
 echo "\n--- Running Duplicate Cleanup & Unique Constraints ---\n";
 
 $cleanup_queries = [
-    // Remove duplicates
     "DELETE t1 FROM student_classnotes_progress t1
      INNER JOIN student_classnotes_progress t2
      WHERE t1.student_id = t2.student_id 
        AND t1.classnote_id = t2.classnote_id 
-       AND t1.id > t2.id" 
-    => "Cleaned student_classnotes_progress duplicates",
+       AND t1.id > t2.id" => "Cleaned student_classnotes_progress duplicates",
 
     "DELETE t1 FROM student_classnotes_subtopic_progress t1
      INNER JOIN student_classnotes_subtopic_progress t2
      WHERE t1.student_id = t2.student_id 
        AND t1.classnote_id = t2.classnote_id 
        AND t1.subtopic_index = t2.subtopic_index 
-       AND t1.id > t2.id"
-    => "Cleaned subtopic progress duplicates",
+       AND t1.id > t2.id" => "Cleaned subtopic progress duplicates",
 
     "DELETE t1 FROM student_units t1
      INNER JOIN student_units t2
      WHERE t1.student_id = t2.student_id 
        AND t1.unit_id = t2.unit_id 
-       AND t1.id > t2.id"
-    => "Cleaned student_units duplicates",
+       AND t1.id > t2.id" => "Cleaned student_units duplicates",
 
     "DELETE t1 FROM lecturer_units t1
      INNER JOIN lecturer_units t2
      WHERE t1.lecturer_id = t2.lecturer_id 
        AND t1.unit_id = t2.unit_id 
-       AND t1.id > t2.id"
-    => "Cleaned lecturer_units duplicates",
-
-    // Add unique constraints
-    "ALTER TABLE student_classnotes_progress ADD UNIQUE IF NOT EXISTS uniq_progress (student_id, classnote_id)"
-    => "Unique constraint: student + classnote",
-
-    "ALTER TABLE student_classnotes_subtopic_progress ADD UNIQUE IF NOT EXISTS uniq_subtopic (student_id, classnote_id, subtopic_index)"
-    => "Unique constraint: subtopic progress",
-
-    "ALTER TABLE student_units ADD UNIQUE IF NOT EXISTS uniq_su (student_id, unit_id)"
-    => "Unique constraint: student_units",
-
-    "ALTER TABLE lecturer_units ADD UNIQUE IF NOT EXISTS uniq_lu (lecturer_id, unit_id)"
-    => "Unique constraint: lecturer_units"
+       AND t1.id > t2.id" => "Cleaned lecturer_units duplicates",
 ];
 
+// Run duplicate cleanup
 foreach ($cleanup_queries as $sql => $msg) {
     runQuery($conn, $sql, $msg);
 }
 
-echo "\n\n🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!\n";
-echo "   • schools table created\n";
-echo "   • departments linked to schools (SCIT auto-assigned)\n";
-echo "   • students table now supports email verification\n";
-echo "   • Duplicates removed & unique constraints added\n";
+// Add unique constraints safely
+$unique_constraints = [
+    "student_classnotes_progress" => ["uniq_progress" => "(student_id, classnote_id)"],
+    "student_classnotes_subtopic_progress" => ["uniq_subtopic" => "(student_id, classnote_id, subtopic_index)"],
+    "student_units" => ["uniq_su" => "(student_id, unit_id)"],
+    "lecturer_units" => ["uniq_lu" => "(lecturer_id, unit_id)"]
+];
 
+foreach ($unique_constraints as $table => $indexes) {
+    foreach ($indexes as $index_name => $columns) {
+        $res = $conn->query("SHOW INDEX FROM $table WHERE Key_name='$index_name'");
+        if ($res->num_rows === 0) {
+            runQuery($conn, "ALTER TABLE $table ADD UNIQUE $index_name $columns", "Added unique index $index_name on $table");
+        } else {
+            echo "⚪ Skipped: unique index $index_name already exists on $table\n";
+        }
+    }
+}
+
+echo "\n\n🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!\n";
 $conn->close();
 ?>
