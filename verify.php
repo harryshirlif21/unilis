@@ -1,9 +1,8 @@
 <?php
-// verify.php - Email Verification + Resend Logic
-require_once 'config/db.php'; // Contains $conn (MySQLi) + TOKEN_EXPIRY_MINUTES + send_verification_email()
+require_once 'config/db.php'; // $conn + TOKEN_EXPIRY_MINUTES + send_verification_email()
 session_start();
 
-// Prevent logged-in users from accessing this page
+// Redirect logged-in users
 if (isset($_SESSION['user_id'])) {
     header("Location: " . ($_SESSION['user_role'] === 'student' ? 'student/dashboard.php' : 'dashboard.php'));
     exit;
@@ -11,16 +10,16 @@ if (isset($_SESSION['user_id'])) {
 
 $token          = $_GET['token'] ?? '';
 $message        = '';
-$message_type   = ''; // 'success', 'error', 'info'
+$message_type   = '';
 $show_resend    = false;
 $email_prefilled = '';
 
-// 1. Token verification (if provided in URL)
+// 1. Token verification
 if ($token !== '') {
     $stmt = $conn->prepare("
         SELECT id, email, token_expires_at 
         FROM students 
-        WHERE verification_token = ? AND is_verified = 0 
+        WHERE verification_code = ? AND is_verified = 0 
         LIMIT 1
     ");
     $stmt->bind_param('s', $token);
@@ -30,10 +29,10 @@ if ($token !== '') {
     $stmt->close();
 
     if ($user && strtotime($user['token_expires_at']) > time()) {
-        // SUCCESS: Mark as verified
+        // Mark as verified
         $stmt = $conn->prepare("
             UPDATE students 
-            SET is_verified = 1, verification_token = NULL, token_expires_at = NULL 
+            SET is_verified = 1, verification_code = NULL, token_expires_at = NULL, verified_at = NOW() 
             WHERE id = ?
         ");
         $stmt->bind_param('i', $user['id']);
@@ -49,7 +48,7 @@ if ($token !== '') {
     }
 }
 
-// 2. Handle various entry points
+// 2. Various entry points
 elseif (isset($_GET['sent'])) {
     $message = "A verification email has been sent to your inbox. Please check (including spam folder).";
     $message_type = 'info';
@@ -85,13 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         $stmt->close();
 
         if (!$user) {
-            // Email not found → send to signup
             header("Location: student/signup.php");
             exit;
         }
 
         if ($user['is_verified'] == 1) {
-            // Already verified → go to login
             header("Location: login.php");
             exit;
         }
@@ -102,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
 
         $stmt = $conn->prepare("
             UPDATE students 
-            SET verification_token = ?, token_expires_at = ? 
+            SET verification_code = ?, token_expires_at = ? 
             WHERE id = ?
         ");
         $stmt->bind_param('ssi', $new_token, $expires_at, $user['id']);
@@ -119,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
