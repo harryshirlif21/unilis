@@ -243,8 +243,6 @@ if ($action === 'signup_student') {
     }
 }
 // === UNIVERSAL LOGIN ===
-
-// Universal Login Handler - Fully compliant with your original rules
 if ($action === 'universal_login') {
     $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
     $password = $_POST['password'] ?? '';
@@ -255,7 +253,6 @@ if ($action === 'universal_login') {
         exit;
     }
 
-    // List of roles and their tables + required fields + redirect
     $roles = [
         'admin' => [
             'table' => 'admins',
@@ -289,61 +286,58 @@ if ($action === 'universal_login') {
         $fields = $config['fields'];
         $field_list = implode(', ', $fields);
 
-        // Select user + password + verified status (if needed)
-        $sql = "SELECT $field_list FROM $table WHERE email = ? LIMIT 1";
+        $sql = "SELECT $field_list FROM $table WHERE email = :email LIMIT 1";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$email]);
+        $stmt->execute(['email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user && password_verify($password, $user['password'])) {
-            // === VERIFICATION CHECK (only for roles that require it) ===
-            if (isset($config['requires_verification']) && $user['verified'] == 0) {
+            // Verification check
+            if (!empty($config['requires_verification']) && $user['verified'] == 0) {
                 $_SESSION['pending_verification_email'] = $email;
                 header("Location: verify.php?unverified=1");
                 exit;
             }
 
-            // === SUCCESS: Create session (ONLY HERE!) ===
+            // SUCCESS: create session
             $_SESSION['user_id']    = $user['id'];
             $_SESSION['user_email'] = $email;
             $_SESSION['user_role']  = $role;
 
-            // Map additional fields
             foreach ($config['session_map'] as $db_col => $session_key) {
                 if (isset($user[$db_col])) {
                     $_SESSION[$session_key] = $user[$db_col];
                 }
             }
 
-            // Final redirect based on role
             header("Location: " . $config['redirect']);
             $login_success = true;
             exit;
         }
     }
 
-    // If we get here → login failed
     if (!$login_success) {
         $_SESSION['login_error'] = "Invalid email or password.";
         header("Location: login.php");
         exit;
     }
 }
+
 // === ADD UNIVERSITY ===
 if ($action === 'add_university') {
     $name = trim($_POST['university_name']);
-    $stmt = $conn->prepare("SELECT id FROM universities WHERE name = ?");
-    $stmt->bind_param("s", $name);
-    $stmt->execute();
-    $stmt->store_result();
-    if ($stmt->num_rows > 0) {
+
+    // Check if exists
+    $stmt = $pdo->prepare("SELECT id FROM universities WHERE name = :name");
+    $stmt->execute(['name' => $name]);
+    if ($stmt->rowCount() > 0) {
         $_SESSION['university_error'] = "University already exists.";
     } else {
-        $stmt = $conn->prepare("INSERT INTO universities (name) VALUES (?)");
-        $stmt->bind_param("s", $name);
-        $stmt->execute();
+        $stmt = $pdo->prepare("INSERT INTO universities (name) VALUES (:name)");
+        $stmt->execute(['name' => $name]);
         $_SESSION['university_success'] = "University added.";
     }
+
     header("Location: admin/dashboard.php");
     exit;
 }
