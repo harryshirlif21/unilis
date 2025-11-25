@@ -1,6 +1,6 @@
 <?php
 // verify.php - Email Verification + Resend Logic
-require_once 'config.php';  // Contains $pdo + TOKEN_EXPIRY_MINUTES + send_verification_email()
+require_once 'config/db.php'; // Contains $conn (MySQLi) + TOKEN_EXPIRY_MINUTES + send_verification_email()
 session_start();
 
 // Prevent logged-in users from accessing this page
@@ -9,31 +9,36 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
-$token       = $_GET['token'] ?? '';
-$message     = '';
-$message_type = ''; // 'success', 'error', 'info'
-$show_resend  = false;
+$token          = $_GET['token'] ?? '';
+$message        = '';
+$message_type   = ''; // 'success', 'error', 'info'
+$show_resend    = false;
 $email_prefilled = '';
 
 // 1. Token verification (if provided in URL)
 if ($token !== '') {
-    $stmt = $pdo->prepare("
+    $stmt = $conn->prepare("
         SELECT id, email, token_expires_at 
         FROM students 
-        WHERE verification_token = ? AND verified = 0 
+        WHERE verification_token = ? AND is_verified = 0 
         LIMIT 1
     ");
-    $stmt->execute([$token]);
-    $user = $stmt->fetch();
+    $stmt->bind_param('s', $token);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $user = $result->fetch_assoc();
+    $stmt->close();
 
     if ($user && strtotime($user['token_expires_at']) > time()) {
         // SUCCESS: Mark as verified
-        $stmt = $pdo->prepare("
+        $stmt = $conn->prepare("
             UPDATE students 
-            SET verified = 1, verification_token = NULL, token_expires_at = NULL 
+            SET is_verified = 1, verification_token = NULL, token_expires_at = NULL 
             WHERE id = ?
         ");
-        $stmt->execute([$user['id']]);
+        $stmt->bind_param('i', $user['id']);
+        $stmt->execute();
+        $stmt->close();
 
         $message = "Your email has been successfully verified! You can now log in.";
         $message_type = 'success';
@@ -72,9 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         $message = "Please enter a valid email address.";
         $message_type = 'error';
     } else {
-        $stmt = $pdo->prepare("SELECT id, verified FROM students WHERE email = ? LIMIT 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $stmt = $conn->prepare("SELECT id, is_verified FROM students WHERE email = ? LIMIT 1");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
 
         if (!$user) {
             // Email not found → send to signup
@@ -82,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
             exit;
         }
 
-        if ($user['verified'] == 1) {
+        if ($user['is_verified'] == 1) {
             // Already verified → go to login
             header("Location: login.php");
             exit;
@@ -92,12 +100,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         $new_token = bin2hex(random_bytes(32));
         $expires_at = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
 
-        $stmt = $pdo->prepare("
+        $stmt = $conn->prepare("
             UPDATE students 
             SET verification_token = ?, token_expires_at = ? 
             WHERE id = ?
         ");
-        $stmt->execute([$new_token, $expires_at, $user['id']]);
+        $stmt->bind_param('ssi', $new_token, $expires_at, $user['id']);
+        $stmt->execute();
+        $stmt->close();
 
         if (send_verification_email($email, $new_token)) {
             header("Location: verify.php?resent=1");
