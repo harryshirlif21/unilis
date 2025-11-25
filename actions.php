@@ -8,7 +8,8 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 use Dompdf\Dompdf;
-
+    use PHPMailer\PHPMailer\PHPMailer;
+    use PHPMailer\PHPMailer\Exception;
 // Add OpenAI API key (should be stored securely in environment variables)
 $openai_key = getenv('OPENAI_API_KEY');
 
@@ -124,106 +125,210 @@ if ($action === 'save_questions' && isset($_SESSION['user_id']) && $_SESSION['us
     }
 }
 
-// === STUDENT SIGNUP ===
+// === STUDENT SIGNUP ACTION (100% Self-Contained with Real Email Sending) ===
 if ($action === 'signup_student') {
-    $reg_no = $_POST['reg_no'];
-    $name = $_POST['name'];
-    $email = $_POST['email'];
-    $university_id = $_POST['university'];
-    $department_id = $_POST['department'];
-    $course_id = $_POST['course'];
-    $year_of_study = $_POST['year_of_study'];
-    $year_joined = $_POST['year_joined'];
-    $password = $_POST['password'];
-    $confirm_password = $_POST['confirm_password'];
+    // === 1. Collect and sanitize input ===
+    $reg_no         = trim($_POST['reg_no']);
+    $name           = trim($_POST['name']);
+    $email          = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
+    $university_id  = (int)$_POST['university'];
+    $department_id  = (int)$_POST['department'];
+    $course_id      = (int)$_POST['course'];
+    $year_of_study  = (int)$_POST['year_of_study'];
+    $year_joined    = (int)$_POST['year_joined'];
+    $password       = $_POST['password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
 
-    if ($password !== $confirm_password) {
-        $_SESSION['signup_error'] = "Passwords do not match.";
-        header("Location: signup.php");
+    // === 2. Validation ===
+    $errors = [];
+    if (!$email) $errors[] = "Please enter a valid email address.";
+    if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters long.";
+    if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
+    if (empty($reg_no) || empty($name)) $errors[] = "Registration number and name are required.";
+
+    if (!empty($errors)) {
+        $_SESSION['signup_errors'] = $errors;
+        $_SESSION['old_input'] = $_POST;
+        header("Location: student/signup.php");
         exit;
     }
 
-    $password_hashed = password_hash($password, PASSWORD_BCRYPT);
-
-    $check = $conn->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
-    $check->bind_param("ss", $reg_no, $email);
-    $check->execute();
-    $check->store_result();
-
-    if ($check->num_rows > 0) {
-        $_SESSION['signup_error'] = "Reg No or Email already registered.";
-    } else {
-        $stmt = $conn->prepare("INSERT INTO students (reg_no, name, email, university_id, department_id, course_id, year_of_study, year_joined, password)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssiiiiss", $reg_no, $name, $email, $university_id, $department_id, $course_id, $year_of_study, $year_joined, $password_hashed);
-        $stmt->execute() ? $_SESSION['signup_success'] = "Student registered successfully." : $_SESSION['signup_error'] = "Error: " . $stmt->error;
+    // === 3. Check for duplicates ===
+    $stmt = $pdo->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
+    $stmt->execute([$reg_no, $email]);
+    if ($stmt->fetch()) {
+        $_SESSION['signup_errors'] = ["Reg No or Email already registered. <a href='login.php'>Login here</a>"];
+        header("Location: student/signup.php");
+        exit;
     }
-    header("Location: signup.php");
-    exit;
+
+    // === 4. Create student + verification token ===
+    $token      = bin2hex(random_bytes(32));
+    $expires_at = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
+    $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
+
+    $stmt = $pdo->prepare("
+        INSERT INTO students (
+            reg_no, name, email, university_id, department_id, course_id,
+            year_of_study, year_joined, password,
+            verified, verification_token, token_expires_at
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?
+        )
+    ");
+    $stmt->execute([
+        $reg_no, $name, $email, $university_id, $department_id, $course_id,
+        $year_of_study, $year_joined, $hashed_pass,
+        $token, $expires_at
+    ]);
+
+    // === 5. SEND VERIFICATION EMAIL USING PHPMailer (Embedded) ===
+    
+
+    $mail = new PHPMailer(true);
+    $email_sent = false;
+
+    try {
+        // SMTP Configuration
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis717@gmail.com';           // Your real email
+        $mail->Password   = 'your-16-digit-app-password-here'; // ← CHANGE THIS!
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        // Recipients
+        $mail->setFrom('unilis717@gmail.com', 'UNILIS');
+        $mail->addAddress($email);
+
+        // Verification Link
+        $verify_link = "https://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']) . "/verify.php?token=" . $token;
+
+        // Email Content
+        $mail->isHTML(true);
+        $mail->Subject = 'Verify Your UNILIS Account';
+        $mail->Body    = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background: #f9f9f9;'>
+                <h2 style='color: #007bff; text-align: center;'>Welcome to UNILIS!</h2>
+                <p>Hi <strong>$name</strong>,</p>
+                <p>Thank you for registering. Please click the button below to verify your email address:</p>
+                <div style='text-align: center; margin: 30px 0;'>
+                    <a href='$verify_link' style='background:#007bff; color:white; padding:15px 40px; text-decoration:none; border-radius:8px; font-size:16px; display:inline-block;'>Verify Email Now</a>
+                </div>
+                <p>Or copy this link:<br>
+                   <code style='background:#eee; padding:8px; word-break:break-all; display:inline-block;'>$verify_link</code>
+                </p>
+                <p><small>This link expires in " . TOKEN_EXPIRY_MINUTES . " minutes.</small></p>
+                <hr>
+                <p style='color:#666; font-size:12px;'>© " . date('Y') . " UNILIS • University Learning Information System</p>
+            </div>
+        ";
+
+        $mail->send();
+        $email_sent = true;
+    } catch (Exception $e) {
+        error_log("PHPMailer Error: " . $mail->ErrorInfo);
+        $email_sent = false;
+    }
+
+    // === 6. Final Redirect ===
+    if ($email_sent) {
+        header("Location: verify.php?sent=1&email=" . urlencode($email));
+        exit;
+    } else {
+        $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
+        header("Location: student/signup.php");
+        exit;
+    }
 }
 // === UNIVERSAL LOGIN ===
+
+// Universal Login Handler - Fully compliant with your original rules
 if ($action === 'universal_login') {
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
+    $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
+    $password = $_POST['password'] ?? '';
 
-    // Helper function for login
-    function attemptLogin($conn, $table, $email, $password, $fields, $redirectPath, $role) {
-    $query = "SELECT " . implode(", ", $fields) . " FROM $table WHERE email = ?";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $stmt->store_result();
+    if (!$email) {
+        $_SESSION['login_error'] = "Please enter a valid email.";
+        header("Location: login.php");
+        exit;
+    }
 
-    if ($stmt->num_rows === 1) {
-        // Dynamically create the correct number of variables for bind_result
-        $bindVars = [];
-        for ($i = 0; $i < count($fields); $i++) {
-            $bindVars[] = null;
-        }
+    // List of roles and their tables + required fields + redirect
+    $roles = [
+        'admin' => [
+            'table' => 'admins',
+            'fields' => ['id', 'password', 'name'],
+            'redirect' => 'admin/dashboard.php',
+            'session_map' => ['name' => 'user_name']
+        ],
+        'lecturer' => [
+            'table' => 'lecturers',
+            'fields' => ['id', 'password', 'name'],
+            'redirect' => 'lecturer/dashboard.php',
+            'session_map' => ['name' => 'user_name']
+        ],
+        'student' => [
+            'table' => 'students',
+            'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'verified'],
+            'redirect' => 'student/dashboard.php',
+            'session_map' => [
+                'name' => 'user_name',
+                'course_id' => 'course_id',
+                'year_of_study' => 'year_of_study'
+            ],
+            'requires_verification' => true
+        ]
+    ];
 
-        // bind variables by reference
-        $refs = [];
-        foreach ($bindVars as $key => &$val) {
-            $refs[$key] = &$val;
-        }
-        $stmt->bind_result(...$refs);
-        $stmt->fetch();
+    $login_success = false;
 
-        if (password_verify($password, $bindVars[1])) { // Assuming password is 2nd column
-            $_SESSION['user_id'] = $bindVars[0]; // id
-            $_SESSION['user_name'] = $bindVars[2]; // name
-            $_SESSION['user_role'] = $role;
+    foreach ($roles as $role => $config) {
+        $table = $config['table'];
+        $fields = $config['fields'];
+        $field_list = implode(', ', $fields);
 
-            if ($role === 'student') {
-                $_SESSION['course_id'] = $bindVars[3];
-                $_SESSION['year_of_study'] = $bindVars[4];
+        // Select user + password + verified status (if needed)
+        $sql = "SELECT $field_list FROM $table WHERE email = ? LIMIT 1";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$email]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user && password_verify($password, $user['password'])) {
+            // === VERIFICATION CHECK (only for roles that require it) ===
+            if (isset($config['requires_verification']) && $user['verified'] == 0) {
+                $_SESSION['pending_verification_email'] = $email;
+                header("Location: verify.php?unverified=1");
+                exit;
             }
 
-            header("Location: $redirectPath");
+            // === SUCCESS: Create session (ONLY HERE!) ===
+            $_SESSION['user_id']    = $user['id'];
+            $_SESSION['user_email'] = $email;
+            $_SESSION['user_role']  = $role;
+
+            // Map additional fields
+            foreach ($config['session_map'] as $db_col => $session_key) {
+                if (isset($user[$db_col])) {
+                    $_SESSION[$session_key] = $user[$db_col];
+                }
+            }
+
+            // Final redirect based on role
+            header("Location: " . $config['redirect']);
+            $login_success = true;
             exit;
         }
     }
 
-    $stmt->close();
-    return false;
-}
-
-    // Try each role
-    if (
-        attemptLogin($conn, 'admins', $email, $password, ['id', 'password', 'name'], 'admin/dashboard.php', 'admin') ||
-        attemptLogin($conn, 'lecturers', $email, $password, ['id', 'password', 'name'], 'lecturer/dashboard.php', 'lecturer') ||
-        attemptLogin($conn, 'students', $email, $password, ['id', 'password', 'name', 'course_id', 'year_of_study'], 'student/dashboard.php', 'student')
-    ) {
-        // Already redirected inside attemptLogin if successful
+    // If we get here → login failed
+    if (!$login_success) {
+        $_SESSION['login_error'] = "Invalid email or password.";
+        header("Location: login.php");
         exit;
     }
-
-    // If none matched
-    $_SESSION['login_error'] = "Invalid credentials.";
-    header("Location: login.php");
-    exit;
 }
-
 // === ADD UNIVERSITY ===
 if ($action === 'add_university') {
     $name = trim($_POST['university_name']);
