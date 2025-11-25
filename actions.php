@@ -194,7 +194,7 @@ if ($action === 'signup_student') {
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
         $mail->Username   = 'unilis717@gmail.com';           // Your real email
-        $mail->Password   = 'your-16-digit-app-password-here'; // ← CHANGE THIS!
+        $mail->Password   = 'Man-18hattan'; // ← CHANGE THIS!
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 

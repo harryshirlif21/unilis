@@ -1,5 +1,6 @@
 <?php
 require_once 'config/db.php'; // $conn + TOKEN_EXPIRY_MINUTES + send_verification_email()
+require_once 'includes/mailer.php';  // ← This line fixes everything
 session_start();
 
 // Redirect logged-in users
