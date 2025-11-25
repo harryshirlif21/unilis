@@ -92,13 +92,16 @@ if ($scit_id_res && $row = $scit_id_res->fetch_assoc()) {
 // -------------------------
 // 4. ADD EMAIL VERIFICATION FIELDS TO students TABLE
 // -------------------------
-$columns = ['verification_code', 'is_verified', 'verified_at'];
+$columns = ['verification_code', 'token_expires_at', 'is_verified', 'verified_at'];
 foreach ($columns as $col) {
     $res = $conn->query("SHOW COLUMNS FROM students LIKE '$col'");
     if ($res->num_rows === 0) {
         switch ($col) {
             case 'verification_code':
                 runQuery($conn, "ALTER TABLE students ADD COLUMN verification_code VARCHAR(100) NULL", "Added verification_code column");
+                break;
+            case 'token_expires_at':
+                runQuery($conn, "ALTER TABLE students ADD COLUMN token_expires_at DATETIME NULL AFTER verification_code", "Added token_expires_at column");
                 break;
             case 'is_verified':
                 runQuery($conn, "ALTER TABLE students ADD COLUMN is_verified TINYINT(1) DEFAULT 0", "Added is_verified column");
