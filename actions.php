@@ -286,13 +286,21 @@ if ($action === 'universal_login') {
         $fields = $config['fields'];
         $field_list = implode(', ', $fields);
 
-        $sql = "SELECT $field_list FROM $table WHERE email = :email LIMIT 1";
+        // Prepare statement using MySQLi '?' placeholders
+        $sql = "SELECT $field_list FROM $table WHERE email = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
-        $stmt->execute(['email' => $email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$stmt) {
+            error_log("MySQLi Prepare Error: " . $conn->error);
+            continue;
+        }
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
 
         if ($user && password_verify($password, $user['password'])) {
-            // Verification check
+            // Verification check for students
             if (!empty($config['requires_verification']) && $user['verified'] == 0) {
                 $_SESSION['pending_verification_email'] = $email;
                 header("Location: verify.php?unverified=1");
@@ -322,6 +330,7 @@ if ($action === 'universal_login') {
         exit;
     }
 }
+
 
 // === ADD UNIVERSITY ===
 if ($action === 'add_university') {
