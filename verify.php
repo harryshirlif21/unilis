@@ -3,7 +3,7 @@ require_once 'config/db.php';
 require_once 'includes/mailer.php';
 session_start();
 
-// Redirect if already logged in
+// Redirect logged-in users
 if (isset($_SESSION['user_id'])) {
     header("Location: " . ($_SESSION['user_role'] === 'student' ? 'student/dashboard.php' : 'dashboard.php'));
     exit;
@@ -19,6 +19,9 @@ $email_prefilled = '';
 // 1. TOKEN VERIFICATION (when link is clicked)
 // ===================================================================
 if ($token !== '') {
+    // Decode URL-encoded token if any
+    $token = urldecode($token);
+
     $stmt = $conn->prepare("
         SELECT id, email, token_expires_at, is_verified 
         FROM students 
@@ -35,20 +38,19 @@ if ($token !== '') {
         $message      = "Invalid verification link.";
         $message_type = 'error';
         $show_resend  = true;
-    }
-    elseif ($user['is_verified'] == 1) {
+    } elseif ($user['is_verified'] == 1) {
         $message      = "Your email is already verified! You can log in.";
         $message_type = 'success';
-    }
-    else {
-        // Check expiry properly (DATETIME comparison)
+    } else {
+        // Check expiry
         $now = date('Y-m-d H:i:s');
         if ($user['token_expires_at'] && $user['token_expires_at'] < $now) {
             $message      = "This verification link has expired.";
             $message_type = 'error';
             $show_resend  = true;
+            $email_prefilled = $user['email'];
         } else {
-            // SUCCESS: Mark as verified
+            // Mark as verified
             $stmt = $conn->prepare("
                 UPDATE students 
                 SET is_verified = 1,
@@ -68,6 +70,7 @@ if ($token !== '') {
                 $message      = "Verification failed. Please try again.";
                 $message_type = 'error';
                 $show_resend  = true;
+                $email_prefilled = $user['email'];
             }
         }
     }
@@ -81,13 +84,11 @@ elseif (isset($_GET['sent'])) {
     $message_type    = 'info';
     $email_prefilled = $_GET['email'] ?? '';
     $show_resend     = true;
-}
-elseif (isset($_GET['resent'])) {
+} elseif (isset($_GET['resent'])) {
     $message      = "New verification email sent successfully!";
     $message_type = 'success';
     $show_resend  = true;
-}
-elseif (isset($_GET['unverified'])) {
+} elseif (isset($_GET['unverified'])) {
     $message         = "Please verify your email before logging in.";
     $message_type    = 'error';
     $show_resend     = true;
@@ -121,9 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
             exit;
         }
 
-        // Generate fresh token
-        $new_token   = bin2hex(random_bytes(32));
-        $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
+        // Generate new token
+        $new_token  = bin2hex(random_bytes(32));
+        $expires_at = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
 
         $stmt = $conn->prepare("
             UPDATE students 
@@ -134,14 +135,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         $stmt->execute();
         $stmt->close();
 
+        // Send verification email
         if (send_verification_email($email, $new_token)) {
             header("Location: verify.php?resent=1");
             exit;
         } else {
             $message      = "Failed to send verification email. Please try again later.";
             $message_type = 'error';
+            $email_prefilled = $email;
         }
     }
+}
+
+// ===================================================================
+// HELPER: SEND VERIFICATION EMAIL
+// ===================================================================
+function send_verification_email($email, $token) {
+    $verification_link = "https://yourdomain.com/verify.php?token=" . urlencode($token);
+
+    $subject = "UNILIS Email Verification";
+    $message = "
+        <html>
+        <head><title>Email Verification</title></head>
+        <body>
+            <p>Hello,</p>
+            <p>Click the link below to verify your email address:</p>
+            <p><a href='{$verification_link}'>Verify Email</a></p>
+            <p>This link will expire in " . TOKEN_EXPIRY_MINUTES . " minutes.</p>
+        </body>
+        </html>
+    ";
+
+    $headers  = "MIME-Version: 1.0" . "\r\n";
+    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+    $headers .= "From: no-reply@yourdomain.com" . "\r\n";
+
+    return mail($email, $subject, $message, $headers);
 }
 ?>
 
@@ -169,7 +198,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
     </style>
 </head>
 <body>
-
 <div class="container">
     <div class="logo">
         <i class="fas fa-graduation-cap"></i> UNILIS
@@ -200,6 +228,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         <p>Processing your request...</p>
     <?php endif; ?>
 </div>
-
 </body>
 </html>
