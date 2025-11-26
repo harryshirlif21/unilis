@@ -885,9 +885,7 @@ document.querySelectorAll('.modal').forEach(modal => {
             </section>
         </div>
         
-       <?php
-// Make sure PHP mode starts before this logic if you're mixing with HTML
-?>
+     
 <div id="notifications-content" class="hidden">
     <section class="card bg-white rounded-2xl p-6 mb-8">
         <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Notifications</h2>
@@ -904,31 +902,46 @@ document.querySelectorAll('.modal').forEach(modal => {
                 <tbody class="text-92400e">
                     <?php
                     try {
-                        
                         $course_id = $_SESSION['course_id'] ?? null;
                         $year_of_study = $_SESSION['year_of_study'] ?? null;
 
                         if (!$course_id || !$year_of_study) {
                             echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Missing student context.</td></tr>";
                         } else {
-                            // Fetch notifications relevant to student's course and year
+
+                            // ✨ FIXED AND FULLY WORKING QUERY
                             $notif_query = $conn->prepare("
                                 SELECT DISTINCT n.id, n.title, n.message, n.link, n.is_read, n.created_at
                                 FROM notifications n
+                    
                                 LEFT JOIN notes nt ON n.notes_id = nt.id
                                 LEFT JOIN assignments a ON n.assignment_id = a.id
                                 LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
                                 LEFT JOIN meetings m ON n.meeting_id = m.id
-                                LEFT JOIN units u 
-                                    ON u.id = nt.unit_id 
-                                    OR u.id = a.unit_id 
-                                    OR u.id = ia.unit_id 
-                                    OR u.id = m.unit_id
-                                WHERE u.course_id = ? AND u.year = ?
+
+                                LEFT JOIN units u_nt ON u_nt.id = nt.unit_id
+                                LEFT JOIN units u_a  ON u_a.id  = a.unit_id
+                                LEFT JOIN units u_ia ON u_ia.id = ia.unit_id
+                                LEFT JOIN units u_m  ON u_m.id  = m.unit_id
+
+                                WHERE 
+                                    (u_nt.course_id = ? AND u_nt.year = ?) OR
+                                    (u_a.course_id  = ? AND u_a.year  = ?) OR
+                                    (u_ia.course_id = ? AND u_ia.year = ?) OR
+                                    (u_m.course_id  = ? AND u_m.year  = ?)
+
                                 ORDER BY n.created_at DESC
                             ");
 
-                            $notif_query->bind_param("ii", $course_id, $year_of_study);
+                            // 8 PARAMETERS
+                            $notif_query->bind_param(
+                                "iiiiiiii",
+                                $course_id, $year_of_study,
+                                $course_id, $year_of_study,
+                                $course_id, $year_of_study,
+                                $course_id, $year_of_study
+                            );
+
                             $notif_query->execute();
                             $notifications = $notif_query->get_result();
 
@@ -936,17 +949,22 @@ document.querySelectorAll('.modal').forEach(modal => {
                                 echo "<tr><td colspan='4' class='py-4 text-center'>No notifications yet.</td></tr>";
                             } else {
                                 while ($notif = $notifications->fetch_assoc()) {
+
                                     $title = htmlspecialchars($notif['title']);
                                     $message = htmlspecialchars($notif['message']);
-                                    $created_at = date("d M Y, h:i A", strtotime($notif['created_at']));
+                                    $created_at = $notif['created_at'] 
+                                        ? date('d M Y, h:i A', strtotime($notif['created_at'])) 
+                                        : 'Unknown';
+
                                     $link = !empty($notif['link'])
                                         ? "<a href='" . htmlspecialchars($notif['link']) . "' class='text-f59e0b hover:underline'>View</a>"
                                         : "-";
 
-                                    // Highlight unread notifications
+                                    // Highlight unread
                                     $row_style = $notif['is_read'] ? '' : "style='background-color:#fffbea;'";
 
-                                    echo "<tr class='border-b border-f5e6b2 table-row-hover' $row_style>
+                                    echo "
+                                    <tr class='border-b border-f5e6b2 table-row-hover' $row_style>
                                         <td class='py-4 table-text-primary'>$title</td>
                                         <td class='py-4 table-text-secondary'>$message</td>
                                         <td class='py-4 text-sm table-text-accent'>$created_at</td>
@@ -957,6 +975,7 @@ document.querySelectorAll('.modal').forEach(modal => {
 
                             $notif_query->close();
                         }
+
                     } catch (mysqli_sql_exception $e) {
                         error_log('Error fetching notifications: ' . $e->getMessage());
                         echo "<tr><td colspan='4' class='py-4 text-center text-red-500'>Error loading notifications.</td></tr>";
@@ -967,10 +986,6 @@ document.querySelectorAll('.modal').forEach(modal => {
         </div>
     </section>
 </div>
-<?php
-// Optionally close PHP again after if more HTML follows
-?>
-
 
         <script>
             // Enhanced JavaScript for better UX: Navigation, Sidebar Toggle, and Content Switching
