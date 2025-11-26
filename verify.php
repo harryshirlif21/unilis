@@ -1,6 +1,6 @@
 <?php
 require_once 'config/db.php';
-require_once 'includes/mailer.php';
+require_once 'includes/mailer.php'; // PHPMailer version
 session_start();
 
 // Redirect logged-in users
@@ -19,11 +19,10 @@ $email_prefilled = '';
 // 1. TOKEN VERIFICATION (when link is clicked)
 // ===================================================================
 if ($token !== '') {
-    // Decode URL-encoded token if any
     $token = urldecode($token);
 
     $stmt = $conn->prepare("
-        SELECT id, email, token_expires_at, is_verified 
+        SELECT id, email, token_expires_at, is_verified, name
         FROM students 
         WHERE verification_code = ? 
         LIMIT 1
@@ -42,15 +41,13 @@ if ($token !== '') {
         $message      = "Your email is already verified! You can log in.";
         $message_type = 'success';
     } else {
-        // Check expiry
         $now = date('Y-m-d H:i:s');
         if ($user['token_expires_at'] && $user['token_expires_at'] < $now) {
-            $message      = "This verification link has expired.";
-            $message_type = 'error';
-            $show_resend  = true;
+            $message         = "This verification link has expired.";
+            $message_type    = 'error';
+            $show_resend     = true;
             $email_prefilled = $user['email'];
         } else {
-            // Mark as verified
             $stmt = $conn->prepare("
                 UPDATE students 
                 SET is_verified = 1,
@@ -67,9 +64,9 @@ if ($token !== '') {
                 $message      = "Your email has been successfully verified! You can now log in.";
                 $message_type = 'success';
             } else {
-                $message      = "Verification failed. Please try again.";
-                $message_type = 'error';
-                $show_resend  = true;
+                $message         = "Verification failed. Please try again.";
+                $message_type    = 'error';
+                $show_resend     = true;
                 $email_prefilled = $user['email'];
             }
         }
@@ -106,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         $message      = "Please enter a valid email address.";
         $message_type = 'error';
     } else {
-        $stmt = $conn->prepare("SELECT id, is_verified FROM students WHERE email = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT id, is_verified, name FROM students WHERE email = ? LIMIT 1");
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -135,42 +132,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         $stmt->execute();
         $stmt->close();
 
-        // Send verification email
-        if (send_verification_email($email, $new_token)) {
+        // Send verification email via PHPMailer
+        if (send_verification_email($email, $new_token, $user['name'] ?? '')) {
             header("Location: verify.php?resent=1");
             exit;
         } else {
-            $message      = "Failed to send verification email. Please try again later.";
-            $message_type = 'error';
+            $message         = "Failed to send verification email. Please try again later.";
+            $message_type    = 'error';
             $email_prefilled = $email;
         }
     }
-}
-
-// ===================================================================
-// HELPER: SEND VERIFICATION EMAIL
-// ===================================================================
-function send_verification_email($email, $token) {
-    $verification_link = "https://yourdomain.com/verify.php?token=" . urlencode($token);
-
-    $subject = "UNILIS Email Verification";
-    $message = "
-        <html>
-        <head><title>Email Verification</title></head>
-        <body>
-            <p>Hello,</p>
-            <p>Click the link below to verify your email address:</p>
-            <p><a href='{$verification_link}'>Verify Email</a></p>
-            <p>This link will expire in " . TOKEN_EXPIRY_MINUTES . " minutes.</p>
-        </body>
-        </html>
-    ";
-
-    $headers  = "MIME-Version: 1.0" . "\r\n";
-    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-    $headers .= "From: no-reply@yourdomain.com" . "\r\n";
-
-    return mail($email, $subject, $message, $headers);
 }
 ?>
 
