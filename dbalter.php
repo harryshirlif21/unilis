@@ -2,12 +2,13 @@
 require_once 'config/db.php';
 session_start();
 
-// Optional: Protect it (remove after use)
+// OPTIONAL PROTECTION (remove when no longer needed)
 if (!isset($_GET['debug']) || $_GET['debug'] !== 'showme') {
     die("Add ?debug=showme to URL");
 }
 
 echo "<h2>Students Table - Full Details (Email Verification Status)</h2>";
+
 echo "<style>
     body { font-family: Arial, sans-serif; background:#f4f4f4; padding:20px; }
     table { width:100%; border-collapse:collapse; background:white; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
@@ -32,36 +33,47 @@ echo "<table>
     <th>Action</th>
 </tr>";
 
-$stmt = $conn->prepare("
+// Fetch students
+$query = "
     SELECT id, reg_no, name, email, verification_code, 
            token_expires_at, is_verified, verified_at 
     FROM students 
     ORDER BY id DESC
-");
+";
+
+$stmt = $conn->prepare($query);
 $stmt->execute();
 $result = $stmt->get_result();
 
+// Loop through results
 while ($row = $result->fetch_assoc()) {
-    $status = $row['is_verified'] == 1 
-        ? "<span class='verified'>VERIFIED</span>" 
+
+    // Status
+    $status = ($row['is_verified'] == 1)
+        ? "<span class='verified'>VERIFIED</span>"
         : "<span class='not-verified'>NOT VERIFIED</span>";
 
-    $token_display = $row['verification_code'] 
-        ? "<span class='token'>" . substr($row['verification_code'], 0, 20) . "...</span>" 
+    // Token preview
+    $token_display = $row['verification_code']
+        ? "<span class='token'>" . substr($row['verification_code'], 0, 20) . "...</span>"
         : "<em>none</em>";
 
-    $expires = $row['token_expires_at'] 
-        ? date('Y-m-d H:i:s', strtotime($row['token_expires_at'])) 
+    // Token expiry
+    $expires = $row['token_expires_at']
+        ? date('Y-m-d H:i:s', strtotime($row['token_expires_at']))
         : "—";
 
-    $verified_at = $row['verified_at'] 
-        ? date('Y-m-d H:i:s', strtotime($row['verified_at'])) 
+    // Verified date
+    $verified_at = $row['verified_at']
+        ? date('Y-m-d H:i:s', strtotime($row['verified_at']))
         : "—";
 
-    $link = $row['verification_code'] && $row['is_verified'] == 0
+    // Test link
+    $link = ($row['verification_code'] && $row['is_verified'] == 0)
         ? "<a href='https://unilis.jhubafrica.com/verify.php?token={$row['verification_code']}' target='_blank'>Test Link</a>"
         : "—";
 
+    // Display row
     echo "<tr>
         <td>{$row['id']}</td>
         <td>{$row['reg_no']}</td>
@@ -77,8 +89,10 @@ while ($row = $result->fetch_assoc()) {
 
 echo "</table><br>";
 echo "<p>Total students: " . $result->num_rows . "</p>";
-echo "<p><a href='https://unilis.jhubafrica.com'>Back to Site</a> | 
-          <a href='?debug=showme'>Refresh</a></p>";
+echo "<p>
+        <a href='https://unilis.jhubafrica.com'>Back to Site</a> | 
+        <a href='?debug=showme'>Refresh</a>
+      </p>";
 
 $stmt->close();
 $conn->close();
