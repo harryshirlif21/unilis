@@ -174,4 +174,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
 </div>
 
 </body>
-</html> update whole block
+</html> 
