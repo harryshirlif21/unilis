@@ -1,7 +1,9 @@
 <?php
 require_once 'config/db.php';
 
-// --- Step 1: Create 'recordings' table if it doesn't exist ---
+/* ---------------------------------------------------------
+   STEP 1: CREATE recordings TABLE
+--------------------------------------------------------- */
 $createRecordingsTableSQL = "
 CREATE TABLE IF NOT EXISTS recordings (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -14,13 +16,15 @@ CREATE TABLE IF NOT EXISTS recordings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ";
 
-if ($conn->query($createRecordingsTableSQL) === TRUE) {
-    echo "<p>Table <strong>recordings</strong> exists or was created successfully.</p>";
+if ($conn->query($createRecordingsTableSQL)) {
+    echo "<p>Table <strong>recordings</strong> exists or was created.</p>";
 } else {
     die("Error creating recordings table: " . $conn->error);
 }
 
-// --- Step 2: Create 'classnotes' table ---
+/* ---------------------------------------------------------
+   STEP 2: CREATE classnotes TABLE
+--------------------------------------------------------- */
 $createClassNotesSQL = "
 CREATE TABLE IF NOT EXISTS classnotes (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -36,13 +40,15 @@ CREATE TABLE IF NOT EXISTS classnotes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ";
 
-if ($conn->query($createClassNotesSQL) === TRUE) {
-    echo "<p>Table <strong>classnotes</strong> exists or was created successfully.</p>";
+if ($conn->query($createClassNotesSQL)) {
+    echo "<p>Table <strong>classnotes</strong> exists or was created.</p>";
 } else {
     die("Error creating classnotes table: " . $conn->error);
 }
 
-// --- Step 3: Create 'student_classnotes_progress' table ---
+/* ---------------------------------------------------------
+   STEP 3: CREATE student_classnotes_progress TABLE
+--------------------------------------------------------- */
 $createStudentProgressSQL = "
 CREATE TABLE IF NOT EXISTS student_classnotes_progress (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -55,13 +61,15 @@ CREATE TABLE IF NOT EXISTS student_classnotes_progress (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ";
 
-if ($conn->query($createStudentProgressSQL) === TRUE) {
-    echo "<p>Table <strong>student_classnotes_progress</strong> exists or was created successfully.</p>";
+if ($conn->query($createStudentProgressSQL)) {
+    echo "<p>Table <strong>student_classnotes_progress</strong> exists or was created.</p>";
 } else {
     die("Error creating student_classnotes_progress table: " . $conn->error);
 }
 
-// --- Step 4: Functions to get tables, columns, and foreign keys ---
+/* ---------------------------------------------------------
+   FUNCTIONS: TABLE STRUCTURE + DATA
+--------------------------------------------------------- */
 function getTables($conn) {
     $tables = [];
     $result = $conn->query("SHOW TABLES");
@@ -83,16 +91,11 @@ function getColumns($conn, $table) {
 function getForeignKeys($conn, $table) {
     $fks = [];
     $sql = "
-        SELECT
-            k.COLUMN_NAME,
-            k.REFERENCED_TABLE_NAME,
-            k.REFERENCED_COLUMN_NAME
-        FROM
-            information_schema.KEY_COLUMN_USAGE k
-        WHERE
-            k.TABLE_SCHEMA = DATABASE()
-            AND k.TABLE_NAME = '$table'
-            AND k.REFERENCED_TABLE_NAME IS NOT NULL;
+        SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = '$table'
+        AND REFERENCED_TABLE_NAME IS NOT NULL;
     ";
     $result = $conn->query($sql);
     while ($row = $result->fetch_assoc()) {
@@ -101,27 +104,72 @@ function getForeignKeys($conn, $table) {
     return $fks;
 }
 
-// --- Step 5: Display all tables, columns, and foreign keys ---
-$tables = getTables($conn);
-foreach ($tables as $table) {
-    echo "<h2>Table: $table</h2>";
+function getTableData($conn, $table) {
+    return $conn->query("SELECT * FROM `$table`");
+}
 
-    // Columns
+/* ---------------------------------------------------------
+   STEP 4: DISPLAY TABLE STRUCTURE + CONTENTS
+--------------------------------------------------------- */
+
+$tables = getTables($conn);
+
+echo "<h1>Database Structure & Data</h1>";
+
+foreach ($tables as $table) {
+
+    echo "<h2 style='color:#2d3748;'>Table: <strong>$table</strong></h2>";
+
+    /* ---- Columns ---- */
     echo "<h4>Columns:</h4><ul>";
     foreach (getColumns($conn, $table) as $col) {
-        echo "<li>{$col['Field']} — {$col['Type']} — Null: {$col['Null']} — Key: {$col['Key']} — Default: {$col['Default']}</li>";
+        echo "<li><strong>{$col['Field']}</strong> — {$col['Type']} (Null: {$col['Null']}, Key: {$col['Key']}, Default: {$col['Default']})</li>";
     }
     echo "</ul>";
 
-    // Foreign keys
+    /* ---- Foreign Keys ---- */
     $fks = getForeignKeys($conn, $table);
     if ($fks) {
         echo "<h4>Foreign Keys:</h4><ul>";
         foreach ($fks as $fk) {
-            echo "<li>{$fk['COLUMN_NAME']} references {$fk['REFERENCED_TABLE_NAME']}({$fk['REFERENCED_COLUMN_NAME']})</li>";
+            echo "<li>{$fk['COLUMN_NAME']} → {$fk['REFERENCED_TABLE_NAME']}({$fk['REFERENCED_COLUMN_NAME']})</li>";
         }
         echo "</ul>";
     }
+
+    /* ---- Table Data ---- */
+    echo "<h4>Data:</h4>";
+
+    $dataResult = getTableData($conn, $table);
+
+    if ($dataResult->num_rows === 0) {
+        echo "<p style='color:#718096;'>No rows found.</p>";
+    } else {
+
+        echo "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse: collapse; margin-bottom:20px;'>";
+
+        // Header
+        echo "<tr style='background:#edf2f7;'>";
+        while ($field = $dataResult->fetch_field()) {
+            echo "<th>{$field->name}</th>";
+        }
+        echo "</tr>";
+
+        // Rows
+        $dataResult->data_seek(0);
+        while ($row = $dataResult->fetch_assoc()) {
+            echo "<tr>";
+            foreach ($row as $value) {
+                $value = htmlspecialchars($value ?? "NULL");
+                echo "<td>$value</td>";
+            }
+            echo "</tr>";
+        }
+
+        echo "</table>";
+    }
+
     echo "<hr>";
 }
+
 ?>
