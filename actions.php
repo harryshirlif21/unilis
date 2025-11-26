@@ -127,6 +127,7 @@ if ($action === 'save_questions' && isset($_SESSION['user_id']) && $_SESSION['us
 
 // === STUDENT SIGNUP ACTION — FULLY CONVERTED TO MySQLi ($conn) ===
 if ($action === 'signup_student') {
+
     // === 1. Collect and sanitize input ===
     $reg_no         = trim($_POST['reg_no']);
     $name           = trim($_POST['name']);
@@ -153,7 +154,7 @@ if ($action === 'signup_student') {
         exit;
     }
 
-    // === 3. Check for duplicates (MySQLi) ===
+    // === 3. Check for duplicates ===
     $stmt = $conn->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
     $stmt->bind_param("ss", $reg_no, $email);
     $stmt->execute();
@@ -167,7 +168,7 @@ if ($action === 'signup_student') {
     $stmt->close();
 
     // === 4. Create student + verification token ===
-    $token       = bin2hex(random_bytes(32));
+    $token       = bin2hex(random_bytes(32)); // still stored in DB for later verification
     $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
     $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
 
@@ -176,10 +177,9 @@ if ($action === 'signup_student') {
             reg_no, name, email, university_id, department_id, course_id,
             year_of_study, year_joined, password,
             verification_code, token_expires_at, is_verified
-        ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0
-        )
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     ");
+
     $stmt->bind_param(
         "sssiiiiisss",
         $reg_no, $name, $email, $university_id, $department_id, $course_id,
@@ -195,20 +195,9 @@ if ($action === 'signup_student') {
     }
     $stmt->close();
 
-    // === 5. SEND VERIFICATION EMAIL USING PHPMailer ===
-    require_once 'includes/mailer.php'; // Make sure this file exists and uses $conn if needed
-
-    $email_sent = send_verification_email($email, $token, $name);
-
-    // === 6. Final Redirect ===
-    if ($email_sent) {
-        header("Location: verify.php?sent=1&email=" . urlencode($email));
-        exit;
-    } else {
-        $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
-        header("Location: student/signup.php");
-        exit;
-    }
+    // === 5. Redirect to verify.php WITHOUT sending email and WITHOUT token ===
+    header("Location: verify.php");
+    exit;
 }
 
 // === UNIVERSAL LOGIN ===
