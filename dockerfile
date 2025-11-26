@@ -49,7 +49,10 @@ RUN composer dump-autoload --optimize --classmap-authoritative || true
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
-
+# Make PHP errors visible in docker logs
+RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/php.ini \
+    && echo "log_errors = On" >> /usr/local/etc/php/php.ini \
+    && echo "display_errors = On" >> /usr/local/etc/php/php.ini
 # Expose port
 EXPOSE 80
 
