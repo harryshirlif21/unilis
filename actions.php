@@ -508,6 +508,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
     exit;
 }
 
+function send_notes_email_to_course_students($conn, $notes_id, $unit_id, $title, $message, $link) {
+    // 1. Get course_id from unit
+    $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
+    $stmt->bind_param("i", $unit_id);
+    $stmt->execute();
+    $stmt->bind_result($course_id);
+    $stmt->fetch();
+    $stmt->close();
+
+    if (!$course_id) return;
+
+    // 2. Get students in that course
+    $stmt = $conn->prepare("
+        SELECT users.email, users.name 
+        FROM enrollments 
+        INNER JOIN users ON enrollments.student_id = users.id
+        WHERE enrollments.course_id = ?
+    ");
+    $stmt->bind_param("i", $course_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    // 3. Email each student
+    while ($row = $result->fetch_assoc()) {
+        $email = $row['email'];
+        $name = $row['name'];
+
+        send_notes_email($email, $title, $message, $link, $name);
+    }
+
+    $stmt->close();
+}
+
+function send_notes_email($email, $title, $message, $link, $name = '') {
+    $mail = new PHPMailer(true);
+
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com';
+        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS Notifications');
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = $title;
+
+        $mail->Body = "
+        <html><body>
+        <h2>$title</h2>
+        <p>Hello <strong>$name</strong>,</p>
+        <p>$message</p>
+        <p><a href='$link'>Click here to view the notes</a></p>
+        <p>If the link does not work, copy and paste this URL:<br>$link</p>
+        <hr>
+        <small>UNILIS Automated Notification</small>
+        </body></html>
+        ";
+
+        $mail->send();
+    } catch (Exception $e) {
+        error_log("Notes email failed: " . $mail->ErrorInfo);
+    }
+}
+
 // === UPLOAD NOTES ===
 if ($action === 'upload_notes') {
     $unit_id = $_POST['unit_id'];
@@ -541,26 +610,40 @@ if ($action === 'upload_notes') {
             $target_path = $upload_dir . $filename;
 
             if (move_uploaded_file($file['tmp_name'], $target_path)) {
-                $stmt = $conn->prepare("INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
+
+                // Insert into notes table
+                $stmt = $conn->prepare("
+                    INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) 
+                    VALUES (?, ?, ?, NOW())
+                ");
                 $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
 
                 if ($stmt->execute()) {
                     $success_count++;
 
-                    // === NEW: Create Notification ===
-                    $notes_id = $conn->insert_id; // Get the newly inserted note ID
+                    // Get newly inserted note ID
+                    $notes_id = $conn->insert_id;
+
+                    // Create Notification
                     $title = "New Notes Uploaded";
                     $message = "Your lecturer has uploaded new notes for your unit.";
-                    $link = "student/notes.php?unit_id=$unit_id";
+                    $link = "https://unilis.jhubafrica.com/student/notes.php?unit_id=$unit_id";
 
-                    $stmt2 = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, created_at) VALUES (?, ?, ?, ?, NOW())");
+                    $stmt2 = $conn->prepare("
+                        INSERT INTO notifications (title, message, link, notes_id, created_at)
+                        VALUES (?, ?, ?, ?, NOW())
+                    ");
                     $stmt2->bind_param("sssi", $title, $message, $link, $notes_id);
                     $stmt2->execute();
                     $stmt2->close();
 
+                    // === SEND EMAILS TO STUDENTS ===
+                    send_notes_email_to_course_students($conn, $notes_id, $unit_id, $title, $message, $link);
+
                 } else {
                     $error_count++;
                 }
+
                 $stmt->close();
             } else {
                 $error_count++;
@@ -582,6 +665,7 @@ if ($action === 'upload_notes') {
     header("Location: lecturer/dashboard.php");
     exit;
 }
+
 
 // assignment creation
 if ($action === 'create_assignment') {
