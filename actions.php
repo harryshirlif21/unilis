@@ -585,15 +585,13 @@ function send_notes_email($email, $title, $message, $link, $name = '') {
 
 
 // === UPLOAD NOTES ===
-
-
 if ($action === 'upload_notes') {
     if (!isset($_SESSION['user_id'])) {
-    die("Lecturer not logged in or session expired.");
-}
+        die("Lecturer not logged in or session expired.");
+    }
 
-$lecturer_id = $_SESSION['user_id'];
-    $unit_id = $_POST['unit_id'];
+    $lecturer_id = $_SESSION['user_id'];
+    $unit_id = $_POST['unit_id'] ?? 0;
     
     $files = $_FILES['notes_file'];
     $success_count = 0;
@@ -602,7 +600,7 @@ $lecturer_id = $_SESSION['user_id'];
     $upload_dir = "assets/uploads/";
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
-    // Restructure files array if multiple files uploaded
+    // Restructure files array for multiple uploads
     $file_array = [];
     if (is_array($files['name'])) {
         for ($i = 0; $i < count($files['name']); $i++) {
@@ -634,25 +632,15 @@ $lecturer_id = $_SESSION['user_id'];
 
                 if ($stmt->execute()) {
                     $success_count++;
-
-                    // Get newly inserted note ID
                     $notes_id = $conn->insert_id;
 
-                    // Create Notification
+                    // Notification details
                     $title = "New Notes Uploaded";
                     $message = "Your lecturer has uploaded new notes for your unit.";
                     $link = "https://unilis.jhubafrica.com/student/notes.php?unit_id=$unit_id";
 
-                    $stmt2 = $conn->prepare("
-                        INSERT INTO notifications (title, message, link, notes_id, created_at)
-                        VALUES (?, ?, ?, ?, NOW())
-                    ");
-                    $stmt2->bind_param("sssi", $title, $message, $link, $notes_id);
-                    $stmt2->execute();
-                    $stmt2->close();
-
-                    // === SEND EMAILS TO STUDENTS ===
-                    send_notes_email_to_course_students($conn, $notes_id, $unit_id, $title, $message, $link);
+                    // === SEND NOTIFICATIONS & EMAILS TO STUDENTS ===
+                    send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $notes_id, $title, $message, $link);
 
                 } else {
                     $error_count++;
@@ -667,6 +655,7 @@ $lecturer_id = $_SESSION['user_id'];
         }
     }
 
+    // Set session messages
     if ($success_count > 0) {
         $_SESSION['upload_success'] = "$success_count file(s) uploaded successfully.";
         if ($error_count > 0) {
