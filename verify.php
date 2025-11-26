@@ -9,23 +9,23 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
-$token          = $_GET['token'] ?? '';
-$message        = '';
-$message_type   = '';
-$show_resend    = false;
-$email_prefilled = '';
+$token            = $_GET['token'] ?? '';
+$message          = '';
+$message_type     = '';
+$show_resend      = false;
+$email_prefilled  = '';
 
 // 1. Token verification
 if ($token !== '') {
-    $stmt = $conn->prepare("SELECT id, email, token_expires_at FROM students WHERE verification_code = ? AND is_verified = 0 LIMIT 1");
+    $stmt = $conn->prepare("SELECT id, email, `Token Expires`, `Status` FROM students WHERE `Verification Code` = ? AND `Status` = 'NOT VERIFIED' LIMIT 1");
     $stmt->bind_param('s', $token);
     $stmt->execute();
     $result = $stmt->get_result();
     $user = $result->fetch_assoc();
     $stmt->close();
 
-    if ($user && strtotime($user['token_expires_at']) > time()) {
-        $stmt = $conn->prepare("UPDATE students SET is_verified = 1, verification_code = NULL, token_expires_at = NULL, verified_at = NOW() WHERE id = ?");
+    if ($user && strtotime($user['Token Expires']) > time()) {
+        $stmt = $conn->prepare("UPDATE students SET `Status` = 'VERIFIED', `Verification Code` = NULL, `Token Expires` = NULL, `Verified At` = NOW() WHERE id = ?");
         $stmt->bind_param('i', $user['id']);
         $stmt->execute();
         $stmt->close();
@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         $message = "Invalid email address.";
         $message_type = 'error';
     } else {
-        $stmt = $conn->prepare("SELECT id, is_verified FROM students WHERE email = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT id, `Status` FROM students WHERE email = ? LIMIT 1");
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
             header("Location: student/signup.php");
             exit;
         }
-        if ($user['is_verified'] == 1) {
+        if ($user['Status'] === 'VERIFIED') {
             header("Location: login.php");
             exit;
         }
@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         $new_token = bin2hex(random_bytes(32));
         $expires_at = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
 
-        $stmt = $conn->prepare("UPDATE students SET verification_code = ?, token_expires_at = ? WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE students SET `Verification Code` = ?, `Token Expires` = ? WHERE id = ?");
         $stmt->bind_param('ssi', $new_token, $expires_at, $user['id']);
         $stmt->execute();
         $stmt->close();
@@ -174,4 +174,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
 </div>
 
 </body>
-</html> 
+</html>
