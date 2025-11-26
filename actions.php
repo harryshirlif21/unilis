@@ -584,9 +584,16 @@ function send_notes_email($email, $title, $message, $link, $name = '') {
 }
 
 // === UPLOAD NOTES ===
+
+
 if ($action === 'upload_notes') {
+    if (!isset($_SESSION['user_id'])) {
+    die("Lecturer not logged in or session expired.");
+}
+
+$lecturer_id = $_SESSION['user_id'];
     $unit_id = $_POST['unit_id'];
-    $lecturer_id = $_SESSION['user_id'];
+    
     $files = $_FILES['notes_file'];
     $success_count = 0;
     $error_count = 0;
