@@ -507,38 +507,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 </div>';
     exit;
 }
-
-function send_notes_email_to_course_students($conn, $notes_id, $unit_id, $title, $message, $link) {
-    // 1. Get course_id from unit
+function send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $title, $message, $link) {
+    // Step 1: Get course_id for this unit
     $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
     $stmt->bind_param("i", $unit_id);
     $stmt->execute();
     $stmt->bind_result($course_id);
-    $stmt->fetch();
+    if (!$stmt->fetch()) {
+        $stmt->close();
+        return false; // unit not found
+    }
     $stmt->close();
 
-    if (!$course_id) return;
-
-    // 2. Get students in that course
-    $stmt = $conn->prepare("
-        SELECT users.email, users.name 
-        FROM enrollments 
-        INNER JOIN users ON enrollments.student_id = users.id
-        WHERE enrollments.course_id = ?
-    ");
+    // Step 2: Get students in that course
+    $stmt = $conn->prepare("SELECT id, name, email FROM students WHERE course_id = ?");
     $stmt->bind_param("i", $course_id);
     $stmt->execute();
     $result = $stmt->get_result();
-
-    // 3. Email each student
+    $students = [];
     while ($row = $result->fetch_assoc()) {
-        $email = $row['email'];
-        $name = $row['name'];
+        $students[] = $row;
+    }
+    $stmt->close();
 
-        send_notes_email($email, $title, $message, $link, $name);
+    if (empty($students)) return false; // no students to notify
+
+    // Step 3: Insert notifications and send emails
+    foreach ($students as $student) {
+        $stmt = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, created_at) VALUES (?, ?, ?, ?, NOW())");
+        $notes_id = null; // or set if you have the note ID
+        $stmt->bind_param("sssi", $title, $message, $link, $notes_id);
+        $stmt->execute();
+        $stmt->close();
+
+        // Send email
+        send_verification_email($student['email'], uniqid(), $student['name']);
     }
 
-    $stmt->close();
+    return true;
 }
 
 function send_notes_email($email, $title, $message, $link, $name = '') {
