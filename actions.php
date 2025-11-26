@@ -507,6 +507,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 </div>';
     exit;
 }
+
+
 function send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $title, $message, $link) {
     // Step 1: Get course_id for this unit
     $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
@@ -582,6 +584,45 @@ function send_notes_email($email, $title, $message, $link, $name = '') {
         error_log("Notes email failed: " . $mail->ErrorInfo);
     }
 }
+function send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $notes_id, $title, $message, $link) {
+    // Get course_id for this unit
+    $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
+    $stmt->bind_param("i", $unit_id);
+    $stmt->execute();
+    $stmt->bind_result($course_id);
+    if (!$stmt->fetch()) {
+        $stmt->close();
+        return false; // unit not found
+    }
+    $stmt->close();
+
+    // Get students in that course
+    $stmt = $conn->prepare("SELECT id, name, email FROM students WHERE course_id = ?");
+    $stmt->bind_param("i", $course_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $students = [];
+    while ($row = $result->fetch_assoc()) {
+        $students[] = $row;
+    }
+    $stmt->close();
+
+    if (empty($students)) return false;
+
+    // Insert notifications and send emails
+    foreach ($students as $student) {
+        $stmt = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, created_at) VALUES (?, ?, ?, ?, NOW())");
+        $stmt->bind_param("sssi", $title, $message, $link, $notes_id);
+        $stmt->execute();
+        $stmt->close();
+
+        // Send email using PHPMailer
+        send_notes_email($student['email'], $title, $message, $link, $student['name']);
+    }
+
+    return true;
+}
+
 
 // === UPLOAD NOTES ===
 
