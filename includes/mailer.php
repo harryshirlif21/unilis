@@ -1,5 +1,5 @@
 <?php
-// includes/mailer.php — FINAL VERSION FOR LIVE SERVER + MAILTRAP
+// includes/mailer.php — LIVE & WORKING on https://unilis.jhubafrica.com
 require_once __DIR__ . '/../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 
@@ -10,14 +10,13 @@ function send_verification_email($email, $token, $name = '') {
         $mail->Host       = 'sandbox.smtp.mailtrap.io';
         $mail->SMTPAuth   = true;
         $mail->Username   = '541b1fd18a9d8c';
-        $mail->Password   = 'cornnvrapsuinyvk'; // ← PUT YOUR REAL ONE (ends with ed07)
+        $mail->Password   = '6561e5939eed07';           // ← YOUR REAL PASSWORD (confirmed)
         $mail->SMTPSecure = 'tls';
         $mail->Port       = 2525;
 
         $mail->setFrom('no-reply@unilis.jhubafrica.com', 'UNILIS');
         $mail->addAddress($email);
 
-        // CORRECT LIVE VERIFICATION LINK
         $verify_link = "https://unilis.jhubafrica.com/verify.php?token=$token";
 
         $mail->isHTML(true);
