@@ -3,75 +3,113 @@ require_once 'config/db.php';
 require_once 'includes/mailer.php';
 session_start();
 
-// Redirect logged-in users
+// Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
     header("Location: " . ($_SESSION['user_role'] === 'student' ? 'student/dashboard.php' : 'dashboard.php'));
     exit;
 }
 
-$token          = $_GET['token'] ?? '';
-$message        = '';
-$message_type   = '';
-$show_resend    = false;
+$token           = $_GET['token'] ?? '';
+$message         = '';
+$message_type    = ''; // success, error, info
+$show_resend     = false;
 $email_prefilled = '';
 
-// 1. Token verification
+// ===================================================================
+// 1. TOKEN VERIFICATION (when link is clicked)
+// ===================================================================
 if ($token !== '') {
-    $stmt = $conn->prepare("SELECT id, email, token_expires_at FROM students WHERE verification_code = ? AND is_verified = 0 LIMIT 1");
+    $stmt = $conn->prepare("
+        SELECT id, email, token_expires_at, is_verified 
+        FROM students 
+        WHERE verification_code = ? 
+        LIMIT 1
+    ");
     $stmt->bind_param('s', $token);
     $stmt->execute();
     $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
+    $user   = $result->fetch_assoc();
     $stmt->close();
 
-    if ($user && strtotime($user['token_expires_at']) > time()) {
-        $stmt = $conn->prepare("UPDATE students SET is_verified = 1, verification_code = NULL, token_expires_at = NULL, verified_at = NOW() WHERE id = ?");
-        $stmt->bind_param('i', $user['id']);
-        $stmt->execute();
-        $stmt->close();
-
-        $message = "Your email has been successfully verified! You can now log in.";
-        $message_type = 'success';
-    } else {
-        $message = "This verification link is invalid or has expired.";
+    if (!$user) {
+        $message      = "Invalid verification link.";
         $message_type = 'error';
-        $show_resend = true;
+        $show_resend  = true;
+    }
+    elseif ($user['is_verified'] == 1) {
+        $message      = "Your email is already verified! You can log in.";
+        $message_type = 'success';
+    }
+    else {
+        // Check expiry properly (DATETIME comparison)
+        $now = date('Y-m-d H:i:s');
+        if ($user['token_expires_at'] && $user['token_expires_at'] < $now) {
+            $message      = "This verification link has expired.";
+            $message_type = 'error';
+            $show_resend  = true;
+        } else {
+            // SUCCESS: Mark as verified
+            $stmt = $conn->prepare("
+                UPDATE students 
+                SET is_verified = 1,
+                    verification_code = NULL,
+                    token_expires_at = NULL,
+                    verified_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->bind_param('i', $user['id']);
+            $success = $stmt->execute();
+            $stmt->close();
+
+            if ($success) {
+                $message      = "Your email has been successfully verified! You can now log in.";
+                $message_type = 'success';
+            } else {
+                $message      = "Verification failed. Please try again.";
+                $message_type = 'error';
+                $show_resend  = true;
+            }
+        }
     }
 }
 
-// 2. Various entry points
+// ===================================================================
+// 2. OTHER ENTRY POINTS
+// ===================================================================
 elseif (isset($_GET['sent'])) {
-    $message = "A verification email has been sent. Check Mailtrap: https://mailtrap.io/inboxes";
-    $message_type = 'info';
+    $message         = "A verification email has been sent. Check your inbox (and spam).";
+    $message_type    = 'info';
     $email_prefilled = $_GET['email'] ?? '';
-    $show_resend = true;
+    $show_resend     = true;
 }
 elseif (isset($_GET['resent'])) {
-    $message = "New verification email sent! Check Mailtrap inbox.";
+    $message      = "New verification email sent successfully!";
     $message_type = 'success';
-    $show_resend = true;
+    $show_resend  = true;
 }
 elseif (isset($_GET['unverified'])) {
-    $message = "Please verify your email first.";
-    $message_type = 'error';
-    $show_resend = true;
+    $message         = "Please verify your email before logging in.";
+    $message_type    = 'error';
+    $show_resend     = true;
     $email_prefilled = $_SESSION['pending_verification_email'] ?? '';
     unset($_SESSION['pending_verification_email']);
 }
 
-// 3. Resend verification email (POST)
+// ===================================================================
+// 3. RESEND VERIFICATION EMAIL (POST)
+// ===================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
     $email = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
 
     if (!$email) {
-        $message = "Invalid email address.";
+        $message      = "Please enter a valid email address.";
         $message_type = 'error';
     } else {
         $stmt = $conn->prepare("SELECT id, is_verified FROM students WHERE email = ? LIMIT 1");
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
+        $user   = $result->fetch_assoc();
         $stmt->close();
 
         if (!$user) {
@@ -83,37 +121,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
             exit;
         }
 
-        $new_token = bin2hex(random_bytes(32));
-        $expires_at = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
+        // Generate fresh token
+        $new_token   = bin2hex(random_bytes(32));
+        $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
 
-        $stmt = $conn->prepare("UPDATE students SET verification_code = ?, token_expires_at = ? WHERE id = ?");
+        $stmt = $conn->prepare("
+            UPDATE students 
+            SET verification_code = ?, token_expires_at = ? 
+            WHERE id = ?
+        ");
         $stmt->bind_param('ssi', $new_token, $expires_at, $user['id']);
         $stmt->execute();
         $stmt->close();
 
-        // FINAL DEBUG: Show everything on screen
-        echo "<pre style='background:#000;color:#0f0;padding:20px;font-size:16px;margin:20px;border-radius:10px;'>";
-        echo "MAILTRAP DEBUG MODE\n";
-        echo "Username: 541b1fd18a9d8c\n";
-        echo "Password: 6561e5939eed07\n";
-        echo "Host: sandbox.smtp.mailtrap.io:2525\n";
-        echo "Sending to: $email\n";
-        echo "Token: $new_token\n";
-        echo "Link: https://unilis.jhubafrica.com/verify.php?token=$new_token\n\n";
-
-        $sent = send_verification_email($email, $new_token);
-        
-        if ($sent) {
-            echo "EMAIL SENT SUCCESSFULLY!\n";
-            echo "Check your Mailtrap inbox now: https://mailtrap.io/inboxes\n";
+        if (send_verification_email($email, $new_token)) {
             header("Location: verify.php?resent=1");
             exit;
         } else {
-            echo "EMAIL FAILED TO SEND\n";
-            echo "Check Docker logs or server error log for PHPMailer error.\n";
+            $message      = "Failed to send verification email. Please try again later.";
+            $message_type = 'error';
         }
-        echo "</pre>";
-        exit; // Stop here so you can see debug
     }
 }
 ?>
@@ -129,22 +156,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
     <link rel="stylesheet" href="css/text.css">
     <style>
         body { background: #f0f2f5; font-family: 'Roboto', sans-serif; }
-        .container { max-width: 500px; margin: 60px auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; }
-        .logo { font-size: 36px; color: #007bff; margin-bottom: 20px; }
+        .container { max-width: 500px; margin: 80px auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; }
+        .logo { font-size: 48px; color: #007bff; margin-bottom: 20px; }
         .success { color: #28a745; background: #d4edda; padding: 15px; border-radius: 8px; margin: 20px 0; }
         .error   { color: #dc3545; background: #f8d7da; padding: 15px; border-radius: 8px; margin: 20px 0; }
         .info    { color: #0c5460; background: #d1ecf1; padding: 15px; border-radius: 8px; margin: 20px 0; }
         input[type="email"] { width: 100%; padding: 14px; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        button { background: #007bff; color: white; padding: 14px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        button { background: #007bff; color: white; padding: 14px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
         button:hover { background: #0056b3; }
         a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="logo">
-        Graduation Cap UNILIS
+        <i class="fas fa-graduation-cap"></i> UNILIS
     </div>
     <h2>Email Verification</h2>
 
@@ -169,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $show_resend) {
         <p><a href="login.php">Back to Login</a> • <a href="student/signup.php">Register New Account</a></p>
 
     <?php else: ?>
-        <p>Processing your verification...</p>
+        <p>Processing your request...</p>
     <?php endif; ?>
 </div>
 
