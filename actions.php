@@ -718,6 +718,101 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
     return true;
 }
 
+// === UPLOAD NOTES ===
+if ($action === 'upload_notes') {
+
+    if (!isset($_SESSION['user_id'])) {
+        die("Lecturer not logged in or session expired.");
+    }
+
+    $lecturer_id = $_SESSION['user_id'];
+    $unit_id = $_POST['unit_id'] ?? 0;
+
+    if (!$unit_id) {
+        $_SESSION['error'] = "Please select a unit.";
+        header("Location: lecturer/dashboard.php");
+        exit;
+    }
+
+    $files = $_FILES['notes_file'];
+    $success_count = 0;
+    $error_count = 0;
+
+    $upload_dir = "assets/uploads/notes/";
+    if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+
+    // Restructure files array for multiple uploads
+    $file_array = [];
+    if (is_array($files['name'])) {
+        for ($i = 0; $i < count($files['name']); $i++) {
+            $file_array[] = [
+                'name' => $files['name'][$i],
+                'type' => $files['type'][$i],
+                'tmp_name' => $files['tmp_name'][$i],
+                'error' => $files['error'][$i],
+                'size' => $files['size'][$i]
+            ];
+        }
+    } else {
+        $file_array[] = $files;
+    }
+
+    foreach ($file_array as $file) {
+        if ($file['error'] === UPLOAD_ERR_OK) {
+
+            $filename = time() . "_" . basename($file['name']);
+            $target_path = $upload_dir . $filename;
+
+            if (move_uploaded_file($file['tmp_name'], $target_path)) {
+
+                // Insert into notes table
+                $stmt = $conn->prepare("
+                    INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) 
+                    VALUES (?, ?, ?, NOW())
+                ");
+                $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
+
+                if ($stmt->execute()) {
+                    $success_count++;
+                    $notes_id = $conn->insert_id;
+
+                    // Notification details
+                    $title = "New Notes Uploaded";
+                    $message = "Your lecturer has uploaded new notes for your unit.";
+                    $link = "https://unilis.jhubafrica.com/student/dashboard.php";
+
+                    // === SEND NOTIFICATIONS & EMAILS TO STUDENTS ===
+                    send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $notes_id, $title, $message, $link);
+
+                } else {
+                    $error_count++;
+                    error_log("Failed to insert note: " . $stmt->error);
+                }
+
+                $stmt->close();
+
+            } else {
+                $error_count++;
+                error_log("Failed to move uploaded file: " . $file['name']);
+            }
+
+        } else {
+            $error_count++;
+            error_log("File upload error code " . $file['error'] . " for file " . $file['name']);
+        }
+    }
+
+    // Set success/error messages for UI
+    if ($success_count > 0) {
+        $_SESSION['notes_success'] = "$success_count notes uploaded successfully.";
+    }
+    if ($error_count > 0) {
+        $_SESSION['notes_error'] = "$error_count notes failed to upload.";
+    }
+
+    header("Location: lecturer/dashboard.php");
+    exit;
+}
 
 
 // === UPDATE PASSWORD ===
