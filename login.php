@@ -122,7 +122,7 @@ unset($_SESSION['login_error']); // Clear after display
                         <input type="checkbox" id="remember" name="remember">
                         <label for="remember">Remember me</label>
                     </div>
-                    <a href="forgot_password.php" style="font-size:13px; color:#007bff;">Forgot password?</a>
+                    <a href="update_password.php" style="font-size:13px; color:#007bff;">Forgot password?</a>
                 </div>
 
                 <button type="submit" class="login-btn">Sign In</button>

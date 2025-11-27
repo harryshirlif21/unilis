@@ -718,7 +718,8 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
 
     return true;
 }
-function send_assignment_email($email, $title, $message, $link, $name = '', $deadline) {
+function send_assignment_email($email, $title, $message, $link, $deadline, $name = '')
+ {
     $mail = new PHPMailer(true);
 
     try {
