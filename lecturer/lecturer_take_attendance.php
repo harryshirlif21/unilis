@@ -1,19 +1,14 @@
 <?php
-// === CORRECT ORDER = FIXES ALL PROBLEMS ===
-ob_start();                    // Must be first
-session_start();               // Must be second
+session_start();
+require_once '../config/db.php';
 
-// SECURITY CHECK FIRST
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
     exit;
 }
 
-// NOW SAFE TO INCLUDE FILES
-require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/attendance_functions.php';
-
-$lecturer_id = (int)$_SESSION['user_id'];
+$lecturer_id = $_SESSION['user_id'];
+$lecturer_name = $_SESSION['user_name'];
 
 // Get unit_id safely
 $unit_id = 0;
