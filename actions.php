@@ -697,13 +697,14 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
     // Send each student notification + email
     foreach ($students as $student) {
         $stmt = $conn->prepare("
-            INSERT INTO notifications (title, message, link, assignment_id, student_id, created_at)
+            INSERT INTO notifications (title, message, link, notes_id, created_at)
             VALUES (?, ?, ?, ?, ?, NOW())
         ");
 
-        $stmt->bind_param("sssii", $title, $message, $link, $assignment_id, $student['id']);
+         $stmt->bind_param("sssi", $title, $message, $link, $notes_id);
         $stmt->execute();
         $stmt->close();
+       // $stmt->close();
 
         // Send email
         send_assignment_email(
