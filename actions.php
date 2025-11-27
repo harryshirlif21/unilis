@@ -698,7 +698,7 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
     foreach ($students as $student) {
         $stmt = $conn->prepare("
             INSERT INTO notifications (title, message, link, notes_id, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
+            VALUES (?, ?, ?, ?, NOW())
         ");
 
          $stmt->bind_param("sssi", $title, $message, $link, $notes_id);
@@ -722,6 +722,9 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
 
 // === CREATE ASSIGNMENT ===
 if ($action === 'create_assignment') {
+    if (!isset($_SESSION['user_id'])) {
+        die("Lecturer not logged in or session expired.");
+    }
     $unit_id = $_POST['unit_id'];
     $title = $_POST['title'];
     $instructions = $_POST['instructions'];
