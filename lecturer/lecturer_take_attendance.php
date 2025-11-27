@@ -3,7 +3,7 @@
 // Fix include path - 100% works even if PHP gets confused
 require_once __DIR__ . '/attendance_functions.php';
 require_once '../config/db.php';
-ob_start();                    // Prevent "headers already sent" forever
+                 // Prevent "headers already sent" forever
 session_start();
 
 // ==================== SECURITY & AUTH ====================
