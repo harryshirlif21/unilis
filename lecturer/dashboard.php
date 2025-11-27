@@ -579,29 +579,58 @@ try {
                 </form>
             </div>
         </div>
-<!-- Attendance Modal - YOUR Custom Style (Same as Upload Modal) -->
+        
+        <!-- Attendance Modal - YOUR Exact Style + Unit Selector -->
 <div id="attendanceModal" class="modal">
-    <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 500px;">
+    <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 520px;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b float-right" 
               onclick="hideModal('attendanceModal')">&times;</span>
 
-        <h3 class="text-2xl font-bold stat-text-secondary mb-5 text-center">
+        <h3 class="text-2xl font-bold stat-text-secondary mb-6 text-center">
             Take Attendance
         </h3>
 
         <form action="lecturer_take_attendance.php" method="POST" id="attendanceForm">
-            <input type="hidden" name="unit_id" id="modalUnitId" required>
+            <!-- Unit Selection - Exactly like Upload Notes -->
+            <div class="mb-5">
+                <label class="block text-sm font-medium stat-text-primary mb-2">
+                    Select Unit <span class="text-red-500">*</span>
+                </label>
+                <select name="unit_id" id="modalUnitId" required 
+                        class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg 
+                               focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
+                    <option value="">-- Choose Unit --</option>
+                    <?php
+                    // Get only units this lecturer teaches
+                    $lecturer_id = $_SESSION['user_id'];
+                    $units_query = $conn->query("
+                        SELECT u.id, u.name 
+                        FROM units u 
+                        JOIN lecturer_units lu ON u.id = lu.unit_id 
+                        WHERE lu.lecturer_id = $lecturer_id 
+                        ORDER BY u.name
+                    ");
+                    while ($unit = $units_query->fetch_assoc()): ?>
+                        <option value="<?= $unit['id'] ?>">
+                            <?= htmlspecialchars($unit['name']) ?>
+                        </option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
 
-            <!-- Unit Name Display (Beautiful) -->
-            <div class="bg-gradient-to-r from-f59e0b to-f59e0b/20 text-white p-4 rounded-xl mb-5 text-center">
+            <!-- Live Unit Name Preview (Optional - looks pro) -->
+            <div class="hidden bg-gradient-to-r from-f59e0b to-f59e0b/20 text-white p-4 rounded-xl mb-5 text-center" 
+                 id="selectedUnitPreview">
                 <p class="text-sm opacity-90">Selected Unit</p>
-                <p class="text-xl font-bold" id="modalUnitName">Loading...</p>
+                <p class="text-xl font-bold" id="selectedUnitName">—</p>
             </div>
 
             <label class="block text-sm font-medium stat-text-primary mb-2">
-                How long should the code be valid?
+                Code Valid For:
             </label>
-            <select name="duration" required class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg focus:ring-2 focus:ring-f59e0b focus:border-f59e0b">
+            <select name="duration" required 
+                    class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg mb-5
+                           focus:ring-2 focus:ring-f59e0b focus:border-f59e0b">
                 <option value="5">5 minutes</option>
                 <option value="10" selected>10 minutes</option>
                 <option value="15">15 minutes</option>
@@ -609,7 +638,7 @@ try {
                 <option value="60">60 minutes</option>
             </select>
 
-            <div class="mt-5">
+            <div class="mt-4">
                 <label class="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" name="send_email" class="w-5 h-5 text-f59e0b rounded focus:ring-f59e0b">
                     <span class="text-base stat-text-primary font-medium">
@@ -618,8 +647,9 @@ try {
                 </label>
             </div>
 
-            <div class="mt-6 text-center">
-                <button type="submit" class="btn-primary px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition">
+            <div class="mt-7 text-center">
+                <button type="submit" class="btn-primary px-8 py-4 rounded-xl text-lg font-bold shadow-lg 
+                                             hover:shadow-xl transform hover:scale-105 transition">
                     Generate 6-Digit Code
                 </button>
             </div>
