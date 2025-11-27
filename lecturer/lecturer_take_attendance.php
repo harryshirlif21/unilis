@@ -1,7 +1,11 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'lecturer') {
-    header('Location: login.php'); exit;
+require_once '../config/db.php';
+
+/* AUTHENTICATION */
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+    header("Location: ../login.php");
+    exit;
 }
 require_once 'attendance_functions.php';
 
