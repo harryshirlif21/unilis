@@ -637,7 +637,7 @@ if ($action === 'upload_notes') {
                     // Notification details
                     $title = "New Notes Uploaded";
                     $message = "Your lecturer has uploaded new notes for your unit.";
-                    $link = "https://unilis.jhubafrica.com/student/notes.php?unit_id=$unit_id";
+                    $link = "https://unilis.jhubafrica.com/student/dashboard.php";
 
                     // === SEND NOTIFICATIONS & EMAILS TO STUDENTS ===
                     send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $notes_id, $title, $message, $link);
@@ -669,59 +669,118 @@ if ($action === 'upload_notes') {
     exit;
 }
 
+function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id, $assignment_id, $title, $message, $link, $deadline) {
+    // Get course_id from unit
+    $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
+    $stmt->bind_param("i", $unit_id);
+    $stmt->execute();
+    $stmt->bind_result($course_id);
+    if (!$stmt->fetch()) {
+        $stmt->close();
+        return false;
+    }
+    $stmt->close();
 
-// assignment creation
-if ($action === 'create_assignment') {
-    $unit_id = $_POST['unit_id'] ?? null;
-    $title = $_POST['title'] ?? null;
-    $instructions = $_POST['instructions'] ?? null;
-    $due_date = $_POST['due_date'] ?? null;
-    $mode = $_POST['mode'] ?? 'text';
-    $rubric = $_POST['rubric'] ?? null;
-    $voice_instructions = $_POST['voice_instructions'] ?? null;
-    $lecturer_id = $_SESSION['user_id'];
+    // Get students in that course
+    $stmt = $conn->prepare("SELECT id, name, email FROM students WHERE course_id = ?");
+    $stmt->bind_param("i", $course_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $students = [];
+    while ($row = $result->fetch_assoc()) {
+        $students[] = $row;
+    }
+    $stmt->close();
 
-    if (!$unit_id || !$title || !$instructions || !$due_date) {
-        $_SESSION['assignment_error'] = "All required fields must be filled.";
-        header("Location: lecturer/dashboard.php");
-        exit;
+    if (empty($students)) return false;
+
+    // Send each student notification + email
+    foreach ($students as $student) {
+        $stmt = $conn->prepare("
+            INSERT INTO notifications (title, message, link, assignment_id, student_id, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+
+        $stmt->bind_param("sssii", $title, $message, $link, $assignment_id, $student['id']);
+        $stmt->execute();
+        $stmt->close();
+
+        // Send email
+        send_assignment_email(
+            $student['email'],
+            $title,
+            $message,
+            $link,
+            $student['name'],
+            $deadline
+        );
     }
 
-    $filename = null;
-    if (!empty($_FILES['assignment_file']['name'])) {
-        $upload_dir = "assets/uploads/assignments/";
-        if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+    return true;
+}
+function send_assignment_email($email, $title, $message, $link, $name = '', $deadline) {
+    $mail = new PHPMailer(true);
 
-        $filename = time() . "_" . basename($_FILES['assignment_file']['name']);
-        $target_path = $upload_dir . $filename;
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com';
+        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
 
-        if (!move_uploaded_file($_FILES['assignment_file']['tmp_name'], $target_path)) {
-            $_SESSION['assignment_error'] = "File upload failed.";
-            header("Location: lecturer/dashboard.php");
-            exit;
-        }
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS Notifications');
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = $title;
+
+        // DEADLINE IS BOLDENED HERE
+        $mail->Body = "
+        <html><body>
+        <h2>$title</h2>
+        <p>Hello <strong>$name</strong>,</p>
+        <p>$message</p>
+        <p><strong style='color:red;'>Deadline: $deadline</strong></p>
+        <p><a href='$link'>Click here to view the assignment</a></p>
+        <p>If the link does not work, copy and paste this URL:<br>$link</p>
+        <hr>
+        <small>UNILIS Automated Notification</small>
+        </body></html>
+        ";
+
+        $mail->send();
+    } catch (Exception $e) {
+        error_log("Assignment email failed: " . $mail->ErrorInfo);
     }
+}
 
-    if ($filename) {
-        $stmt = $conn->prepare("INSERT INTO assignments 
-            (lecturer_id, unit_id, title, description, deadline, file_path, mode, rubric, voice_instructions, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("iisssssss", $lecturer_id, $unit_id, $title, $instructions, $due_date, $filename, $mode, $rubric, $voice_instructions);
-    } else {
-        $stmt = $conn->prepare("INSERT INTO assignments 
-            (lecturer_id, unit_id, title, description, deadline, mode, rubric, voice_instructions, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("iissssss", $lecturer_id, $unit_id, $title, $instructions, $due_date, $mode, $rubric, $voice_instructions);
-    }
+if ($stmt->execute()) {
 
-    if ($stmt->execute()) {
-        $_SESSION['assignment_success'] = "Assignment created.";
-    } else {
-        $_SESSION['assignment_error'] = "Failed to create assignment.";
-    }
+    $assignment_id = $conn->insert_id;
 
-    header("Location: lecturer/dashboard.php");
-    exit;
+    // SUCCESS MESSAGE
+    $_SESSION['assignment_success'] = "Assignment created.";
+
+    // === SEND NOTIFICATION + EMAIL TO STUDENTS ===
+    $title = "New Assignment Posted";
+    $message = "Your lecturer has uploaded a new assignment for your unit.";
+    $link = "https://unilis.jhubafrica.com/student/assignments.php";
+
+    send_assignment_email_to_course_students(
+        $conn,
+        $unit_id,
+        $lecturer_id,
+        $assignment_id,
+        $title,
+        $message,
+        $link,
+        $due_date
+    );
+
+} else {
+    $_SESSION['assignment_error'] = "Failed to create assignment.";
 }
 
 
