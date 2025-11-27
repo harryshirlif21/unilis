@@ -154,6 +154,11 @@ try {
         <button class="menu-item" data-target="notes-content"><i class="fas fa-file-alt"></i> View Notes</button>
         <a href="meetings.php" class="menu-item"><i class="fas fa-calendar-alt"></i> Create Meeting</a>
         <button class="menu-item" onclick="showModal('addUnitModal')"><i class="fas fa-plus-circle"></i> Add Unit</button>
+        <!-- Button to Trigger Attendance Modal -->
+<button class="menu-item btn btn-success btn-sm px-3 py-2 rounded shadow-sm d-flex align-items-center gap-2" 
+        onclick="startAttendance(<?= $unit['id'] ?>)">
+    <i class="fas fa-check-circle"></i> Take Attendance
+</button>
         <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
     </div>
 
@@ -680,6 +685,61 @@ try {
                 </ul>
             </div>
         </div>
+<!-- Attendance Modal -->
+<div id="attendanceModal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-check-circle"></i> Start Attendance Session</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="attendanceForm" method="POST" action="lecturer_take_attendance.php">
+                <div class="modal-body">
+                    <input type="hidden" name="unit_id" id="modal_unit_id">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Session Duration</label>
+                        <select name="duration" class="form-select form-select-lg" required>
+                            <option value="5">5 minutes</option>
+                            <option value="10" selected>10 minutes</option>
+                            <option value="15">15 minutes</option>
+                            <option value="30">30 minutes</option>
+                            <option value="60">60 minutes</option>
+                        </select>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="send_email" class="form-check-input" id="sendEmail">
+                        <label class="form-check-label" for="sendEmail">
+                            Send code via email to all students
+                        </label>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Students will receive:</strong><br>
+                        • A notification<br>
+                        • A 6-digit code valid until deadline
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-lg px-5">
+                        <i class="fas fa-play"></i> Generate Code
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Open modal and set unit_id
+function startAttendance(unitId) {
+    document.getElementById('modal_unit_id').value = unitId;
+    document.getElementById('attendanceForm').action = 'lecturer_take_attendance.php?unit=' + unitId;
+    new bootstrap.Modal(document.getElementById('attendanceModal')).show();
+}
+</script>
 
         <div id="submissionModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
