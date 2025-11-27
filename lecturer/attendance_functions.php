@@ -1,11 +1,41 @@
 <?php
-// attendance_functions.php — FINAL 100% WORKING VERSION
-require_once '../config/db.php';
-require_once __DIR__ . '/phpmailer/src/PHPMailer.php';
-require_once __DIR__ . '/phpmailer/src/SMTP.php';
-require_once __DIR__ . '/phpmailer/src/Exception.php';
+// attendance_functions.php — WORKING VERSION FOR XAMPP
+require_once __DIR__ . '../config/db.php';
+require_once __DIR__ . '../includes/mailer.php'; // use your working mailer
 
-use PHPMailer\PHPMailer\PHPMailer;
+// ========================
+// SEND ATTENDANCE EMAIL
+// ========================
+function send_attendance_email($email, $name, $code, $deadline) {
+    $body = "
+        <h2>Attendance Required</h2>
+        <p>Hello <strong>$name</strong>,</p>
+        <p>Your attendance code is:</p>
+        <h1 style='color:#f59e0b;'>$code</h1>
+        <p>Valid until: " . date('h:i A', strtotime($deadline)) . "</p>
+        <p><a href='https://yourdomain.com/student_attendance.php'>Click here to mark attendance</a></p>
+    ";
+
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com';
+        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS Attendance');
+        $mail->addAddress($email);
+        $mail->isHTML(true);
+        $mail->Subject = "Attendance Code: $code";
+        $mail->Body = $body;
+        $mail->send();
+    } catch (Exception $e) {
+        error_log("Attendance email failed: " . $mail->ErrorInfo);
+    }
+}
 
 // ========================
 // CREATE ATTENDANCE SESSION
@@ -21,12 +51,13 @@ function createAttendanceSession($unit_id, $lecturer_id, $duration_minutes, $sen
 
     $deadline = date('Y-m-d H:i:s', time() + ($duration_minutes * 60));
 
+    // Insert attendance session
     $sql = "INSERT INTO attendance_sessions 
             (unit_id, lecturer_id, session_code, duration_minutes, deadline, created_at) 
             VALUES (?, ?, ?, ?, ?, NOW())";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("iisis", $unit_id, $lecturer_id, $code, $duration_minutes, $deadline);
-    
+
     if (!$stmt->execute()) {
         return false;
     }
@@ -53,31 +84,9 @@ function createAttendanceSession($unit_id, $lecturer_id, $duration_minutes, $sen
         $nstmt->bind_param("sssi", $title, $message, $link, $session_id);
         $nstmt->execute();
 
-        // Optional: Send email
+        // Optional: send email
         if ($send_email && filter_var($student['email'], FILTER_VALIDATE_EMAIL)) {
-            $mail = new PHPMailer(true);
-            try {
-                // UPDATE THESE WITH YOUR REAL SMTP SETTINGS
-                $mail->isSMTP();
-                $mail->Host       = 'smtp.gmail.com';
-                $mail->SMTPAuth   = true;
-                $mail->Username   = 'your-email@gmail.com';     // CHANGE THIS
-                $mail->Password   = 'your-app-password';        // CHANGE THIS
-                $mail->SMTPSecure = 'tls';
-                $mail->Port       = 587;
-
-                $mail->setFrom('no-reply@unilis.ac.ke', 'UNILIS Attendance');
-                $mail->addAddress($student['email']);
-                $mail->Subject = "Attendance Code: $code";
-                $mail->Body    = "<h2>Attendance Required</h2>
-                                  <p><strong>Code:</strong> <span style='font-size:24px;color:#f59e0b;'>$code</span></p>
-                                  <p>Valid until: " . date('h:i A', strtotime($deadline)) . "</p>
-                                  <a href='https://yourdomain.com/$link'>Click here to mark attendance</a>";
-                $mail->isHTML(true);
-                $mail->send();
-            } catch (Exception $e) {
-                // Silent fail - don't break attendance
-            }
+            send_attendance_email($student['email'], $student['name'], $code, $deadline);
         }
     }
 
