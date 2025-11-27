@@ -507,7 +507,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_m
 </div>';
     exit;
 }
-
 function send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $notes_id, $title, $message, $link) {
     // Get course_id for this unit
     $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
@@ -533,19 +532,20 @@ function send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $not
 
     if (empty($students)) return false;
 
-    // Insert notifications and send emails
-    foreach ($students as $student) {
-        $stmt = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, created_at) VALUES (?, ?, ?, ?, NOW())");
-        $stmt->bind_param("sssi", $title, $message, $link, $notes_id);
-        $stmt->execute();
-        $stmt->close();
+    // Insert **one notification** for all students
+    $stmt = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, created_at) VALUES (?, ?, ?, ?, NOW())");
+    $stmt->bind_param("sssi", $title, $message, $link, $notes_id);
+    $stmt->execute();
+    $stmt->close();
 
-        // Send email using PHPMailer
+    // Send email to each student
+    foreach ($students as $student) {
         send_notes_email($student['email'], $title, $message, $link, $student['name']);
     }
 
     return true;
 }
+
 
 function send_notes_email($email, $title, $message, $link, $name = '') {
     $mail = new PHPMailer(true);
@@ -668,20 +668,19 @@ if ($action === 'upload_notes') {
     header("Location: lecturer/dashboard.php");
     exit;
 }
-
 function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id, $assignment_id, $title, $message, $link, $deadline) {
-    // Get course_id from unit
+    // 1. Get course_id from unit
     $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
     $stmt->bind_param("i", $unit_id);
     $stmt->execute();
     $stmt->bind_result($course_id);
     if (!$stmt->fetch()) {
         $stmt->close();
-        return false;
+        return false; // unit not found
     }
     $stmt->close();
 
-    // Get students in that course
+    // 2. Get all students in that course
     $stmt = $conn->prepare("SELECT id, name, email FROM students WHERE course_id = ?");
     $stmt->bind_param("i", $course_id);
     $stmt->execute();
@@ -694,19 +693,17 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
 
     if (empty($students)) return false;
 
-    // Send each student notification + email
+    // 3. Insert ONE notification for all students
+    $stmt = $conn->prepare("
+        INSERT INTO notifications (title, message, link, assignment_id, created_at)
+        VALUES (?, ?, ?, ?, NOW())
+    ");
+    $stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+    $stmt->execute();
+    $stmt->close();
+
+    // 4. Send email to each student
     foreach ($students as $student) {
-        $stmt = $conn->prepare("
-            INSERT INTO notifications (title, message, link, notes_id, created_at)
-            VALUES (?, ?, ?, ?, NOW())
-        ");
-
-         $stmt->bind_param("sssi", $title, $message, $link, $notes_id);
-        $stmt->execute();
-        $stmt->close();
-       // $stmt->close();
-
-        // Send email
         send_assignment_email(
             $student['email'],
             $title,
