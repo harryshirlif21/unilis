@@ -492,96 +492,70 @@ if ($course_id && $year_of_study) {
 </section>
 
 
-           <!-- Submitted Assignments Section -->
-<section class="card bg-white rounded-2xl p-6 mb-8">
-    <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">Submitted Assignments</h2>
-
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
+ <!-- Submitted Assignments Section -->
+<div class="recent-activity-section">
+    <h3>Submitted Assignments</h3>
+    <div class="table-container">
+        <table>
             <thead>
-                <tr class="border-b-2 border-f5e6b2">
-                    <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Unit</th>
-                    <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Title</th>
-                    <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Date Submitted</th>
-                    <th class="py-3 text-sm font-semibold stat-text-primary uppercase">Marks</th>
-                    <th class="py-3 text-sm font-semibold stat-text-secondary uppercase">Comment</th>
-                    <th class="py-3 text-sm font-semibold stat-text-accent uppercase">Actions</th>
+                <tr>
+                    <th>Unit</th>
+                    <th>Title</th>
+                    <th>Date Submitted</th>
+                    <th>Marks</th>
+                    <th>Comment</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
-
-            <tbody class="text-92400e">
+            <tbody>
                 <?php
                 try {
-                    // Updated query to hide submissions where deadline has passed
                     $submissions_query = $conn->prepare("
-                        SELECT 
-                            s.file_path, 
-                            s.submitted_at, 
-                            s.comment, 
-                            s.marks, 
-                            a.title, 
-                            a.deadline,
-                            u.name AS unit_name
+                        SELECT s.file_path, s.submitted_at, s.comment, s.marks, a.title, u.name AS unit_name
                         FROM submissions s
                         JOIN assignments a ON s.assignment_id = a.id
                         JOIN units u ON a.unit_id = u.id
-                        WHERE s.student_id = ?
-                          AND u.course_id = ?
-                          AND u.year = ?
-                          AND a.deadline >= NOW()
+                        WHERE s.student_id = ? AND u.course_id = ? AND u.year = ?
                         ORDER BY s.submitted_at DESC
                     ");
-
                     $submissions_query->bind_param("iii", $student_id, $course_id, $year_of_study);
                     $submissions_query->execute();
                     $submissions = $submissions_query->get_result();
 
                     if ($submissions->num_rows === 0) {
-                        echo "<tr><td colspan='6' class='py-4 text-center'>No active submitted assignments.</td></tr>";
+                        echo "<tr><td colspan='6'>No assignments submitted yet.</td></tr>";
                     } else {
                         while ($submission = $submissions->fetch_assoc()) {
-
                             $filePath = htmlspecialchars($submission['file_path']);
                             $fullPath = "../assets/uploads/submissions/" . $filePath;
+                            $actions = file_exists($fullPath) ?
+                                "<a href='$fullPath' target='_blank' class='action-link'>View</a> | <a href='$fullPath' download class='action-link'>Download</a>" :
+                                "<span style='color: red;'>File missing</span>";
 
-                            $actions = file_exists($fullPath)
-                                ? "<a href='$fullPath' target='_blank' class='text-f59e0b hover:underline mr-2'>View</a> 
-                                   | 
-                                   <a href='$fullPath' download class='text-f59e0b hover:underline'>Download</a>"
-                                : "<span class='text-red-500'>File missing</span>";
+                            $marksDisplay = is_null($submission['marks']) ? "<em>Not graded</em>" : htmlspecialchars($submission['marks']);
+                            $commentDisplay = !empty($submission['comment']) ? htmlspecialchars($submission['comment']) : "<em>No comment</em>";
 
-                            $marksDisplay = is_null($submission['marks'])
-                                ? "<em>Not graded</em>"
-                                : htmlspecialchars($submission['marks']);
-
-                            $commentDisplay = !empty($submission['comment'])
-                                ? htmlspecialchars($submission['comment'])
-                                : "<em>No comment</em>";
-
-                            echo "
-                            <tr class='border-b border-f5e6b2 table-row-hover'>
-                                <td class='py-4 table-text-primary'>" . htmlspecialchars($submission['unit_name']) . "</td>
-                                <td class='py-4 table-text-secondary'>" . htmlspecialchars($submission['title']) . "</td>
-                                <td class='py-4 text-sm table-text-accent'>" . date('d M Y, h:i A', strtotime($submission['submitted_at'])) . "</td>
-                                <td class='py-4 table-text-primary'>$marksDisplay</td>
-                                <td class='py-4 table-text-secondary'>$commentDisplay</td>
-                                <td class='py-4 table-text-accent'>$actions</td>
-                            </tr>
-                            ";
+                            echo "<tr>
+                                <td>" . htmlspecialchars($submission['unit_name']) . "</td>
+                                <td>" . htmlspecialchars($submission['title']) . "</td>
+                                <td>" . date("d M Y, h:i A", strtotime($submission['submitted_at'])) . "</td>
+                                <td>$marksDisplay</td>
+                                <td>$commentDisplay</td>
+                                <td>$actions</td>
+                            </tr>";
                         }
                     }
-
                     $submissions_query->close();
                 } catch (mysqli_sql_exception $e) {
                     error_log("Error fetching submissions: " . $e->getMessage());
-                    echo "<tr><td colspan='6' class='py-4 text-center text-red-500'>Error loading submitted assignments. Please contact the administrator.</td></tr>";
-                    $_SESSION['error'] = 'Unable to load submitted assignments.';
+                    echo "<tr><td colspan='6'>Error loading submitted assignments. Please contact the administrator.</td></tr>";
+                    $_SESSION['error'] = "Unable to load submitted assignments.";
                 }
                 ?>
             </tbody>
         </table>
     </div>
-</section>
+</div>
 
 
 <section class="mb-8">
