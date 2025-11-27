@@ -668,7 +668,6 @@ if ($action === 'upload_notes') {
     header("Location: lecturer/dashboard.php");
     exit;
 }
-
 function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id, $assignment_id, $title, $message, $link, $deadline) {
     // Get course_id from unit
     $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
@@ -713,80 +712,6 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
             $link,
             $student['name'],
             $deadline
-        );
-    }
-
-    return true;
-}
-function send_assignment_email_to_course_students(
-    $conn,
-    $unit_id,
-    $lecturer_id,
-    $assignment_id,
-    $title,
-    $message,
-    $link,
-    $deadline
-) {
-    // Get course ID for the unit
-    $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
-    if (!$stmt) {
-        error_log("Unit lookup failed: " . $conn->error);
-        return false;
-    }
-    $stmt->bind_param("i", $unit_id);
-    $stmt->execute();
-    $stmt->bind_result($course_id);
-
-    if (!$stmt->fetch()) {
-        $stmt->close();
-        error_log("Unit does not exist.");
-        return false;
-    }
-    $stmt->close();
-
-    // Get all students in the course
-    $stmt = $conn->prepare("SELECT id, name, email FROM students WHERE course_id = ?");
-    if (!$stmt) {
-        error_log("Student lookup failed: " . $conn->error);
-        return false;
-    }
-    $stmt->bind_param("i", $course_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    while ($student = $result->fetch_assoc()) {
-
-        // Insert notification safely
-        $notif = $conn->prepare("
-            INSERT INTO notifications (title, message, link, assignment_id, student_id, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-        ");
-
-        if ($notif) {
-            $notif->bind_param(
-                "sssii",
-                $title,
-                $message,
-                $link,
-                $assignment_id,
-                $student['id']
-            );
-            $notif->execute();
-            $notif->close();
-        } else {
-            // Prevent fatal crash
-            error_log("Notification insert failed: " . $conn->error);
-        }
-
-        // Send email safely
-        send_assignment_email(
-            $student['email'],
-            $title,
-            $message,
-            $link,
-            $deadline,
-            $student['name']
         );
     }
 
