@@ -1,42 +1,147 @@
 <?php
+ob_start();                    // Prevent "headers already sent" forever
 session_start();
-require_once '../config/db.php';
 
-/* AUTHENTICATION */
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+// ==================== SECURITY & AUTH ====================
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
     exit;
 }
-require_once 'attendance_functions.php';
 
-$lecturer_id = $_SESSION['user_id'];
-$unit_id = (int)($_GET['unit'] ?? $_POST['unit_id'] ?? 0);
+// Fix include path - 100% works even if PHP gets confused
+require_once __DIR__ . '/attendance_functions.php';
+require_once __DIR__ . '/../config/db.php';
 
-if (!$unit_id) {
-    die("Invalid unit");
+$lecturer_id = (int)$_SESSION['user_id'];
+
+// Get unit_id safely from POST (modal) or GET
+$unit_id = 0;
+if (isset($_POST['unit_id']) && is_numeric($_POST['unit_id'])) {
+    $unit_id = (int)$_POST['unit_id'];
+} elseif (isset($_GET['unit']) && is_numeric($_GET['unit'])) {
+    $unit_id = (int)$_GET['unit'];
 }
 
-if ($_POST) {
-    $duration = (int)$_POST['duration'];
-    $send_email = isset($_POST['send_email']);
+if ($unit_id <= 0) {
+    die("<h3 style='color:red;text-align:center;margin:100px;'>Invalid or missing unit selected.</h3>");
+}
+
+// Optional: Double-check lecturer teaches this unit (extra security)
+$stmt = $conn->prepare("SELECT 1 FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ? LIMIT 1");
+$stmt->bind_param("ii", $lecturer_id, $unit_id);
+$stmt->execute();
+$stmt->store_result();
+if ($stmt->num_rows === 0) {
+    die("<h3 style='color:red;text-align:center;margin:100px;'>You are not assigned to this unit.</h3>");
+}
+$stmt->close();
+
+// ==================== PROCESS FORM ====================
+$success = false;
+$code = $deadline = $unit_name = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $duration    = max(1, min(120, (int)($_POST['duration'] ?? 10))); // 1–120 mins
+    $send_email  = isset($_POST['send_email']);
+
     $result = createAttendanceSession($unit_id, $lecturer_id, $duration, $send_email);
 
-    if ($result) {
-        // Show success with big code
-        echo "<!DOCTYPE html><html><head><title>Attendance Code</title>
-              <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css' rel='stylesheet'>
-              </head><body class='bg-light'>
-              <div class='container py-5 text-center'>
-                <div class='alert alert-success display-1 fw-bold text-success'>
-                  " . $result['code'] . "
-                </div>
-                <h4>Code sent to all students!</h4>
-                <p class='text-muted'>Valid until " . date('h:i A', strtotime($result['deadline'])) . "</p>
-                <a href='lecturer_attendance_report.php?unit=$unit_id' class='btn btn-primary btn-lg'>
-                  View Attendance Report
-                </a>
-              </div></body></html>";
-        exit;
+    if ($result && isset($result['code'])) {
+        $success    = true;
+        $code       = $result['code'];
+        $deadline   = $result['deadline'];
+
+        // Get unit name for display
+        $res = $conn->query("SELECT name FROM units WHERE id = $unit_id");
+        if ($row = $res->fetch_assoc()) {
+            $unit_name = htmlspecialchars($row['name']);
+        }
     }
 }
+
+ob_end_flush(); // Safe to send output now
 ?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Attendance Code • UNILIS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f59e0b, #f97316);
+            min-height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .code-display {
+            font-size: 6rem;
+            font-weight: 900;
+            letter-spacing: 0.3em;
+            color: #f59e0b;
+            text-shadow: 0 4px 10px rgba(245,158,11,0.3);
+        }
+        @media (max-width: 576px) {
+            .code-display { font-size: 4rem; }
+        }
+    </style>
+</head>
+<body class="d-flex align-items-center justify-content-center">
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card p-5 text-center">
+
+                <?php if ($success): ?>
+                    <div class="mb-4">
+                        <h1 class="display-5 fw-bold text-dark mb-2">Attendance Started!</h1>
+                        <p class="text-muted fs-5"><?= $unit_name ?: "Unit #$unit_id" ?></p>
+                    </div>
+
+                    <div class="code-display my-5">
+                        <?= $code ?>
+                    </div>
+
+                    <div class="mb-5">
+                        <p class="fs-3 text-success fw-bold">Active Now</p>
+                        <p class="fs-4 text-muted">
+                            Valid until <strong><?= date('h:i A', strtotime($deadline)) ?></strong><br>
+                            <small><?= date('d M Y') ?></small>
+                        </p>
+                    </div>
+
+                    <div class="d-flex gap-3 justify-content-center flex-wrap">
+                        <a href="lecturer_attendance_report.php?unit=<?= $unit_id ?>"
+                           class="btn btn-primary btn-lg px-5 shadow">
+                            View Live Report
+                        </a>
+                        <button onclick="window.location.reload()"
+                                class="btn btn-outline-warning btn-lg px-5">
+                            Generate New Code
+                        </button>
+                    </div>
+
+                    <div class="mt-4 text-success">
+                        <strong>All students notified instantly!</strong>
+                    </div>
+
+                <?php else: ?>
+                    <div class="alert alert-danger">
+                        <h4>Failed to create attendance session</h4>
+                        <p>Please try again or contact admin.</p>
+                        <a href="javascript:history.back()" class="btn btn-light">Go Back</a>
+                    </div>
+                <?php endif; ?>
+
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
