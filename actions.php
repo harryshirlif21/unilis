@@ -718,71 +718,81 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
 
     return true;
 }
-function send_assignment_email($email, $title, $message, $link, $deadline, $name = '')
- {
-    $mail = new PHPMailer(true);
-
-    try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS Notifications');
-        $mail->addAddress($email);
-
-        $mail->isHTML(true);
-        $mail->Subject = $title;
-
-        // DEADLINE IS BOLDENED HERE
-        $mail->Body = "
-        <html><body>
-        <h2>$title</h2>
-        <p>Hello <strong>$name</strong>,</p>
-        <p>$message</p>
-        <p><strong style='color:red;'>Deadline: $deadline</strong></p>
-        <p><a href='$link'>Click here to view the assignment</a></p>
-        <p>If the link does not work, copy and paste this URL:<br>$link</p>
-        <hr>
-        <small>UNILIS Automated Notification</small>
-        </body></html>
-        ";
-
-        $mail->send();
-    } catch (Exception $e) {
-        error_log("Assignment email failed: " . $mail->ErrorInfo);
+function send_assignment_email_to_course_students(
+    $conn,
+    $unit_id,
+    $lecturer_id,
+    $assignment_id,
+    $title,
+    $message,
+    $link,
+    $deadline
+) {
+    // Get course ID for the unit
+    $stmt = $conn->prepare("SELECT course_id FROM units WHERE id = ?");
+    if (!$stmt) {
+        error_log("Unit lookup failed: " . $conn->error);
+        return false;
     }
+    $stmt->bind_param("i", $unit_id);
+    $stmt->execute();
+    $stmt->bind_result($course_id);
+
+    if (!$stmt->fetch()) {
+        $stmt->close();
+        error_log("Unit does not exist.");
+        return false;
+    }
+    $stmt->close();
+
+    // Get all students in the course
+    $stmt = $conn->prepare("SELECT id, name, email FROM students WHERE course_id = ?");
+    if (!$stmt) {
+        error_log("Student lookup failed: " . $conn->error);
+        return false;
+    }
+    $stmt->bind_param("i", $course_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    while ($student = $result->fetch_assoc()) {
+
+        // Insert notification safely
+        $notif = $conn->prepare("
+            INSERT INTO notifications (title, message, link, assignment_id, student_id, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+
+        if ($notif) {
+            $notif->bind_param(
+                "sssii",
+                $title,
+                $message,
+                $link,
+                $assignment_id,
+                $student['id']
+            );
+            $notif->execute();
+            $notif->close();
+        } else {
+            // Prevent fatal crash
+            error_log("Notification insert failed: " . $conn->error);
+        }
+
+        // Send email safely
+        send_assignment_email(
+            $student['email'],
+            $title,
+            $message,
+            $link,
+            $deadline,
+            $student['name']
+        );
+    }
+
+    return true;
 }
 
-if ($stmt->execute()) {
-
-    $assignment_id = $conn->insert_id;
-
-    // SUCCESS MESSAGE
-    $_SESSION['assignment_success'] = "Assignment created.";
-
-    // === SEND NOTIFICATION + EMAIL TO STUDENTS ===
-    $title = "New Assignment Posted";
-    $message = "Your lecturer has uploaded a new assignment for your unit.";
-    $link = "https://unilis.jhubafrica.com/student/assignments.php";
-
-    send_assignment_email_to_course_students(
-        $conn,
-        $unit_id,
-        $lecturer_id,
-        $assignment_id,
-        $title,
-        $message,
-        $link,
-        $due_date
-    );
-
-} else {
-    $_SESSION['assignment_error'] = "Failed to create assignment.";
-}
 
 
 // === UPDATE PASSWORD ===
