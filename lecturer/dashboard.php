@@ -131,36 +131,42 @@ try {
     </nav>
 
     <!-- Off-Canvas Sidebar -->
-    <div id="offCanvasMenu" class="sidebar">
-        <button id="closeMenuBtn" class="close-btn">&times;</button>
-        <h2 class="text-2xl font-bold mb-2 text-center text-92400e"><?= htmlspecialchars($lecturer_name) ?></h2>
-        <p class="text-base mb-6 text-center text-a16207">Lecturer - UNILIS</p>
-        <button class="menu-item" data-target="dashboard-content"><i class="fas fa-tachometer-alt"></i> Dashboard</button>
-        <div class="menu-item dropdown">
-            <button class="dropdown-btn"><i class="fas fa-edit"></i> Interactive Assignments <i class="fas fa-caret-down"></i></button>
-            <div class="dropdown-content">
-                <a href="create_questions.php"><i class="fas fa-plus"></i> Create Assignment</a>
-                <a href="scores_overview.php"><i class="fas fa-chart-line"></i> View Student Scores</a>
-                <a href="submission_stats.php"><i class="fas fa-chart-bar"></i> Submission Stats</a>
-                <a href="AIGrading.php"><i class="fas fa-robot"></i> AI Grading</a>
-            </div>
-        </div>
-       <a  class="menu-item" href="upload_notes.php">Upload interactive Notes</a>
-        <a class="menu-item" href="assignment_submissions.php">
-    <i class="fas fa-inbox"></i> View Submissions
-</a>
+<div id="offCanvasMenu" class="sidebar">
+    <button id="closeMenuBtn" class="close-btn">&times;</button>
+    <h2 class="text-2xl font-bold mb-2 text-center text-92400e"><?= htmlspecialchars($lecturer_name) ?></h2>
+    <p class="text-base mb-6 text-center text-a16207">Lecturer - UNILIS</p>
 
-        <button class="menu-item" onclick="showModal('uploadModal')"><i class="fas fa-upload"></i> Upload Notes</button>
-        <button class="menu-item" data-target="notes-content"><i class="fas fa-file-alt"></i> View Notes</button>
-        <a href="meetings.php" class="menu-item"><i class="fas fa-calendar-alt"></i> Create Meeting</a>
-        <button class="menu-item" onclick="showModal('addUnitModal')"><i class="fas fa-plus-circle"></i> Add Unit</button>
-        <!-- Button to Trigger Attendance Modal -->
-<button class="menu-item btn btn-success btn-sm px-3 py-2 rounded shadow-sm d-flex align-items-center gap-2" 
-        onclick="startAttendance(<?= $unit['id'] ?>)">
-    <i class="fas fa-check-circle"></i> Take Attendance
-</button>
-        <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    <button class="menu-item" data-target="dashboard-content"><i class="fas fa-tachometer-alt"></i> Dashboard</button>
+    
+    <div class="menu-item dropdown">
+        <button class="dropdown-btn"><i class="fas fa-edit"></i> Interactive Assignments <i class="fas fa-caret-down"></i></button>
+        <div class="dropdown-content">
+            <a href="create_questions.php"><i class="fas fa-plus"></i> Create Assignment</a>
+            <a href="scores_overview.php"><i class="fas fa-chart-line"></i> View Student Scores</a>
+            <a href="submission_stats.php"><i class="fas fa-chart-bar"></i> Submission Stats</a>
+            <a href="AIGrading.php"><i class="fas fa-robot"></i> AI Grading</a>
+        </div>
     </div>
+
+    <a class="menu-item" href="upload_notes.php"><i class="fas fa-upload"></i> Upload Interactive Notes</a>
+    <a class="menu-item" href="assignment_submissions.php"><i class="fas fa-inbox"></i> View Submissions</a>
+    <button class="menu-item" onclick="showModal('uploadModal')"><i class="fas fa-upload"></i> Upload Notes</button>
+    <button class="menu-item" data-target="notes-content"><i class="fas fa-file-alt"></i> View Notes</button>
+    <a href="meetings.php" class="menu-item"><i class="fas fa-calendar-alt"></i> Create Meeting</a>
+    <button class="menu-item" onclick="showModal('addUnitModal')"><i class="fas fa-plus-circle"></i> Add Unit</button>
+
+    <!-- TAKE ATTENDANCE BUTTON (Global - works from sidebar) -->
+    <button class="menu-item bg-success text-white d-flex align-items-center gap-2" 
+            type="button"
+            data-bs-toggle="modal" 
+            data-bs-target="#attendanceModal"
+            data-unit-id="0" 
+            data-unit-name="Select Unit First">
+        <i class="fas fa-check-circle"></i> Take Attendance
+    </button>
+
+    <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+</div>
 
     <!-- Overlay -->
     <div id="overlay" class="overlay"></div>
@@ -685,20 +691,22 @@ try {
                 </ul>
             </div>
         </div>
-<!-- Attendance Modal -->
-<div id="attendanceModal" class="modal fade" tabindex="-1">
+<!-- Attendance Modal (Works from Sidebar AND Unit List) -->
+<div class="modal fade" id="attendanceModal" tabindex="-1" aria-labelledby="attendanceModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="fas fa-check-circle"></i> Start Attendance Session</h5>
+                <h5 class="modal-title" id="attendanceModalLabel">
+                    <i class="fas fa-check-circle"></i> Take Attendance - <span id="modalUnitName">Loading...</span>
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="attendanceForm" method="POST" action="lecturer_take_attendance.php">
                 <div class="modal-body">
-                    <input type="hidden" name="unit_id" id="modal_unit_id">
+                    <input type="hidden" name="unit_id" id="modalUnitId" required>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Session Duration</label>
+                        <label class="form-label fw-bold">Code Validity Duration</label>
                         <select name="duration" class="form-select form-select-lg" required>
                             <option value="5">5 minutes</option>
                             <option value="10" selected>10 minutes</option>
@@ -710,20 +718,16 @@ try {
 
                     <div class="form-check mb-3">
                         <input type="checkbox" name="send_email" class="form-check-input" id="sendEmail">
-                        <label class="form-check-label" for="sendEmail">
-                            Send code via email to all students
-                        </label>
+                        <label class="form-check-label" for="sendEmail">Send code via email</label>
                     </div>
 
                     <div class="alert alert-info">
-                        <strong>Students will receive:</strong><br>
-                        • A notification<br>
-                        • A 6-digit code valid until deadline
+                        Students will receive a 6-digit code instantly via notification (and email if checked).
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success btn-lg px-5">
+                    <button type="submit" class="btn btn-success btn-lg">
                         <i class="fas fa-play"></i> Generate Code
                     </button>
                 </div>
@@ -733,12 +737,25 @@ try {
 </div>
 
 <script>
-// Open modal and set unit_id
-function startAttendance(unitId) {
-    document.getElementById('modal_unit_id').value = unitId;
-    document.getElementById('attendanceForm').action = 'lecturer_take_attendance.php?unit=' + unitId;
-    new bootstrap.Modal(document.getElementById('attendanceModal')).show();
-}
+// This makes the modal work from ANY button (sidebar or unit list)
+document.getElementById('attendanceModal').addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    const unitId = button.getAttribute('data-unit-id') || 0;
+    const unitName = button.getAttribute('data-unit-name') || 'Unknown Unit';
+
+    const modal = this;
+    modal.querySelector('#modalUnitId').value = unitId;
+    modal.querySelector('#modalUnitName').textContent = unitName;
+
+    // Optional: Disable submit if no unit selected
+    const submitBtn = modal.querySelector('button[type="submit"]');
+    if (unitId == 0) {
+        submitBtn.disabled = true;
+        modal.querySelector('#modalUnitName').textContent = 'Please select a unit first';
+    } else {
+        submitBtn.disabled = false;
+    }
+});
 </script>
 
         <div id="submissionModal" class="modal">
