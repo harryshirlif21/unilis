@@ -720,6 +720,42 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
     return true;
 }
 
+function send_assignment_email($email, $title, $message, $link, $name = '') {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com';
+        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS Notifications');
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = $title;
+
+        $mail->Body = "
+        <html><body>
+        <h2>$title</h2>
+        <p>Hello <strong>$name</strong>,</p>
+        <p>$message</p>
+        <p><a href='$link'>Click here to view the notes</a></p>
+        <p>If the link does not work, copy and paste this URL:<br>$link</p>
+        <hr>
+        <small>UNILIS Automated Notification</small>
+        </body></html>
+        ";
+
+        $mail->send();
+    } catch (Exception $e) {
+        error_log("Notes email failed: " . $mail->ErrorInfo);
+    }
+}
+
+
 // === CREATE ASSIGNMENT ===
 if ($action === 'create_assignment') {
     if (!isset($_SESSION['user_id'])) {
