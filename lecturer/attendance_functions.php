@@ -1,13 +1,10 @@
 <?php
-// attendance_functions.php — WORKING VERSION FOR XAMPP
 require_once '../config/db.php';
-//require_once '../includes/mailer.php'; // use your working mailer
 require_once __DIR__ . '/../includes/mailer.php';
 
 // ========================
 // SEND ATTENDANCE EMAIL
 // ========================
-// --- Helper email function ---
 function send_attendance_email($email, $name, $code, $unit_name, $deadline, $link) {
     $mail = new PHPMailer(true);
     try {
@@ -67,37 +64,48 @@ function createAttendanceSession($unit_id, $lecturer_id, $duration_minutes, $sen
     }
     $session_id = $conn->insert_id;
 
-    // Get all students in the unit
+    // Get unit and course info
+    $res = $conn->query("SELECT u.name AS unit_name, u.course_id FROM units u WHERE u.id = ".(int)$unit_id);
+    $unit_data = $res->fetch_assoc();
+    $unit_name = htmlspecialchars($unit_data['unit_name']);
+    $course_id = (int)$unit_data['course_id'];
+
+    // Get all students in this course and same year as unit (if needed)
     $students = $conn->query("
         SELECT s.id, s.name, s.email 
         FROM students s 
-        JOIN student_units su ON s.id = su.student_id 
-        WHERE su.unit_id = " . (int)$unit_id
-    );
+        WHERE s.course_id = $course_id
+    ");
 
     while ($student = $students->fetch_assoc()) {
+        $student_id = $student['id'];
+        $student_name = $student['name'];
+        $student_email = $student['email'];
+
         // Create notification
-        $title = "Attendance Code: $code";
-        $message = "Mark your attendance for this lesson.\nCode expires at " . date('h:i A', strtotime($deadline));
+        $title = "Attendance Started for $unit_name";
+        $message = "Your lecturer started attendance for <strong>$unit_name</strong>.<br>Code: <strong>$code</strong>.<br>Valid until <strong>".date('h:i A', strtotime($deadline))."</strong>.";
         $link = "student_attendance.php?session=$session_id";
 
-        $notif_sql = "INSERT INTO notifications 
-                      (title, message, link, attendance_session_id, created_at) 
-                      VALUES (?, ?, ?, ?, NOW())";
-        $nstmt = $conn->prepare($notif_sql);
-        $nstmt->bind_param("sssi", $title, $message, $link, $session_id);
-        $nstmt->execute();
+        $stmt_notif = $conn->prepare("
+            INSERT INTO notifications (student_id, title, message, link, attendance_session_id, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt_notif->bind_param("isssi", $student_id, $title, $message, $link, $session_id);
+        $stmt_notif->execute();
+        $stmt_notif->close();
 
-        // Optional: send email
-        if ($send_email && filter_var($student['email'], FILTER_VALIDATE_EMAIL)) {
-            send_attendance_email($student['email'], $student['name'], $code, $deadline);
+        // Send email if requested
+        if ($send_email && filter_var($student_email, FILTER_VALIDATE_EMAIL)) {
+            send_attendance_email($student_email, $student_name, $code, $unit_name, $deadline, $link);
         }
     }
 
     return [
         'session_id' => $session_id,
         'code'       => $code,
-        'deadline'   => $deadline
+        'deadline'   => $deadline,
+        'unit_name'  => $unit_name
     ];
 }
 ?>

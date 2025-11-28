@@ -1,8 +1,8 @@
 <?php
 session_start();
 require_once '../config/db.php';
-require_once 'attendance_functions.php';
-require_once '../includes/mailer.php'; // <- your PHPMailer code
+require_once 'attendance_functions.php'; // your updated functions
+require_once __DIR__ . '/../includes/mailer.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
@@ -25,7 +25,11 @@ if ($unit_id <= 0) {
 }
 
 // Verify lecturer teaches this unit
-$stmt = $conn->prepare("SELECT name FROM units WHERE id = ? AND id IN (SELECT unit_id FROM lecturer_units WHERE lecturer_id = ?)");
+$stmt = $conn->prepare("
+    SELECT u.name FROM units u
+    JOIN lecturer_units lu ON u.id = lu.unit_id
+    WHERE u.id = ? AND lu.lecturer_id = ?
+");
 $stmt->bind_param("ii", $unit_id, $lecturer_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -35,49 +39,146 @@ if ($res->num_rows === 0) {
 $unit_name = htmlspecialchars($res->fetch_assoc()['name']);
 $stmt->close();
 
-// PROCESS FORM
-$success = false;
-$code = $deadline = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $duration   = max(1, min(120, (int)($_POST['duration'] ?? 10)));
-    $send_email = !empty($_POST['send_email']);
-
-    // --- Step 1: Create attendance session ---
-    $code = random_int(100000, 999999);
-    $deadline = date('Y-m-d H:i:s', strtotime("+$duration minutes"));
-
-    $stmt = $conn->prepare("INSERT INTO attendance_sessions (unit_id, lecturer_id, code, deadline, created_at) VALUES (?, ?, ?, ?, NOW())");
-    $stmt->bind_param("iiss", $unit_id, $lecturer_id, $code, $deadline);
-    if ($stmt->execute()) {
-        $session_id = $conn->insert_id;
-        $success = true;
-
-        // --- Step 2: Get all students in this unit ---
-        $students = $conn->query("SELECT id, name, email FROM students WHERE unit_id = $unit_id");
-        while ($student = $students->fetch_assoc()) {
-            $student_id = $student['id'];
-            $student_name = $student['name'];
-            $student_email = $student['email'];
-
-            // --- Step 3: Insert notification ---
-            $title = "Attendance Started for $unit_name";
-            $message = "Your lecturer started attendance for <strong>$unit_name</strong>. Code: <strong>$code</strong>. Valid until <strong>".date('h:i A', strtotime($deadline))."</strong>.";
-            $link = "https://unilis.jhubafrica.com/student/attendance.php?session=$session_id";
-
-            $stmt_notif = $conn->prepare("INSERT INTO notifications (student_id, title, message, link, created_at) VALUES (?, ?, ?, ?, NOW())");
-            $stmt_notif->bind_param("isss", $student_id, $title, $message, $link);
-            $stmt_notif->execute();
-            $stmt_notif->close();
-
-            // --- Step 4: Send email if checked ---
-            if ($send_email) {
-                send_attendance_email($student_email, $student_name, $code, $unit_name, $deadline, $link);
-            }
-        }
+// Process AJAX request for registered students
+if (isset($_GET['action']) && $_GET['action'] === 'get_registered' && isset($_GET['session_id'])) {
+    $session_id = (int)$_GET['session_id'];
+    $students = $conn->query("SELECT s.name, s.email, asr.marked_at 
+                              FROM attendance_students_records asr
+                              JOIN students s ON asr.student_id = s.id
+                              WHERE asr.session_id = $session_id
+                              ORDER BY asr.marked_at ASC");
+    $result = [];
+    while ($row = $students->fetch_assoc()) {
+        $result[] = $row;
     }
-    $stmt->close();
+    header('Content-Type: application/json');
+    echo json_encode($result);
+    exit;
 }
 
+// Start attendance session
+$success = false;
+$code = $deadline = '';
+$session_data = [];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_attendance'])) {
+    $duration = max(1, min(120, (int)($_POST['duration'] ?? 10)));
+    $send_email = !empty($_POST['send_email']);
+
+    $session_data = createAttendanceSession($unit_id, $lecturer_id, $duration, $send_email);
+
+    if ($session_data) {
+        $success = true;
+        $code = $session_data['code'];
+        $deadline = $session_data['deadline'];
+    }
+}
 
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attendance Code • UNILIS</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<style>
+body { background: linear-gradient(135deg, #f59e0b, #f97316); min-height: 100vh; font-family: 'Segoe UI', sans-serif; }
+.card { background: rgba(255,255,255,0.95); border-radius: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+.code-display { font-size: 6rem; font-weight: 900; letter-spacing: 0.3em; color: #f59e0b; text-shadow: 0 4px 10px rgba(245,158,11,0.3); }
+@media (max-width: 576px) { .code-display { font-size: 4rem; } }
+</style>
+</head>
+<body class="d-flex align-items-center justify-content-center">
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card p-5 text-center">
+                <?php if ($success): ?>
+                    <h1 class="display-5 fw-bold text-dark mb-2">Attendance Started!</h1>
+                    <p class="text-muted fs-5"><?= $unit_name ?></p>
+                    <div class="code-display my-5"><?= $code ?></div>
+                    <p class="fs-3 text-success fw-bold">Active Now</p>
+                    <p class="fs-4 text-muted">Time Remaining: <span id="attendanceDeadline"></span></p>
+                    <button class="btn btn-outline-warning btn-lg px-5" onclick="location.reload()">New Code</button>
+                    <button class="btn btn-primary btn-lg px-5" data-bs-toggle="modal" data-bs-target="#attendanceModal">View Registrations</button>
+                <?php else: ?>
+                    <form id="attendanceForm" method="POST">
+                        <h3 class="mb-4">Start Attendance for <?= $unit_name ?></h3>
+                        <div class="mb-3">
+                            <label>Duration (minutes)</label>
+                            <input type="number" name="duration" class="form-control" value="10" min="1" max="120">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" name="send_email" class="form-check-input" id="sendEmail">
+                            <label class="form-check-label" for="sendEmail">Send Email to Students</label>
+                        </div>
+                        <button type="submit" name="start_attendance" class="btn btn-success btn-lg px-5">Start Attendance</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Modal -->
+<div class="modal fade" id="attendanceModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Students Registered Attendance</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <ul class="list-group" id="studentList"></ul>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+<?php if($success): ?>
+let sessionId = <?= $session_data['session_id'] ?>;
+let deadline = new Date("<?= $deadline ?>");
+let countdownInterval = null;
+
+function startCountdown() {
+    clearInterval(countdownInterval);
+    function updateTimer() {
+        const now = new Date();
+        const distance = deadline - now;
+        if(distance <= 0){
+            $('#attendanceDeadline').text('Expired');
+            clearInterval(countdownInterval);
+            return;
+        }
+        const minutes = Math.floor(distance/1000/60);
+        const seconds = Math.floor((distance/1000)%60);
+        $('#attendanceDeadline').text(`${minutes}m ${seconds}s remaining`);
+    }
+    updateTimer();
+    countdownInterval = setInterval(updateTimer, 1000);
+}
+startCountdown();
+
+// Fetch registered students every 5 seconds
+function fetchStudents(){
+    $.get('', { action:'get_registered', session_id: sessionId }, function(students){
+        $('#studentList').empty();
+        if(students.length===0){
+            $('#studentList').append('<li class="list-group-item">No students yet</li>');
+        } else {
+            students.forEach(s=>{
+                $('#studentList').append('<li class="list-group-item">'+s.name+' ('+s.email+') • '+new Date(s.marked_at).toLocaleTimeString()+'</li>');
+            });
+        }
+    }, 'json');
+}
+fetchStudents();
+setInterval(fetchStudents, 5000);
+<?php endif; ?>
+</script>
+</body>
+</html>
