@@ -580,7 +580,7 @@ try {
             </div>
         </div>
         
-        <!-- Attendance Modal - YOUR Exact Style + Unit Selector -->
+      <!-- Attendance Modal - YOUR Exact Style + Unit Selector -->
 <div id="attendanceModal" class="modal">
     <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 520px;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b float-right" 
@@ -591,7 +591,8 @@ try {
         </h3>
 
         <form action="lecturer_take_attendance.php" method="POST" id="attendanceForm">
-            <!-- Unit Selection - Exactly like Upload Notes -->
+
+            <!-- Unit Selection -->
             <div class="mb-5">
                 <label class="block text-sm font-medium stat-text-primary mb-2">
                     Select Unit <span class="text-red-500">*</span>
@@ -601,7 +602,6 @@ try {
                                focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
                     <option value="">-- Choose Unit --</option>
                     <?php
-                    // Get only units this lecturer teaches
                     $lecturer_id = $_SESSION['user_id'];
                     $units_query = $conn->query("
                         SELECT u.id, u.name 
@@ -618,13 +618,14 @@ try {
                 </select>
             </div>
 
-            <!-- Live Unit Name Preview (Optional - looks pro) -->
+            <!-- Unit Name Preview -->
             <div class="hidden bg-gradient-to-r from-f59e0b to-f59e0b/20 text-white p-4 rounded-xl mb-5 text-center" 
                  id="selectedUnitPreview">
                 <p class="text-sm opacity-90">Selected Unit</p>
                 <p class="text-xl font-bold" id="selectedUnitName">—</p>
             </div>
 
+            <!-- Duration -->
             <label class="block text-sm font-medium stat-text-primary mb-2">
                 Code Valid For:
             </label>
@@ -638,6 +639,7 @@ try {
                 <option value="60">60 minutes</option>
             </select>
 
+            <!-- Email Notify -->
             <div class="mt-4">
                 <label class="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" name="send_email" class="w-5 h-5 text-f59e0b rounded focus:ring-f59e0b">
@@ -647,6 +649,7 @@ try {
                 </label>
             </div>
 
+            <!-- Generate Code Button -->
             <div class="mt-7 text-center">
                 <button type="submit" class="btn-primary px-8 py-4 rounded-xl text-lg font-bold shadow-lg 
                                              hover:shadow-xl transform hover:scale-105 transition">
@@ -654,12 +657,40 @@ try {
                 </button>
             </div>
 
+            <!-- Info -->
             <div class="mt-4 text-center text-sm text-gray-600">
                 Students will receive notification instantly
             </div>
+
+            <!-- NEW: View Past Attendance Link -->
+            <div class="mt-6 text-center">
+                <a id="viewPastAttendance"
+                   href="#"
+                   class="text-f59e0b font-semibold underline opacity-50 pointer-events-none transition">
+                    View Past Attendance Records
+                </a>
+            </div>
+
         </form>
     </div>
 </div>
+
+<!-- JS to Update Link Dynamically -->
+<script>
+document.getElementById('modalUnitId').addEventListener('change', function () {
+    const unitId = this.value;
+    const link = document.getElementById('viewPastAttendance');
+
+    if (unitId) {
+        link.href = 'lecturer_attendance_report.php?unit=' + unitId;
+        link.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+        link.href = '#';
+        link.classList.add('opacity-50', 'pointer-events-none');
+    }
+});
+</script>
+
         <div id="assignmentModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
                 <span class="close text-92400e text-2xl font-bold cursor-pointer hover:text-f59e0b" onclick="hideModal('assignmentModal')">&times;</span>
