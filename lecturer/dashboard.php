@@ -662,34 +662,21 @@ try {
                 Students will receive notification instantly
             </div>
 
-            <!-- NEW: View Past Attendance Link -->
-            <div class="mt-6 text-center">
-                <a id="viewPastAttendance"
-                   href="#"
-                   class="text-f59e0b font-semibold underline opacity-50 pointer-events-none transition">
-                    View Past Attendance Records
-                </a>
+           <!-- NEW: Simple link to attendance report -->
+<div class="mt-6 text-center">
+    <a href="lecturer_attendance_report.php" 
+       class="text-f59e0b font-semibold underline">
+       View Attendance Records
+    </a>
+</div>
+
             </div>
 
         </form>
     </div>
 </div>
 
-<!-- JS to Update Link Dynamically -->
-<script>
-document.getElementById('modalUnitId').addEventListener('change', function () {
-    const unitId = this.value;
-    const link = document.getElementById('viewPastAttendance');
 
-    if (unitId) {
-        link.href = 'lecturer_attendance_report.php?unit=' + unitId;
-        link.classList.remove('opacity-50', 'pointer-events-none');
-    } else {
-        link.href = '#';
-        link.classList.add('opacity-50', 'pointer-events-none');
-    }
-});
-</script>
 
         <div id="assignmentModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
