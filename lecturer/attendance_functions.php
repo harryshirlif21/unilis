@@ -1,7 +1,8 @@
 <?php
 // attendance_functions.php — WORKING VERSION FOR XAMPP
 require_once '../config/db.php';
-require_once '../includes/mailer.php'; // use your working mailer
+//require_once '../includes/mailer.php'; // use your working mailer
+require_once __DIR__ . '/../includes/mailer.php';
 
 // ========================
 // SEND ATTENDANCE EMAIL
