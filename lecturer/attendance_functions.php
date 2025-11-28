@@ -7,31 +7,34 @@ require_once __DIR__ . '/../includes/mailer.php';
 // ========================
 // SEND ATTENDANCE EMAIL
 // ========================
-function send_attendance_email($email, $name, $code, $deadline) {
-    $body = "
-        <h2>Attendance Required</h2>
-        <p>Hello <strong>$name</strong>,</p>
-        <p>Your attendance code is:</p>
-        <h1 style='color:#f59e0b;'>$code</h1>
-        <p>Valid until: " . date('h:i A', strtotime($deadline)) . "</p>
-        <p><a href='https://yourdomain.com/student_attendance.php'>Click here to mark attendance</a></p>
-    ";
-
+// --- Helper email function ---
+function send_attendance_email($email, $name, $code, $unit_name, $deadline, $link) {
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->Username   = 'unilis512@gmail.com'; 
+        $mail->Password   = 'sbmxmiafbtfkmkck'; 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS Attendance');
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
         $mail->addAddress($email);
+
         $mail->isHTML(true);
-        $mail->Subject = "Attendance Code: $code";
-        $mail->Body = $body;
+        $mail->Subject = "Attendance Code for $unit_name";
+        $mail->Body = "
+        <html>
+        <body>
+            <p>Hello <strong>$name</strong>,</p>
+            <p>Attendance for <strong>$unit_name</strong> has started.</p>
+            <p><strong>6-Digit Code:</strong> $code</p>
+            <p>Valid until: ".date('h:i A', strtotime($deadline))."</p>
+            <p><a href='$link' style='padding:10px 15px;background:#f59e0b;color:white;border-radius:5px;text-decoration:none;'>Mark Attendance</a></p>
+        </body>
+        </html>
+        ";
         $mail->send();
     } catch (Exception $e) {
         error_log("Attendance email failed: " . $mail->ErrorInfo);

@@ -79,37 +79,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->close();
 }
 
-// --- Helper email function ---
-function send_attendance_email($email, $name, $code, $unit_name, $deadline, $link) {
-    $mail = new PHPMailer(true);
-    try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com'; 
-        $mail->Password   = 'sbmxmiafbtfkmkck'; 
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
 
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
-        $mail->addAddress($email);
-
-        $mail->isHTML(true);
-        $mail->Subject = "Attendance Code for $unit_name";
-        $mail->Body = "
-        <html>
-        <body>
-            <p>Hello <strong>$name</strong>,</p>
-            <p>Attendance for <strong>$unit_name</strong> has started.</p>
-            <p><strong>6-Digit Code:</strong> $code</p>
-            <p>Valid until: ".date('h:i A', strtotime($deadline))."</p>
-            <p><a href='$link' style='padding:10px 15px;background:#f59e0b;color:white;border-radius:5px;text-decoration:none;'>Mark Attendance</a></p>
-        </body>
-        </html>
-        ";
-        $mail->send();
-    } catch (Exception $e) {
-        error_log("Attendance email failed: " . $mail->ErrorInfo);
-    }
-}
 ?>
