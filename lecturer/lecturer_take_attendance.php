@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/db.php';
 require_once 'attendance_functions.php';
+require_once '../includes/mailer.php'; // <- your PHPMailer code
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
@@ -24,94 +25,91 @@ if ($unit_id <= 0) {
 }
 
 // Verify lecturer teaches this unit
-$stmt = $conn->prepare("SELECT 1 FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ?");
-$stmt->bind_param("ii", $lecturer_id, $unit_id);
+$stmt = $conn->prepare("SELECT name FROM units WHERE id = ? AND id IN (SELECT unit_id FROM lecturer_units WHERE lecturer_id = ?)");
+$stmt->bind_param("ii", $unit_id, $lecturer_id);
 $stmt->execute();
-$stmt->store_result();
-if ($stmt->num_rows === 0) {
+$res = $stmt->get_result();
+if ($res->num_rows === 0) {
     die("<h3 style='color:red;text-align:center;margin:100px;'>Unauthorized access.</h3>");
 }
+$unit_name = htmlspecialchars($res->fetch_assoc()['name']);
 $stmt->close();
 
 // PROCESS FORM
 $success = false;
-$code = $deadline = $unit_name = '';
+$code = $deadline = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $duration   = max(1, min(120, (int)($_POST['duration'] ?? 10)));
     $send_email = !empty($_POST['send_email']);
 
-    $result = createAttendanceSession($unit_id, $lecturer_id, $duration, $send_email);
+    // --- Step 1: Create attendance session ---
+    $code = random_int(100000, 999999);
+    $deadline = date('Y-m-d H:i:s', strtotime("+$duration minutes"));
 
-    if ($result && !empty($result['code'])) {
-        $success   = true;
-        $code      = $result['code'];
-        $deadline  = $result['deadline'];
+    $stmt = $conn->prepare("INSERT INTO attendance_sessions (unit_id, lecturer_id, code, deadline, created_at) VALUES (?, ?, ?, ?, NOW())");
+    $stmt->bind_param("iiss", $unit_id, $lecturer_id, $code, $deadline);
+    if ($stmt->execute()) {
+        $session_id = $conn->insert_id;
+        $success = true;
 
-        $res = $conn->query("SELECT name FROM units WHERE id = " . (int)$unit_id);
-        $unit_name = $res->fetch_assoc()['name'] ?? "Unit #$unit_id";
-        $unit_name = htmlspecialchars($unit_name);
+        // --- Step 2: Get all students in this unit ---
+        $students = $conn->query("SELECT id, name, email FROM students WHERE unit_id = $unit_id");
+        while ($student = $students->fetch_assoc()) {
+            $student_id = $student['id'];
+            $student_name = $student['name'];
+            $student_email = $student['email'];
+
+            // --- Step 3: Insert notification ---
+            $title = "Attendance Started for $unit_name";
+            $message = "Your lecturer started attendance for <strong>$unit_name</strong>. Code: <strong>$code</strong>. Valid until <strong>".date('h:i A', strtotime($deadline))."</strong>.";
+            $link = "https://unilis.jhubafrica.com/student/attendance.php?session=$session_id";
+
+            $stmt_notif = $conn->prepare("INSERT INTO notifications (student_id, title, message, link, created_at) VALUES (?, ?, ?, ?, NOW())");
+            $stmt_notif->bind_param("isss", $student_id, $title, $message, $link);
+            $stmt_notif->execute();
+            $stmt_notif->close();
+
+            // --- Step 4: Send email if checked ---
+            if ($send_email) {
+                send_attendance_email($student_email, $student_name, $code, $unit_name, $deadline, $link);
+            }
+        }
+    }
+    $stmt->close();
+}
+
+// --- Helper email function ---
+function send_attendance_email($email, $name, $code, $unit_name, $deadline, $link) {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com'; 
+        $mail->Password   = 'sbmxmiafbtfkmkck'; 
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = "Attendance Code for $unit_name";
+        $mail->Body = "
+        <html>
+        <body>
+            <p>Hello <strong>$name</strong>,</p>
+            <p>Attendance for <strong>$unit_name</strong> has started.</p>
+            <p><strong>6-Digit Code:</strong> $code</p>
+            <p>Valid until: ".date('h:i A', strtotime($deadline))."</p>
+            <p><a href='$link' style='padding:10px 15px;background:#f59e0b;color:white;border-radius:5px;text-decoration:none;'>Mark Attendance</a></p>
+        </body>
+        </html>
+        ";
+        $mail->send();
+    } catch (Exception $e) {
+        error_log("Attendance email failed: " . $mail->ErrorInfo);
     }
 }
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Attendance Code • UNILIS</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background: linear-gradient(135deg, #f59e0b, #f97316); min-height: 100vh; font-family: 'Segoe UI', sans-serif; }
-        .card { background: rgba(255,255,255,0.95); border-radius: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
-        .code-display { font-size: 6rem; font-weight: 900; letter-spacing: 0.3em; color: #f59e0b; text-shadow: 0 4px 10px rgba(245,158,11,0.3); }
-        @media (max-width: 576px) { .code-display { font-size: 4rem; } }
-    </style>
-</head>
-<body class="d-flex align-items-center justify-content-center">
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-6">
-            <div class="card p-5 text-center">
-
-                <?php if ($success): ?>
-                    <h1 class="display-5 fw-bold text-dark mb-2">Attendance Started!</h1>
-                    <p class="text-muted fs-5"><?= $unit_name ?></p>
-
-                    <div class="code-display my-5">
-                        <?= $code ?>
-                    </div>
-
-                    <p class="fs-3 text-success fw-bold">Active Now</p>
-                    <p class="fs-4 text-muted">
-                        Valid until <strong><?= date('h:i A', strtotime($deadline)) ?></strong><br>
-                        <small><?= date('d M Y') ?></small>
-                    </p>
-
-                    <div class="d-flex gap-3 justify-content-center flex-wrap mt-4">
-                        <a href="lecturer_attendance_report.php?unit=<?= $unit_id ?>"
-                           class="btn btn-primary btn-lg px-5 shadow">View Live Report</a>
-                        <button onclick="window.location.reload()"
-                                class="btn btn-outline-warning btn-lg px-5">New Code</button>
-                    </div>
-
-                    <div class="mt-4 text-success">
-                        <strong>All students notified instantly!</strong>
-                    </div>
-
-                <?php else: ?>
-                    <div class="alert alert-danger">
-                        <h4>Failed to start attendance</h4>
-                        <p>Please try again.</p>
-                        <a href="javascript:history.back()" class="btn btn-light">Go Back</a>
-                    </div>
-                <?php endif; ?>
-
-            </div>
-        </div>
-    </div>
-</div>
-</body>
-</html>
-
