@@ -662,13 +662,39 @@ try {
                 Students will receive notification instantly
             </div>
 
-           <!-- NEW: Simple link to attendance report -->
-<div class="mt-6 text-center">
-    <a href="lecturer_take_attendance.php" 
-       class="text-f59e0b font-semibold underline">
+          <div class="mt-6 text-center">
+    <a id="viewAttendanceRecords"
+       href="#"
+       class="text-f59e0b font-semibold underline opacity-50 pointer-events-none">
        View Attendance Records
     </a>
 </div>
+
+<script>
+document.getElementById('modalUnitId').addEventListener('change', function () {
+    const unitId = this.value;
+    const link = document.getElementById('viewAttendanceRecords');
+
+    if (unitId) {
+        link.href = 'lecturer_attendance_report.php?unit=' + unitId;
+        link.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+        link.href = '#';
+        link.classList.add('opacity-50', 'pointer-events-none');
+    }
+
+    // Optional: update live preview of selected unit
+    const preview = document.getElementById('selectedUnitPreview');
+    const name = document.getElementById('selectedUnitName');
+    if (unitId) {
+        name.textContent = this.options[this.selectedIndex].text;
+        preview.classList.remove('hidden');
+    } else {
+        preview.classList.add('hidden');
+        name.textContent = '—';
+    }
+});
+</script>
 
             </div>
 
