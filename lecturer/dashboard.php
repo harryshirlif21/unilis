@@ -664,7 +664,7 @@ try {
 
            <!-- NEW: Simple link to attendance report -->
 <div class="mt-6 text-center">
-    <a href="lecturer_attendance_report.php" 
+    <a href="lecturer_take_attendance.php" 
        class="text-f59e0b font-semibold underline">
        View Attendance Records
     </a>
