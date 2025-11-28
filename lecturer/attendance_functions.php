@@ -88,8 +88,8 @@ function createAttendanceSession($unit_id, $lecturer_id, $duration_minutes, $sen
         $link = "student_attendance.php?session=$session_id";
 
         $stmt_notif = $conn->prepare("
-            INSERT INTO notifications (student_id, title, message, link, attendance_session_id, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
+            INSERT INTO notifications (title, message, link, attendance_session_id, created_at)
+            VALUES (?, ?, ?, ?, NOW())
         ");
         $stmt_notif->bind_param("isssi", $student_id, $title, $message, $link, $session_id);
         $stmt_notif->execute();
