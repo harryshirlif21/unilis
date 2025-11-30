@@ -579,8 +579,7 @@ try {
                 </form>
             </div>
         </div>
-        
-      <!-- Attendance Modal - YOUR Exact Style + Unit Selector -->
+        <!-- Attendance Modal - FINAL WORKING VERSION -->
 <div id="attendanceModal" class="modal">
     <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 520px;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b float-right" 
@@ -590,7 +589,7 @@ try {
             Take Attendance
         </h3>
 
-        <form action="lecturer_take_attendance.php" method="POST" id="attendanceForm">
+        <form action="lecturer/lecturer_take_attendance.php" method="POST" id="attendanceForm">
 
             <!-- Unit Selection -->
             <div class="mb-5">
@@ -618,7 +617,7 @@ try {
                 </select>
             </div>
 
-            <!-- Unit Name Preview -->
+            <!-- Selected Unit Preview -->
             <div class="hidden bg-gradient-to-r from-f59e0b to-f59e0b/20 text-white p-4 rounded-xl mb-5 text-center" 
                  id="selectedUnitPreview">
                 <p class="text-sm opacity-90">Selected Unit</p>
@@ -630,8 +629,7 @@ try {
                 Code Valid For:
             </label>
             <select name="duration" required 
-                    class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg mb-5
-                           focus:ring-2 focus:ring-f59e0b focus:border-f59e0b">
+                    class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg mb-5">
                 <option value="5">5 minutes</option>
                 <option value="10" selected>10 minutes</option>
                 <option value="15">15 minutes</option>
@@ -639,17 +637,17 @@ try {
                 <option value="60">60 minutes</option>
             </select>
 
-            <!-- Email Notify -->
+            <!-- Send Email -->
             <div class="mt-4">
                 <label class="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" name="send_email" class="w-5 h-5 text-f59e0b rounded focus:ring-f59e0b">
+                    <input type="checkbox" name="send_email" class="w-5 h-5 text-f59e0b rounded">
                     <span class="text-base stat-text-primary font-medium">
                         Send code via email too
                     </span>
                 </label>
             </div>
 
-            <!-- Generate Code Button -->
+            <!-- Generate Button -->
             <div class="mt-7 text-center">
                 <button type="submit" class="btn-primary px-8 py-4 rounded-xl text-lg font-bold shadow-lg 
                                              hover:shadow-xl transform hover:scale-105 transition">
@@ -657,17 +655,17 @@ try {
                 </button>
             </div>
 
-            <!-- Info -->
-            <div class="mt-4 text-center text-sm text-gray-600">
-                Students will receive notification instantly
+            <!-- View Records Link -->
+            <div class="mt-6 text-center">
+                <a id="viewAttendanceRecords"
+                   href="#"
+                   class="text-f59e0b font-semibold underline opacity-50 pointer-events-none">
+                   View Attendance Records
+                </a>
             </div>
 
-          <div class="mt-6 text-center">
-    <a id="viewAttendanceRecords"
-       href="#"
-       class="text-f59e0b font-semibold underline opacity-50 pointer-events-none">
-       View Attendance Records
-    </a>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -676,14 +674,15 @@ document.getElementById('modalUnitId').addEventListener('change', function () {
     const link = document.getElementById('viewAttendanceRecords');
 
     if (unitId) {
-        link.href = 'lecturer_attendance_report.php?unit=' + unitId;
+        link.href = 'lecturer/lecturer_attendance_report.php?unit=' + unitId;
         link.classList.remove('opacity-50', 'pointer-events-none');
+        link.target = '_blank'; // Open in new tab
     } else {
         link.href = '#';
         link.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // Optional: update live preview of selected unit
+    // Update preview
     const preview = document.getElementById('selectedUnitPreview');
     const name = document.getElementById('selectedUnitName');
     if (unitId) {
@@ -695,13 +694,6 @@ document.getElementById('modalUnitId').addEventListener('change', function () {
     }
 });
 </script>
-
-            </div>
-
-        </form>
-    </div>
-</div>
-
 
 
         <div id="assignmentModal" class="modal">
