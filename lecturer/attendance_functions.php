@@ -138,4 +138,54 @@ function createAttendanceSession($unit_id, $lecturer_id, $duration_minutes, $sen
         'unit_name'  => $unit_name
     ];
 }
+
+
+// ========================
+// MARK ATTENDANCE – FINAL WORKING
+// ========================
+function submitAttendance($session_id, $student_id, $code_entered) {
+    global $conn;
+
+    $session_id = (int)$session_id;
+    $student_id = (int)$student_id;
+
+    // 1. Verify session + code + not expired
+    $stmt = $conn->prepare("
+        SELECT id FROM attendance_sessions 
+        WHERE id = ? AND session_code = ? AND deadline >= NOW()
+    ");
+    $stmt->bind_param("is", $session_id, $code_entered);
+    $stmt->execute();
+    $stmt->store_result();
+
+    if ($stmt->num_rows === 0) {
+        $stmt->close();
+        return ['success' => false, 'message' => 'Invalid or expired code'];
+    }
+    $stmt->close();
+
+    // 2. Prevent duplicates
+    $check = $conn->query("
+        SELECT id FROM attendance_records 
+        WHERE session_id = $session_id AND student_id = $student_id
+    ");
+    if ($check->num_rows > 0) {
+        return ['success' => true, 'message' => 'Already marked'];
+    }
+
+    // 3. MARK ATTENDANCE
+    $insert = $conn->prepare("
+        INSERT INTO attendance_records 
+        (session_id, student_id, attended, attended_at) 
+        VALUES (?, ?, 1, NOW())
+    ");
+    $insert->bind_param("ii", $session_id, $student_id);
+    $success = $insert->execute();
+    $insert->close();
+
+    return [
+        'success' => $success,
+        'message' => $success ? 'Attendance recorded!' : 'Error saving'
+    ];
+}
 ?>
