@@ -579,7 +579,7 @@ try {
                 </form>
             </div>
         </div>
-        <!-- Attendance Modal - FINAL WORKING VERSION -->
+        <!-- Attendance Modal - FINAL 100% WORKING VERSION -->
 <div id="attendanceModal" class="modal">
     <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 520px;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b float-right" 
@@ -589,7 +589,8 @@ try {
             Take Attendance
         </h3>
 
-        <form action="lecturer/lecturer_take_attendance.php" method="POST" id="attendanceForm">
+        <!-- FIXED: Correct path (no double "lecturer") -->
+        <form action="lecturer_take_attendance.php" method="POST" id="attendanceForm">
 
             <!-- Unit Selection -->
             <div class="mb-5">
@@ -601,19 +602,21 @@ try {
                                focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
                     <option value="">-- Choose Unit --</option>
                     <?php
-                    $lecturer_id = $_SESSION['user_id'];
-                    $units_query = $conn->query("
-                        SELECT u.id, u.name 
-                        FROM units u 
-                        JOIN lecturer_units lu ON u.id = lu.unit_id 
-                        WHERE lu.lecturer_id = $lecturer_id 
-                        ORDER BY u.name
-                    ");
-                    while ($unit = $units_query->fetch_assoc()): ?>
-                        <option value="<?= $unit['id'] ?>">
-                            <?= htmlspecialchars($unit['name']) ?>
-                        </option>
-                    <?php endwhile; ?>
+                    $lecturer_id = $_SESSION['user_id'] ?? 0;
+                    if ($lecturer_id > 0) {
+                        $units_query = $conn->query("
+                            SELECT u.id, u.name 
+                            FROM units u 
+                            JOIN lecturer_units lu ON u.id = lu.unit_id 
+                            WHERE lu.lecturer_id = $lecturer_id 
+                            ORDER BY u.name
+                        ");
+                        while ($unit = $units_query->fetch_assoc()): ?>
+                            <option value="<?= $unit['id'] ?>">
+                                <?= htmlspecialchars($unit['name']) ?>
+                            </option>
+                        <?php endwhile; 
+                    } ?>
                 </select>
             </div>
 
@@ -669,20 +672,20 @@ try {
 </div>
 
 <script>
-document.getElementById('modalUnitId').addEventListener('change', function () {
+// Update preview + View Records link
+document.getElementById('modalUnitId')?.addEventListener('change', function () {
     const unitId = this.value;
     const link = document.getElementById('viewAttendanceRecords');
 
     if (unitId) {
-        link.href = 'lecturer/lecturer_attendance_report.php?unit=' + unitId;
+        link.href = 'lecturer_attendance_report.php?unit=' + unitId;
         link.classList.remove('opacity-50', 'pointer-events-none');
-        link.target = '_blank'; // Open in new tab
+        link.target = '_blank';
     } else {
         link.href = '#';
         link.classList.add('opacity-50', 'pointer-events-none');
     }
 
-    // Update preview
     const preview = document.getElementById('selectedUnitPreview');
     const name = document.getElementById('selectedUnitName');
     if (unitId) {
@@ -694,7 +697,6 @@ document.getElementById('modalUnitId').addEventListener('change', function () {
     }
 });
 </script>
-
 
         <div id="assignmentModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
