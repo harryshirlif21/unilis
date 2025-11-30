@@ -199,15 +199,15 @@ if ($action === 'signup_student') {
     header("Location: verify.php");
     exit;
 }
-
-// === UNIVERSAL LOGIN ===
+// === UNIVERSAL LOGIN WITH RETURN URL SUPPORT ===
 if ($action === 'universal_login') {
     $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
     $password = $_POST['password'] ?? '';
+    $return   = $_GET['return'] ?? '';  // THIS IS THE KEY LINE
 
     if (!$email) {
         $_SESSION['login_error'] = "Please enter a valid email.";
-        header("Location: login.php");
+        header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
         exit;
     }
 
@@ -225,17 +225,16 @@ if ($action === 'universal_login') {
             'session_map' => ['name' => 'user_name']
         ],
         'student' => [
-    'table' => 'students',
-    'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'is_verified'], // <-- changed here
-    'redirect' => 'student/dashboard.php',
-    'session_map' => [
-        'name' => 'user_name',
-        'course_id' => 'course_id',
-        'year_of_study' => 'year_of_study'
-    ],
-    'requires_verification' => true
-]
-
+            'table' => 'students',
+            'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'is_verified'],
+            'redirect' => 'student/dashboard.php',
+            'session_map' => [
+                'name' => 'user_name',
+                'course_id' => 'course_id',
+                'year_of_study' => 'year_of_study'
+            ],
+            'requires_verification' => true
+        ]
     ];
 
     $login_success = false;
@@ -245,13 +244,10 @@ if ($action === 'universal_login') {
         $fields = $config['fields'];
         $field_list = implode(', ', $fields);
 
-        // Prepare statement using MySQLi '?' placeholders
         $sql = "SELECT $field_list FROM $table WHERE email = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
-        if (!$stmt) {
-            error_log("MySQLi Prepare Error: " . $conn->error);
-            continue;
-        }
+        if (!$stmt) continue;
+
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -259,15 +255,14 @@ if ($action === 'universal_login') {
         $stmt->close();
 
         if ($user && password_verify($password, $user['password'])) {
-            // Verification check for students
+            // Student verification check
             if (!empty($config['requires_verification']) && $user['is_verified'] == 0) {
-    $_SESSION['pending_verification_email'] = $email;
-    header("Location: verify.php?unverified=1");
-    exit;
-}
+                $_SESSION['pending_verification_email'] = $email;
+                header("Location: verify.php?unverified=1");
+                exit;
+            }
 
-
-            // SUCCESS: create session
+            // SUCCESS: Create session
             $_SESSION['user_id']    = $user['id'];
             $_SESSION['user_email'] = $email;
             $_SESSION['user_role']  = $role;
@@ -278,6 +273,13 @@ if ($action === 'universal_login') {
                 }
             }
 
+            // FINAL REDIRECT: If return URL exists AND it's the auto-mark page → go there!
+            if ($return && strpos($return, 'student_auto_mark.php') !== false) {
+                header("Location: " . $return);
+                exit;
+            }
+
+            // Otherwise go to normal dashboard
             header("Location: " . $config['redirect']);
             $login_success = true;
             exit;
@@ -286,11 +288,10 @@ if ($action === 'universal_login') {
 
     if (!$login_success) {
         $_SESSION['login_error'] = "Invalid email or password.";
-        header("Location: login.php");
+        header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
         exit;
     }
 }
-
 
 // === ADD UNIVERSITY ===
 if ($action === 'add_university') {
