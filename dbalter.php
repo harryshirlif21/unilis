@@ -146,20 +146,33 @@ $units_res = $conn->query("
     </form>
 
     <?php
-    // Display the created session, records, and notifications
+    // Display newly created session, records, and notifications
     if (isset($session_id)) {
-        echo "<h3>Attendance Session:</h3>";
+        echo "<h3>Attendance Session (Newly Created):</h3>";
         $res = $conn->query("SELECT * FROM attendance_sessions WHERE id=$session_id");
         echo "<pre>"; print_r($res->fetch_assoc()); echo "</pre>";
 
-        echo "<h3>Attendance Records:</h3>";
+        echo "<h3>Attendance Records (Newly Created):</h3>";
         $res = $conn->query("SELECT * FROM attendance_records WHERE session_id=$session_id");
         echo "<pre>"; print_r($res->fetch_all(MYSQLI_ASSOC)); echo "</pre>";
 
-        echo "<h3>Notifications:</h3>";
+        echo "<h3>Notifications (Newly Created):</h3>";
         $res = $conn->query("SELECT * FROM notifications WHERE attendance_session_id=$session_id");
         echo "<pre>"; print_r($res->fetch_all(MYSQLI_ASSOC)); echo "</pre>";
     }
+
+    // Display **all records in the three tables** for full verification
+    echo "<h3>All Attendance Sessions:</h3>";
+    $res = $conn->query("SELECT * FROM attendance_sessions ORDER BY id DESC");
+    echo "<pre>"; print_r($res->fetch_all(MYSQLI_ASSOC)); echo "</pre>";
+
+    echo "<h3>All Attendance Records:</h3>";
+    $res = $conn->query("SELECT * FROM attendance_records ORDER BY id DESC");
+    echo "<pre>"; print_r($res->fetch_all(MYSQLI_ASSOC)); echo "</pre>";
+
+    echo "<h3>All Notifications:</h3>";
+    $res = $conn->query("SELECT * FROM notifications ORDER BY id DESC");
+    echo "<pre>"; print_r($res->fetch_all(MYSQLI_ASSOC)); echo "</pre>";
 
     $conn->close();
     ?>
