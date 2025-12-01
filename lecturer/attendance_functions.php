@@ -4,9 +4,9 @@ require_once __DIR__ . '/../includes/mailer.php';
 use PHPMailer\PHPMailer\PHPMailer;
 
 // ========================
-// SEND ATTENDANCE EMAIL WITH FULL URL
+// SEND ATTENDANCE EMAIL WITH AUTO-LINK ONLY
 // ========================
-function send_attendance_email($email, $name, $code, $unit_name, $deadline, $manual_link, $auto_link) {
+function send_attendance_email($email, $name, $code, $unit_name, $deadline, $auto_link) {
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
@@ -39,10 +39,6 @@ function send_attendance_email($email, $name, $code, $unit_name, $deadline, $man
                     Click Here to Mark Attendance (Instant)
                 </a>
             </div>
-
-            <p style='color:#666;font-size:14px;'>
-                Or manually enter code: <a href='$manual_link'>Open Form</a>
-            </p>
         </div>
         ";
         $mail->send();
@@ -52,7 +48,7 @@ function send_attendance_email($email, $name, $code, $unit_name, $deadline, $man
 }
 
 // ========================
-// CREATE ATTENDANCE SESSION – FINAL FIXED VERSION
+// CREATE ATTENDANCE SESSION
 // ========================
 function createAttendanceSession($unit_id, $lecturer_id, $duration_minutes, $send_email = false) {
     global $conn;
@@ -76,58 +72,48 @@ function createAttendanceSession($unit_id, $lecturer_id, $duration_minutes, $sen
     $session_id = $conn->insert_id;
     $stmt->close();
 
-    // Get unit name
-    $res = $conn->query("SELECT name FROM units WHERE id = " . (int)$unit_id);
-    $unit_name = $res->fetch_assoc()['name'] ?? "Unit";
+    // Get unit & course info
+    $unit_res = $conn->query("SELECT name, course_id FROM units WHERE id = $unit_id");
+    $unit = $unit_res->fetch_assoc();
+    $unit_name = $unit['name'];
+    $course_id = $unit['course_id'];
 
-    // Get students (your current logic)
-    $course_res = $conn->query("SELECT course_id FROM units WHERE id = " . (int)$unit_id);
-    $course_id = $course_res->fetch_assoc()['course_id'] ?? 0;
-
-    $students = $conn->query("
-        SELECT s.id, s.name, s.email 
-        FROM students s 
-        WHERE s.course_id = " . (int)$course_id
-    );
+    // Get students for this course
+    $students = $conn->query("SELECT id, name, email FROM students WHERE course_id = $course_id");
 
     while ($student = $students->fetch_assoc()) {
         $student_id    = $student['id'];
         $student_name  = $student['name'];
         $student_email = $student['email'];
 
-        // FULL URLs – NO MORE DNS ERRORS
-        $base_url = "https://unilis.jhubafrica.com";
-        $manual_link = "$base_url/student/student_attendance.php?session=$session_id";
+        // Pre-populate attendance_records (attended = 0)
+        $stmt = $conn->prepare("
+            INSERT INTO attendance_records (session_id, student_id, attended, attended_at, created_at)
+            VALUES (?, ?, 0, NULL, NOW())
+        ");
+        $stmt->bind_param("ii", $session_id, $student_id);
+        $stmt->execute();
+        $stmt->close();
 
-        // AUTO-MARK LINK
+        // Prepare auto-mark link
+        $base_url = "https://unilis.jhubafrica.com";
         $token = base64_encode("$session_id|$student_id|" . hash('sha256', $session_id . $student_id . 'UNILIS2025'));
         $auto_link = "$base_url/student/student_auto_mark.php?token=" . urlencode($token);
 
-        // NOTIFICATION
-        $title   = "Attendance: $unit_name";
+        // Insert notifications (notifications still include link)
+        $title = "Attendance: $unit_name";
         $message = "Code: <strong style='color:#f59e0b;font-size:1.5em;'>$code</strong><br>Valid until " . date('h:i A', strtotime($deadline));
-        $link    = $manual_link;
-
         $notif_stmt = $conn->prepare("
-            INSERT INTO notifications 
-            (title, message, link, attendance_session_id, created_at) 
+            INSERT INTO notifications (title, message, link, attendance_session_id, created_at) 
             VALUES (?, ?, ?, ?, NOW())
         ");
-        $notif_stmt->bind_param("sssi", $title, $message, $link, $session_id);
+        $notif_stmt->bind_param("sssi", $title, $message, $auto_link, $session_id);
         $notif_stmt->execute();
         $notif_stmt->close();
 
-        // SEND EMAIL WITH FULL URLS
+        // Send email if requested (manual link removed)
         if ($send_email && filter_var($student_email, FILTER_VALIDATE_EMAIL)) {
-            send_attendance_email(
-                $student_email,
-                $student_name,
-                $code,
-                $unit_name,
-                $deadline,
-                $manual_link,
-                $auto_link
-            );
+            send_attendance_email($student_email, $student_name, $code, $unit_name, $deadline, $auto_link);
         }
     }
 
@@ -139,9 +125,8 @@ function createAttendanceSession($unit_id, $lecturer_id, $duration_minutes, $sen
     ];
 }
 
-
 // ========================
-// MARK ATTENDANCE – FINAL WORKING
+// MARK ATTENDANCE
 // ========================
 function submitAttendance($session_id, $student_id, $code_entered) {
     global $conn;
@@ -149,7 +134,7 @@ function submitAttendance($session_id, $student_id, $code_entered) {
     $session_id = (int)$session_id;
     $student_id = (int)$student_id;
 
-    // 1. Verify session + code + not expired
+    // Verify session + code + not expired
     $stmt = $conn->prepare("
         SELECT id FROM attendance_sessions 
         WHERE id = ? AND session_code = ? AND deadline >= NOW()
@@ -164,24 +149,20 @@ function submitAttendance($session_id, $student_id, $code_entered) {
     }
     $stmt->close();
 
-    // 2. Prevent duplicates
-    $check = $conn->query("
-        SELECT id FROM attendance_records 
-        WHERE session_id = $session_id AND student_id = $student_id
-    ");
-    if ($check->num_rows > 0) {
-        return ['success' => true, 'message' => 'Already marked'];
+    // Mark attendance
+    $check = $conn->query("SELECT id FROM attendance_records WHERE session_id = $session_id AND student_id = $student_id");
+    if ($check->num_rows === 0) {
+        $insert = $conn->prepare("
+            UPDATE attendance_records
+            SET attended = 1, attended_at = NOW()
+            WHERE session_id = ? AND student_id = ?
+        ");
+        $insert->bind_param("ii", $session_id, $student_id);
+        $success = $insert->execute();
+        $insert->close();
+    } else {
+        $success = true; // already exists
     }
-
-    // 3. MARK ATTENDANCE
-    $insert = $conn->prepare("
-        INSERT INTO attendance_records 
-        (session_id, student_id, attended, attended_at) 
-        VALUES (?, ?, 1, NOW())
-    ");
-    $insert->bind_param("ii", $session_id, $student_id);
-    $success = $insert->execute();
-    $insert->close();
 
     return [
         'success' => $success,

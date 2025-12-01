@@ -579,9 +579,10 @@ try {
                 </form>
             </div>
         </div>
-        <!-- Attendance Modal - FINAL 100% WORKING VERSION -->
+        
+        <!-- Attendance Modal -->
 <div id="attendanceModal" class="modal">
-    <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 520px;">
+    <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 550px;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b float-right" 
               onclick="hideModal('attendanceModal')">&times;</span>
 
@@ -589,9 +590,7 @@ try {
             Take Attendance
         </h3>
 
-        <!-- FIXED: Correct path (no double "lecturer") -->
-        <form action="lecturer_take_attendance.php" method="POST" id="attendanceForm">
-
+        <form id="attendanceForm" method="POST" action="attendance_functions.php">
             <!-- Unit Selection -->
             <div class="mb-5">
                 <label class="block text-sm font-medium stat-text-primary mb-2">
@@ -605,34 +604,37 @@ try {
                     $lecturer_id = $_SESSION['user_id'] ?? 0;
                     if ($lecturer_id > 0) {
                         $units_query = $conn->query("
-                            SELECT u.id, u.name 
-                            FROM units u 
-                            JOIN lecturer_units lu ON u.id = lu.unit_id 
-                            WHERE lu.lecturer_id = $lecturer_id 
+                            SELECT u.id, u.name, c.name AS course_name, u.year, u.semester
+                            FROM units u
+                            JOIN lecturer_units lu ON u.id = lu.unit_id
+                            LEFT JOIN courses c ON u.course_id = c.id
+                            WHERE lu.lecturer_id = $lecturer_id
                             ORDER BY u.name
                         ");
                         while ($unit = $units_query->fetch_assoc()): ?>
-                            <option value="<?= $unit['id'] ?>">
+                            <option value="<?= $unit['id'] ?>"
+                                    data-course="<?= htmlspecialchars($unit['course_name']) ?>"
+                                    data-year="<?= $unit['year'] ?>"
+                                    data-semester="<?= $unit['semester'] ?>">
                                 <?= htmlspecialchars($unit['name']) ?>
                             </option>
-                        <?php endwhile; 
+                        <?php endwhile;
                     } ?>
                 </select>
             </div>
 
-            <!-- Selected Unit Preview -->
+            <!-- Unit Preview -->
             <div class="hidden bg-gradient-to-r from-f59e0b to-f59e0b/20 text-white p-4 rounded-xl mb-5 text-center" 
                  id="selectedUnitPreview">
-                <p class="text-sm opacity-90">Selected Unit</p>
-                <p class="text-xl font-bold" id="selectedUnitName">—</p>
+                <p class="text-sm opacity-90" id="selectedCourse">Course: —</p>
+                <p class="text-sm opacity-90" id="selectedYear">Year: —</p>
+                <p class="text-sm opacity-90" id="selectedSemester">Semester: —</p>
+                <p class="text-xl font-bold mt-2" id="selectedUnitName">—</p>
             </div>
 
             <!-- Duration -->
-            <label class="block text-sm font-medium stat-text-primary mb-2">
-                Code Valid For:
-            </label>
-            <select name="duration" required 
-                    class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg mb-5">
+            <label class="block text-sm font-medium stat-text-primary mb-2">Code Valid For:</label>
+            <select name="duration" required class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg mb-5">
                 <option value="5">5 minutes</option>
                 <option value="10" selected>10 minutes</option>
                 <option value="15">15 minutes</option>
@@ -660,43 +662,46 @@ try {
 
             <!-- View Records Link -->
             <div class="mt-6 text-center">
-                <a id="viewAttendanceRecords"
-                   href="#"
-                   class="text-f59e0b font-semibold underline opacity-50 pointer-events-none">
+                <a id="viewAttendanceRecords" href="#" class="text-f59e0b font-semibold underline opacity-50 pointer-events-none" target="_blank">
                    View Attendance Records
                 </a>
             </div>
-
         </form>
     </div>
 </div>
 
 <script>
-// Update preview + View Records link
 document.getElementById('modalUnitId')?.addEventListener('change', function () {
     const unitId = this.value;
     const link = document.getElementById('viewAttendanceRecords');
-
-    if (unitId) {
-        link.href = 'lecturer_attendance_report.php?unit=' + unitId;
-        link.classList.remove('opacity-50', 'pointer-events-none');
-        link.target = '_blank';
-    } else {
-        link.href = '#';
-        link.classList.add('opacity-50', 'pointer-events-none');
-    }
-
     const preview = document.getElementById('selectedUnitPreview');
     const name = document.getElementById('selectedUnitName');
+    const course = document.getElementById('selectedCourse');
+    const year = document.getElementById('selectedYear');
+    const sem = document.getElementById('selectedSemester');
+
     if (unitId) {
-        name.textContent = this.options[this.selectedIndex].text;
+        const selectedOption = this.options[this.selectedIndex];
+        name.textContent = selectedOption.text;
+        course.textContent = "Course: " + selectedOption.dataset.course;
+        year.textContent = "Year: " + selectedOption.dataset.year;
+        sem.textContent = "Semester: " + selectedOption.dataset.semester;
         preview.classList.remove('hidden');
+
+        link.href = 'lecturer_attendance_report.php?unit=' + unitId;
+        link.classList.remove('opacity-50', 'pointer-events-none');
     } else {
         preview.classList.add('hidden');
         name.textContent = '—';
+        course.textContent = "Course: —";
+        year.textContent = "Year: —";
+        sem.textContent = "Semester: —";
+        link.href = '#';
+        link.classList.add('opacity-50', 'pointer-events-none');
     }
 });
 </script>
+
 
         <div id="assignmentModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
