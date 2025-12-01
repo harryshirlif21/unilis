@@ -1,6 +1,9 @@
 <?php
 ob_start();
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 
 require_once '../config/db.php';
 require_once '../lecturer/attendance_functions.php';
