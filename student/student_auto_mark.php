@@ -7,10 +7,10 @@ require_once '../lecturer/attendance_functions.php';
 
 $token = $_GET['token'] ?? '';
 
-// CRITICAL: If coming back from login, get token from session
+// If coming back from login, get token from session
 if (!$token && isset($_SESSION['pending_auto_mark_token'])) {
     $token = $_SESSION['pending_auto_mark_token'];
-    unset($_SESSION['pending_auto_mark_token']); // use once
+    unset($_SESSION['pending_auto_mark_token']);
 }
 
 if (!$token) {
@@ -34,7 +34,6 @@ $student_id = (int)$student_id;
 
 // SECURITY: Must be logged in as correct student
 if (!isset($_SESSION['user_id']) || $_SESSION['user_id'] != $student_id || $_SESSION['user_role'] !== 'student') {
-    // SAVE TOKEN FOR AFTER LOGIN
     $_SESSION['pending_auto_mark_token'] = $token;
     $return_url = urlencode($_SERVER['REQUEST_URI']);
     header("Location: ../login.php?return=$return_url");
@@ -59,51 +58,56 @@ $stmt->close();
 // MARK ATTENDANCE
 $result = submitAttendance($session_id, $student_id, $code);
 
-$msg = $result['success'] 
-    ? "Attendance marked successfully!" 
-    : ($result['message'] ?? "Already marked or error.");
+$success = $result['success'] ?? false;
+$msg = $result['message'] ?? "Error processing attendance.";
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Attendance Marked • UNILIS</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { 
-            background: linear-gradient(135deg, #f59e0b, #f97316); 
-            min-height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-family: 'Segoe UI', sans-serif;
-        }
-        .card { 
-            max-width: 500px; 
-            border-radius: 1.5rem; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3); 
-        }
-        .success-icon { font-size: 4rem; color: white; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attendance Marked • UNILIS</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+body { 
+    background: linear-gradient(135deg, #f59e0b, #f97316); 
+    min-height: 100vh; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-family: 'Segoe UI', sans-serif;
+}
+.card { 
+    max-width: 500px; 
+    border-radius: 1.5rem; 
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3); 
+}
+.status-icon { font-size: 4rem; margin-bottom: 1rem; }
+.success { color: #22c55e; }
+.failure { color: #ef4444; }
+</style>
 </head>
 <body>
 <div class="container">
     <div class="card text-center p-5">
-        <div class="success-icon mb-4">Check</div>
-        <h1 class="display-4 text-white mb-4">Success!</h1>
-        <p class="fs-3 text-white"><?= htmlspecialchars($msg) ?></p>
+        <div class="status-icon <?= $success ? 'success' : 'failure' ?>">
+            <?= $success ? '&#10004;' : '&#10006;' ?>
+        </div>
+        <h1 class="display-5 mb-3 text-white"><?= $success ? 'Success!' : 'Failed' ?></h1>
+        <p class="fs-5 text-white"><?= htmlspecialchars($msg) ?></p>
         <a href="student_dashboard.php" class="btn btn-light btn-lg mt-4 px-5">
             Back to Dashboard
         </a>
     </div>
 </div>
 
+<?php if ($success): ?>
 <script>
     // Auto redirect after 3 seconds
-    setTimeout(() => window.location = 'student_dashboard.php', 3000);
+    setTimeout(() => window.location.href = 'student_dashboard.php', 3000);
 </script>
+<?php endif; ?>
 </body>
 </html>
 

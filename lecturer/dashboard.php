@@ -580,7 +580,7 @@ try {
             </div>
         </div>
         
-        <!-- Attendance Modal -->
+     <!-- Attendance Modal -->
 <div id="attendanceModal" class="modal">
     <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 550px;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b float-right" 
@@ -700,8 +700,38 @@ document.getElementById('modalUnitId')?.addEventListener('change', function () {
         link.classList.add('opacity-50', 'pointer-events-none');
     }
 });
-</script>
 
+// Handle form submission via AJAX
+document.getElementById('attendanceForm')?.addEventListener('submit', function(e) {
+    e.preventDefault(); // prevent normal form submission
+
+    const formData = new FormData(this);
+    const unitId = document.getElementById('modalUnitId').value;
+
+    fetch('attendance_functions.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Attendance session created successfully!\nCode: ' + data.data.code + 
+                  '\nValid until: ' + data.data.deadline);
+
+            // Optional: redirect to attendance report
+            if (unitId) {
+                window.location.href = 'lecturer_attendance_report.php?unit=' + unitId;
+            }
+        } else {
+            alert('⚠️ Error: ' + data.message);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('❌ An unexpected error occurred. Check console.');
+    });
+});
+</script>
 
         <div id="assignmentModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">

@@ -1,197 +1,141 @@
 <?php
-ob_start();
+require_once '../config/db.php';
 session_start();
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
-    header("Location: ../login.php");
+$lecturer_id = $_SESSION['user_id'] ?? 0;
+if (!$lecturer_id) {
+    header("Location: login.php");
     exit;
 }
 
-require_once __DIR__ . '/../config/db.php';
-
-$lecturer_id = (int)$_SESSION['user_id'];
-$unit_id     = (int)($_GET['unit'] ?? 0);
-
-if ($unit_id <= 0) {
-    die("<h3 style='color:red;text-align:center;margin:100px;'>Invalid unit</h3>");
-}
-
-// Verify lecturer teaches this unit
-$stmt = $conn->prepare("SELECT 1 FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ?");
-$stmt->bind_param("ii", $lecturer_id, $unit_id);
-$stmt->execute();
-$stmt->store_result();
-if ($stmt->num_rows === 0) {
-    die("<h3 style='color:red;text-align:center;margin:100px;'>Unauthorized</h3>");
-}
-$stmt->close();
-
-// Get unit name
-$unit_name = $conn->query("SELECT name FROM units WHERE id = $unit_id")
-                ->fetch_assoc()['name'] ?? "Unit";
-
-// Get all sessions
-$sessions = $conn->query("
-    SELECT id, session_code, created_at 
-    FROM attendance_sessions 
-    WHERE unit_id = $unit_id AND lecturer_id = $lecturer_id 
-    ORDER BY created_at DESC
+// Get all units for this lecturer
+$units_query = $conn->query("
+    SELECT u.id, u.name, c.name AS course_name, u.year, u.semester
+    FROM units u
+    JOIN lecturer_units lu ON u.id = lu.unit_id
+    LEFT JOIN courses c ON u.course_id = c.id
+    WHERE lu.lecturer_id = $lecturer_id
+    ORDER BY u.name
 ");
 
-// Get all students
-$students = $conn->query("
-    SELECT s.id, s.reg_no, s.name 
-    FROM students s 
-    JOIN student_units su ON s.id = su.student_id 
-    WHERE su.unit_id = $unit_id 
-    ORDER BY s.reg_no
+// For simplicity, we pick the first unit as current
+$current_unit = $units_query->fetch_assoc();
+$unit_id = $current_unit['id'] ?? 0;
+$unit_name = $current_unit['name'] ?? "—";
+
+// Get previous sessions count for this unit
+$prev_sessions_res = $conn->query("SELECT COUNT(*) AS count FROM attendance_sessions WHERE unit_id = $unit_id");
+$prev_sessions = $prev_sessions_res->fetch_assoc()['count'] ?? 0;
+$lesson_number = $prev_sessions + 1;
+
+// Get live session if exists
+$live_session_res = $conn->query("
+    SELECT s.id, s.session_code, s.deadline, 
+           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id AND ar.attended = 1) AS attended_count,
+           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id) AS total_students
+    FROM attendance_sessions s
+    WHERE s.unit_id = $unit_id AND s.deadline >= NOW()
+    ORDER BY s.created_at DESC LIMIT 1
 ");
+$current_session = $live_session_res->fetch_assoc();
+$is_live = !empty($current_session);
 
-$session_list = [];
-while ($s = $sessions->fetch_assoc()) {
-    $session_list[] = $s;
+// Get previous sessions for tiles
+$prev_sessions_res = $conn->query("
+    SELECT id, session_code, created_at,
+           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id AND ar.attended = 1) AS attended_count,
+           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id) AS total_students
+    FROM attendance_sessions s
+    WHERE s.unit_id = $unit_id
+    ORDER BY s.created_at DESC
+");
+$previous_sessions = [];
+while ($row = $prev_sessions_res->fetch_assoc()) {
+    $previous_sessions[] = $row;
 }
 
-$report = [];
-while ($student = $students->fetch_assoc()) {
-    $row = ['info' => $student, 'attendance' => [], 'total' => 0];
-    foreach ($session_list as $sess) {
-        $rec = $conn->query("
-            SELECT attended FROM attendance_records 
-            WHERE session_id = {$sess['id']} AND student_id = {$student['id']}
-        ")->fetch_assoc();
-        $present = $rec['attended'] ?? 0;
-        $row['attendance'][] = $present;
-        $row['total'] += $present;
-    }
-    $report[] = $row;
-}
-
-// ============= PDF GENERATION (NO TCPDF NEEDED) =============
-if (isset($_GET['pdf'])) {
-    $html = '
-    <h1 style="text-align:center;color:#f59e0b;">Attendance Report</h1>
-    <h3 style="text-align:center;">' . htmlspecialchars($unit_name) . '</h3>
-    <p style="text-align:center;">Generated on ' . date('d M Y') . '</p>
-    <table border="1" cellpadding="8" cellspacing="0" style="width:100%;font-size:12px;">
-        <thead>
-            <tr style="background:#f59e0b;color:white;">
-                <th>Reg No</th>
-                <th>Name</th>';
-    foreach ($session_list as $s) {
-        $html .= '<th>' . date('d/m<br>H:i', strtotime($s['created_at'])) . '</th>';
-    }
-    $html .= '<th><strong>TOTAL</strong></th>
-            </tr>
-        </thead>
-        <tbody>';
-
-    foreach ($report as $row) {
-        $html .= '<tr>
-            <td>' . $row['info']['reg_no'] . '</td>
-            <td>' . htmlspecialchars($row['info']['name']) . '</td>';
-        foreach ($row['attendance'] as $a) {
-            $html .= '<td style="text-align:center">' . ($a ? '1' : '') . '</td>';
-        }
-        $html .= '<td><strong>' . $row['total'] . '/' . count($session_list) . '</strong></td>
-        </tr>';
-    }
-    $html .= '</tbody></table>';
-
-    // Use free online HTML-to-PDF service (no installation!)
-    $pdf_url = "https://api.htmlcsstoimage.com/v1/pdf";
-    $post_data = json_encode([
-        "html" => $html,
-        "css"  => "body{font-family:Arial,sans-serif;} table{width:100%;border-collapse:collapse;}",
-        "google_fonts" => "Roboto"
-    ]);
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $pdf_url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json'
-    ]);
-    $pdf_content = curl_exec($ch);
-    curl_close($ch);
-
-    if ($pdf_content) {
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="Attendance_' . preg_replace('/[^a-zA-Z0-9]/', '_', $unit_name) . '_' . date('Y-m-d') . '.pdf"');
-        echo $pdf_content;
-        exit;
-    } else {
-        die("PDF generation failed. Try again.");
-    }
-}
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Attendance Report - <?= htmlspecialchars($unit_name) ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <style>
-        body { background: #f8f9fa; }
-        .header { background: linear-gradient(135deg, #f59e0b, #f97316); color: white; padding: 20px; border-radius: 15px; }
-        .table th { background: #f59e0b; color: white; }
-        .present { background: #d4edda !important; text-align:center; font-weight:bold; font-size:1.3rem; }
-        .absent  { background: #f8d7da !important; text-align:center; }
-        .total-col { background: #fff3cd !important; font-weight:bold; text-align:center; }
-    </style>
+<meta charset="UTF-8">
+<title>Lecturer Attendance Report</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<style>
+    .tile { background:#f3f4f6; padding:15px; border-radius:15px; margin:10px; display:inline-block; width:220px; vertical-align:top; }
+    .btn { padding:10px 15px; border-radius:10px; color:white; text-decoration:none; display:inline-block; margin-top:10px; }
+    .btn-view { background:#f59e0b; }
+    .btn-end { background:#dc2626; }
+</style>
 </head>
 <body>
 
-<div class="container-fluid py-4">
-    <div class="header shadow-lg mb-4 text-center">
-        <h2 class="mb-1">Attendance Report</h2>
-        <h4><?= htmlspecialchars($unit_name) ?></h4>
-    </div>
+<h1>Attendance Report</h1>
 
-    <div class="text-end mb-3">
-        <a href="lecturer_take_attendance.php?unit=<?= $unit_id ?>" class="btn btn-success btn-lg me-2">
-            Take Attendance
-        </a>
-        <a href="?unit=<?= $unit_id ?>&pdf=1" class="btn btn-danger btn-lg">
-            Download PDF
-        </a>
-    </div>
+<!-- Current Rollcall -->
+<div style="background:#f59e0b/10; padding:25px; border-radius:15px; margin-bottom:25px;">
+    <h2>Current Rollcall</h2>
+    <p><strong>Unit:</strong> <?= htmlspecialchars($unit_name) ?></p>
+    <p><strong>Lesson Number:</strong> <?= $lesson_number ?></p>
 
-    <div class="table-responsive shadow-lg rounded">
-        <table class="table table-bordered table-hover">
-            <thead>
-                <tr>
-                    <th>Reg No</th>
-                    <th>Name</th>
-                    <?php foreach ($session_list as $s): ?>
-                        <th><?= date('d/m<br>H:i', strtotime($s['created_at'])) ?><br>
-                            <small class="text-warning"><?= $s['session_code'] ?></small>
-                        </th>
-                    <?php endforeach; ?>
-                    <th>TOTAL</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($report as $row): ?>
-                    <tr>
-                        <td><strong><?= $row['info']['reg_no'] ?></strong></td>
-                        <td><?= htmlspecialchars($row['info']['name']) ?></td>
-                        <?php foreach ($row['attendance'] as $a): ?>
-                            <td class="<?= $a ? 'present' : 'absent' ?>"><?= $a ? '1' : '' ?></td>
-                        <?php endforeach; ?>
-                        <td class="total-col">
-                            <?= $row['total'] ?> / <?= count($session_list) ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
+    <?php if ($is_live): 
+        $attended_count = $current_session['attended_count'];
+        $total_students = $current_session['total_students'];
+        $deadline_ts = strtotime($current_session['deadline']);
+    ?>
+        <p style="color:green; font-weight:bold;">
+            Live Session - Code: <?= $current_session['session_code'] ?>
+        </p>
+        <p><strong>Students Attended:</strong> <?= $attended_count ?> / <?= $total_students ?></p>
+        <p><strong>Time Left:</strong> <span id="countdown"></span></p>
+        
+        <div>
+            <a href="lecturer_view_session.php?session=<?= $current_session['id'] ?>" class="btn btn-view">View Students</a>
+            <a href="end_session.php?session=<?= $current_session['id'] ?>" class="btn btn-end">End Session</a>
+        </div>
+
+        <script>
+        const countdownEl = document.getElementById('countdown');
+        const deadline = <?= $deadline_ts ?> * 1000;
+
+        function updateCountdown() {
+            const now = new Date().getTime();
+            let distance = deadline - now;
+            if (distance < 0) {
+                countdownEl.textContent = "Expired";
+                clearInterval(interval);
+                return;
+            }
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            countdownEl.textContent = minutes + "m " + seconds + "s";
+        }
+        const interval = setInterval(updateCountdown, 1000);
+        updateCountdown();
+        </script>
+
+    <?php else: ?>
+        <p style="color:gray;">No active session</p>
+    <?php endif; ?>
+</div>
+
+<!-- Previous Rollcalls -->
+<h2>Previous Rollcalls</h2>
+<div>
+    <?php if (!empty($previous_sessions)): ?>
+        <?php foreach ($previous_sessions as $idx => $session): ?>
+            <div class="tile">
+                <p><strong>Lesson:</strong> <?= $idx + 1 ?></p>
+                <p><strong>Code:</strong> <?= $session['session_code'] ?></p>
+                <p><strong>Date:</strong> <?= date('d M Y, h:i A', strtotime($session['created_at'])) ?></p>
+                <p><strong>Attended:</strong> <?= $session['attended_count'] ?> / <?= $session['total_students'] ?></p>
+                <a href="lecturer_view_session.php?session=<?= $session['id'] ?>" class="btn btn-view">View Details</a>
+            </div>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <p>No previous rollcalls.</p>
+    <?php endif; ?>
 </div>
 
 </body>

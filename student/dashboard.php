@@ -153,19 +153,29 @@ if ($course_id && $year_of_study) {
         </button>
 
         <!-- Academic Section -->
-        <div class="menu-section-title blue">Academic</div>
-        <button class="menu-item orange" onclick="alert('My Courses clicked!')">
-            <i class="fas fa-book"></i> My Courses
-        </button>
-        <a href="student_notes.php" class="menu-item orange">
-            <i class="fas fa-upload"></i> Read Notes
-        </a>
-        <button class="menu-item orange" onclick="alert('Grades clicked!')">
-            <i class="fas fa-medal"></i> Grades
-        </button>
-        <button class="menu-item orange" onclick="alert('Schedule clicked!')">
-            <i class="fas fa-calendar-alt"></i> Schedule
-        </button>
+<div class="menu-section-title blue">Academic</div>
+
+<button class="menu-item orange" onclick="alert('My Courses clicked!')">
+    <i class="fas fa-book"></i> My Courses
+</button>
+
+<a href="student_notes.php" class="menu-item orange">
+    <i class="fas fa-upload"></i> Read Notes
+</a>
+
+<button class="menu-item orange" onclick="alert('Grades clicked!')">
+    <i class="fas fa-medal"></i> Grades
+</button>
+
+<button class="menu-item orange" onclick="alert('Schedule clicked!')">
+    <i class="fas fa-calendar-alt"></i> Schedule
+</button>
+
+<!-- New: Attendance Modal Button -->
+<button class="menu-item orange" onclick="showModal('studentAttendanceModal')">
+    <i class="fas fa-check-circle"></i> Take Attendance
+</button>
+
 
         <!-- Resources Section -->
         <div class="menu-section-title green">Resources</div>
@@ -269,6 +279,99 @@ if ($course_id && $year_of_study) {
                 $_SESSION['error'] = "Unable to load submitted assignments count.";
             }
             ?>
+            <!-- Attendance Modal for Student -->
+<div id="studentAttendanceModal" class="modal">
+    <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2" style="max-width: 450px;">
+        <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b float-right" 
+              onclick="hideModal('studentAttendanceModal')">&times;</span>
+
+        <h3 class="text-2xl font-bold stat-text-secondary mb-4 text-center">
+            Enter Attendance Code
+        </h3>
+
+        <form id="studentAttendanceForm">
+            <div class="mb-4">
+                <label class="block text-sm font-medium stat-text-primary mb-2">
+                    Unit
+                </label>
+                <select name="unit_id" id="studentUnitId" required
+                        class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg">
+                    <option value="">-- Choose Unit --</option>
+                    <?php
+                    $student_id = $_SESSION['user_id'] ?? 0;
+                    if ($student_id) {
+                        $units_query = $conn->query("
+                            SELECT u.id, u.name 
+                            FROM units u
+                            JOIN student_units su ON u.id = su.unit_id
+                            WHERE su.student_id = $student_id
+                            ORDER BY u.name
+                        ");
+                        while ($unit = $units_query->fetch_assoc()): ?>
+                            <option value="<?= $unit['id'] ?>"><?= htmlspecialchars($unit['name']) ?></option>
+                        <?php endwhile;
+                    } ?>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium stat-text-primary mb-2">
+                    6-Digit Code
+                </label>
+                <input type="text" name="attendance_code" maxlength="6" required
+                       class="w-full px-4 py-3 border border-f5e6b2 rounded-xl text-92400e text-lg" 
+                       placeholder="Enter code">
+            </div>
+
+            <div class="text-center">
+                <button type="submit" class="btn-primary px-6 py-3 rounded-xl text-lg font-bold shadow-lg 
+                                             hover:shadow-xl transform hover:scale-105 transition">
+                    Submit
+                </button>
+            </div>
+
+            <p id="attendanceMsg" class="text-center mt-3 font-medium"></p>
+        </form>
+    </div>
+</div>
+
+<script>
+// Show/Hide modal functions
+function showModal(id) {
+    document.getElementById(id).style.display = 'block';
+}
+function hideModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+
+// AJAX form submission
+document.getElementById('studentAttendanceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const msgEl = document.getElementById('attendanceMsg');
+    msgEl.textContent = 'Checking...';
+
+    fetch('student_attendance_submit.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            msgEl.textContent = '✅ Attendance marked successfully!';
+            msgEl.style.color = 'green';
+        } else {
+            msgEl.textContent = '❌ ' + (data.message || 'Invalid code.');
+            msgEl.style.color = 'red';
+        }
+    })
+    .catch(err => {
+        msgEl.textContent = 'Error connecting to server.';
+        msgEl.style.color = 'red';
+    });
+});
+</script>
+ 
             <!-- Stats Section -->
             <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <div class="card bg-white rounded-2xl p-6">
