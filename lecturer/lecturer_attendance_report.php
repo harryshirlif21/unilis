@@ -44,12 +44,11 @@ if(isset($_GET['generate'])){
             ORDER BY name");
         $students = []; while($row = $students_res->fetch_assoc()) $students[] = $row;
 
-        // Attendance matrix
+        // Attendance matrix and totals
         $matrix = [];
+        $totals = [];
         foreach($students as $stu){
             $matrix[$stu['id']] = [
-                'name'=>$stu['name'],
-                'reg_no'=>$stu['reg_no'],
                 'attended'=>[],
                 'total'=>0
             ];
@@ -61,9 +60,16 @@ if(isset($_GET['generate'])){
                 $matrix[$stu['id']]['attended'][] = $present;
                 if($present==1) $matrix[$stu['id']]['total']++;
             }
+            $percent = ($total_lessons>0) ? ($matrix[$stu['id']]['total']/$total_lessons)*100 : 0;
+            $totals[] = [
+                'reg_no' => $stu['reg_no'],
+                'name' => $stu['name'],
+                'total' => $matrix[$stu['id']]['total'],
+                'percent' => round($percent,2)
+            ];
         }
 
-        // HTML
+        // ======== PAGE 1: Full student records (no names) ========
         $html = '
         <h2 style="text-align:center;">Attendance Report</h2>
         <p><strong>Unit:</strong> '.htmlspecialchars($unit['unit_name']).' &nbsp;&nbsp; 
@@ -74,40 +80,61 @@ if(isset($_GET['generate'])){
         <thead>
         <tr>
             <th style="width:30px;">#</th>
-            <th style="width:180px;">Name</th>
             <th style="width:100px;">Reg No</th>';
-        for($i=1; $i<=14; $i++){
+        for($i=1;$i<=14;$i++){
             $html .= "<th style='width:40px;text-align:center;'>L$i</th>";
         }
-        $html .= '<th style="width:50px;text-align:center;">Total</th>
+        $html .= '</tr></thead><tbody>';
+
+        $idx=1;
+        foreach($students as $stu){
+            $rowData = $matrix[$stu['id']];
+            $html .= "<tr>";
+            $html .= "<td>$idx</td>";
+            $html .= "<td>{$stu['reg_no']}</td>";
+            foreach($rowData['attended'] as $att){
+                $html .= "<td style='text-align:center;'>".($att==1?'1':'–')."</td>";
+            }
+            // Fill empty sessions if fewer than 14
+            for($j=count($rowData['attended']); $j<14; $j++){
+                $html .= "<td></td>";
+            }
+            $html .= "</tr>";
+            $idx++;
+        }
+        $html .= '</tbody></table>';
+
+        // ======== PAGE 2: Summary (after all students) ========
+        $html .= '<div style="page-break-before: always;"></div>';
+        $html .= '<h2 style="text-align:center;">Attendance Summary</h2>
+        <table border="1" cellpadding="5" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+        <tr>
+            <th style="width:30px;">#</th>
+            <th style="width:120px;">Reg No</th>
+            <th style="width:200px;">Name</th>
+            <th style="width:50px;text-align:center;">Total</th>
+            <th style="width:50px;text-align:center;">%</th>
         </tr>
         </thead>
         <tbody>';
 
-        $idx = 1;
-        foreach($matrix as $stu){
-            $percent = ($total_lessons>0) ? ($stu['total']/$total_lessons)*100 : 0;
-            $style = ($percent<70) ? 'color:red;' : '';
+        $idx=1;
+        foreach($totals as $t){
+            $style = ($t['percent']<70)?'color:red;':'';
             $html .= "<tr style='$style'>
                 <td>$idx</td>
-                <td>{$stu['name']}</td>
-                <td>{$stu['reg_no']}</td>";
-
-            for($j=0; $j<14; $j++){
-                if(isset($stu['attended'][$j])){
-                    $html .= "<td style='text-align:center;'>".($stu['attended'][$j]==1?'1':'–')."</td>";
-                } else {
-                    $html .= "<td></td>";
-                }
-            }
-
-            $html .= "<td style='text-align:center;'>{$stu['total']}</td></tr>";
+                <td>{$t['reg_no']}</td>
+                <td>{$t['name']}</td>
+                <td style='text-align:center;'>{$t['total']}</td>
+                <td style='text-align:center;'>{$t['percent']}%</td>
+            </tr>";
             $idx++;
         }
 
         $html .= '</tbody></table>';
 
-        // Render PDF in Landscape
+        // Render PDF
         $dompdf = new Dompdf();
         $dompdf->setPaper('A4','landscape');
         $dompdf->loadHtml($html);
