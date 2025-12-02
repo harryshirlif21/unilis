@@ -10,6 +10,28 @@ if (!$lecturer_id) {
 }
 
 // =========================
+// AJAX: Fetch attendance for a session
+// =========================
+if (isset($_GET['ajax_session'])) {
+    $session_id = intval($_GET['ajax_session']);
+    $res = $conn->query("
+        SELECT st.name, st.reg_no, ar.attended
+        FROM attendance_records ar
+        JOIN students st ON ar.student_id = st.id
+        WHERE ar.session_id = $session_id
+        ORDER BY st.name
+    ");
+    $data = [];
+    while ($row = $res->fetch_assoc()) {
+        $row['status'] = $row['attended'] ? 'Present' : 'Absent';
+        $data[] = $row;
+    }
+    header('Content-Type: application/json');
+    echo json_encode($data);
+    exit;
+}
+
+// =========================
 // GET ALL UNITS FOR LECTURER
 // =========================
 $units_query = $conn->query("
@@ -84,7 +106,6 @@ while ($row = $prev_sessions_list->fetch_assoc()) {
 }
 
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -148,9 +169,9 @@ const deadline = <?= $deadline_ts ?> * 1000;
 function updateCountdown() {
     const now = new Date().getTime();
     let distance = deadline - now;
-    if (distance < 0) { countdownEl.textContent = "Expired"; clearInterval(interval); return; }
-    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+    if(distance < 0){ countdownEl.textContent="Expired"; clearInterval(interval); return; }
+    const minutes = Math.floor((distance % (1000*60*60)) / (1000*60));
+    const seconds = Math.floor((distance % (1000*60)) / 1000);
     countdownEl.textContent = minutes + "m " + seconds + "s";
 }
 const interval = setInterval(updateCountdown, 1000);
@@ -165,10 +186,10 @@ updateCountdown();
 <!-- Previous Rollcalls -->
 <h2>Previous Rollcalls</h2>
 <div>
-<?php if (!empty($previous_sessions)): ?>
-    <?php foreach ($previous_sessions as $idx => $session): ?>
+<?php if(!empty($previous_sessions)): ?>
+    <?php foreach($previous_sessions as $idx => $session): ?>
         <div class="tile">
-            <p><strong>Lesson:</strong> <?= $idx + 1 ?></p>
+            <p><strong>Lesson:</strong> <?= $idx+1 ?></p>
             <p><strong>Code:</strong> <?= $session['session_code'] ?></p>
             <p><strong>Date:</strong> <?= date('d M Y, h:i A', strtotime($session['created_at'])) ?></p>
             <p><strong>Attended:</strong> <?= $session['attended_count'] ?> / <?= $session['total_students'] ?></p>
@@ -187,12 +208,7 @@ updateCountdown();
         <h2>Attendance Details</h2>
         <table>
             <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Name</th>
-                    <th>Reg No</th>
-                    <th>Status</th>
-                </tr>
+                <tr><th>#</th><th>Name</th><th>Reg No</th><th>Status</th></tr>
             </thead>
             <tbody id="modalBody">
                 <!-- Populated via JS -->
@@ -206,40 +222,39 @@ function openModal(sessionId){
     const modal = document.getElementById('attendanceModal');
     const modalBody = document.getElementById('modalBody');
     modalBody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
-    modal.style.display = 'block';
+    modal.style.display = 'flex';
 
-    fetch('lecturer_attendance_ajax.php?session=' + sessionId)
-    .then(res => res.json())
-    .then(data => {
-        if(data.length === 0){
-            modalBody.innerHTML = '<tr><td colspan="4">No records found</td></tr>';
-            return;
-        }
-        let html = '';
-        data.forEach((s, idx)=>{
-            html += `<tr>
-                        <td>${idx+1}</td>
-                        <td>${s.name}</td>
-                        <td>${s.reg_no}</td>
-                        <td>${s.attended == 1 ? 'Present' : 'Absent'}</td>
-                    </tr>`;
+    fetch('?ajax_session=' + sessionId)
+        .then(res => res.json())
+        .then(data => {
+            if(data.length === 0){
+                modalBody.innerHTML = '<tr><td colspan="4">No records found</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach((s, idx) => {
+                html += `<tr>
+                            <td>${idx+1}</td>
+                            <td>${s.name}</td>
+                            <td>${s.reg_no}</td>
+                            <td>${s.status}</td>
+                         </tr>`;
+            });
+            modalBody.innerHTML = html;
+        })
+        .catch(err => {
+            modalBody.innerHTML = '<tr><td colspan="4">Error loading data</td></tr>';
+            console.error(err);
         });
-        modalBody.innerHTML = html;
-    })
-    .catch(err=>{
-        modalBody.innerHTML = '<tr><td colspan="4">Error loading data</td></tr>';
-    });
 }
 
 function closeModal(){
-    document.getElementById('attendanceModal').style.display = 'none';
+    document.getElementById('attendanceModal').style.display='none';
 }
 
-window.onclick = function(event) {
+window.onclick = function(event){
     const modal = document.getElementById('attendanceModal');
-    if(event.target == modal){
-        modal.style.display = "none";
-    }
+    if(event.target == modal){ modal.style.display="none"; }
 }
 </script>
 
