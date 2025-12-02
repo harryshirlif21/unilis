@@ -685,14 +685,14 @@ preview.style.height = '0';
 preview.style.overflow = 'hidden';
 preview.style.transition = 'height 0.3s ease';
 
-// Expand div when selecting a unit
+// Expand div when unit select is focused
 unitSelect?.addEventListener('focus', function () {
     if (unitSelect.value === '') {
-        preview.style.height = '150px'; // expand height (adjust if needed)
+        preview.style.height = '150px'; // adjust height as needed
     }
 });
 
-// Collapse div after selecting a unit
+// Update preview and collapse div after selecting a unit
 unitSelect?.addEventListener('change', function () {
     const unitId = this.value;
 
@@ -706,7 +706,7 @@ unitSelect?.addEventListener('change', function () {
         link.href = 'lecturer_attendance_report.php?unit=' + unitId;
         link.classList.remove('opacity-50', 'pointer-events-none');
 
-        // Collapse the div back
+        // Collapse the div smoothly
         preview.style.height = '0';
     } else {
         // Reset preview
@@ -723,6 +723,7 @@ unitSelect?.addEventListener('change', function () {
 form?.addEventListener('submit', function(e) {
     e.preventDefault();
 
+    // Disable button to prevent double clicks
     submitBtn.disabled = true;
     submitBtn.textContent = 'Generating...';
 
@@ -735,22 +736,18 @@ form?.addEventListener('submit', function(e) {
     })
     .then(res => res.json())
     .then(data => {
-        if (data.success) {
-            alert('✅ Attendance session created successfully!\nCode: ' + data.data.code + 
-                  '\nValid until: ' + data.data.deadline);
-
-            if (unitId) {
-                window.location.href = 'lecturer_attendance_report.php?unit=' + unitId;
-            }
+        if (data.success && unitId) {
+            // Redirect immediately to attendance report without alert
+            window.location.href = 'lecturer_attendance_report.php?unit=' + unitId;
         } else {
-            alert('⚠️ Error: ' + data.message);
+            // Re-enable button on error
             submitBtn.disabled = false;
             submitBtn.textContent = 'Generate 6-Digit Code';
+            console.error('Error creating attendance session:', data.message);
         }
     })
     .catch(err => {
-        console.error(err);
-        alert('❌ An unexpected error occurred. Check console.');
+        console.error('Unexpected error:', err);
         submitBtn.disabled = false;
         submitBtn.textContent = 'Generate 6-Digit Code';
     });
