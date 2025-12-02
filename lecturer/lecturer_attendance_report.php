@@ -59,9 +59,7 @@ $lesson_number = $prev_sessions + 1;
 // CURRENT (LIVE) SESSION
 // =========================
 $live_session_res = $conn->query("
-    SELECT s.id, s.session_code, s.deadline,
-           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id AND ar.attended = 1) AS attended_count,
-           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id) AS total_students
+    SELECT s.id, s.session_code, s.deadline
     FROM attendance_sessions s
     WHERE s.unit_id = $unit_id AND s.deadline >= NOW()
     ORDER BY s.created_at DESC LIMIT 1
@@ -73,9 +71,7 @@ $is_live = !empty($current_session);
 // PREVIOUS SESSIONS
 // =========================
 $prev_sessions_list = $conn->query("
-    SELECT id, session_code, created_at,
-           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id AND ar.attended = 1) AS attended_count,
-           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id) AS total_students
+    SELECT s.id, s.session_code, s.created_at
     FROM attendance_sessions s
     WHERE s.unit_id = $unit_id
     ORDER BY s.created_at DESC
@@ -83,7 +79,35 @@ $prev_sessions_list = $conn->query("
 
 $previous_sessions = [];
 while ($row = $prev_sessions_list->fetch_assoc()) {
+    // Fetch students for this session
+    $student_res = $conn->query("
+        SELECT st.name, st.registration_no, ar.attended
+        FROM attendance_records ar
+        JOIN students st ON ar.student_id = st.id
+        WHERE ar.session_id = {$row['id']}
+        ORDER BY st.name
+    ");
+    $students = [];
+    while ($s = $student_res->fetch_assoc()) {
+        $students[] = $s;
+    }
+    $row['students'] = $students;
     $previous_sessions[] = $row;
+}
+
+// Fetch students for live session
+$live_students = [];
+if ($is_live) {
+    $live_student_res = $conn->query("
+        SELECT st.name, st.registration_no, ar.attended
+        FROM attendance_records ar
+        JOIN students st ON ar.student_id = st.id
+        WHERE ar.session_id = {$current_session['id']}
+        ORDER BY st.name
+    ");
+    while ($s = $live_student_res->fetch_assoc()) {
+        $live_students[] = $s;
+    }
 }
 
 ?>
@@ -96,9 +120,25 @@ while ($row = $prev_sessions_list->fetch_assoc()) {
 <link rel="stylesheet" href="../assets/styles.css">
 <style>
     .tile { background:#f3f4f6; padding:15px; border-radius:15px; margin:10px; display:inline-block; width:220px; vertical-align:top; }
-    .btn { padding:10px 15px; border-radius:10px; color:white; text-decoration:none; display:inline-block; margin-top:10px; }
+    .btn { padding:10px 15px; border-radius:10px; color:white; text-decoration:none; display:inline-block; margin-top:10px; cursor:pointer; }
     .btn-view { background:#f59e0b; }
     .btn-end { background:#dc2626; }
+
+    /* Modal Styles */
+    #attendanceModal {
+        display:none;
+        position: fixed; 
+        z-index: 9999; 
+        left: 0; top: 0;
+        width: 100%; height: 100%; 
+        background: rgba(0,0,0,0.5);
+    }
+    #attendanceModal .modal-content {
+        background: #fff; margin: 10% auto; padding: 20px; border-radius: 10px; width: 80%; max-width: 600px;
+    }
+    #attendanceModal .close { float: right; font-size: 24px; font-weight: bold; cursor: pointer; }
+    #attendanceModal table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    #attendanceModal table th, #attendanceModal table td { border:1px solid #ccc; padding:8px; text-align:left; }
 </style>
 </head>
 <body>
@@ -108,7 +148,6 @@ while ($row = $prev_sessions_list->fetch_assoc()) {
 <h3>Select Unit</h3>
 <select onchange="location.href='?unit=' + this.value" style="padding:10px; font-size:16px;">
     <?php
-    // Reset pointer and repopulate dropdown
     $units_query->data_seek(0);
     while ($unit = $units_query->fetch_assoc()):
     ?>
@@ -124,42 +163,12 @@ while ($row = $prev_sessions_list->fetch_assoc()) {
     <p><strong>Unit:</strong> <?= htmlspecialchars($unit_name) ?></p>
     <p><strong>Lesson Number:</strong> <?= $lesson_number ?></p>
 
-    <?php if ($is_live): 
-        $attended_count = $current_session['attended_count'];
-        $total_students = $current_session['total_students'];
-        $deadline_ts = strtotime($current_session['deadline']);
-    ?>
-        <p style="color:green; font-weight:bold;">
-            Live Session - Code: <?= $current_session['session_code'] ?>
-        </p>
-        <p><strong>Students Attended:</strong> <?= $attended_count ?> / <?= $total_students ?></p>
-        <p><strong>Time Left:</strong> <span id="countdown"></span></p>
-
+    <?php if ($is_live): ?>
+        <p style="color:green; font-weight:bold;">Live Session - Code: <?= $current_session['session_code'] ?></p>
         <div>
-            <a href="lecturer_view_session.php?session=<?= $current_session['id'] ?>" class="btn btn-view">View Students</a>
+            <span class="btn btn-view" onclick="openSessionModal(<?= $current_session['id'] ?>)">View Students</span>
             <a href="end_session.php?session=<?= $current_session['id'] ?>" class="btn btn-end">End Session</a>
         </div>
-
-        <script>
-        const countdownEl = document.getElementById('countdown');
-        const deadline = <?= $deadline_ts ?> * 1000;
-
-        function updateCountdown() {
-            const now = new Date().getTime();
-            let distance = deadline - now;
-            if (distance < 0) {
-                countdownEl.textContent = "Expired";
-                clearInterval(interval);
-                return;
-            }
-            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-            countdownEl.textContent = minutes + "m " + seconds + "s";
-        }
-        const interval = setInterval(updateCountdown, 1000);
-        updateCountdown();
-        </script>
-
     <?php else: ?>
         <p style="color:gray;">No active session</p>
     <?php endif; ?>
@@ -174,14 +183,66 @@ while ($row = $prev_sessions_list->fetch_assoc()) {
                 <p><strong>Lesson:</strong> <?= $idx + 1 ?></p>
                 <p><strong>Code:</strong> <?= $session['session_code'] ?></p>
                 <p><strong>Date:</strong> <?= date('d M Y, h:i A', strtotime($session['created_at'])) ?></p>
-                <p><strong>Attended:</strong> <?= $session['attended_count'] ?> / <?= $session['total_students'] ?></p>
-                <a href="lecturer_view_session.php?session=<?= $session['id'] ?>" class="btn btn-view">View Details</a>
+                <span class="btn btn-view" onclick="openSessionModal(<?= $session['id'] ?>)">View Details</span>
             </div>
         <?php endforeach; ?>
     <?php else: ?>
         <p>No previous rollcalls.</p>
     <?php endif; ?>
 </div>
+
+<!-- Modal -->
+<div id="attendanceModal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3 id="modalTitle"></h3>
+        <table>
+            <thead>
+                <tr><th>#</th><th>Name</th><th>Reg No</th><th>Status</th></tr>
+            </thead>
+            <tbody id="modalStudentList"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+const sessions = {
+    <?php if($is_live): ?>
+    <?= $current_session['id'] ?>: <?= json_encode($live_students) ?>,
+    <?php endif; ?>
+    <?php foreach($previous_sessions as $s): ?>
+    <?= $s['id'] ?>: <?= json_encode($s['students']) ?>,
+    <?php endforeach; ?>
+};
+
+const modal = document.getElementById('attendanceModal');
+const modalTitle = document.getElementById('modalTitle');
+const modalStudentList = document.getElementById('modalStudentList');
+
+function openSessionModal(sessionId) {
+    const students = sessions[sessionId] || [];
+    modalTitle.textContent = `Session ID: ${sessionId}`;
+    modalStudentList.innerHTML = '';
+    students.forEach((s, i) => {
+        const row = `<tr>
+            <td>${i+1}</td>
+            <td>${s.name}</td>
+            <td>${s.registration_no}</td>
+            <td>${s.attended == 1 ? 'Present' : 'Absent'}</td>
+        </tr>`;
+        modalStudentList.innerHTML += row;
+    });
+    modal.style.display = 'block';
+}
+
+modal.querySelector('.close').onclick = function() {
+    modal.style.display = 'none';
+};
+
+window.onclick = function(e) {
+    if (e.target == modal) modal.style.display = 'none';
+};
+</script>
 
 </body>
 </html>
