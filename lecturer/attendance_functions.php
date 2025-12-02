@@ -94,10 +94,9 @@ function createAttendanceSession($conn, $unit_id, $lecturer_id, $duration_minute
         $stmt->execute();
         $stmt->close();
 
-        // Prepare auto-mark link
+        // Prepare auto-mark link using 6-digit code
         $base_url = "https://unilis.jhubafrica.com";
-        $token = base64_encode("$session_id|$student_id|" . hash('sha256', $session_id . $student_id . 'UNILIS2025'));
-        $auto_link = "$base_url/student/student_auto_mark.php?token=" . urlencode($token);
+        $auto_link = "$base_url/student/student_auto_mark.php?code=$code&student_id=$student_id";
 
         // Insert notifications
         $title = "Attendance: $unit_name";
