@@ -25,8 +25,6 @@ $units_query = $conn->query("
 // DETERMINE CURRENT UNIT
 // =========================
 $unit_id = isset($_GET['unit']) ? intval($_GET['unit']) : 0;
-
-// If no unit selected via URL, default to first assigned unit
 if ($unit_id <= 0) {
     $first_unit = $units_query->fetch_assoc();
     if ($first_unit) { 
@@ -59,7 +57,9 @@ $lesson_number = $prev_sessions + 1;
 // CURRENT (LIVE) SESSION
 // =========================
 $live_session_res = $conn->query("
-    SELECT s.id, s.session_code, s.deadline
+    SELECT s.id, s.session_code, s.deadline,
+           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id AND ar.attended = 1) AS attended_count,
+           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id) AS total_students
     FROM attendance_sessions s
     WHERE s.unit_id = $unit_id AND s.deadline >= NOW()
     ORDER BY s.created_at DESC LIMIT 1
@@ -71,43 +71,16 @@ $is_live = !empty($current_session);
 // PREVIOUS SESSIONS
 // =========================
 $prev_sessions_list = $conn->query("
-    SELECT s.id, s.session_code, s.created_at
+    SELECT id, session_code, created_at,
+           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id AND ar.attended = 1) AS attended_count,
+           (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id) AS total_students
     FROM attendance_sessions s
     WHERE s.unit_id = $unit_id
     ORDER BY s.created_at DESC
 ");
-
 $previous_sessions = [];
 while ($row = $prev_sessions_list->fetch_assoc()) {
-    // Fetch students for this session
-    $student_res = $conn->query("
-        SELECT st.name, st.registration_no, ar.attended
-        FROM attendance_records ar
-        JOIN students st ON ar.student_id = st.id
-        WHERE ar.session_id = {$row['id']}
-        ORDER BY st.name
-    ");
-    $students = [];
-    while ($s = $student_res->fetch_assoc()) {
-        $students[] = $s;
-    }
-    $row['students'] = $students;
     $previous_sessions[] = $row;
-}
-
-// Fetch students for live session
-$live_students = [];
-if ($is_live) {
-    $live_student_res = $conn->query("
-        SELECT st.name, st.registration_no, ar.attended
-        FROM attendance_records ar
-        JOIN students st ON ar.student_id = st.id
-        WHERE ar.session_id = {$current_session['id']}
-        ORDER BY st.name
-    ");
-    while ($s = $live_student_res->fetch_assoc()) {
-        $live_students[] = $s;
-    }
 }
 
 ?>
@@ -119,26 +92,16 @@ if ($is_live) {
 <title>Lecturer Attendance Report</title>
 <link rel="stylesheet" href="../assets/styles.css">
 <style>
-    .tile { background:#f3f4f6; padding:15px; border-radius:15px; margin:10px; display:inline-block; width:220px; vertical-align:top; }
-    .btn { padding:10px 15px; border-radius:10px; color:white; text-decoration:none; display:inline-block; margin-top:10px; cursor:pointer; }
-    .btn-view { background:#f59e0b; }
-    .btn-end { background:#dc2626; }
-
-    /* Modal Styles */
-    #attendanceModal {
-        display:none;
-        position: fixed; 
-        z-index: 9999; 
-        left: 0; top: 0;
-        width: 100%; height: 100%; 
-        background: rgba(0,0,0,0.5);
-    }
-    #attendanceModal .modal-content {
-        background: #fff; margin: 10% auto; padding: 20px; border-radius: 10px; width: 80%; max-width: 600px;
-    }
-    #attendanceModal .close { float: right; font-size: 24px; font-weight: bold; cursor: pointer; }
-    #attendanceModal table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    #attendanceModal table th, #attendanceModal table td { border:1px solid #ccc; padding:8px; text-align:left; }
+.tile { background:#f3f4f6; padding:15px; border-radius:15px; margin:10px; display:inline-block; width:220px; vertical-align:top; }
+.btn { padding:10px 15px; border-radius:10px; color:white; text-decoration:none; display:inline-block; margin-top:10px; cursor:pointer; }
+.btn-view { background:#f59e0b; }
+.btn-end { background:#dc2626; }
+.modal { display:none; position:fixed; z-index:999; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.5); }
+.modal-content { background:#fff; margin:10% auto; padding:20px; border-radius:10px; width:80%; max-width:700px; }
+.close { float:right; font-size:28px; font-weight:bold; cursor:pointer; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th, td { padding:8px; text-align:left; border-bottom:1px solid #ddd; }
+th { background:#f59e0b20; }
 </style>
 </head>
 <body>
@@ -147,101 +110,137 @@ if ($is_live) {
 
 <h3>Select Unit</h3>
 <select onchange="location.href='?unit=' + this.value" style="padding:10px; font-size:16px;">
-    <?php
-    $units_query->data_seek(0);
-    while ($unit = $units_query->fetch_assoc()):
-    ?>
-        <option value="<?= $unit['id'] ?>" <?= ($unit['id'] == $unit_id) ? 'selected' : '' ?>>
-            <?= htmlspecialchars($unit['name']) ?> (<?= htmlspecialchars($unit['course_name']) ?>)
-        </option>
-    <?php endwhile; ?>
+<?php
+$units_query->data_seek(0);
+while ($unit = $units_query->fetch_assoc()):
+?>
+    <option value="<?= $unit['id'] ?>" <?= ($unit['id'] == $unit_id) ? 'selected' : '' ?>>
+        <?= htmlspecialchars($unit['name']) ?> (<?= htmlspecialchars($unit['course_name']) ?>)
+    </option>
+<?php endwhile; ?>
 </select>
 
 <!-- Current Rollcall -->
 <div style="background:#f59e0b20; padding:25px; border-radius:15px; margin-top:25px; margin-bottom:25px;">
-    <h2>Current Rollcall</h2>
-    <p><strong>Unit:</strong> <?= htmlspecialchars($unit_name) ?></p>
-    <p><strong>Lesson Number:</strong> <?= $lesson_number ?></p>
+<h2>Current Rollcall</h2>
+<p><strong>Unit:</strong> <?= htmlspecialchars($unit_name) ?></p>
+<p><strong>Lesson Number:</strong> <?= $lesson_number ?></p>
 
-    <?php if ($is_live): ?>
-        <p style="color:green; font-weight:bold;">Live Session - Code: <?= $current_session['session_code'] ?></p>
-        <div>
-            <span class="btn btn-view" onclick="openSessionModal(<?= $current_session['id'] ?>)">View Students</span>
-            <a href="end_session.php?session=<?= $current_session['id'] ?>" class="btn btn-end">End Session</a>
-        </div>
-    <?php else: ?>
-        <p style="color:gray;">No active session</p>
-    <?php endif; ?>
+<?php if ($is_live): 
+    $attended_count = $current_session['attended_count'];
+    $total_students = $current_session['total_students'];
+    $deadline_ts = strtotime($current_session['deadline']);
+?>
+<p style="color:green; font-weight:bold;">
+    Live Session - Code: <?= $current_session['session_code'] ?>
+</p>
+<p><strong>Students Attended:</strong> <?= $attended_count ?> / <?= $total_students ?></p>
+<p><strong>Time Left:</strong> <span id="countdown"></span></p>
+
+<div>
+    <button class="btn btn-view" onclick="openModal(<?= $current_session['id'] ?>)">View Students</button>
+    <a href="end_session.php?session=<?= $current_session['id'] ?>" class="btn btn-end">End Session</a>
+</div>
+
+<script>
+const countdownEl = document.getElementById('countdown');
+const deadline = <?= $deadline_ts ?> * 1000;
+function updateCountdown() {
+    const now = new Date().getTime();
+    let distance = deadline - now;
+    if (distance < 0) { countdownEl.textContent = "Expired"; clearInterval(interval); return; }
+    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+    countdownEl.textContent = minutes + "m " + seconds + "s";
+}
+const interval = setInterval(updateCountdown, 1000);
+updateCountdown();
+</script>
+
+<?php else: ?>
+<p style="color:gray;">No active session</p>
+<?php endif; ?>
 </div>
 
 <!-- Previous Rollcalls -->
 <h2>Previous Rollcalls</h2>
 <div>
-    <?php if (!empty($previous_sessions)): ?>
-        <?php foreach ($previous_sessions as $idx => $session): ?>
-            <div class="tile">
-                <p><strong>Lesson:</strong> <?= $idx + 1 ?></p>
-                <p><strong>Code:</strong> <?= $session['session_code'] ?></p>
-                <p><strong>Date:</strong> <?= date('d M Y, h:i A', strtotime($session['created_at'])) ?></p>
-                <span class="btn btn-view" onclick="openSessionModal(<?= $session['id'] ?>)">View Details</span>
-            </div>
-        <?php endforeach; ?>
-    <?php else: ?>
-        <p>No previous rollcalls.</p>
-    <?php endif; ?>
+<?php if (!empty($previous_sessions)): ?>
+    <?php foreach ($previous_sessions as $idx => $session): ?>
+        <div class="tile">
+            <p><strong>Lesson:</strong> <?= $idx + 1 ?></p>
+            <p><strong>Code:</strong> <?= $session['session_code'] ?></p>
+            <p><strong>Date:</strong> <?= date('d M Y, h:i A', strtotime($session['created_at'])) ?></p>
+            <p><strong>Attended:</strong> <?= $session['attended_count'] ?> / <?= $session['total_students'] ?></p>
+            <button class="btn btn-view" onclick="openModal(<?= $session['id'] ?>)">View Details</button>
+        </div>
+    <?php endforeach; ?>
+<?php else: ?>
+<p>No previous rollcalls.</p>
+<?php endif; ?>
 </div>
 
 <!-- Modal -->
-<div id="attendanceModal">
+<div id="attendanceModal" class="modal">
     <div class="modal-content">
-        <span class="close">&times;</span>
-        <h3 id="modalTitle"></h3>
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2>Attendance Details</h2>
         <table>
             <thead>
-                <tr><th>#</th><th>Name</th><th>Reg No</th><th>Status</th></tr>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Reg No</th>
+                    <th>Status</th>
+                </tr>
             </thead>
-            <tbody id="modalStudentList"></tbody>
+            <tbody id="modalBody">
+                <!-- Populated via JS -->
+            </tbody>
         </table>
     </div>
 </div>
 
 <script>
-const sessions = {
-    <?php if($is_live): ?>
-    <?= $current_session['id'] ?>: <?= json_encode($live_students) ?>,
-    <?php endif; ?>
-    <?php foreach($previous_sessions as $s): ?>
-    <?= $s['id'] ?>: <?= json_encode($s['students']) ?>,
-    <?php endforeach; ?>
-};
-
-const modal = document.getElementById('attendanceModal');
-const modalTitle = document.getElementById('modalTitle');
-const modalStudentList = document.getElementById('modalStudentList');
-
-function openSessionModal(sessionId) {
-    const students = sessions[sessionId] || [];
-    modalTitle.textContent = `Session ID: ${sessionId}`;
-    modalStudentList.innerHTML = '';
-    students.forEach((s, i) => {
-        const row = `<tr>
-            <td>${i+1}</td>
-            <td>${s.name}</td>
-            <td>${s.registration_no}</td>
-            <td>${s.attended == 1 ? 'Present' : 'Absent'}</td>
-        </tr>`;
-        modalStudentList.innerHTML += row;
-    });
+function openModal(sessionId){
+    const modal = document.getElementById('attendanceModal');
+    const modalBody = document.getElementById('modalBody');
+    modalBody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
     modal.style.display = 'block';
+
+    fetch('lecturer_attendance_ajax.php?session=' + sessionId)
+    .then(res => res.json())
+    .then(data => {
+        if(data.length === 0){
+            modalBody.innerHTML = '<tr><td colspan="4">No records found</td></tr>';
+            return;
+        }
+        let html = '';
+        data.forEach((s, idx)=>{
+            html += `<tr>
+                        <td>${idx+1}</td>
+                        <td>${s.name}</td>
+                        <td>${s.reg_no}</td>
+                        <td>${s.attended == 1 ? 'Present' : 'Absent'}</td>
+                    </tr>`;
+        });
+        modalBody.innerHTML = html;
+    })
+    .catch(err=>{
+        modalBody.innerHTML = '<tr><td colspan="4">Error loading data</td></tr>';
+    });
 }
 
-modal.querySelector('.close').onclick = function() {
-    modal.style.display = 'none';
-};
+function closeModal(){
+    document.getElementById('attendanceModal').style.display = 'none';
+}
 
-window.onclick = function(e) {
-    if (e.target == modal) modal.style.display = 'none';
-};
+window.onclick = function(event) {
+    const modal = document.getElementById('attendanceModal');
+    if(event.target == modal){
+        modal.style.display = "none";
+    }
+}
 </script>
 
 </body>
