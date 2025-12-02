@@ -669,16 +669,32 @@ try {
         </form>
     </div>
 </div>
-
 <script>
-document.getElementById('modalUnitId')?.addEventListener('change', function () {
+const unitSelect = document.getElementById('modalUnitId');
+const preview = document.getElementById('selectedUnitPreview');
+const name = document.getElementById('selectedUnitName');
+const course = document.getElementById('selectedCourse');
+const year = document.getElementById('selectedYear');
+const sem = document.getElementById('selectedSemester');
+const link = document.getElementById('viewAttendanceRecords');
+const form = document.getElementById('attendanceForm');
+const submitBtn = form.querySelector('button[type="submit"]');
+
+// Initially collapsed
+preview.style.height = '0';
+preview.style.overflow = 'hidden';
+preview.style.transition = 'height 0.3s ease';
+
+// Expand div when selecting a unit
+unitSelect?.addEventListener('focus', function () {
+    if (unitSelect.value === '') {
+        preview.style.height = '150px'; // expand height (adjust if needed)
+    }
+});
+
+// Collapse div after selecting a unit
+unitSelect?.addEventListener('change', function () {
     const unitId = this.value;
-    const link = document.getElementById('viewAttendanceRecords');
-    const preview = document.getElementById('selectedUnitPreview');
-    const name = document.getElementById('selectedUnitName');
-    const course = document.getElementById('selectedCourse');
-    const year = document.getElementById('selectedYear');
-    const sem = document.getElementById('selectedSemester');
 
     if (unitId) {
         const selectedOption = this.options[this.selectedIndex];
@@ -686,12 +702,14 @@ document.getElementById('modalUnitId')?.addEventListener('change', function () {
         course.textContent = "Course: " + selectedOption.dataset.course;
         year.textContent = "Year: " + selectedOption.dataset.year;
         sem.textContent = "Semester: " + selectedOption.dataset.semester;
-        preview.classList.remove('hidden');
 
         link.href = 'lecturer_attendance_report.php?unit=' + unitId;
         link.classList.remove('opacity-50', 'pointer-events-none');
+
+        // Collapse the div back
+        preview.style.height = '0';
     } else {
-        preview.classList.add('hidden');
+        // Reset preview
         name.textContent = '—';
         course.textContent = "Course: —";
         year.textContent = "Year: —";
@@ -702,11 +720,14 @@ document.getElementById('modalUnitId')?.addEventListener('change', function () {
 });
 
 // Handle form submission via AJAX
-document.getElementById('attendanceForm')?.addEventListener('submit', function(e) {
-    e.preventDefault(); // prevent normal form submission
+form?.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Generating...';
 
     const formData = new FormData(this);
-    const unitId = document.getElementById('modalUnitId').value;
+    const unitId = unitSelect.value;
 
     fetch('attendance_functions.php', {
         method: 'POST',
@@ -718,20 +739,24 @@ document.getElementById('attendanceForm')?.addEventListener('submit', function(e
             alert('✅ Attendance session created successfully!\nCode: ' + data.data.code + 
                   '\nValid until: ' + data.data.deadline);
 
-            // Optional: redirect to attendance report
             if (unitId) {
                 window.location.href = 'lecturer_attendance_report.php?unit=' + unitId;
             }
         } else {
             alert('⚠️ Error: ' + data.message);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Generate 6-Digit Code';
         }
     })
     .catch(err => {
         console.error(err);
         alert('❌ An unexpected error occurred. Check console.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Generate 6-Digit Code';
     });
 });
 </script>
+
 
         <div id="assignmentModal" class="modal">
             <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
