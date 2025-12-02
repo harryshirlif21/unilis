@@ -1,16 +1,19 @@
 <?php
-require_once '../config/db.php';
 session_start();
+require_once '../config/db.php';
 
+// Ensure lecturer is logged in
 $lecturer_id = $_SESSION['user_id'] ?? 0;
 if (!$lecturer_id) {
-    header("Location: login.php");
+    header("Location: ../login.php");
     exit;
 }
 
-// Get all units for this lecturer
+// =========================
+// GET ALL UNITS FOR LECTURER
+// =========================
 $units_query = $conn->query("
-    SELECT u.id, u.name, c.name AS course_name, u.year, u.semester
+    SELECT u.id, u.name, c.name AS course_name
     FROM units u
     JOIN lecturer_units lu ON u.id = lu.unit_id
     LEFT JOIN courses c ON u.course_id = c.id
@@ -18,19 +21,45 @@ $units_query = $conn->query("
     ORDER BY u.name
 ");
 
-// For simplicity, we pick the first unit as current
-$current_unit = $units_query->fetch_assoc();
-$unit_id = $current_unit['id'] ?? 0;
-$unit_name = $current_unit['name'] ?? "—";
+// =========================
+// DETERMINE CURRENT UNIT
+// =========================
+$unit_id = isset($_GET['unit']) ? intval($_GET['unit']) : 0;
 
-// Get previous sessions count for this unit
-$prev_sessions_res = $conn->query("SELECT COUNT(*) AS count FROM attendance_sessions WHERE unit_id = $unit_id");
+// If no unit selected via URL, default to first assigned unit
+if ($unit_id <= 0) {
+    $first_unit = $units_query->fetch_assoc();
+    if ($first_unit) { 
+        $unit_id = $first_unit['id']; 
+    }
+}
+
+// Get selected unit details
+$unit_res = $conn->query("
+    SELECT u.id, u.name, c.name AS course_name
+    FROM units u
+    LEFT JOIN courses c ON u.course_id = c.id
+    WHERE u.id = $unit_id
+");
+$unit_data = $unit_res->fetch_assoc();
+$unit_name = $unit_data['name'] ?? "—";
+
+// =========================
+// LESSON NUMBER
+// =========================
+$prev_sessions_res = $conn->query("
+    SELECT COUNT(*) AS count 
+    FROM attendance_sessions 
+    WHERE unit_id = $unit_id
+");
 $prev_sessions = $prev_sessions_res->fetch_assoc()['count'] ?? 0;
 $lesson_number = $prev_sessions + 1;
 
-// Get live session if exists
+// =========================
+// CURRENT (LIVE) SESSION
+// =========================
 $live_session_res = $conn->query("
-    SELECT s.id, s.session_code, s.deadline, 
+    SELECT s.id, s.session_code, s.deadline,
            (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id AND ar.attended = 1) AS attended_count,
            (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id) AS total_students
     FROM attendance_sessions s
@@ -40,8 +69,10 @@ $live_session_res = $conn->query("
 $current_session = $live_session_res->fetch_assoc();
 $is_live = !empty($current_session);
 
-// Get previous sessions for tiles
-$prev_sessions_res = $conn->query("
+// =========================
+// PREVIOUS SESSIONS
+// =========================
+$prev_sessions_list = $conn->query("
     SELECT id, session_code, created_at,
            (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id AND ar.attended = 1) AS attended_count,
            (SELECT COUNT(*) FROM attendance_records ar WHERE ar.session_id = s.id) AS total_students
@@ -49,8 +80,9 @@ $prev_sessions_res = $conn->query("
     WHERE s.unit_id = $unit_id
     ORDER BY s.created_at DESC
 ");
+
 $previous_sessions = [];
-while ($row = $prev_sessions_res->fetch_assoc()) {
+while ($row = $prev_sessions_list->fetch_assoc()) {
     $previous_sessions[] = $row;
 }
 
@@ -73,8 +105,21 @@ while ($row = $prev_sessions_res->fetch_assoc()) {
 
 <h1>Attendance Report</h1>
 
+<h3>Select Unit</h3>
+<select onchange="location.href='?unit=' + this.value" style="padding:10px; font-size:16px;">
+    <?php
+    // Reset pointer and repopulate dropdown
+    $units_query->data_seek(0);
+    while ($unit = $units_query->fetch_assoc()):
+    ?>
+        <option value="<?= $unit['id'] ?>" <?= ($unit['id'] == $unit_id) ? 'selected' : '' ?>>
+            <?= htmlspecialchars($unit['name']) ?> (<?= htmlspecialchars($unit['course_name']) ?>)
+        </option>
+    <?php endwhile; ?>
+</select>
+
 <!-- Current Rollcall -->
-<div style="background:#f59e0b/10; padding:25px; border-radius:15px; margin-bottom:25px;">
+<div style="background:#f59e0b20; padding:25px; border-radius:15px; margin-top:25px; margin-bottom:25px;">
     <h2>Current Rollcall</h2>
     <p><strong>Unit:</strong> <?= htmlspecialchars($unit_name) ?></p>
     <p><strong>Lesson Number:</strong> <?= $lesson_number ?></p>
@@ -89,7 +134,7 @@ while ($row = $prev_sessions_res->fetch_assoc()) {
         </p>
         <p><strong>Students Attended:</strong> <?= $attended_count ?> / <?= $total_students ?></p>
         <p><strong>Time Left:</strong> <span id="countdown"></span></p>
-        
+
         <div>
             <a href="lecturer_view_session.php?session=<?= $current_session['id'] ?>" class="btn btn-view">View Students</a>
             <a href="end_session.php?session=<?= $current_session['id'] ?>" class="btn btn-end">End Session</a>
