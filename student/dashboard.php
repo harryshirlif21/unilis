@@ -122,7 +122,9 @@ if ($course_id && $year_of_study) {
         </button>
 
 
-        <!-- Mobile Breadcrumb -->
+       
+    </nav>
+ <!-- Mobile Breadcrumb -->
 <div class="md:hidden bg-white border-b border-gray-200 px-4 py-2 sticky top-16 z-20">
     <div class="flex items-center text-sm">
         <a href="#" class="text-gray-500 hover:text-gray-700">Home</a>
@@ -132,8 +134,6 @@ if ($course_id && $year_of_study) {
         <span id="breadcrumb-current" class="font-medium text-92400e">Dashboard</span>
     </div>
 </div>
-    </nav>
-
     <!-- Off-Canvas Sidebar -->
     <!-- Off-Canvas Menu -->
     <div id="offCanvasMenu" class="sidebar">
