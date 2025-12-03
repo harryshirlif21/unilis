@@ -838,130 +838,32 @@ document.querySelectorAll('.modal').forEach(modal => {
 </script>
 </div>
 
+<div class='bg-white rounded-2xl p-6 shadow hover:shadow-lg transition flex flex-col justify-between'>
+    <h3 class='text-xl font-semibold mb-4 stat-text-primary'><?= htmlspecialchars($unitName) ?></h3>
 
-        <div id="notes-content" class="hidden">
-    <section class="mb-8">
-        <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">
-            Notes for Year <?= htmlspecialchars($year_of_study) ?><br>
-            <a href="viewnotes.php"
-   class="bg-orange-500 hover:bg-green-600 text-white font-semibold px-4 py-2 
-          rounded-lg mt-auto shadow-md transition-colors duration-200 inline-block">
-    go to notes page
-</a>
-        </h2>
+    <div class="flex flex-col gap-2 mt-auto">
+        <!-- Button 1: Open Modal (Interactive Notes) -->
+        <button data-modal-target='notes-modal-<?= $unitIndex ?>' 
+            class='bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg shadow-md transition-colors duration-200'>
+            View Notes
+        </button>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <?php
-            try {
-                // Fetch all notes with their unit info
-                $notes_query = $conn->prepare("
-                    SELECT n.file_path, n.uploaded_at, u.name AS unit_name, u.code AS unit_code
-                    FROM notes n
-                    JOIN units u ON n.unit_id = u.id
-                    WHERE u.course_id = ? AND u.year = ?
-                    ORDER BY u.name ASC, n.uploaded_at DESC
-                ");
-                $notes_query->bind_param("ii", $course_id, $year_of_study);
-                $notes_query->execute();
-                $notes = $notes_query->get_result();
+        <!-- Button 2: Go to Notes Files -->
+        <a href='viewnotes.php?unit=<?= urlencode($unitName) ?>' 
+            class='bg-orange-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-lg shadow-md transition-colors duration-200 text-center'>
+            Notes Files
+        </a>
+    </div>
 
-                if ($notes->num_rows === 0) {
-                    echo "<p class='text-center col-span-full'>No notes found for your course and year.</p>";
-                } else {
-
-                    // Group by unit name
-                    $units = [];
-                    while ($note = $notes->fetch_assoc()) {
-                        $units[$note['unit_name']][] = $note;
-                    }
-
-                    $unitIndex = 0;
-
-                    foreach ($units as $unitName => $unitNotes) {
-                        $modalId = "notes-modal-" . $unitIndex;
-
-                        echo "
-                        <div class='bg-white rounded-2xl p-6 shadow hover:shadow-lg transition flex flex-col justify-between'>
-                            <h3 class='text-xl font-semibold mb-4 stat-text-primary'>" . htmlspecialchars($unitName) . "</h3>
-                            <button data-modal-target='$modalId' 
-                                class='bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg mt-auto shadow-md transition-colors duration-200'>
-                                View Notes
-                            </button>
-
-                            <!-- Modal -->
-                            <div id='$modalId' class='modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden'>
-                                <div class='bg-white p-6 rounded-2xl w-11/12 max-w-3xl overflow-auto max-h-[80vh] relative'>
-                                    <h4 class='text-lg font-semibold mb-4'>Notes for " . htmlspecialchars($unitName) . "</h4>
-                                    
-                                    <table class='w-full text-left border-collapse'>
-                                        <thead>
-                                            <tr class='border-b-2 border-f5e6b2'>
-                                                <th class='py-2 text-sm font-semibold stat-text-primary uppercase'>Unit Code</th>
-                                                <th class='py-2 text-sm font-semibold stat-text-accent uppercase'>File</th>
-                                                <th class='py-2 text-sm font-semibold stat-text-primary uppercase'>Uploaded</th>
-                                                <th class='py-2 text-sm font-semibold stat-text-secondary uppercase'>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class='text-92400e'>
-                        ";
-
-                        // Loop notes for this unit
-                        foreach ($unitNotes as $note) {
-
-                            $filePath = htmlspecialchars($note['file_path']);
-                            $fullPath = "../assets/uploads/" . $filePath;
-                            $uploadedAt = date("d M Y, h:i A", strtotime($note['uploaded_at']));
-                            $fileExists = file_exists($fullPath);
-
-                            echo "
-                                <tr class='border-b border-f5e6b2'>
-                                    <td class='py-2 table-text-primary'>" . htmlspecialchars($note['unit_code']) . "</td>
-                                    <td class='py-2 table-text-accent'>$filePath</td>
-                                    <td class='py-2 text-sm table-text-primary'>$uploadedAt</td>
-                                    <td class='py-2 table-text-secondary'>
-                            ";
-
-                            if ($fileExists) {
-                                echo "
-                                        <a href='$fullPath' target='_blank' class='text-f59e0b hover:underline mr-2'>View</a> |
-                                        <a href='$fullPath' download class='text-f59e0b hover:underline'>Download</a>
-                                ";
-                            } else {
-                                echo "<span class='text-red-500'>File missing</span>";
-                            }
-
-                            echo "
-                                    </td>
-                                </tr>";
-                        }
-
-                        echo "
-                                        </tbody>
-                                    </table>
-
-                                    <button class='close-modal absolute top-4 right-4 text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg'>
-                                        X
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        ";
-
-                        $unitIndex++;
-                    }
-                }
-
-                $notes_query->close();
-            } catch (mysqli_sql_exception $e) {
-                error_log("Error fetching notes: " . $e->getMessage());
-                echo "<p class='text-center text-red-500 col-span-full'>Error loading notes. Please contact the administrator.</p>";
-                $_SESSION['error'] = 'Unable to load notes.';
-            }
-            ?>
+    <!-- Modal (same as before) -->
+    <div id='notes-modal-<?= $unitIndex ?>' class='modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden'>
+        <div class='bg-white p-6 rounded-2xl w-11/12 max-w-3xl overflow-auto max-h-[80vh] relative'>
+            <h4 class='text-lg font-semibold mb-4'>Notes for <?= htmlspecialchars($unitName) ?></h4>
+            <!-- Table of notes here -->
+            <button class='close-modal absolute top-4 right-4 text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg'>X</button>
         </div>
-    </section>
+    </div>
 </div>
-
         <div id="meetings-content" class="hidden">
             <!-- Meetings Section -->
             <section class="card bg-white rounded-2xl p-6 mb-8">
