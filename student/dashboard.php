@@ -214,14 +214,34 @@ if ($course_id && $year_of_study) {
         </a>
     </div>
 
-     <!-- Mobile Breadcrumb -->
+ <!-- Mobile Breadcrumb -->
 <div class="md:hidden bg-white border-b border-gray-200 px-4 py-2 sticky top-16 z-20">
-    <div class="flex items-center text-sm">
-        <a href="#" class="text-gray-500 hover:text-gray-700">Home</a>
-        <svg class="h-4 w-4 mx-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div class="flex items-center text-sm overflow-x-auto">
+        <a href="#" class="nav-link breadcrumb-link text-gray-500 hover:text-gray-700 whitespace-nowrap" data-target="dashboard-content">Dashboard</a>
+        <svg class="h-4 w-4 mx-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
-        <span id="breadcrumb-current" class="font-medium text-92400e">Dashboard</span>
+        <a href="#" class="nav-link breadcrumb-link text-gray-500 hover:text-gray-700 whitespace-nowrap" data-target="courses-content">Courses</a>
+        <svg class="h-4 w-4 mx-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <a href="#" class="nav-link breadcrumb-link text-gray-500 hover:text-gray-700 whitespace-nowrap" data-target="assignments-content">Assignments</a>
+        <svg class="h-4 w-4 mx-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <a href="#" class="nav-link breadcrumb-link text-gray-500 hover:text-gray-700 whitespace-nowrap" data-target="notes-content">Notes</a>
+        <svg class="h-4 w-4 mx-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <a href="#" class="nav-link breadcrumb-link text-gray-500 hover:text-gray-700 whitespace-nowrap" data-target="meetings-content">Meetings</a>
+        <svg class="h-4 w-4 mx-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <a href="#" class="nav-link breadcrumb-link text-gray-500 hover:text-gray-700 whitespace-nowrap" data-target="profile-content">Profile</a>
+        <svg class="h-4 w-4 mx-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <a href="#" class="nav-link breadcrumb-link text-gray-500 hover:text-gray-700 whitespace-nowrap" data-target="notifications-content">Notifications</a>
     </div>
 </div>
 
@@ -1236,22 +1256,47 @@ document.addEventListener('click', function(e) {
 
 
 
-// Update breadcrumb when navigation link is clicked
+// Update breadcrumb active state when navigation link is clicked
 document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-link');
-    const breadcrumbCurrent = document.getElementById('breadcrumb-current');
+    const breadcrumbLinks = document.querySelectorAll('.breadcrumb-link');
     
+    // Function to update active state
+    function updateActiveState(targetData) {
+        // Update all nav links
+        navLinks.forEach(link => {
+            if (link.dataset.target === targetData) {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
+        });
+        
+        // Update breadcrumb links
+        breadcrumbLinks.forEach(link => {
+            if (link.dataset.target === targetData) {
+                link.classList.remove('text-gray-500');
+                link.classList.add('font-medium', 'text-92400e');
+            } else {
+                link.classList.add('text-gray-500');
+                link.classList.remove('font-medium', 'text-92400e');
+            }
+        });
+    }
+    
+    // Add click handlers to all navigation links (both desktop and breadcrumb)
     navLinks.forEach(link => {
         link.addEventListener('click', function(e) {
-            // Update breadcrumb text
-            const linkText = this.textContent.trim().replace(/\d+$/, '').trim(); // Remove notification count if present
-            breadcrumbCurrent.textContent = linkText;
-            
-            // Update active state
-            navLinks.forEach(l => l.classList.remove('active'));
-            this.classList.add('active');
+            const targetData = this.dataset.target;
+            updateActiveState(targetData);
         });
     });
+    
+    // Set initial active state on page load
+    const activeLink = document.querySelector('.nav-link.active');
+    if (activeLink) {
+        updateActiveState(activeLink.dataset.target);
+    }
 });
 </script>
 
