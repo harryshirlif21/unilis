@@ -1,13 +1,11 @@
 <?php
-require_once '../config/db.php';
-session_start();
-
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
-    header("Location: ../login.php");
+    http_response_code(401); // Unauthorized
+    echo json_encode([
+        "error" => "Unauthorized access. Please log in."
+    ]);
     exit;
 }
-
-$lecturer_id = $_SESSION['user_id'];
 
 /* ---------- Helper functions ---------- */
 function json_exit($arr) {
