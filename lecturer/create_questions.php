@@ -575,40 +575,49 @@ function createAddOption(idx){
 /* ---------- EDIT MODAL ---------- */
 let editQuestionIndex = 0;
 
-function openEditModal(id){
+function openEditModal(id) {
   const modal = document.getElementById('editModal');
   const errBox = document.getElementById('edit_error');
-  if(errBox) { errBox.textContent = 'Loading...'; errBox.style.display = 'block'; }
-  if(modal) modal.style.display = 'flex';
+  if (errBox) { errBox.textContent = 'Loading...'; errBox.style.display = 'block'; }
+  if (modal) modal.style.display = 'flex';
 
-  fetch(`../actions.php?action=get_assignment&id=${id}`)
-    .then(r => r.json())
+  fetch(`?action=get_assignment&id=${id}`)
+    .then(async r => {
+      const text = await r.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        throw new Error(text || 'Non-JSON response');
+      }
+    })
     .then(data => {
-      if(!data || data.success===false){
-        errBox.textContent = (data && (data.message || data.error)) || 'Failed to load assignment';
-        errBox.style.display='block';
+      if (!data || data.success === false) {
+        const msg = (data && (data.message || data.error)) || 'Failed to load assignment';
+        const err = document.getElementById('edit_error');
+        if (err) { err.textContent = msg; err.style.display = 'block'; }
         return;
       }
-      errBox.style.display='none';
+      const err = document.getElementById('edit_error');
+      if (err) { err.textContent = ''; err.style.display = 'none'; }
       const a = data.assignment;
       document.getElementById('edit_id').value = a.id;
       document.getElementById('edit_title').value = a.title;
       document.getElementById('edit_description').value = a.description;
-      document.getElementById('edit_due_date').value = a.due_date ? a.due_date.replace(' ','T') : '';
+      document.getElementById('edit_due_date').value = a.due_date ? a.due_date.replace(' ', 'T') : '';
       document.getElementById('edit_unit_id').value = a.unit_id;
 
-      const container = document.getElementById('editQuestionsContainer');
-      container.innerHTML='';
+      const c = document.getElementById('editQuestionsContainer');
+      c.innerHTML = '';
       editQuestionIndex = 0;
-
-      (data.questions || []).forEach((q, idx)=>{
-        q.type = q.type || q.question_type || 'text'; // fix type
-        container.insertAdjacentHTML('beforeend', editQuestionMarkup(idx,q));
+      (data.questions || []).forEach((q, idx) => {
+        const html = editQuestionMarkup(idx, q);
+        c.insertAdjacentHTML('beforeend', html);
       });
     })
-    .catch(err=>{
-      console.error('Edit fetch failed:', err);
-      if(errBox){ errBox.textContent = 'Error fetching data: '+err.message; errBox.style.display='block'; }
+    .catch(err => {
+      console.error('Edit load failed:', err);
+      const eDiv = document.getElementById('edit_error');
+      if (eDiv) { eDiv.textContent = 'Failed to fetch assignment data: ' + err.message; eDiv.style.display = 'block'; }
     });
 }
 
@@ -735,7 +744,6 @@ function editAddQuestion(){
   document.getElementById('editForm').setAttribute('enctype','multipart/form-data');
 }
 
-/* ---------- VIEW QUESTIONS INLINE ---------- */
 function viewQuestions(id, btn){
   const row = btn.closest('tr');
   const qRow = row.nextElementSibling;
@@ -743,26 +751,26 @@ function viewQuestions(id, btn){
   qRow.style.display = 'table-row';
   container.innerHTML = '<div class="small">Loading questions...</div>';
 
-  fetch(`../actions.php?action=get_assignment&id=${id}`)
+  fetch(`?action=get_assignment&id=${id}`)
     .then(r => r.json())
     .then(data => {
-      if(!data || data.success===false){
+      if (!data || data.success === false) {
         container.innerHTML = `<div style="color:#b71c1c">${(data && (data.message||data.error)) || 'Failed to load questions.'}</div>`;
         return;
       }
       const questions = data.questions || [];
-      if(!questions.length){
+      if (!questions.length) {
         container.innerHTML = '<div class="small">No questions added yet.</div>';
         return;
       }
-      const html = questions.map((q,i)=>{
-        const options = (q.type==='multiple_choice' && q.options && q.options.length)
+      const html = questions.map((q, i) => {
+        const options = (q.question_type === 'multiple_choice' && q.options && q.options.length)
           ? `<ul>` + q.options.map(o => `<li>${escapeHtml(o.option_text)} ${o.is_correct==1?'✅':''}</li>`).join('') + `</ul>`
           : '';
-        const media = q.media_url ? `<div class="small">Media: <a target="_blank" href="${q.media_url}">view</a></div>` : '';
+        const media = q.file_url ? `<div class="small">Media: <a target="_blank" href="${q.file_url}">view</a></div>` : '';
         return `<div class="question-card">
           <div class="question-number">${i+1}</div>
-          <div><b>Type:</b> ${q.type} &nbsp; <b>Points:</b> ${q.points}</div>
+          <div><b>Type:</b> ${q.question_type} &nbsp; <b>Points:</b> ${q.points}</div>
           <div style="margin-top:6px"><b>Q:</b> ${escapeHtml(q.question_text)}</div>
           ${media}
           ${options}
@@ -770,8 +778,9 @@ function viewQuestions(id, btn){
       }).join('');
       container.innerHTML = html;
     })
-    .catch(e=>{
+    .catch(e => {
       container.innerHTML = '<div style="color:#b71c1c">Error loading questions.</div>';
+      console.error(e);
     });
 }
 
