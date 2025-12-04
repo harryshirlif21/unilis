@@ -182,6 +182,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignme
 
 // UPDATE interactive assignment
 if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignment') {
+
     $id = intval($_POST['id'] ?? 0);
     if ($id <= 0) {
         $_SESSION['error'] = "Invalid assignment id.";
@@ -193,209 +194,209 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
     $description = $_POST['description'] ?? '';
     $due_date = $_POST['due_date'] ?? null;
     $unit_id = intval($_POST['unit_id'] ?? 0);
-    $questions = $_POST['questions'] ?? [];
 
-    // Ownership check
+    $questions = $_POST['questions'] ?? [];
+    $questionFiles = $_FILES['questions'] ?? null;
+
+    // Authorization check
     $chk = $conn->prepare("SELECT id FROM interactive_assignments WHERE id=? AND lecturer_id=?");
     $chk->bind_param("ii", $id, $lecturer_id);
     $chk->execute();
-    $cres = $chk->get_result();
-    if ($cres->num_rows === 0) {
-        $_SESSION['error'] = "Assignment not found / not authorized";
+
+    if ($chk->get_result()->num_rows === 0) {
+        $_SESSION['error'] = "Assignment not found or unauthorized.";
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
 
-    $questionFiles = $_FILES['questions'] ?? null;
-
     $conn->begin_transaction();
+
     try {
-        // Update assignment
-        $ust = $conn->prepare("UPDATE interactive_assignments SET title=?, description=?, due_date=?, unit_id=? WHERE id=? AND lecturer_id=?");
+
+        // -------------------------
+        // Update assignment record
+        // -------------------------
+        $ust = $conn->prepare("
+            UPDATE interactive_assignments 
+            SET title=?, description=?, due_date=?, unit_id=? 
+            WHERE id=? AND lecturer_id=?
+        ");
         $ust->bind_param("sssiii", $title, $description, $due_date, $unit_id, $id, $lecturer_id);
         $ust->execute();
 
-        // Existing questions in DB
-        $existingQStmt = $conn->prepare("SELECT id, media_url FROM interactive_questions WHERE assignment_id=?");
+        // -------------------------
+        // Load existing questions
+        // -------------------------
+        $existingQStmt = $conn->prepare("
+            SELECT id, media_url 
+            FROM interactive_questions 
+            WHERE interactive_assignment_id=?
+        ");
         $existingQStmt->bind_param("i", $id);
         $existingQStmt->execute();
-        $existingQRes = $existingQStmt->get_result();
+
         $existingQIds = [];
         $existingFiles = [];
-        while ($r = $existingQRes->fetch_assoc()) {
-            $existingQIds[] = (int)$r['id'];
-            $existingFiles[(int)$r['id']] = $r['media_url'];
+
+        $qRes = $existingQStmt->get_result();
+        while ($row = $qRes->fetch_assoc()) {
+            $existingQIds[] = (int)$row['id'];
+            $existingFiles[(int)$row['id']] = $row['media_url'];
         }
 
         $postedQuestionIds = [];
 
+        // -------------------------
+        // Process questions
+        // -------------------------
         foreach ($questions as $qIndex => $q) {
-            $qid = intval($q['id'] ?? 0);
-            $qtext = $q['text'] ?? '';
-            $qtype = $q['type'] ?? 'text';
+
+            $qid     = intval($q['id'] ?? 0);
+            $qtext   = $q['text'] ?? '';
+            $qtype   = $q['question_type'] ?? 'short_answer';
             $qpoints = intval($q['points'] ?? 1);
             $qcorrect = $q['correct'] ?? null;
 
-            // Handle file upload
+            // File upload handler
             $media_url = null;
-            if ($questionFiles
-                && isset($questionFiles['error'][$qIndex]['audio'])
-                && $questionFiles['error'][$qIndex]['audio'] === UPLOAD_ERR_OK
-            ) {
-                $tmpName = $questionFiles['tmp_name'][$qIndex]['audio'];
+
+            if ($questionFiles &&
+                isset($questionFiles['error'][$qIndex]['audio']) &&
+                $questionFiles['error'][$qIndex]['audio'] === UPLOAD_ERR_OK) {
+
+                $tmp = $questionFiles['tmp_name'][$qIndex]['audio'];
                 $orig = basename($questionFiles['name'][$qIndex]['audio']);
+
                 $uploadDir = __DIR__ . "/uploads/questions/";
                 ensure_upload_dir($uploadDir);
+
                 $safe = time() . "_" . safe_filename($orig);
                 $target = $uploadDir . $safe;
-                if (move_uploaded_file($tmpName, $target)) {
+
+                if (move_uploaded_file($tmp, $target)) {
                     $media_url = "uploads/questions/" . $safe;
-                    
-                    // Delete old file if exists
-                    if ($qid > 0 && isset($existingFiles[$qid]) && 
-                        !empty($existingFiles[$qid]) && file_exists(__DIR__ . '/' . $existingFiles[$qid])) {
+
+                    // Remove previous file
+                    if ($qid > 0 && !empty($existingFiles[$qid]) && file_exists(__DIR__ . '/' . $existingFiles[$qid])) {
                         unlink(__DIR__ . '/' . $existingFiles[$qid]);
                     }
                 }
             }
 
+            // -------------------------
+            // UPDATE EXISTING QUESTION
+            // -------------------------
             if ($qid > 0 && in_array($qid, $existingQIds)) {
-                // Update existing question
+
                 if ($media_url === null) {
-                    // Keep existing media_url
                     $media_url = $existingFiles[$qid] ?? null;
                 }
-                
-                $uq = $conn->prepare("UPDATE interactive_questions SET question_text=?, type=?, points=?, media_url=? WHERE id=? AND assignment_id=?");
-                $uq->bind_param("ssisii", $qtext, $qtype, $qpoints, $media_url, $qid, $id);
+
+                $uq = $conn->prepare("
+                    UPDATE interactive_questions 
+                    SET question_text=?, question_type=?, points=?, media_url=? 
+                    WHERE id=? AND interactive_assignment_id=?
+                ");
+                $uq->bind_param("ssissi", $qtext, $qtype, $qpoints, $media_url, $qid, $id);
                 $uq->execute();
+
                 $postedQuestionIds[] = $qid;
 
-                // Options handling
-                if ($qtype === 'multiple_choice') {
-                    $postedOptionIds = [];
-                    $optionsArr = $q['options'] ?? [];
-                    
-                    // Handle both simple array and complex array formats
-                    if (isset($optionsArr[0]) && is_string($optionsArr[0])) {
-                        // Simple format: options[]
-                        foreach ($optionsArr as $optIndex => $optText) {
-                            if (trim($optText) === '') continue;
-                            $is_correct = ($qcorrect !== null && intval($qcorrect) == ($optIndex + 1)) ? 1 : 0;
-                            
-                            // For simplicity, delete all and reinsert
-                            $conn->query("DELETE FROM interactive_options WHERE question_id=$qid");
-                            
-                            foreach ($optionsArr as $optIndex2 => $optText2) {
-                                if (trim($optText2) === '') continue;
-                                $is_correct2 = ($qcorrect !== null && intval($qcorrect) == ($optIndex2 + 1)) ? 1 : 0;
-                                $in = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, is_correct) VALUES (?, ?, ?)");
-                                $in->bind_param("isi", $qid, $optText2, $is_correct2);
-                                $in->execute();
-                            }
-                            break;
-                        }
-                    } else {
-                        // Complex format: options[][text]
-                        foreach ($optionsArr as $optIndex => $opt) {
-                            $opt_id = intval($opt['id'] ?? 0);
-                            $opt_text = $opt['text'] ?? '';
-                            $is_correct = ($qcorrect !== null && intval($qcorrect) == ($optIndex + 1)) ? 1 : 0;
+                // MCQ options
+                if ($qtype === "multiple_choice") {
 
-                            if ($opt_id > 0) {
-                                $up = $conn->prepare("UPDATE interactive_options SET option_text=?, is_correct=? WHERE id=? AND question_id=?");
-                                $up->bind_param("siii", $opt_text, $is_correct, $opt_id, $qid);
-                                $up->execute();
-                                $postedOptionIds[] = $opt_id;
-                            } else {
-                                $in = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, is_correct) VALUES (?, ?, ?)");
-                                $in->bind_param("isi", $qid, $opt_text, $is_correct);
-                                $in->execute();
-                                $postedOptionIds[] = $conn->insert_id;
-                            }
-                        }
+                    // delete all old options and rebuild cleanly
+                    $conn->query("DELETE FROM interactive_options WHERE question_id=$qid");
 
-                        // Delete options not in posted list
-                        $optRes = $conn->query("SELECT id FROM interactive_options WHERE question_id=" . intval($qid));
-                        $existingOptIds = [];
-                        while ($row = $optRes->fetch_assoc()) $existingOptIds[] = (int)$row['id'];
-                        $toDelete = array_diff($existingOptIds, $postedOptionIds);
-                        if (!empty($toDelete)) {
-                            $in = implode(',', array_map('intval', $toDelete));
-                            $conn->query("DELETE FROM interactive_options WHERE id IN ($in)");
+                    if (!empty($q['options'])) {
+                        foreach ($q['options'] as $idx => $opt) {
+                            $opt_text = is_array($opt) ? $opt['text'] : $opt;
+                            if (trim($opt_text) === '') continue;
+
+                            $is_correct = ($qcorrect == ($idx + 1)) ? 1 : 0;
+
+                            $ins = $conn->prepare("
+                                INSERT INTO interactive_options (question_id, option_text, is_correct)
+                                VALUES (?, ?, ?)
+                            ");
+                            $ins->bind_param("isi", $qid, $opt_text, $is_correct);
+                            $ins->execute();
                         }
                     }
                 } else {
-                    // Remove options for non-MCQ questions
+                    // delete MCQ options when switching to non-MCQ
                     $del = $conn->prepare("DELETE FROM interactive_options WHERE question_id=?");
                     $del->bind_param("i", $qid);
                     $del->execute();
                 }
-            } else {
-                // Insert new question
-                if ($media_url === null && isset($q['audio_keep']) && $q['audio_keep'] === 'true') {
-                    // Keep media_url from prefill if needed
-                    $media_url = $q['media_url'] ?? null;
-                }
-                
-                $insQ = $conn->prepare("INSERT INTO interactive_questions (assignment_id, question_text, type, points, media_url) VALUES (?, ?, ?, ?, ?)");
-                $insQ->bind_param("issis", $id, $qtext, $qtype, $qpoints, $media_url);
-                $insQ->execute();
-                $newQid = $insQ->insert_id;
+            }
+
+            // -------------------------
+            // INSERT NEW QUESTION
+            // -------------------------
+            else {
+
+                $ins = $conn->prepare("
+                    INSERT INTO interactive_questions 
+                    (interactive_assignment_id, question_text, question_type, points, media_url)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $ins->bind_param("issis", $id, $qtext, $qtype, $qpoints, $media_url);
+                $ins->execute();
+
+                $newQid = $ins->insert_id;
                 $postedQuestionIds[] = $newQid;
 
                 // Insert MCQ options
-                if ($qtype === 'multiple_choice' && !empty($q['options'])) {
-                    $optionsArr = $q['options'] ?? [];
-                    
-                    if (isset($optionsArr[0]) && is_string($optionsArr[0])) {
-                        // Simple format
-                        foreach ($optionsArr as $optIndex => $optText) {
-                            if (trim($optText) === '') continue;
-                            $is_correct = ($qcorrect !== null && intval($qcorrect) == ($optIndex + 1)) ? 1 : 0;
-                            $in = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, is_correct) VALUES (?, ?, ?)");
-                            $in->bind_param("isi", $newQid, $optText, $is_correct);
-                            $in->execute();
-                        }
-                    } else {
-                        // Complex format
-                        foreach ($optionsArr as $optIndex => $opt) {
-                            $opt_text = $opt['text'] ?? '';
-                            $is_correct = ($qcorrect !== null && intval($qcorrect) == ($optIndex + 1)) ? 1 : 0;
-                            $in = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, is_correct) VALUES (?, ?, ?)");
-                            $in->bind_param("isi", $newQid, $opt_text, $is_correct);
-                            $in->execute();
-                        }
+                if ($qtype === "multiple_choice" && !empty($q['options'])) {
+                    foreach ($q['options'] as $idx => $opt) {
+                        $opt_text = is_array($opt) ? $opt['text'] : $opt;
+                        if (trim($opt_text) === '') continue;
+
+                        $is_correct = ($qcorrect == ($idx + 1)) ? 1 : 0;
+
+                        $ins2 = $conn->prepare("
+                            INSERT INTO interactive_options (question_id, option_text, is_correct)
+                            VALUES (?, ?, ?)
+                        ");
+                        $ins2->bind_param("isi", $newQid, $opt_text, $is_correct);
+                        $ins2->execute();
                     }
                 }
             }
         }
 
-        // Delete questions not in posted list
-        $toRemove = array_diff($existingQIds, $postedQuestionIds);
-        if (!empty($toRemove)) {
-            foreach ($toRemove as $removeId) {
-                // Delete associated file
-                if (isset($existingFiles[$removeId]) && !empty($existingFiles[$removeId]) && file_exists(__DIR__ . '/' . $existingFiles[$removeId])) {
-                    unlink(__DIR__ . '/' . $existingFiles[$removeId]);
+        // -------------------------
+        // DELETE QUESTIONS REMOVED BY USER
+        // -------------------------
+        $toDelete = array_diff($existingQIds, $postedQuestionIds);
+        if (!empty($toDelete)) {
+
+            foreach ($toDelete as $delId) {
+                if (!empty($existingFiles[$delId]) && file_exists(__DIR__ . '/' . $existingFiles[$delId])) {
+                    unlink(__DIR__ . '/' . $existingFiles[$delId]);
                 }
             }
-            $in = implode(',', array_map('intval', $toRemove));
+
+            $in = implode(",", array_map("intval", $toDelete));
             $conn->query("DELETE FROM interactive_options WHERE question_id IN ($in)");
             $conn->query("DELETE FROM interactive_questions WHERE id IN ($in)");
         }
 
         $conn->commit();
+
         $_SESSION['success'] = "Interactive assignment updated successfully.";
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
-    } catch (Exception $ex) {
+
+    } catch (Exception $e) {
         $conn->rollback();
-        $_SESSION['error'] = "Update failed: " . $ex->getMessage();
+        $_SESSION['error'] = "Update failed: " . $e->getMessage();
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
 }
+
 
 // ---------- FETCH lists for initial page output ----------
 $unitsStmt = $conn->prepare("
