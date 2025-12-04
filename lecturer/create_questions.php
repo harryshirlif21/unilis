@@ -24,6 +24,16 @@ function ensure_upload_dir($dir) {
     if (!is_dir($dir)) mkdir($dir, 0777, true);
 }
 
+function sanitize_array_input($input) {
+    if (is_array($input)) {
+        foreach ($input as $key => $value) {
+            $input[$key] = sanitize_array_input($value);
+        }
+        return $input;
+    }
+    return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
+}
+
 /* ---------- GET assignment (AJAX) ---------- */
 if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
     $id = intval($_GET['id'] ?? 0);
@@ -57,13 +67,28 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
 }
 
 /* ---------- DELETE assignment ---------- */
-if (isset($_GET['action']) && $_GET['action'] === 'delete_interactive_assignment') {
-    $id = intval($_GET['id'] ?? 0);
+if (isset($_POST['action']) && $_POST['action'] === 'delete_interactive_assignment') {
+    $id = intval($_POST['id'] ?? 0);
     if ($id > 0) {
+        // First, get all questions to delete associated files
+        $stmt = $conn->prepare("SELECT file_url FROM interactive_questions WHERE assignment_id = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            if (!empty($row['file_url']) && file_exists(__DIR__ . '/' . $row['file_url'])) {
+                unlink(__DIR__ . '/' . $row['file_url']);
+            }
+        }
+        
+        // Delete assignment (cascade will handle questions and options)
         $stmt = $conn->prepare("DELETE FROM interactive_assignments WHERE id=? AND lecturer_id=?");
         $stmt->bind_param("ii", $id, $lecturer_id);
-        $stmt->execute();
-        $_SESSION['success'] = "Assignment deleted successfully!";
+        if ($stmt->execute()) {
+            $_SESSION['success'] = "Assignment deleted successfully!";
+        } else {
+            $_SESSION['error'] = "Failed to delete assignment.";
+        }
     } else {
         $_SESSION['error'] = "Invalid assignment ID.";
     }
@@ -73,8 +98,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_interactive_assignment
 
 /* ---------- CREATE assignment ---------- */
 if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignment') {
-    $title = $_POST['title'] ?? '';
-    $description = $_POST['description'] ?? '';
+    $title = sanitize_array_input($_POST['title'] ?? '');
+    $description = sanitize_array_input($_POST['description'] ?? '');
     $due_date = $_POST['due_date'] ?? null;
     $unit_id = intval($_POST['unit_id'] ?? 0);
     $questions = $_POST['questions'] ?? [];
@@ -88,22 +113,26 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignme
         $assignment_id = $ins->insert_id;
 
         // Handle questions
-        $questionFiles = $_FILES['questions'] ?? null;
+        $questionFiles = $_FILES['questions'] ?? [];
 
         foreach ($questions as $i => $q) {
-            $qtype = $q['type'] ?? 'text';
-            $qtext = $q['text'] ?? '';
+            $qtype = sanitize_array_input($q['type'] ?? 'text');
+            $qtext = sanitize_array_input($q['text'] ?? '');
             $qpoints = intval($q['points'] ?? 1);
 
             $file_url = null;
-            if ($questionFiles && isset($questionFiles['tmp_name'][$i]['file']) && $questionFiles['error'][$i]['file'] === UPLOAD_ERR_OK) {
+            if (isset($questionFiles['tmp_name'][$i]['file']) && 
+                $questionFiles['error'][$i]['file'] === UPLOAD_ERR_OK) {
+                
                 $tmp = $questionFiles['tmp_name'][$i]['file'];
                 $orig = basename($questionFiles['name'][$i]['file']);
                 $uploadDir = __DIR__ . "/uploads/questions/";
                 ensure_upload_dir($uploadDir);
                 $safe = time() . "_" . safe_filename($orig);
                 $target = $uploadDir . $safe;
-                if (move_uploaded_file($tmp, $target)) $file_url = "uploads/questions/" . $safe;
+                if (move_uploaded_file($tmp, $target)) {
+                    $file_url = "uploads/questions/" . $safe;
+                }
             }
 
             // Insert question
@@ -118,6 +147,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignme
                 foreach ($q['options'] as $optIndex => $optText) {
                     if (trim($optText) === '') continue;
                     $is_correct = ($qcorrect === $optIndex + 1) ? 1 : 0;
+                    $optText = sanitize_array_input($optText);
                     $oin = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, points, is_correct) VALUES (?, ?, ?, ?)");
                     $oin->bind_param("isii", $qid, $optText, $qpoints, $is_correct);
                     $oin->execute();
@@ -140,10 +170,14 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignme
 /* ---------- UPDATE assignment ---------- */
 if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignment') {
     $id = intval($_POST['id'] ?? 0);
-    if ($id <= 0) { $_SESSION['error'] = "Invalid assignment ID."; header("Location: " . $_SERVER['PHP_SELF']); exit; }
+    if ($id <= 0) { 
+        $_SESSION['error'] = "Invalid assignment ID."; 
+        header("Location: " . $_SERVER['PHP_SELF']); 
+        exit; 
+    }
 
-    $title = $_POST['title'] ?? '';
-    $description = $_POST['description'] ?? '';
+    $title = sanitize_array_input($_POST['title'] ?? '');
+    $description = sanitize_array_input($_POST['description'] ?? '');
     $due_date = $_POST['due_date'] ?? null;
     $unit_id = intval($_POST['unit_id'] ?? 0);
     $questions = $_POST['questions'] ?? [];
@@ -152,9 +186,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
     $chk = $conn->prepare("SELECT id FROM interactive_assignments WHERE id=? AND lecturer_id=?");
     $chk->bind_param("ii", $id, $lecturer_id);
     $chk->execute();
-    if ($chk->get_result()->num_rows === 0) { $_SESSION['error'] = "Not authorized"; header("Location: " . $_SERVER['PHP_SELF']); exit; }
+    if ($chk->get_result()->num_rows === 0) { 
+        $_SESSION['error'] = "Not authorized"; 
+        header("Location: " . $_SERVER['PHP_SELF']); 
+        exit; 
+    }
 
-    $questionFiles = $_FILES['questions'] ?? null;
+    $questionFiles = $_FILES['questions'] ?? [];
     $conn->begin_transaction();
     try {
         // Update assignment
@@ -163,83 +201,107 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
         $ust->execute();
 
         // Get existing question IDs
-        $existingQStmt = $conn->prepare("SELECT id FROM interactive_questions WHERE assignment_id=?");
+        $existingQStmt = $conn->prepare("SELECT id, file_url FROM interactive_questions WHERE assignment_id=?");
         $existingQStmt->bind_param("i", $id);
         $existingQStmt->execute();
         $existingQRes = $existingQStmt->get_result();
         $existingQIds = [];
-        while ($r = $existingQRes->fetch_assoc()) $existingQIds[] = (int)$r['id'];
+        $existingFiles = [];
+        while ($r = $existingQRes->fetch_assoc()) {
+            $existingQIds[] = (int)$r['id'];
+            $existingFiles[(int)$r['id']] = $r['file_url'];
+        }
 
         $postedQIds = [];
+        $questionIndex = 0;
 
-        foreach ($questions as $qIndex => $q) {
+        // Process each question in the form
+        foreach ($questions as $qKey => $q) {
             $qid = intval($q['id'] ?? 0);
-            $qtype = $q['type'] ?? 'text';
-            $qtext = $q['text'] ?? '';
+            $qtype = sanitize_array_input($q['type'] ?? 'text');
+            $qtext = sanitize_array_input($q['text'] ?? '');
             $qpoints = intval($q['points'] ?? 1);
-
-            // Handle file upload
             $file_url = null;
-            if ($questionFiles && isset($questionFiles['error'][$qIndex]['file']) && $questionFiles['error'][$qIndex]['file'] === UPLOAD_ERR_OK) {
-                $tmp = $questionFiles['tmp_name'][$qIndex]['file'];
-                $orig = basename($questionFiles['name'][$qIndex]['file']);
+
+            // Handle file upload for this question
+            if (isset($questionFiles['tmp_name'][$qKey]['file']) && 
+                $questionFiles['error'][$qKey]['file'] === UPLOAD_ERR_OK) {
+                
+                $tmp = $questionFiles['tmp_name'][$qKey]['file'];
+                $orig = basename($questionFiles['name'][$qKey]['file']);
                 $uploadDir = __DIR__ . "/uploads/questions/";
                 ensure_upload_dir($uploadDir);
                 $safe = time() . "_" . safe_filename($orig);
                 $target = $uploadDir . $safe;
-                if (move_uploaded_file($tmp, $target)) $file_url = "uploads/questions/" . $safe;
-
-                // Delete old file
-                $oldStmt = $conn->prepare("SELECT file_url FROM interactive_questions WHERE id=?");
-                $oldStmt->bind_param("i", $qid);
-                $oldStmt->execute();
-                $oldRow = $oldStmt->get_result()->fetch_assoc();
-                if (!empty($oldRow['file_url']) && file_exists(__DIR__ . '/' . $oldRow['file_url'])) unlink(__DIR__ . '/' . $oldRow['file_url']);
-            } else {
+                if (move_uploaded_file($tmp, $target)) {
+                    $file_url = "uploads/questions/" . $safe;
+                    
+                    // Delete old file if exists
+                    if ($qid > 0 && isset($existingFiles[$qid]) && 
+                        !empty($existingFiles[$qid]) && 
+                        file_exists(__DIR__ . '/' . $existingFiles[$qid])) {
+                        unlink(__DIR__ . '/' . $existingFiles[$qid]);
+                    }
+                }
+            } elseif ($qid > 0) {
+                // Keep existing file
                 $fstmt = $conn->prepare("SELECT file_url FROM interactive_questions WHERE id=?");
                 $fstmt->bind_param("i", $qid);
                 $fstmt->execute();
-                $file_url = $fstmt->get_result()->fetch_assoc()['file_url'] ?? null;
+                $fresult = $fstmt->get_result()->fetch_assoc();
+                $file_url = $fresult['file_url'] ?? null;
             }
 
-            if ($qid > 0) {
+            if ($qid > 0 && in_array($qid, $existingQIds)) {
                 // Update existing question
                 $uq = $conn->prepare("UPDATE interactive_questions SET question_text=?, question_type=?, points=?, file_url=? WHERE id=?");
-                $uq->bind_param("ssisii", $qtext, $qtype, $qpoints, $file_url, $qid, $id);
+                $uq->bind_param("ssisi", $qtext, $qtype, $qpoints, $file_url, $qid);
                 $uq->execute();
                 $postedQIds[] = $qid;
 
-                // Handle options
+                // Handle options for MCQ
                 if ($qtype === 'multiple_choice') {
                     $postedOptIds = [];
                     $optionsArr = $q['options'] ?? [];
                     $qcorrect = intval($q['correct'] ?? 0);
-                    foreach ($optionsArr as $optIndex => $opt) {
+                    
+                    foreach ($optionsArr as $optKey => $opt) {
                         $opt_id = intval($opt['id'] ?? 0);
-                        $opt_text = $opt['text'] ?? '';
-                        $is_correct = ($qcorrect === $optIndex + 1) ? 1 : 0;
+                        $opt_text = sanitize_array_input($opt['text'] ?? '');
+                        $is_correct = 0;
+                        
+                        // Determine if this option is correct
+                        if (is_array($opt)) {
+                            // Options are in format [index][text]
+                            $is_correct = ($qcorrect === intval($optKey) + 1) ? 1 : 0;
+                        } else {
+                            // Legacy format or direct array
+                            $is_correct = ($qcorrect === intval($optKey) + 1) ? 1 : 0;
+                        }
 
                         if ($opt_id > 0) {
-                            $up = $conn->prepare("UPDATE interactive_options SET option_text=?, points=?, is_correct=? WHERE id=? AND question_id=?");
-                            $up->bind_param("siiii", $opt_text, $qpoints, $is_correct, $opt_id, $qid);
+                            // Update existing option
+                            $up = $conn->prepare("UPDATE interactive_options SET option_text=?, is_correct=? WHERE id=?");
+                            $up->bind_param("sii", $opt_text, $is_correct, $opt_id);
                             $up->execute();
                             $postedOptIds[] = $opt_id;
                         } else {
+                            // Insert new option
                             $in = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, points, is_correct) VALUES (?, ?, ?, ?)");
                             $in->bind_param("isii", $qid, $opt_text, $qpoints, $is_correct);
                             $in->execute();
                             $postedOptIds[] = $in->insert_id;
                         }
                     }
-                    // Delete removed options
-                    $existingOpts = $conn->query("SELECT id FROM interactive_options WHERE question_id=" . intval($qid));
-                    $existingOptIds = [];
-                    while ($row = $existingOpts->fetch_assoc()) $existingOptIds[] = (int)$row['id'];
-                    $toDelete = array_diff($existingOptIds, $postedOptIds);
-                    if (!empty($toDelete)) $conn->query("DELETE FROM interactive_options WHERE id IN (" . implode(',', $toDelete) . ")");
+                    
+                    // Delete options not in posted list
+                    if (!empty($postedOptIds)) {
+                        $optIdsStr = implode(',', $postedOptIds);
+                        $conn->query("DELETE FROM interactive_options WHERE question_id=$qid AND id NOT IN ($optIdsStr)");
+                    }
                 } else {
-                    // Remove leftover options
-                    $conn->prepare("DELETE FROM interactive_options WHERE question_id=?")->bind_param("i", $qid)->execute();
+                    // Remove all options for non-MCQ questions
+                    $conn->query("DELETE FROM interactive_options WHERE question_id=$qid");
                 }
 
             } else {
@@ -254,23 +316,35 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
                 if ($qtype === 'multiple_choice') {
                     $optionsArr = $q['options'] ?? [];
                     $qcorrect = intval($q['correct'] ?? 0);
-                    foreach ($optionsArr as $optIndex => $opt) {
-                        $opt_text = $opt['text'] ?? '';
-                        $is_correct = ($qcorrect === $optIndex + 1) ? 1 : 0;
+                    
+                    foreach ($optionsArr as $optKey => $opt) {
+                        $opt_text = sanitize_array_input(is_array($opt) ? ($opt['text'] ?? '') : $opt);
+                        $is_correct = ($qcorrect === intval($optKey) + 1) ? 1 : 0;
                         $in = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, points, is_correct) VALUES (?, ?, ?, ?)");
                         $in->bind_param("isii", $newQid, $opt_text, $qpoints, $is_correct);
                         $in->execute();
                     }
                 }
             }
+            $questionIndex++;
         }
 
-        // Delete removed questions
-        $toRemove = array_diff($existingQIds, $postedQIds);
-        if (!empty($toRemove)) {
-            $idsStr = implode(',', array_map('intval', $toRemove));
-            $conn->query("DELETE FROM interactive_options WHERE question_id IN ($idsStr)");
-            $conn->query("DELETE FROM interactive_questions WHERE id IN ($idsStr)");
+        // Delete questions not in posted list
+        if (!empty($existingQIds)) {
+            $toRemove = array_diff($existingQIds, $postedQIds);
+            if (!empty($toRemove)) {
+                foreach ($toRemove as $removeId) {
+                    // Delete associated file
+                    if (isset($existingFiles[$removeId]) && 
+                        !empty($existingFiles[$removeId]) && 
+                        file_exists(__DIR__ . '/' . $existingFiles[$removeId])) {
+                        unlink(__DIR__ . '/' . $existingFiles[$removeId]);
+                    }
+                }
+                $idsStr = implode(',', $toRemove);
+                $conn->query("DELETE FROM interactive_options WHERE question_id IN ($idsStr)");
+                $conn->query("DELETE FROM interactive_questions WHERE id IN ($idsStr)");
+            }
         }
 
         $conn->commit();
@@ -327,6 +401,7 @@ table th{background:var(--primary);color:#fff}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;border:0;cursor:pointer;text-decoration:none;color:#fff}
 .btn-edit{background:var(--warn)}
 .btn-delete{background:var(--danger)}
+.btn-primary{background:var(--primary)}
 .small{font-size:13px;color:var(--muted)}
 .input-group label{display:block;margin-bottom:6px;font-weight:600}
 .input{width:100%;padding:10px;border-radius:6px;border:1px solid #dcdfe6}
@@ -340,6 +415,7 @@ table th{background:var(--primary);color:#fff}
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center}
 .modal-content{background:#fff;width:90%;max-width:1000px;border-radius:10px;padding:18px;max-height:90vh;overflow:auto}
 .close{float:right;font-size:20px;cursor:pointer}
+.questions-list .question-card{margin:10px 0;padding:10px;background:#f9f9f9}
 </style>
 </head>
 <body><div class="container">
@@ -347,6 +423,13 @@ table th{background:var(--primary);color:#fff}
   <!-- Manage Assignments -->
   <div class="section">
     <h2>My Interactive Assignments</h2>
+
+    <?php if (!empty($_SESSION['error'])): ?>
+      <div style="color:#b71c1c;margin-bottom:10px"><?= htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
+    <?php endif; ?>
+    <?php if (!empty($_SESSION['success'])): ?>
+      <div style="color:#1b5e20;margin-bottom:10px"><?= htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
+    <?php endif; ?>
 
     <?php if ($assignments): ?>
       <table>
@@ -368,7 +451,7 @@ table th{background:var(--primary);color:#fff}
                 <button class="btn btn-edit" onclick="openEditModal(<?= $a['id'] ?>)"><i class="fas fa-edit"></i> Edit</button>
                 <button class="btn btn-add" onclick="viewQuestions(<?= $a['id'] ?>, this)"><i class="fas fa-list"></i> View Questions</button>
                 <a class="btn btn-primary" href="view_scores.php?id=<?= $a['id'] ?>"><i class="fas fa-chart-bar"></i> View Scores</a>
-                <a class="btn btn-delete" href="../actions.php?action=delete_interactive_assignment&id=<?= $a['id'] ?>" onclick="return confirm('Delete this assignment?')"><i class="fas fa-trash"></i> Delete</a>
+                <button class="btn btn-delete" onclick="deleteAssignment(<?= $a['id'] ?>)"><i class="fas fa-trash"></i> Delete</button>
               </td>
             </tr>
             <tr class="questions-row" style="display:none">
@@ -385,14 +468,8 @@ table th{background:var(--primary);color:#fff}
   <!-- Create New Assignment -->
   <div class="section">
     <h2>Create New Interactive Assignment</h2>
-    <?php if (!empty($_SESSION['error'])): ?>
-      <div style="color:#b71c1c;margin-bottom:10px"><?= htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
-    <?php endif; ?>
-    <?php if (!empty($_SESSION['success'])): ?>
-      <div style="color:#1b5e20;margin-bottom:10px"><?= htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
-    <?php endif; ?>
 
-    <form id="assignmentForm" method="POST" action="../actions.php" enctype="multipart/form-data">
+    <form id="assignmentForm" method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" enctype="multipart/form-data">
       <input type="hidden" name="action" value="create_interactive_assignment">
       <div class="assignment-row">
         <div>
@@ -435,7 +512,7 @@ table th{background:var(--primary);color:#fff}
     <h3>Edit Assignment</h3>
     <div id="edit_error" style="display:none;color:#b71c1c;margin:8px 0;">Error</div>
 
-    <form id="editForm" method="POST" action="" enctype="multipart/form-data">
+    <form id="editForm" method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" enctype="multipart/form-data">
       <input type="hidden" name="action" value="update_interactive_assignment">
       <input type="hidden" name="id" id="edit_id">
 
@@ -518,20 +595,22 @@ function createQuestionMarkup(idx, prefill = null) {
 
       <div id="create_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
         <label class="input-group label">Options</label>
-        <div class="option-input">
-          <input type="radio" name="questions[${idx}][correct]" value="1">
-          <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1">
-        </div>
-        <div class="option-input">
-          <input type="radio" name="questions[${idx}][correct]" value="2">
-          <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2">
+        <div id="create_options_list_${idx}">
+          <div class="option-input">
+            <input type="radio" name="questions[${idx}][correct]" value="1">
+            <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1">
+          </div>
+          <div class="option-input">
+            <input type="radio" name="questions[${idx}][correct]" value="2">
+            <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2">
+          </div>
         </div>
         <button type="button" class="btn btn-add" onclick="createAddOption(${idx})">Add option</button>
       </div>
 
       <div id="create_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
         <label class="input-group label">Upload question audio (optional)</label>
-        <input type="file" name="questions[${idx}][audio]" accept="audio/*">
+        <input type="file" name="questions[${idx}][file]">
         ${mediaNote}
       </div>
 
@@ -562,7 +641,7 @@ function createToggleOptions(idx){
 }
 
 function createAddOption(idx){
-  const div = document.getElementById('create_options_'+idx);
+  const div = document.getElementById('create_options_list_'+idx);
   if(!div) return;
   const count = div.querySelectorAll('.option-input').length + 1;
   const html = `<div class="option-input">
@@ -626,19 +705,31 @@ function closeEditModal(){
 }
 
 function editQuestionMarkup(idx,q){
-  const type = q.type || 'text';
-  const mediaNote = q.media_url ? `<div class="small">Existing media: <a target="_blank" href="${q.media_url}">view</a></div>` : '';
-
-  const optionsHtml = (q.options && q.options.length) ? q.options.map((opt,oi)=>
-    `<div class="option-input">
-      <input type="hidden" name="questions[${idx}][options][${oi}][id]" value="${opt.id}">
-      <input class="input" type="text" name="questions[${idx}][options][${oi}][text]" value="${escapeHtml(opt.option_text)}">
-      <input type="radio" name="questions[${idx}][correct]" value="${oi+1}" ${opt.is_correct==1?'checked':''}>
-    </div>`
-  ).join('') : `
-    <div class="option-input"><input type="radio" name="questions[${idx}][correct]" value="1"><input class="input" type="text" name="questions[${idx}][options][0][text]" placeholder="Option 1"></div>
-    <div class="option-input"><input type="radio" name="questions[${idx}][correct]" value="2"><input class="input" type="text" name="questions[${idx}][options][1][text]" placeholder="Option 2"></div>
-  `;
+  const type = q.question_type || 'text';
+  const mediaNote = q.file_url ? `<div class="small">Existing media: <a target="_blank" href="${q.file_url}">view</a></div>` : '';
+  
+  // Build options HTML
+  let optionsHtml = '';
+  if (type === 'multiple_choice' && q.options && q.options.length) {
+    q.options.forEach((opt, oi) => {
+      optionsHtml += `
+        <div class="option-input">
+          <input type="hidden" name="questions[${idx}][options][${oi}][id]" value="${opt.id}">
+          <input class="input" type="text" name="questions[${idx}][options][${oi}][text]" value="${escapeHtml(opt.option_text)}">
+          <input type="radio" name="questions[${idx}][correct]" value="${oi+1}" ${opt.is_correct==1?'checked':''}>
+        </div>`;
+    });
+  } else if (type === 'multiple_choice') {
+    optionsHtml = `
+      <div class="option-input">
+        <input type="radio" name="questions[${idx}][correct]" value="1">
+        <input class="input" type="text" name="questions[${idx}][options][0][text]" placeholder="Option 1">
+      </div>
+      <div class="option-input">
+        <input type="radio" name="questions[${idx}][correct]" value="2">
+        <input class="input" type="text" name="questions[${idx}][options][1][text]" placeholder="Option 2">
+      </div>`;
+  }
 
   return `
     <div class="question-card" id="edit_q_${idx}">
@@ -669,7 +760,7 @@ function editQuestionMarkup(idx,q){
 
       <div id="edit_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
         <label class="input-group label">Replace / Upload question audio</label>
-        <input type="file" name="questions[${idx}][audio]" accept="audio/*">
+        <input type="file" name="questions[${idx}][file]">
         ${mediaNote}
       </div>
 
@@ -695,12 +786,12 @@ function editToggleOptions(idx){
 function editAddOption(qIdx){
   const div = document.getElementById('edit_options_'+qIdx);
   if(!div) return;
-  const count = div.querySelectorAll('.option-input').length + 1;
-  const idx = count-1;
+  const count = div.querySelectorAll('.option-input').length;
+  const idx = count;
   const html = `<div class="option-input">
     <input type="hidden" name="questions[${qIdx}][options][${idx}][id]" value="0">
-    <input class="input" type="text" name="questions[${qIdx}][options][${idx}][text]" placeholder="Option ${count}">
-    <input type="radio" name="questions[${qIdx}][correct]" value="${count}">
+    <input class="input" type="text" name="questions[${qIdx}][options][${idx}][text]" placeholder="Option ${idx+1}">
+    <input type="radio" name="questions[${qIdx}][correct]" value="${idx+1}">
   </div>`;
   div.insertAdjacentHTML('beforeend', html);
 }
@@ -729,13 +820,21 @@ function editAddQuestion(){
       </div>
       <div id="edit_options_${idx}" style="margin-top:8px; display:none">
         <label class="input-group label">Options</label>
-        <div class="option-input"><input type="radio" name="questions[${idx}][correct]" value="1"><input class="input" type="text" name="questions[${idx}][options][0][text]" placeholder="Option 1"></div>
-        <div class="option-input"><input type="radio" name="questions[${idx}][correct]" value="2"><input class="input" type="text" name="questions[${idx}][options][1][text]" placeholder="Option 2"></div>
+        <div class="option-input">
+          <input type="hidden" name="questions[${idx}][options][0][id]" value="0">
+          <input class="input" type="text" name="questions[${idx}][options][0][text]" placeholder="Option 1">
+          <input type="radio" name="questions[${idx}][correct]" value="1">
+        </div>
+        <div class="option-input">
+          <input type="hidden" name="questions[${idx}][options][1][id]" value="0">
+          <input class="input" type="text" name="questions[${idx}][options][1][text]" placeholder="Option 2">
+          <input type="radio" name="questions[${idx}][correct]" value="2">
+        </div>
         <button type="button" class="btn btn-add" onclick="editAddOption(${idx})">Add option</button>
       </div>
       <div id="edit_audio_${idx}" style="margin-top:8px;display:none">
         <label class="input-group label">Upload question audio</label>
-        <input type="file" name="questions[${idx}][audio]" accept="audio/*">
+        <input type="file" name="questions[${idx}][file]">
       </div>
       <div style="margin-top:10px"><button type="button" class="btn btn-delete" onclick="removeEditQuestion(${idx})">Remove Question</button></div>
     </div>
@@ -748,6 +847,13 @@ function viewQuestions(id, btn){
   const row = btn.closest('tr');
   const qRow = row.nextElementSibling;
   const container = qRow.querySelector('.questions-list');
+  const isVisible = qRow.style.display === 'table-row';
+  
+  if (isVisible) {
+    qRow.style.display = 'none';
+    return;
+  }
+  
   qRow.style.display = 'table-row';
   container.innerHTML = '<div class="small">Loading questions...</div>';
 
@@ -765,7 +871,9 @@ function viewQuestions(id, btn){
       }
       const html = questions.map((q, i) => {
         const options = (q.question_type === 'multiple_choice' && q.options && q.options.length)
-          ? `<ul>` + q.options.map(o => `<li>${escapeHtml(o.option_text)} ${o.is_correct==1?'✅':''}</li>`).join('') + `</ul>`
+          ? `<ul style="margin:5px 0;padding-left:20px">` + q.options.map(o => 
+              `<li>${escapeHtml(o.option_text)} ${o.is_correct==1?'✅':''}</li>`
+            ).join('') + `</ul>`
           : '';
         const media = q.file_url ? `<div class="small">Media: <a target="_blank" href="${q.file_url}">view</a></div>` : '';
         return `<div class="question-card">
@@ -784,8 +892,39 @@ function viewQuestions(id, btn){
     });
 }
 
+function deleteAssignment(id) {
+  if (confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>';
+    
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'delete_interactive_assignment';
+    form.appendChild(actionInput);
+    
+    const idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'id';
+    idInput.value = id;
+    form.appendChild(idInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
+
 // ---------- INIT ----------
 addQuestion();
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('editModal');
+  if (event.target == modal) {
+    closeEditModal();
+  }
+}
 </script>
 </body>
 </html>
