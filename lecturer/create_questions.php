@@ -321,6 +321,101 @@ $stmt = $conn->prepare("
 $stmt->bind_param("i", $lecturer_id);
 $stmt->execute();
 $assignments = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// CREATE assignment
+if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignment') {
+
+    $title = $_POST['title'] ?? '';
+    $description = $_POST['description'] ?? '';
+    $due_date = $_POST['due_date'] ?? null;
+    $unit_id = intval($_POST['unit_id'] ?? 0);
+    $questions = $_POST['questions'] ?? [];
+
+    $conn->begin_transaction();
+
+    try {
+
+        // Insert assignment
+        $ins = $conn->prepare("
+            INSERT INTO interactive_assignments 
+            (lecturer_id, unit_id, title, description, due_date, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $ins->bind_param("iisss", $lecturer_id, $unit_id, $title, $description, $due_date);
+        $ins->execute();
+
+        $assignment_id = $conn->insert_id;
+
+        $questionFiles = $_FILES['questions'] ?? null;
+
+        foreach ($questions as $i => $q) {
+
+            $qtext   = $q['text'] ?? '';
+            $qtype   = $q['type'] ?? 'short_answer';
+            $qpoints = intval($q['points'] ?? 1);
+            $qcorrect = $q['correct'] ?? null;
+
+            // Handle media
+            $media_url = null;
+
+            if ($questionFiles &&
+                isset($questionFiles['error'][$i]['audio']) &&
+                $questionFiles['error'][$i]['audio'] === UPLOAD_ERR_OK) {
+
+                $tmp = $questionFiles['tmp_name'][$i]['audio'];
+                $orig = basename($questionFiles['name'][$i]['audio']);
+                $uploadDir = __DIR__ . "/uploads/questions/";
+                ensure_upload_dir($uploadDir);
+
+                $safe = time() . "_" . safe_filename($orig);
+                $target = $uploadDir . $safe;
+
+                if (move_uploaded_file($tmp, $target)) {
+                    $media_url = "uploads/questions/" . $safe;
+                }
+            }
+
+            // INSERT QUESTION (FIXED COLUMN NAMES)
+            $qins = $conn->prepare("
+                INSERT INTO interactive_questions
+                (interactive_assignment_id, question_text, question_type, points, media_url)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $qins->bind_param("issis", $assignment_id, $qtext, $qtype, $qpoints, $media_url);
+            $qins->execute();
+
+            $qid = $conn->insert_id;
+
+            // Insert MCQ Options
+            if ($qtype === "multiple_choice" && !empty($q['options'])) {
+                foreach ($q['options'] as $index => $optText) {
+                    if (trim($optText) === "") continue;
+
+                    $is_correct = ($qcorrect == ($index + 1)) ? 1 : 0;
+
+                    $oin = $conn->prepare("
+                        INSERT INTO interactive_options (question_id, option_text, is_correct)
+                        VALUES (?, ?, ?)
+                    ");
+                    $oin->bind_param("isi", $qid, $optText, $is_correct);
+                    $oin->execute();
+                }
+            }
+        }
+
+        $conn->commit();
+        $_SESSION['success'] = "Assignment created with questions.";
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+
+    } catch (Exception $ex) {
+        $conn->rollback();
+        $_SESSION['error'] = "Create failed: " . $ex->getMessage();
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    }
+}
+
 ?>
 <!doctype html>
 <html lang="en">
@@ -398,44 +493,47 @@ table th{background:var(--primary);color:#fff}
   </div>
 
   <!-- Create New Assignment -->
-  <div class="section">
-    <h2>Create New Interactive Assignment</h2>
+<div class="section">
+  <h2>Create New Interactive Assignment</h2>
 
-    <form id="assignmentForm" method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" enctype="multipart/form-data">
-      <input type="hidden" name="action" value="create_interactive_assignment">
-      <div class="assignment-row">
-        <div>
-          <label class="input-group label">Title</label>
-          <input class="input" type="text" name="title" required>
-        </div>
-        <div>
-          <label class="input-group label">Description</label>
-          <input class="input" type="text" name="description" required>
-        </div>
-        <div>
-          <label class="input-group label">Due Date</label>
-          <input class="input" type="datetime-local" name="due_date" required>
-        </div>
-        <div>
-          <label class="input-group label">Unit</label>
-          <select class="input" name="unit_id" required>
-            <option value="">-- Select Unit --</option>
-            <?php foreach ($units as $u): ?>
-              <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
+  <form id="assignmentForm" method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" enctype="multipart/form-data">
+    <input type="hidden" name="action" value="create_interactive_assignment">
+
+    <div class="assignment-row">
+      <div>
+        <label class="input-group label">Title</label>
+        <input class="input" type="text" name="title" required>
       </div>
-
-      <div id="questionsContainer"></div>
-
-      <div style="display:flex;gap:12px;margin-top:8px">
-        <button type="button" class="btn btn-add" onclick="addQuestion()">+ Add Question</button>
-        <button type="submit" class="btn btn-green">Save Assignment</button>
+      <div>
+        <label class="input-group label">Description</label>
+        <input class="input" type="text" name="description" required>
       </div>
-    </form>
-  </div>
+      <div>
+        <label class="input-group label">Due Date</label>
+        <input class="input" type="datetime-local" name="due_date" required>
+      </div>
+      <div>
+        <label class="input-group label">Unit</label>
+        <select class="input" name="unit_id" required>
+          <option value="">-- Select Unit --</option>
+          <?php foreach ($units as $u): ?>
+            <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+
+    <h3>Questions</h3>
+    <div id="questionsContainer"></div>
+
+    <div style="display:flex;gap:12px;margin-top:8px">
+      <button type="button" class="btn btn-add" onclick="addQuestion()">+ Add Question</button>
+      <button type="submit" class="btn btn-green">Save Assignment</button>
+    </div>
+  </form>
 </div>
+
+
 
 <!-- Edit Modal -->
 <div id="editModal" class="modal" role="dialog" aria-modal="true">
@@ -483,22 +581,23 @@ table th{background:var(--primary);color:#fff}
   </div>
 </div>
 <script>
-/* ---------- Utility ---------- */
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/[&<>"'\/]/g, s =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;'}[s])
-  );
-}
-
-/* ---------- CREATE ASSIGNMENT ---------- */
+let questionCount = 0;
 let createQuestionIndex = 0;
+let editQuestionIndex = 0;
+
+/* ---------- CREATE / ADD QUESTIONS ---------- */
+function addQuestion(prefill = null) {
+  const container = document.getElementById('questionsContainer');
+  const idx = createQuestionIndex++;
+  container.insertAdjacentHTML('beforeend', createQuestionMarkup(idx, prefill));
+}
 
 function createQuestionMarkup(idx, prefill = null) {
   const type = (prefill && prefill.type) ? prefill.type : 'text';
   const textVal = (prefill && prefill.question_text) ? prefill.question_text : '';
   const pointsVal = (prefill && prefill.points) ? prefill.points : 1;
   const mediaNote = (prefill && prefill.media_url) ? `<div class="small">Existing media: <a target="_blank" href="${prefill.media_url}">view</a></div>` : '';
+  const imageNote = (prefill && prefill.image_url) ? `<div class="small">Existing image: <a target="_blank" href="${prefill.image_url}">view</a></div>` : '';
 
   return `
     <div class="question-card" id="create_q_${idx}">
@@ -511,10 +610,12 @@ function createQuestionMarkup(idx, prefill = null) {
           <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
         </select>
       </div>
+
       <div style="margin-top:8px">
         <label class="input-group label">Question Text</label>
         <textarea class="input" name="questions[${idx}][text]" required>${textVal}</textarea>
       </div>
+
       <div style="margin-top:8px">
         <label class="input-group label">Points</label>
         <input class="input" type="number" name="questions[${idx}][points]" min="1" value="${pointsVal}" required>
@@ -541,6 +642,12 @@ function createQuestionMarkup(idx, prefill = null) {
         ${mediaNote}
       </div>
 
+      <div id="create_image_${idx}" style="margin-top:8px; display:block">
+        <label class="input-group label">Upload question image (optional)</label>
+        <input type="file" name="questions[${idx}][image]" accept="image/*">
+        ${imageNote}
+      </div>
+
       <div style="margin-top:10px">
         <button type="button" class="btn btn-delete" onclick="removeCreateQuestion(${idx})">Remove Question</button>
       </div>
@@ -548,10 +655,15 @@ function createQuestionMarkup(idx, prefill = null) {
   `;
 }
 
-function addQuestion(prefill = null){
-  const container = document.getElementById('questionsContainer');
-  const idx = createQuestionIndex++;
-  container.insertAdjacentHTML('beforeend', createQuestionMarkup(idx, prefill));
+function createAddOption(idx){
+  const div = document.getElementById('create_options_list_'+idx);
+  if(!div) return;
+  const count = div.querySelectorAll('.option-input').length + 1;
+  const html = `<div class="option-input">
+    <input type="radio" name="questions[${idx}][correct]" value="${count}">
+    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option ${count}">
+  </div>`;
+  div.insertAdjacentHTML('beforeend', html);
 }
 
 function removeCreateQuestion(idx){
@@ -566,20 +678,7 @@ function createToggleOptions(idx){
   document.getElementById('create_audio_'+idx).style.display = (sel.value === 'speech') ? 'block' : 'none';
 }
 
-function createAddOption(idx){
-  const div = document.getElementById('create_options_list_'+idx);
-  if(!div) return;
-  const count = div.querySelectorAll('.option-input').length + 1;
-  const html = `<div class="option-input">
-    <input type="radio" name="questions[${idx}][correct]" value="${count}">
-    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option ${count}">
-  </div>`;
-  div.insertAdjacentHTML('beforeend', html);
-}
-
-/* ---------- EDIT MODAL ---------- */
-let editQuestionIndex = 0;
-
+/* ---------- EDIT QUESTIONS ---------- */
 function openEditModal(id) {
   const modal = document.getElementById('editModal');
   const errBox = document.getElementById('edit_error');
@@ -589,21 +688,15 @@ function openEditModal(id) {
   fetch(`?action=get_assignment&id=${id}`)
     .then(async r => {
       const text = await r.text();
-      try {
-        return JSON.parse(text);
-      } catch (e) {
-        throw new Error(text || 'Failed to load assignment data');
-      }
+      try { return JSON.parse(text); } catch(e) { throw new Error(text || 'Failed to load assignment data'); }
     })
     .then(data => {
       if (!data || data.success === false) {
         const msg = (data && (data.message || data.error)) || 'Failed to load assignment';
-        const err = document.getElementById('edit_error');
-        if (err) { err.textContent = msg; err.style.display = 'block'; }
+        if (errBox) { errBox.textContent = msg; errBox.style.display = 'block'; }
         return;
       }
-      const err = document.getElementById('edit_error');
-      if (err) { err.textContent = ''; err.style.display = 'none'; }
+      if (errBox) { errBox.textContent = ''; errBox.style.display = 'none'; }
       const a = data.assignment;
       document.getElementById('edit_id').value = a.id;
       document.getElementById('edit_title').value = a.title;
@@ -623,7 +716,6 @@ function openEditModal(id) {
       console.error('Edit load failed:', err);
       const eDiv = document.getElementById('edit_error');
       let errorMsg = err.message;
-      // Check for session expiration
       if (errorMsg.includes('login') || errorMsg.includes('Sign In') || errorMsg.includes('<!DOCTYPE html>')) {
         errorMsg = 'Your session has expired. Please refresh the page and login again.';
         setTimeout(() => { window.location.reload(); }, 3000);
@@ -632,15 +724,11 @@ function openEditModal(id) {
     });
 }
 
-function closeEditModal(){
-  document.getElementById('editModal').style.display = 'none';
-}
-
 function editQuestionMarkup(idx,q){
   const type = q.type || 'text';
   const mediaNote = q.media_url ? `<div class="small">Existing media: <a target="_blank" href="${q.media_url}">view</a></div>` : '';
-  
-  // Build options HTML
+  const imageNote = q.image_url ? `<div class="small">Existing image: <a target="_blank" href="${q.image_url}">view</a></div>` : '';
+
   let optionsHtml = '';
   if (type === 'multiple_choice' && q.options && q.options.length) {
     q.options.forEach((opt, oi) => {
@@ -674,10 +762,12 @@ function editQuestionMarkup(idx,q){
           <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
         </select>
       </div>
+
       <div style="margin-top:8px">
         <label class="input-group label">Question Text</label>
         <input class="input" type="text" name="questions[${idx}][text]" value="${escapeHtml(q.question_text)}" required>
       </div>
+
       <div style="margin-top:8px">
         <label class="input-group label">Points</label>
         <input class="input" type="number" name="questions[${idx}][points]" min="1" value="${q.points}" required>
@@ -693,6 +783,12 @@ function editQuestionMarkup(idx,q){
         <label class="input-group label">Replace / Upload question audio</label>
         <input type="file" name="questions[${idx}][audio]" accept="audio/*">
         ${mediaNote}
+      </div>
+
+      <div id="edit_image_${idx}" style="margin-top:8px; display:block">
+        <label class="input-group label">Replace / Upload question image</label>
+        <input type="file" name="questions[${idx}][image]" accept="image/*">
+        ${imageNote}
       </div>
 
       <div style="margin-top:10px">
@@ -728,58 +824,19 @@ function editAddOption(qIdx){
 function editAddQuestion(){
   const container = document.getElementById('editQuestionsContainer');
   const idx = 10000 + (editQuestionIndex++);
-  const html = `
-    <div class="question-card" id="edit_q_${idx}">
-      <div class="question-number">${idx}</div>
-      <div>
-        <label class="input-group label">Question Type</label>
-        <select class="input" name="questions[${idx}][type]" onchange="editToggleOptions(${idx})">
-          <option value="text">Text Answer</option>
-          <option value="multiple_choice">Multiple Choice</option>
-          <option value="speech">Speech / Audio</option>
-        </select>
-      </div>
-      <div style="margin-top:8px">
-        <label class="input-group label">Question Text</label>
-        <input class="input" type="text" name="questions[${idx}][text]" required>
-      </div>
-      <div style="margin-top:8px">
-        <label class="input-group label">Points</label>
-        <input class="input" type="number" name="questions[${idx}][points]" value="1" min="1" required>
-      </div>
-      <div id="edit_options_${idx}" style="margin-top:8px; display:none">
-        <label class="input-group label">Options</label>
-        <div class="option-input">
-          <input type="radio" name="questions[${idx}][correct]" value="1">
-          <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1">
-        </div>
-        <div class="option-input">
-          <input type="radio" name="questions[${idx}][correct]" value="2">
-          <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2">
-        </div>
-        <button type="button" class="btn btn-add" onclick="editAddOption(${idx})">Add option</button>
-      </div>
-      <div id="edit_audio_${idx}" style="margin-top:8px;display:none">
-        <label class="input-group label">Upload question audio</label>
-        <input type="file" name="questions[${idx}][audio]" accept="audio/*">
-      </div>
-      <div style="margin-top:10px"><button type="button" class="btn btn-delete" onclick="removeEditQuestion(${idx})">Remove Question</button></div>
-    </div>
-  `;
+  const html = createQuestionMarkup(idx);
   container.insertAdjacentHTML('beforeend', html);
 }
 
+/* ---------- VIEW / DELETE ASSIGNMENTS ---------- */
 function viewQuestions(id, btn){
   const row = btn.closest('tr');
   const qRow = row.nextElementSibling;
   const container = qRow.querySelector('.questions-list');
   const isVisible = qRow.style.display === 'table-row';
-  
-  if (isVisible) {
-    qRow.style.display = 'none';
-    return;
-  }
-  
+
+  if (isVisible) { qRow.style.display = 'none'; return; }
+
   qRow.style.display = 'table-row';
   container.innerHTML = '<div class="small">Loading questions...</div>';
 
@@ -802,11 +859,12 @@ function viewQuestions(id, btn){
             ).join('') + `</ul>`
           : '';
         const media = q.media_url ? `<div class="small">Media: <a target="_blank" href="${q.media_url}">view</a></div>` : '';
+        const image = q.image_url ? `<div class="small">Image: <a target="_blank" href="${q.image_url}">view</a></div>` : '';
         return `<div class="question-card">
           <div class="question-number">${i+1}</div>
           <div><b>Type:</b> ${q.type} &nbsp; <b>Points:</b> ${q.points}</div>
           <div style="margin-top:6px"><b>Q:</b> ${escapeHtml(q.question_text)}</div>
-          ${media}
+          ${media}${image}
           ${options}
         </div>`;
       }).join('');
@@ -823,34 +881,41 @@ function deleteAssignment(id) {
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>';
-    
+
     const actionInput = document.createElement('input');
     actionInput.type = 'hidden';
     actionInput.name = 'action';
     actionInput.value = 'delete_interactive_assignment';
     form.appendChild(actionInput);
-    
+
     const idInput = document.createElement('input');
     idInput.type = 'hidden';
     idInput.name = 'id';
     idInput.value = id;
     form.appendChild(idInput);
-    
+
     document.body.appendChild(form);
     form.submit();
   }
 }
 
-// ---------- INIT ----------
+/* ---------- UTILITY ---------- */
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"'\/]/g, s =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;'}[s])
+  );
+}
+
+/* ---------- INIT ---------- */
 addQuestion();
 
 // Close modal when clicking outside
 window.onclick = function(event) {
   const modal = document.getElementById('editModal');
-  if (event.target == modal) {
-    closeEditModal();
-  }
+  if (event.target == modal) { modal.style.display = 'none'; }
 }
 </script>
+
 </body>
 </html>
