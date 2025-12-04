@@ -31,7 +31,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
     if ($id <= 0) json_exit(['success' => false, 'message' => 'Invalid id']);
 
     // Ensure ownership
-    $chk = $conn->prepare("SELECT id, title, description, due_date, unit_id FROM interactive_assignments WHERE id=? AND lecturer_id=?");
+    $chk = $conn->prepare("SELECT id, title, description, due_date, unit_id 
+                           FROM interactive_assignments 
+                           WHERE id=? AND lecturer_id=?");
     $chk->bind_param("ii", $id, $lecturer_id);
     $chk->execute();
     $assignment = $chk->get_result()->fetch_assoc();
@@ -39,25 +41,38 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
 
     // Fetch questions
     $qstmt = $conn->prepare("
-    SELECT id, question_text, question_type, points, media_url 
-    FROM interactive_questions 
-    WHERE interactive_assignment_id = ? 
-    ORDER BY id ASC
-");
-$qstmt->bind_param("i", $id);
-$qstmt->execute();
-$qres = $qstmt->get_result();
-$questions = [];
+        SELECT id, question_text, question_type, points, media_url 
+        FROM interactive_questions 
+        WHERE interactive_assignment_id = ? 
+        ORDER BY id ASC
+    ");
+    $qstmt->bind_param("i", $id);
+    $qstmt->execute();
+    $qres = $qstmt->get_result();
+
+    $questions = [];
 
     while ($q = $qres->fetch_assoc()) {
         $q['options'] = [];
-        if ($q['type'] === 'multiple_choice') {
-            $opts = $conn->prepare("SELECT id, option_text, is_correct FROM interactive_options WHERE question_id=? ORDER BY id ASC");
+
+        // FIX: use question_type instead of type
+        if ($q['question_type'] === 'multiple_choice') {
+
+            $opts = $conn->prepare("
+                SELECT id, option_text, is_correct 
+                FROM interactive_options 
+                WHERE question_id=? 
+                ORDER BY id ASC
+            ");
             $opts->bind_param("i", $q['id']);
             $opts->execute();
             $optRes = $opts->get_result();
-            while ($o = $optRes->fetch_assoc()) $q['options'][] = $o;
+
+            while ($o = $optRes->fetch_assoc()) {
+                $q['options'][] = $o;
+            }
         }
+
         $questions[] = $q;
     }
 
