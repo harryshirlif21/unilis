@@ -435,7 +435,7 @@ table th{background:var(--primary);color:#fff}
     <h3>Edit Assignment</h3>
     <div id="edit_error" style="display:none;color:#b71c1c;margin:8px 0;">Error</div>
 
-    <form id="editForm" method="POST" action="../actions.php" enctype="multipart/form-data">
+    <form id="editForm" method="POST" action="" enctype="multipart/form-data">
       <input type="hidden" name="action" value="update_interactive_assignment">
       <input type="hidden" name="id" id="edit_id">
 
