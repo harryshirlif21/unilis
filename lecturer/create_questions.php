@@ -38,11 +38,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
     if (!$assignment) json_exit(['success' => false, 'message' => 'Not found or unauthorized']);
 
     // Fetch questions
-    $qstmt = $conn->prepare("SELECT id, question_text, type, points, media_url FROM interactive_questions WHERE assignment_id=? ORDER BY id ASC");
-    $qstmt->bind_param("i", $id);
-    $qstmt->execute();
-    $qres = $qstmt->get_result();
-    $questions = [];
+    $qstmt = $conn->prepare("
+    SELECT id, question_text, question_type, points, media_url 
+    FROM interactive_questions 
+    WHERE interactive_assignment_id = ? 
+    ORDER BY id ASC
+");
+$qstmt->bind_param("i", $id);
+$qstmt->execute();
+$qres = $qstmt->get_result();
+$questions = [];
+
     while ($q = $qres->fetch_assoc()) {
         $q['options'] = [];
         if ($q['type'] === 'multiple_choice') {
