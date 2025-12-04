@@ -24,26 +24,31 @@ function ensure_upload_dir($dir) {
     if (!is_dir($dir)) mkdir($dir, 0777, true);
 }
 
-// ---------- Handle AJAX requests first ----------
-// GET assignment data (for edit modal and view questions)
+// ---------- GET assignment (AJAX) ----------
 if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
+
     $id = intval($_GET['id'] ?? 0);
     if ($id <= 0) json_exit(['success' => false, 'message' => 'Invalid id']);
 
-    // Ensure ownership
-    $chk = $conn->prepare("SELECT id, title, description, due_date, unit_id 
-                           FROM interactive_assignments 
-                           WHERE id=? AND lecturer_id=?");
+    // Confirm ownership
+    $chk = $conn->prepare("
+        SELECT id, title, description, due_date, unit_id
+        FROM interactive_assignments
+        WHERE id=? AND lecturer_id=?
+    ");
     $chk->bind_param("ii", $id, $lecturer_id);
     $chk->execute();
     $assignment = $chk->get_result()->fetch_assoc();
-    if (!$assignment) json_exit(['success' => false, 'message' => 'Not found or unauthorized']);
+
+    if (!$assignment) {
+        json_exit(['success' => false, 'message' => 'Not found or unauthorized']);
+    }
 
     // Fetch questions
     $qstmt = $conn->prepare("
-        SELECT id, question_text, question_type, points, media_url 
-        FROM interactive_questions 
-        WHERE interactive_assignment_id = ? 
+        SELECT id, question_text, question_type, points, media_url
+        FROM interactive_questions
+        WHERE interactive_assignment_id = ?
         ORDER BY id ASC
     ");
     $qstmt->bind_param("i", $id);
@@ -55,13 +60,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
     while ($q = $qres->fetch_assoc()) {
         $q['options'] = [];
 
-        // FIX: use question_type instead of type
         if ($q['question_type'] === 'multiple_choice') {
-
             $opts = $conn->prepare("
-                SELECT id, option_text, is_correct 
-                FROM interactive_options 
-                WHERE question_id=? 
+                SELECT id, option_text, is_correct
+                FROM interactive_options
+                WHERE question_id=?
                 ORDER BY id ASC
             ");
             $opts->bind_param("i", $q['id']);
@@ -77,107 +80,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_assignment') {
     }
 
     json_exit(['success' => true, 'assignment' => $assignment, 'questions' => $questions]);
-}
-
-// ---------- Handle POST actions ----------
-// DELETE assignment
-if (isset($_POST['action']) && $_POST['action'] === 'delete_interactive_assignment') {
-    $id = intval($_POST['id'] ?? 0);
-    if ($id > 0) {
-        // Ensure ownership and delete associated files
-        $stmt = $conn->prepare("SELECT media_url FROM interactive_questions WHERE assignment_id = ?");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            if (!empty($row['media_url']) && file_exists(__DIR__ . '/' . $row['media_url'])) {
-                unlink(__DIR__ . '/' . $row['media_url']);
-            }
-        }
-        
-        $stmt = $conn->prepare("DELETE FROM interactive_assignments WHERE id=? AND lecturer_id=?");
-        $stmt->bind_param("ii", $id, $lecturer_id);
-        if ($stmt->execute()) {
-            $_SESSION['success'] = "Assignment deleted successfully!";
-        } else {
-            $_SESSION['error'] = "Failed to delete assignment.";
-        }
-    } else {
-        $_SESSION['error'] = "Invalid assignment id.";
-    }
-    header("Location: " . $_SERVER['PHP_SELF']);
-    exit;
-}
-
-// CREATE assignment (with questions)
-if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignment') {
-    $title = $_POST['title'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $due_date = $_POST['due_date'] ?? null;
-    $unit_id = intval($_POST['unit_id'] ?? 0);
-    $questions = $_POST['questions'] ?? [];
-
-    $conn->begin_transaction();
-    try {
-        // Insert assignment
-        $ins = $conn->prepare("INSERT INTO interactive_assignments (lecturer_id, unit_id, title, description, due_date, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-        $ins->bind_param("iisss", $lecturer_id, $unit_id, $title, $description, $due_date);
-        $ins->execute();
-        $assignment_id = $ins->insert_id;
-
-        // Handle files
-        $questionFiles = $_FILES['questions'] ?? null;
-
-        foreach ($questions as $i => $q) {
-            $qtype = $q['type'] ?? 'text';
-            $qtext = $q['text'] ?? '';
-            $qpoints = intval($q['points'] ?? 1);
-            $qcorrect = $q['correct'] ?? null;
-
-            $media_url = null;
-            if ($questionFiles
-                && isset($questionFiles['error'][$i]['audio'])
-                && $questionFiles['error'][$i]['audio'] === UPLOAD_ERR_OK
-            ) {
-                $tmpName = $questionFiles['tmp_name'][$i]['audio'];
-                $orig = basename($questionFiles['name'][$i]['audio']);
-                $uploadDir = __DIR__ . "/uploads/questions/";
-                ensure_upload_dir($uploadDir);
-                $safe = time() . "_" . safe_filename($orig);
-                $target = $uploadDir . $safe;
-                if (move_uploaded_file($tmpName, $target)) {
-                    $media_url = "uploads/questions/" . $safe;
-                }
-            }
-
-            // Insert question
-            $qins = $conn->prepare("INSERT INTO interactive_questions (assignment_id, question_text, type, points, media_url) VALUES (?, ?, ?, ?, ?)");
-            $qins->bind_param("issis", $assignment_id, $qtext, $qtype, $qpoints, $media_url);
-            $qins->execute();
-            $qid = $qins->insert_id;
-
-            // Handle MCQ options
-            if ($qtype === 'multiple_choice' && !empty($q['options'])) {
-                foreach ($q['options'] as $optIndex => $optText) {
-                    if (trim($optText) === '') continue;
-                    $is_correct = ($qcorrect !== null && intval($qcorrect) == ($optIndex + 1)) ? 1 : 0;
-                    $oin = $conn->prepare("INSERT INTO interactive_options (question_id, option_text, is_correct) VALUES (?, ?, ?)");
-                    $oin->bind_param("isi", $qid, $optText, $is_correct);
-                    $oin->execute();
-                }
-            }
-        }
-
-        $conn->commit();
-        $_SESSION['success'] = "Assignment created with questions.";
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
-    } catch (Exception $ex) {
-        $conn->rollback();
-        $_SESSION['error'] = "Create failed: " . $ex->getMessage();
-        header("Location: " . $_SERVER['PHP_SELF']);
-        exit;
-    }
 }
 
 // UPDATE interactive assignment
