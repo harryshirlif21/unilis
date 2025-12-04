@@ -171,5 +171,48 @@ foreach ($tables as $table) {
 
     echo "<hr>";
 }
+/* ---------------------------------------------------------
+   STEP 5: DELETE ALL DATA (INCLUDING REFERENCED TABLES)
+--------------------------------------------------------- */
+
+echo "<h1>Deleting Data From All Related Tables...</h1>";
+
+$deleteOrder = [
+
+    // Child tables first
+    "student_classnotes_progress",
+    "attendance_records",
+    "notifications",
+
+    // Parent tables
+    "classnotes",
+    "assignments",
+    "attendance_sessions",
+    "chat",
+
+    // Optional but safe
+    // Add any other tables here if needed
+];
+
+foreach ($deleteOrder as $table) {
+    $sql = "DELETE FROM `$table`";
+    if ($conn->query($sql)) {
+        echo "<p style='color:green;'>Deleted all data from <strong>$table</strong>.</p>";
+    } else {
+        echo "<p style='color:red;'>Error deleting from <strong>$table</strong>: " . $conn->error . "</p>";
+    }
+}
+
+/* Reset AUTO_INCREMENT for clean IDs */
+echo "<h2>Resetting AUTO_INCREMENT...</h2>";
+
+foreach ($deleteOrder as $table) {
+    $sql = "ALTER TABLE `$table` AUTO_INCREMENT = 1";
+    if ($conn->query($sql)) {
+        echo "<p style='color:blue;'>AUTO_INCREMENT reset on <strong>$table</strong>.</p>";
+    }
+}
+
+echo "<h2 style='color:green;'>Data deletion complete.</h2>";
 
 ?>
