@@ -172,16 +172,17 @@ foreach ($tables as $table) {
     echo "<hr>";
 }
 /* ---------------------------------------------------------
-   STEP 5: DELETE ALL DATA (INCLUDING REFERENCED TABLES)
+   STEP 5: DELETE ALL DATA (WITHOUT TOUCHING STUDENTS & LECTURERS)
 --------------------------------------------------------- */
 
 echo "<h1>Deleting Data From All Related Tables...</h1>";
 
 $deleteOrder = [
 
-    // Child tables first
+    // Child tables (delete first)
     "student_classnotes_progress",
     "attendance_records",
+    "meeting_attendance",
     "notifications",
 
     // Parent tables
@@ -190,8 +191,7 @@ $deleteOrder = [
     "attendance_sessions",
     "chat",
 
-    // Optional but safe
-    // Add any other tables here if needed
+    // Do NOT include students or lecturers here
 ];
 
 foreach ($deleteOrder as $table) {
@@ -213,6 +213,6 @@ foreach ($deleteOrder as $table) {
     }
 }
 
-echo "<h2 style='color:green;'>Data deletion complete.</h2>";
+echo "<h2 style='color:green;'>Data deletion complete (students & lecturers preserved).</h2>";
 
 ?>
