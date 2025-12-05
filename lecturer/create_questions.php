@@ -549,7 +549,6 @@ table th{background:var(--primary);color:#fff}
 </div>
 
 
-
 <!-- Edit Modal -->
 <div id="editModal" class="modal" role="dialog" aria-modal="true">
   <div class="modal-content">
@@ -573,16 +572,11 @@ table th{background:var(--primary);color:#fff}
         <div>
           <label class="input-group label">Due Date</label>
           <input class="input" type="datetime-local" name="due_date" id="edit_due_date" required>
+          <!-- Extend Deadline Button -->
+          <button type="button" class="btn btn-warning" style="margin-top:8px;width:100%;" onclick="extendDeadlineModal()">
+            <i class="fas fa-clock"></i> Extend Deadline
+          </button>
         </div>
-        <div>
-  <label class="input-group label">Due Date</label>
-  <input class="input" type="datetime-local" name="due_date" id="edit_due_date" required>
-  <!-- Extend Deadline Button -->
-  <button type="button" class="btn btn-warning" style="margin-top:8px;" onclick="extendDeadlineModal()">
-    Extend Deadline
-  </button>
-</div>
-
         <div>
           <label class="input-group label">Unit</label>
           <select class="input" name="unit_id" id="edit_unit_id" required>
@@ -599,7 +593,6 @@ table th{background:var(--primary);color:#fff}
 
       <div style="display:flex;gap:12px;margin-top:12px">
         <button type="button" class="btn btn-add" onclick="editAddQuestion()">+ Add New Question</button>
-        
         <button type="submit" class="btn btn-green">Save Changes</button>
       </div>
     </form>
@@ -610,6 +603,11 @@ table th{background:var(--primary);color:#fff}
 let createQuestionIndex = 0;
 let editQuestionIndex = 0;
 
+/* ---------- MODAL FUNCTIONS ---------- */
+function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+}
+
 /* ---------- CREATE QUESTIONS ---------- */
 function addQuestion(prefill = null) {
     const container = document.getElementById('questionsContainer');
@@ -618,11 +616,44 @@ function addQuestion(prefill = null) {
 }
 
 function createQuestionMarkup(idx, prefill = null) {
-    const type = prefill?.type || 'text';
+    const type = prefill?.question_type || 'short_answer';
     const textVal = prefill?.question_text || '';
     const pointsVal = prefill?.points || 1;
     const mediaNote = prefill?.media_url ? `<div class="small">Existing media: <a target="_blank" href="${prefill.media_url}">view</a></div>` : '';
-    const imageNote = prefill?.image_url ? `<div class="small">Existing image: <a target="_blank" href="${prefill.image_url}">view</a></div>` : '';
+
+    // Fix: Use correct type values that match PHP logic
+    let typeOptions = '';
+    const types = [
+        { value: 'short_answer', label: 'Short Answer' },
+        { value: 'multiple_choice', label: 'Multiple Choice' },
+        { value: 'speech', label: 'Speech / Audio' }
+    ];
+    
+    types.forEach(t => {
+        const selected = type === t.value ? ' selected' : '';
+        typeOptions += `<option value="${t.value}"${selected}>${t.label}</option>`;
+    });
+
+    let optionsHtml = '';
+    if (type === 'multiple_choice' && prefill?.options) {
+        prefill.options.forEach((opt, i) => {
+            const checked = opt.is_correct ? ' checked' : '';
+            optionsHtml += `<div class="option-input">
+                <input type="radio" name="questions[${idx}][correct]" value="${i+1}"${checked}>
+                <input class="input" type="text" name="questions[${idx}][options][]" value="${escapeHtml(opt.option_text)}" placeholder="Option ${i+1}">
+            </div>`;
+        });
+    } else {
+        // Default options for new question
+        optionsHtml = `<div class="option-input">
+            <input type="radio" name="questions[${idx}][correct]" value="1">
+            <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1">
+        </div>
+        <div class="option-input">
+            <input type="radio" name="questions[${idx}][correct]" value="2">
+            <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2">
+        </div>`;
+    }
 
     return `
     <div class="question-card" id="create_q_${idx}">
@@ -631,9 +662,7 @@ function createQuestionMarkup(idx, prefill = null) {
         <div>
             <label class="input-group label">Question Type</label>
             <select class="input" name="questions[${idx}][type]" onchange="createToggleOptions(${idx})">
-                <option value="text"${type==='text'?' selected':''}>Text Answer</option>
-                <option value="multiple_choice"${type==='multiple_choice'?' selected':''}>Multiple Choice</option>
-                <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
+                ${typeOptions}
             </select>
         </div>
 
@@ -650,14 +679,7 @@ function createQuestionMarkup(idx, prefill = null) {
         <div id="create_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
             <label class="input-group label">Options</label>
             <div id="create_options_list_${idx}">
-                <div class="option-input">
-                    <input type="radio" name="questions[${idx}][correct]" value="1">
-                    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1">
-                </div>
-                <div class="option-input">
-                    <input type="radio" name="questions[${idx}][correct]" value="2">
-                    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2">
-                </div>
+                ${optionsHtml}
             </div>
             <button type="button" class="btn btn-add" onclick="createAddOption(${idx})">Add option</button>
         </div>
@@ -666,12 +688,6 @@ function createQuestionMarkup(idx, prefill = null) {
             <label class="input-group label">Upload question audio (optional)</label>
             <input type="file" name="questions[${idx}][audio]" accept="audio/*">
             ${mediaNote}
-        </div>
-
-        <div id="create_image_${idx}" style="margin-top:8px; display:block">
-            <label class="input-group label">Upload question image (optional)</label>
-            <input type="file" name="questions[${idx}][image]" accept="image/*">
-            ${imageNote}
         </div>
 
         <div style="margin-top:10px">
@@ -697,115 +713,9 @@ function removeCreateQuestion(idx) {
 
 function createToggleOptions(idx) {
     const sel = document.querySelector(`select[name="questions[${idx}][type]"]`);
-    document.getElementById('create_options_' + idx).style.display = sel.value === 'multiple_choice' ? 'block' : 'none';
-    document.getElementById('create_audio_' + idx).style.display = sel.value === 'speech' ? 'block' : 'none';
-}
-let createQuestionIndex = 0;
-let editQuestionIndex = 0;
-
-/* ---------- UTILITY ---------- */
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str).replace(/[&<>"'\/]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;'}[s]));
-}
-
-/* ---------- CREATE QUESTIONS ---------- */
-function addQuestion(prefill = null) {
-    const container = document.getElementById('questionsContainer');
-    const idx = createQuestionIndex++;
-    container.insertAdjacentHTML('beforeend', createQuestionMarkup(idx, prefill));
-}
-
-function createQuestionMarkup(idx, prefill = null) {
-    const type = prefill?.type || 'text';
-    const textVal = prefill?.question_text || '';
-    const pointsVal = prefill?.points || 1;
-    const mediaNote = prefill?.media_url ? `<div class="small">Existing media: <a target="_blank" href="${prefill.media_url}">view</a></div>` : '';
-    const imageNote = prefill?.image_url ? `<div class="small">Existing image: <a target="_blank" href="${prefill.image_url}">view</a></div>` : '';
-
-    return `
-    <div class="question-card" id="create_q_${idx}">
-        <div class="question-number">${idx + 1}</div>
-
-        <div>
-            <label class="input-group label">Question Type</label>
-            <select class="input" name="questions[${idx}][type]" onchange="createToggleOptions(${idx})">
-                <option value="text"${type==='text'?' selected':''}>Text Answer</option>
-                <option value="multiple_choice"${type==='multiple_choice'?' selected':''}>Multiple Choice</option>
-                <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
-            </select>
-        </div>
-
-        <div style="margin-top:8px">
-            <label class="input-group label">Question Text</label>
-            <textarea class="input" name="questions[${idx}][text]" required>${textVal}</textarea>
-        </div>
-
-        <div style="margin-top:8px">
-            <label class="input-group label">Points</label>
-            <input class="input" type="number" name="questions[${idx}][points]" min="1" value="${pointsVal}" required>
-        </div>
-
-        <div id="create_text_answer_${idx}" style="margin-top:8px; display:${type==='text'?'block':'none'}">
-            <label class="input-group label">Correct Answer (Lecturer Answer)</label>
-            <textarea class="input" name="questions[${idx}][correct_answer]" rows="2">${prefill?.correct_answer || ''}</textarea>
-            <label class="input-group label" style="margin-top:8px;">Keywords (comma separated)</label>
-            <input class="input" type="text" name="questions[${idx}][keywords]" value="${prefill?.keywords || ''}">
-        </div>
-
-        <div id="create_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
-            <label class="input-group label">Options</label>
-            <div id="create_options_list_${idx}">
-                <div class="option-input">
-                    <input type="radio" name="questions[${idx}][correct]" value="1">
-                    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1" value="${prefill?.options?.[0]?.option_text || ''}">
-                </div>
-                <div class="option-input">
-                    <input type="radio" name="questions[${idx}][correct]" value="2">
-                    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2" value="${prefill?.options?.[1]?.option_text || ''}">
-                </div>
-            </div>
-            <button type="button" class="btn btn-add" onclick="createAddOption(${idx})">Add option</button>
-        </div>
-
-        <div id="create_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
-            <label class="input-group label">Upload question audio (optional)</label>
-            <input type="file" name="questions[${idx}][audio]" accept="audio/*">
-            ${mediaNote}
-        </div>
-
-        <div id="create_image_${idx}" style="margin-top:8px; display:block">
-            <label class="input-group label">Upload question image (optional)</label>
-            <input type="file" name="questions[${idx}][image]" accept="image/*">
-            ${imageNote}
-        </div>
-
-        <div style="margin-top:10px">
-            <button type="button" class="btn btn-delete" onclick="removeCreateQuestion(${idx})">Remove Question</button>
-        </div>
-    </div>`;
-}
-
-function createAddOption(idx) {
-    const div = document.getElementById('create_options_list_' + idx);
-    if (!div) return;
-    const count = div.querySelectorAll('.option-input').length + 1;
-    div.insertAdjacentHTML('beforeend', `<div class="option-input">
-        <input type="radio" name="questions[${idx}][correct]" value="${count}">
-        <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option ${count}">
-    </div>`);
-}
-
-function removeCreateQuestion(idx) {
-    const el = document.getElementById('create_q_' + idx);
-    if (el) el.remove();
-}
-
-function createToggleOptions(idx) {
-    const sel = document.querySelector(`select[name="questions[${idx}][type]"]`);
-    document.getElementById('create_options_' + idx).style.display = sel.value === 'multiple_choice' ? 'block' : 'none';
-    document.getElementById('create_text_answer_' + idx).style.display = sel.value === 'text' ? 'block' : 'none';
-    document.getElementById('create_audio_' + idx).style.display = sel.value === 'speech' ? 'block' : 'none';
+    const type = sel.value;
+    document.getElementById('create_options_' + idx).style.display = type === 'multiple_choice' ? 'block' : 'none';
+    document.getElementById('create_audio_' + idx).style.display = type === 'speech' ? 'block' : 'none';
 }
 
 /* ---------- EDIT / UPDATE QUESTIONS ---------- */
@@ -831,12 +741,11 @@ function openEditModal(id) {
             // Populate assignment fields
             document.getElementById('edit_title').value = a.title;
             document.getElementById('edit_description').value = a.description;
-            document.getElementById('edit_due_date').value = a.due_date;
+            document.getElementById('edit_due_date').value = a.due_date.replace(' ', 'T');
             document.getElementById('edit_unit_id').value = a.unit_id;
 
             // Populate questions
             questions.forEach(q => {
-                q.type = q.question_type;
                 container.insertAdjacentHTML('beforeend', editQuestionMarkup(editQuestionIndex++, q));
             });
         })
@@ -844,9 +753,8 @@ function openEditModal(id) {
 }
 
 function editQuestionMarkup(idx, q) {
-    const type = q.type || 'text';
-    const imagePreview = q.image_url ? `<div class="small"><img src="${q.image_url}" style="max-width:150px;max-height:150px;margin-top:6px;"></div>` : '';
-    const audioPreview = q.media_url ? `<div class="small"><audio controls style="margin-top:6px;"><source src="${q.media_url}"></audio></div>` : '';
+    const type = q.question_type;
+    const mediaPreview = q.media_url ? `<div class="small"><audio controls style="margin-top:6px;"><source src="${q.media_url}"></audio></div>` : '';
 
     let optionsHtml = '';
     if (type === 'multiple_choice' && q.options && q.options.length) {
@@ -858,13 +766,17 @@ function editQuestionMarkup(idx, q) {
         });
     }
 
-    const textAnswerHtml = `
-    <div id="edit_text_answer_${idx}" style="margin-top:8px; display:${type==='text'?'block':'none'}">
-        <label class="input-group label">Correct Answer (Lecturer Answer)</label>
-        <textarea class="input" name="questions[${idx}][correct_answer]" rows="2">${q.correct_answer ? escapeHtml(q.correct_answer) : ''}</textarea>
-        <label class="input-group label" style="margin-top:8px;">Keywords (comma separated)</label>
-        <input class="input" type="text" name="questions[${idx}][keywords]" value="${q.keywords ? escapeHtml(q.keywords) : ''}">
-    </div>`;
+    let typeOptions = '';
+    const types = [
+        { value: 'short_answer', label: 'Short Answer' },
+        { value: 'multiple_choice', label: 'Multiple Choice' },
+        { value: 'speech', label: 'Speech / Audio' }
+    ];
+    
+    types.forEach(t => {
+        const selected = type === t.value ? ' selected' : '';
+        typeOptions += `<option value="${t.value}"${selected}>${t.label}</option>`;
+    });
 
     return `<div class="question-card" id="edit_q_${idx}">
         <div class="question-number">${idx+1}</div>
@@ -872,10 +784,8 @@ function editQuestionMarkup(idx, q) {
 
         <div>
             <label class="input-group label">Question Type</label>
-            <select class="input" name="questions[${idx}][type]" onchange="editToggleOptions(${idx})">
-                <option value="text"${type==='text'?' selected':''}>Text Answer</option>
-                <option value="multiple_choice"${type==='multiple_choice'?' selected':''}>Multiple Choice</option>
-                <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
+            <select class="input" name="questions[${idx}][question_type]" onchange="editToggleOptions(${idx})">
+                ${typeOptions}
             </select>
         </div>
 
@@ -889,8 +799,6 @@ function editQuestionMarkup(idx, q) {
             <input class="input" type="number" min="1" name="questions[${idx}][points]" value="${q.points}">
         </div>
 
-        ${textAnswerHtml}
-
         <div id="edit_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
             <label class="input-group label">Options</label>
             ${optionsHtml}
@@ -900,13 +808,7 @@ function editQuestionMarkup(idx, q) {
         <div id="edit_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
             <label class="input-group label">Replace / Upload question audio</label>
             <input type="file" name="questions[${idx}][audio]" accept="audio/*">
-            ${audioPreview}
-        </div>
-
-        <div id="edit_image_${idx}" style="margin-top:8px; display:block">
-            <label class="input-group label">Replace / Upload question image</label>
-            <input type="file" name="questions[${idx}][image]" accept="image/*">
-            ${imagePreview}
+            ${mediaPreview}
         </div>
 
         <div style="margin-top:10px">
@@ -931,8 +833,7 @@ function removeEditQuestion(idx) {
 }
 
 function editToggleOptions(idx) {
-    const type = document.querySelector(`select[name="questions[${idx}][type]"]`).value;
-    document.getElementById(`edit_text_answer_${idx}`).style.display = type==='text'?'block':'none';
+    const type = document.querySelector(`select[name="questions[${idx}][question_type]"]`).value;
     document.getElementById(`edit_options_${idx}`).style.display = type==='multiple_choice'?'block':'none';
     document.getElementById(`edit_audio_${idx}`).style.display = type==='speech'?'block':'none';
 }
@@ -940,7 +841,14 @@ function editToggleOptions(idx) {
 function editAddQuestion() {
     const container = document.getElementById('editQuestionsContainer');
     const idx = 10000 + (editQuestionIndex++);
-    container.insertAdjacentHTML('beforeend', createQuestionMarkup(idx));
+    // Add empty question
+    container.insertAdjacentHTML('beforeend', editQuestionMarkup(idx, {
+        id: 0,
+        question_type: 'short_answer',
+        question_text: '',
+        points: 1,
+        options: []
+    }));
 }
 
 /* ---------- VIEW QUESTIONS ---------- */
@@ -980,22 +888,12 @@ function viewQuestions(id, btn) {
                     mediaHtml += `<div class="small">Audio: <audio controls><source src="${q.media_url}"></audio></div>`;
                 }
 
-                if (q.image_url) {
-                    mediaHtml += `<div class="small">Image: <a target="_blank" href="${q.image_url}">view</a></div>`;
-                }
-
-                let textAnswerHtml = '';
-                if (type === 'text' && q.correct_answer) {
-                    textAnswerHtml = `<div class="small"><b>Lecturer Answer:</b> ${escapeHtml(q.correct_answer)}</div>`;
-                }
-
                 return `
                     <div class="question-card">
                         <div class="question-number">${i+1}</div>
                         <div><b>Type:</b> ${type} &nbsp; <b>Points:</b> ${q.points}</div>
                         <div style="margin-top:6px"><b>Q:</b> ${escapeHtml(q.question_text)}</div>
                         ${optionsHtml}
-                        ${textAnswerHtml}
                         ${mediaHtml}
                     </div>
                 `;
@@ -1006,6 +904,7 @@ function viewQuestions(id, btn) {
             console.error(e);
         });
 }
+
 /* ---------- DELETE ASSIGNMENT ---------- */
 function deleteAssignment(id) {
     if (!confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) return;
@@ -1017,7 +916,44 @@ function deleteAssignment(id) {
     document.body.appendChild(form);
     form.submit();
 }
+function extendDeadlineModal() {
+    const assignmentId = document.getElementById('edit_id').value;
+    const currentDue = document.getElementById('edit_due_date').value;
+    
+    // Convert datetime-local format to readable format
+    const readableDate = currentDue ? new Date(currentDue).toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).replace(',', '') : '';
+    
+    let newDate = prompt("Enter new deadline (YYYY-MM-DD HH:MM):", readableDate);
+    if (!newDate) return;
 
+    fetch('<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'action=extend_deadline&id=' + assignmentId + '&new_due_date=' + encodeURIComponent(newDate)
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('Deadline updated!');
+            // Convert back to datetime-local format for the input
+            const dt = new Date(newDate);
+            const formatted = dt.toISOString().slice(0, 16);
+            document.getElementById('edit_due_date').value = formatted;
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(err => {
+        alert('Network error: ' + err.message);
+    });
+}
 /* ---------- UTILITY ---------- */
 function escapeHtml(str) {
     if (!str) return '';
@@ -1032,28 +968,6 @@ window.onclick = function(event) {
     const modal = document.getElementById('editModal');
     if (event.target == modal) { modal.style.display = 'none'; }
 };
-
-function extendDeadlineModal() {
-    const assignmentId = document.getElementById('edit_id').value;
-    const currentDue = document.getElementById('edit_due_date').value;
-    let newDate = prompt("Enter new deadline (YYYY-MM-DD HH:MM):", currentDue);
-    if (!newDate) return;
-
-    fetch('interactive_assignments.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'action=extend_deadline&id=' + assignmentId + '&new_due_date=' + encodeURIComponent(newDate)
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            alert('Deadline updated!');
-            document.getElementById('edit_due_date').value = newDate;
-        } else {
-            alert('Error: ' + data.message);
-        }
-    });
-}
 </script>
 
 </body>
