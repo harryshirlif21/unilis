@@ -606,330 +606,311 @@ table th{background:var(--primary);color:#fff}
   </div>
 </div>
 
-
 <script>
-let questionCount = 0;
 let createQuestionIndex = 0;
 let editQuestionIndex = 0;
 
-/* ---------- CREATE / ADD QUESTIONS ---------- */
+/* ---------- CREATE QUESTIONS ---------- */
 function addQuestion(prefill = null) {
-  const container = document.getElementById('questionsContainer');
-  const idx = createQuestionIndex++;
-  container.insertAdjacentHTML('beforeend', createQuestionMarkup(idx, prefill));
+    const container = document.getElementById('questionsContainer');
+    const idx = createQuestionIndex++;
+    container.insertAdjacentHTML('beforeend', createQuestionMarkup(idx, prefill));
 }
 
 function createQuestionMarkup(idx, prefill = null) {
-  const type = (prefill && prefill.type) ? prefill.type : 'text';
-  const textVal = (prefill && prefill.question_text) ? prefill.question_text : '';
-  const pointsVal = (prefill && prefill.points) ? prefill.points : 1;
-  const mediaNote = (prefill && prefill.media_url) ? `<div class="small">Existing media: <a target="_blank" href="${prefill.media_url}">view</a></div>` : '';
-  const imageNote = (prefill && prefill.image_url) ? `<div class="small">Existing image: <a target="_blank" href="${prefill.image_url}">view</a></div>` : '';
+    const type = prefill?.type || 'text';
+    const textVal = prefill?.question_text || '';
+    const pointsVal = prefill?.points || 1;
+    const mediaNote = prefill?.media_url ? `<div class="small">Existing media: <a target="_blank" href="${prefill.media_url}">view</a></div>` : '';
+    const imageNote = prefill?.image_url ? `<div class="small">Existing image: <a target="_blank" href="${prefill.image_url}">view</a></div>` : '';
 
-  return `
+    return `
     <div class="question-card" id="create_q_${idx}">
-      <div class="question-number">${idx + 1}</div>
-      <div>
-        <label class="input-group label">Question Type</label>
-        <select class="input" name="questions[${idx}][type]" onchange="createToggleOptions(${idx})">
-          <option value="text"${type==='text'?' selected':''}>Text Answer</option>
-          <option value="multiple_choice"${type==='multiple_choice'?' selected':''}>Multiple Choice</option>
-          <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
-        </select>
-      </div>
+        <div class="question-number">${idx + 1}</div>
 
-      <div style="margin-top:8px">
-        <label class="input-group label">Question Text</label>
-        <textarea class="input" name="questions[${idx}][text]" required>${textVal}</textarea>
-      </div>
-
-      <div style="margin-top:8px">
-        <label class="input-group label">Points</label>
-        <input class="input" type="number" name="questions[${idx}][points]" min="1" value="${pointsVal}" required>
-      </div>
-
-      <div id="create_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
-        <label class="input-group label">Options</label>
-        <div id="create_options_list_${idx}">
-          <div class="option-input">
-            <input type="radio" name="questions[${idx}][correct]" value="1">
-            <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1">
-          </div>
-          <div class="option-input">
-            <input type="radio" name="questions[${idx}][correct]" value="2">
-            <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2">
-          </div>
+        <div>
+            <label class="input-group label">Question Type</label>
+            <select class="input" name="questions[${idx}][type]" onchange="createToggleOptions(${idx})">
+                <option value="text"${type==='text'?' selected':''}>Text Answer</option>
+                <option value="multiple_choice"${type==='multiple_choice'?' selected':''}>Multiple Choice</option>
+                <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
+            </select>
         </div>
-        <button type="button" class="btn btn-add" onclick="createAddOption(${idx})">Add option</button>
-      </div>
 
-      <div id="create_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
-        <label class="input-group label">Upload question audio (optional)</label>
-        <input type="file" name="questions[${idx}][audio]" accept="audio/*">
-        ${mediaNote}
-      </div>
+        <div style="margin-top:8px">
+            <label class="input-group label">Question Text</label>
+            <textarea class="input" name="questions[${idx}][text]" required>${textVal}</textarea>
+        </div>
 
-      <div id="create_image_${idx}" style="margin-top:8px; display:block">
-        <label class="input-group label">Upload question image (optional)</label>
-        <input type="file" name="questions[${idx}][image]" accept="image/*">
-        ${imageNote}
-      </div>
+        <div style="margin-top:8px">
+            <label class="input-group label">Points</label>
+            <input class="input" type="number" name="questions[${idx}][points]" min="1" value="${pointsVal}" required>
+        </div>
 
-      <div style="margin-top:10px">
-        <button type="button" class="btn btn-delete" onclick="removeCreateQuestion(${idx})">Remove Question</button>
-      </div>
-    </div>
-  `;
+        <div id="create_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
+            <label class="input-group label">Options</label>
+            <div id="create_options_list_${idx}">
+                <div class="option-input">
+                    <input type="radio" name="questions[${idx}][correct]" value="1">
+                    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1">
+                </div>
+                <div class="option-input">
+                    <input type="radio" name="questions[${idx}][correct]" value="2">
+                    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2">
+                </div>
+            </div>
+            <button type="button" class="btn btn-add" onclick="createAddOption(${idx})">Add option</button>
+        </div>
+
+        <div id="create_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
+            <label class="input-group label">Upload question audio (optional)</label>
+            <input type="file" name="questions[${idx}][audio]" accept="audio/*">
+            ${mediaNote}
+        </div>
+
+        <div id="create_image_${idx}" style="margin-top:8px; display:block">
+            <label class="input-group label">Upload question image (optional)</label>
+            <input type="file" name="questions[${idx}][image]" accept="image/*">
+            ${imageNote}
+        </div>
+
+        <div style="margin-top:10px">
+            <button type="button" class="btn btn-delete" onclick="removeCreateQuestion(${idx})">Remove Question</button>
+        </div>
+    </div>`;
 }
 
-function createAddOption(idx){
-  const div = document.getElementById('create_options_list_'+idx);
-  if(!div) return;
-  const count = div.querySelectorAll('.option-input').length + 1;
-  const html = `<div class="option-input">
-    <input type="radio" name="questions[${idx}][correct]" value="${count}">
-    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option ${count}">
-  </div>`;
-  div.insertAdjacentHTML('beforeend', html);
+function createAddOption(idx) {
+    const div = document.getElementById('create_options_list_' + idx);
+    if (!div) return;
+    const count = div.querySelectorAll('.option-input').length + 1;
+    div.insertAdjacentHTML('beforeend', `<div class="option-input">
+        <input type="radio" name="questions[${idx}][correct]" value="${count}">
+        <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option ${count}">
+    </div>`);
 }
 
-function removeCreateQuestion(idx){
-  const el = document.getElementById('create_q_'+idx);
-  if(el) el.remove();
+function removeCreateQuestion(idx) {
+    const el = document.getElementById('create_q_' + idx);
+    if (el) el.remove();
 }
 
-function createToggleOptions(idx){
-  const sel = document.querySelector(`select[name="questions[${idx}][type]"]`);
-  if(!sel) return;
-  document.getElementById('create_options_'+idx).style.display = (sel.value === 'multiple_choice') ? 'block' : 'none';
-  document.getElementById('create_audio_'+idx).style.display = (sel.value === 'speech') ? 'block' : 'none';
+function createToggleOptions(idx) {
+    const sel = document.querySelector(`select[name="questions[${idx}][type]"]`);
+    document.getElementById('create_options_' + idx).style.display = sel.value === 'multiple_choice' ? 'block' : 'none';
+    document.getElementById('create_audio_' + idx).style.display = sel.value === 'speech' ? 'block' : 'none';
 }
+
+/* ---------- EDIT / UPDATE QUESTIONS ---------- */
+function openEditModal(id) {
+    const modal = document.getElementById('editModal');
+    modal.style.display = 'block';
+    document.getElementById('edit_id').value = id;
+
+    // Clear previous questions
+    const container = document.getElementById('editQuestionsContainer');
+    container.innerHTML = '';
+    editQuestionIndex = 0;
+
+    fetch(`?action=get_assignment&id=${id}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data || !data.success) {
+                alert('Failed to load assignment for editing.');
+                return;
+            }
+            const a = data.assignment;
+            const questions = data.questions;
+
+            // Populate assignment fields
+            document.getElementById('edit_title').value = a.title;
+            document.getElementById('edit_description').value = a.description;
+            document.getElementById('edit_due_date').value = a.due_date;
+            document.getElementById('edit_unit_id').value = a.unit_id;
+
+            // Populate questions
+            questions.forEach((q, idx) => {
+                // Convert question_type -> type for JS
+                q.type = q.question_type;
+                container.insertAdjacentHTML('beforeend', editQuestionMarkup(editQuestionIndex++, q));
+            });
+        })
+        .catch(err => console.error(err));
+}
+
 function editQuestionMarkup(idx, q) {
-  const type = q.type || 'text';
+    const type = q.type || 'text';
+    const imagePreview = q.image_url ? `<div class="small"><img src="${q.image_url}" style="max-width:150px;max-height:150px;margin-top:6px;"></div>` : '';
+    const audioPreview = q.media_url ? `<div class="small"><audio controls style="margin-top:6px;"><source src="${q.media_url}"></audio></div>` : '';
 
-  /* --- PREVIEW MEDIA --- */
-  const imagePreview = q.image_url 
-    ? `<div class="small"><p>Existing image:</p>
-         <img src="${q.image_url}" style="max-width:150px;max-height:150px;border:1px solid #ccc;margin-top:6px;"></div>`
-    : '';
+    let optionsHtml = '';
+    if (type === 'multiple_choice' && q.options && q.options.length) {
+        q.options.forEach((opt, oi) => {
+            optionsHtml += `<div class="option-input">
+                <input type="radio" name="questions[${idx}][correct]" value="${oi+1}" ${opt.is_correct==1?'checked':''}>
+                <input class="input" type="text" name="questions[${idx}][options][]" value="${escapeHtml(opt.option_text)}" placeholder="Option ${oi+1}">
+            </div>`;
+        });
+    }
 
-  const audioPreview = q.media_url
-    ? `<div class="small"><p>Existing audio:</p>
-         <audio controls style="margin-top:6px; max-width:200px;">
-            <source src="${q.media_url}">
-         </audio></div>`
-    : '';
+    const textAnswerHtml = `
+    <div id="edit_text_answer_${idx}" style="margin-top:8px; display:${type==='text'?'block':'none'}">
+        <label class="input-group label">Correct Answer (Lecturer Answer)</label>
+        <textarea class="input" name="questions[${idx}][correct_answer]" rows="2">${q.correct_answer ? escapeHtml(q.correct_answer) : ''}</textarea>
+        <label class="input-group label" style="margin-top:8px;">Keywords (comma separated)</label>
+        <input class="input" type="text" name="questions[${idx}][keywords]" value="${q.keywords ? escapeHtml(q.keywords) : ''}">
+    </div>`;
 
-  /* --- MULTIPLE CHOICE OPTIONS --- */
-  let optionsHtml = '';
-  if (type === 'multiple_choice' && q.options && q.options.length) {
-    q.options.forEach((opt, oi) => {
-      optionsHtml += `
-        <div class="option-input" style="margin-bottom:6px;">
-          <input type="radio" name="questions[${idx}][correct]" value="${oi+1}" ${opt.is_correct==1?'checked':''}>
-          <input class="input" type="text" name="questions[${idx}][options][]" 
-                 value="${escapeHtml(opt.option_text)}" placeholder="Option ${oi+1}">
-        </div>`;
-    });
-  }
+    return `<div class="question-card" id="edit_q_${idx}">
+        <div class="question-number">${idx+1}</div>
+        <input type="hidden" name="questions[${idx}][id]" value="${q.id}">
 
-  /* -----------------------
-      TEXT ANSWER FIELDS
-  ------------------------ */
-  const textAnswerHtml = `
-    <div id="edit_text_answer_${idx}" style="margin-top:8px; display:${type==='text' ? 'block' : 'none'}">
-      <label class="input-group label">Correct Answer (Lecturer Answer)</label>
-      <textarea class="input" name="questions[${idx}][correct_answer]" rows="2"
-      >${q.correct_answer ? escapeHtml(q.correct_answer) : ''}</textarea>
+        <div>
+            <label class="input-group label">Question Type</label>
+            <select class="input" name="questions[${idx}][type]" onchange="editToggleOptions(${idx})">
+                <option value="text"${type==='text'?' selected':''}>Text Answer</option>
+                <option value="multiple_choice"${type==='multiple_choice'?' selected':''}>Multiple Choice</option>
+                <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
+            </select>
+        </div>
 
-      <label class="input-group label" style="margin-top:8px;">Keywords (comma separated)</label>
-      <input class="input" type="text" name="questions[${idx}][keywords]"
-             value="${q.keywords ? escapeHtml(q.keywords) : ''}" 
-             placeholder="e.g. photosynthesis, chlorophyll, sunlight">
-    </div>
-  `;
+        <div style="margin-top:8px">
+            <label class="input-group label">Question</label>
+            <textarea class="input" name="questions[${idx}][text]" rows="2" required>${escapeHtml(q.question_text)}</textarea>
+        </div>
 
-  return `
-    <div class="question-card" id="edit_q_${idx}">
-      <div class="question-number">${idx + 1}</div>
+        <div style="margin-top:8px">
+            <label class="input-group label">Points</label>
+            <input class="input" type="number" min="1" name="questions[${idx}][points]" value="${q.points}">
+        </div>
 
-      <input type="hidden" name="questions[${idx}][id]" value="${q.id}">
+        ${textAnswerHtml}
 
-      <div>
-        <label class="input-group label">Question Type</label>
-        <select class="input" name="questions[${idx}][type]" onchange="editToggleOptions(${idx})">
-          <option value="text"${type==='text'?' selected':''}>Text Answer</option>
-          <option value="multiple_choice"${type==='multiple_choice'?' selected':''}>Multiple Choice</option>
-          <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
-        </select>
-      </div>
+        <div id="edit_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
+            <label class="input-group label">Options</label>
+            ${optionsHtml}
+            <button type="button" class="btn btn-add" onclick="editAddOption(${idx})">Add option</button>
+        </div>
 
-      <div style="margin-top:8px">
-        <label class="input-group label">Question</label>
-        <textarea class="input" name="questions[${idx}][text]" rows="2" required>${escapeHtml(q.question_text)}</textarea>
-      </div>
+        <div id="edit_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
+            <label class="input-group label">Replace / Upload question audio</label>
+            <input type="file" name="questions[${idx}][audio]" accept="audio/*">
+            ${audioPreview}
+        </div>
 
-      <div style="margin-top:8px">
-        <label class="input-group label">Points</label>
-        <input class="input" type="number" min="1" name="questions[${idx}][points]" value="${q.points}">
-      </div>
+        <div id="edit_image_${idx}" style="margin-top:8px; display:block">
+            <label class="input-group label">Replace / Upload question image</label>
+            <input type="file" name="questions[${idx}][image]" accept="image/*">
+            ${imagePreview}
+        </div>
 
-      ${textAnswerHtml}
-
-      <!-- MCQ -->
-      <div id="edit_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice' ? 'block' : 'none'}">
-        <label class="input-group label">Options</label>
-        ${optionsHtml}
-        <button type="button" class="btn btn-add" onclick="editAddOption(${idx})">Add option</button>
-      </div>
-
-      <!-- AUDIO -->
-      <div id="edit_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
-        <label class="input-group label">Replace / Upload question audio</label>
-        <input type="file" name="questions[${idx}][audio]" accept="audio/*">
-        ${audioPreview}
-      </div>
-
-      <!-- IMAGE -->
-      <div id="edit_image_${idx}" style="margin-top:8px; display:block">
-        <label class="input-group label">Replace / Upload question image</label>
-        <input type="file" name="questions[${idx}][image]" accept="image/*">
-        ${imagePreview}
-      </div>
-
-      <div style="margin-top:10px">
-        <button type="button" class="btn btn-delete" onclick="removeEditQuestion(${idx})">Remove Question</button>
-      </div>
-    </div>
-  `;
+        <div style="margin-top:10px">
+            <button type="button" class="btn btn-delete" onclick="removeEditQuestion(${idx})">Remove Question</button>
+        </div>
+    </div>`;
 }
 
-function removeEditQuestion(idx){
-  const el = document.getElementById('edit_q_'+idx);
-  if(el) el.remove();
+function editAddOption(qIdx) {
+    const div = document.getElementById('edit_options_' + qIdx);
+    if (!div) return;
+    const count = div.querySelectorAll('.option-input').length + 1;
+    div.insertAdjacentHTML('beforeend', `<div class="option-input">
+        <input type="radio" name="questions[${qIdx}][correct]" value="${count}">
+        <input class="input" type="text" name="questions[${qIdx}][options][]" placeholder="Option ${count}">
+    </div>`);
 }
+
+function removeEditQuestion(idx) {
+    const el = document.getElementById('edit_q_' + idx);
+    if (el) el.remove();
+}
+
 function editToggleOptions(idx) {
-  const type = document.querySelector(`select[name="questions[${idx}][type]"]`).value;
-
-  document.getElementById(`edit_text_answer_${idx}`).style.display =
-      type === 'text' ? 'block' : 'none';
-
-  document.getElementById(`edit_options_${idx}`).style.display =
-      type === 'multiple_choice' ? 'block' : 'none';
-
-  document.getElementById(`edit_audio_${idx}`).style.display =
-      type === 'speech' ? 'block' : 'none';
+    const type = document.querySelector(`select[name="questions[${idx}][type]"]`).value;
+    document.getElementById(`edit_text_answer_${idx}`).style.display = type==='text'?'block':'none';
+    document.getElementById(`edit_options_${idx}`).style.display = type==='multiple_choice'?'block':'none';
+    document.getElementById(`edit_audio_${idx}`).style.display = type==='speech'?'block':'none';
 }
 
-function editAddOption(qIdx){
-  const div = document.getElementById('edit_options_'+qIdx);
-  if(!div) return;
-  const count = div.querySelectorAll('.option-input').length + 1;
-  const html = `<div class="option-input">
-    <input type="radio" name="questions[${qIdx}][correct]" value="${count}">
-    <input class="input" type="text" name="questions[${qIdx}][options][]" placeholder="Option ${count}">
-  </div>`;
-  div.insertAdjacentHTML('beforeend', html);
+function editAddQuestion() {
+    const container = document.getElementById('editQuestionsContainer');
+    const idx = 10000 + (editQuestionIndex++);
+    container.insertAdjacentHTML('beforeend', createQuestionMarkup(idx));
 }
 
-function editAddQuestion(){
-  const container = document.getElementById('editQuestionsContainer');
-  const idx = 10000 + (editQuestionIndex++);
-  const html = createQuestionMarkup(idx);
-  container.insertAdjacentHTML('beforeend', html);
+/* ---------- VIEW QUESTIONS ---------- */
+function viewQuestions(id, btn) {
+    const row = btn.closest('tr');
+    const qRow = row.nextElementSibling;
+    const container = qRow.querySelector('.questions-list');
+    const isVisible = qRow.style.display === 'table-row';
+
+    if (isVisible) { qRow.style.display = 'none'; return; }
+
+    qRow.style.display = 'table-row';
+    container.innerHTML = '<div class="small">Loading questions...</div>';
+
+    fetch(`?action=get_assignment&id=${id}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.success) {
+                container.innerHTML = `<div style="color:#b71c1c">${(data?.message) || 'Failed to load questions.'}</div>`;
+                return;
+            }
+            const questions = data.questions || [];
+            if (!questions.length) { container.innerHTML = '<div class="small">No questions added yet.</div>'; return; }
+
+            container.innerHTML = questions.map((q, i) => {
+                const type = q.question_type;
+                const options = (type === 'multiple_choice' && q.options && q.options.length) 
+                    ? `<ul style="margin:5px 0;padding-left:20px">` + q.options.map(o => `<li>${escapeHtml(o.option_text)} ${o.is_correct==1?'✅':''}</li>`).join('') + `</ul>`
+                    : '';
+                const media = q.media_url ? `<div class="small">Media: <a target="_blank" href="${q.media_url}">view</a></div>` : '';
+                const image = q.image_url ? `<div class="small">Image: <a target="_blank" href="${q.image_url}">view</a></div>` : '';
+                return `<div class="question-card">
+                    <div class="question-number">${i+1}</div>
+                    <div><b>Type:</b> ${type} &nbsp; <b>Points:</b> ${q.points}</div>
+                    <div style="margin-top:6px"><b>Q:</b> ${escapeHtml(q.question_text)}</div>
+                    ${media}${image}${options}
+                </div>`;
+            }).join('');
+        })
+        .catch(e => {
+            container.innerHTML = '<div style="color:#b71c1c">Error loading questions.</div>';
+            console.error(e);
+        });
 }
 
-/* ---------- VIEW / DELETE ASSIGNMENTS ---------- */
-function viewQuestions(id, btn){
-  const row = btn.closest('tr');
-  const qRow = row.nextElementSibling;
-  const container = qRow.querySelector('.questions-list');
-  const isVisible = qRow.style.display === 'table-row';
-
-  if (isVisible) { qRow.style.display = 'none'; return; }
-
-  qRow.style.display = 'table-row';
-  container.innerHTML = '<div class="small">Loading questions...</div>';
-
-  fetch(`?action=get_assignment&id=${id}`)
-    .then(r => r.json())
-    .then(data => {
-      if (!data || data.success === false) {
-        container.innerHTML = `<div style="color:#b71c1c">${(data && (data.message||data.error)) || 'Failed to load questions.'}</div>`;
-        return;
-      }
-      const questions = data.questions || [];
-      if (!questions.length) {
-        container.innerHTML = '<div class="small">No questions added yet.</div>';
-        return;
-      }
-      const html = questions.map((q, i) => {
-        const options = (q.type === 'multiple_choice' && q.options && q.options.length)
-          ? `<ul style="margin:5px 0;padding-left:20px">` + q.options.map(o => 
-              `<li>${escapeHtml(o.option_text)} ${o.is_correct==1?'✅':''}</li>`
-            ).join('') + `</ul>`
-          : '';
-        const media = q.media_url ? `<div class="small">Media: <a target="_blank" href="${q.media_url}">view</a></div>` : '';
-        const image = q.image_url ? `<div class="small">Image: <a target="_blank" href="${q.image_url}">view</a></div>` : '';
-        return `<div class="question-card">
-          <div class="question-number">${i+1}</div>
-          <div><b>Type:</b> ${q.type} &nbsp; <b>Points:</b> ${q.points}</div>
-          <div style="margin-top:6px"><b>Q:</b> ${escapeHtml(q.question_text)}</div>
-          ${media}${image}
-          ${options}
-        </div>`;
-      }).join('');
-      container.innerHTML = html;
-    })
-    .catch(e => {
-      container.innerHTML = '<div style="color:#b71c1c">Error loading questions.</div>';
-      console.error(e);
-    });
-}
-
+/* ---------- DELETE ASSIGNMENT ---------- */
 function deleteAssignment(id) {
-  if (confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) return;
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>';
-
-    const actionInput = document.createElement('input');
-    actionInput.type = 'hidden';
-    actionInput.name = 'action';
-    actionInput.value = 'delete_interactive_assignment';
-    form.appendChild(actionInput);
-
-    const idInput = document.createElement('input');
-    idInput.type = 'hidden';
-    idInput.name = 'id';
-    idInput.value = id;
-    form.appendChild(idInput);
-
+    form.innerHTML = `<input type="hidden" name="action" value="delete_interactive_assignment">
+                      <input type="hidden" name="id" value="${id}">`;
     document.body.appendChild(form);
     form.submit();
-  }
 }
 
 /* ---------- UTILITY ---------- */
 function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/[&<>"'\/]/g, s =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;'}[s])
-  );
+    if (!str) return '';
+    return String(str).replace(/[&<>"'\/]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;'}[s]));
 }
 
 /* ---------- INIT ---------- */
 addQuestion();
 
-// Close modal when clicking outside
+// Close edit modal on clicking outside
 window.onclick = function(event) {
-  const modal = document.getElementById('editModal');
-  if (event.target == modal) { modal.style.display = 'none'; }
-}
+    const modal = document.getElementById('editModal');
+    if (event.target == modal) { modal.style.display = 'none'; }
+};
+
 function extendDeadlineModal() {
     const assignmentId = document.getElementById('edit_id').value;
     const currentDue = document.getElementById('edit_due_date').value;
-
     let newDate = prompt("Enter new deadline (YYYY-MM-DD HH:MM):", currentDue);
     if (!newDate) return;
 
@@ -942,13 +923,12 @@ function extendDeadlineModal() {
     .then(data => {
         if (data.success) {
             alert('Deadline updated!');
-            document.getElementById('edit_due_date').value = newDate; // update modal input
+            document.getElementById('edit_due_date').value = newDate;
         } else {
             alert('Error: ' + data.message);
         }
     });
 }
-
 </script>
 
 </body>
