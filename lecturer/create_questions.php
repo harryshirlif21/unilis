@@ -415,6 +415,20 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignme
         exit;
     }
 }
+if (isset($_POST['action']) && $_POST['action'] === 'extend_deadline') {
+    $id = intval($_POST['id'] ?? 0);
+    $new_due = $_POST['new_due_date'] ?? null;
+
+    if ($id <= 0 || !$new_due) json_exit(['success' => false, 'message' => 'Invalid input']);
+
+    $stmt = $conn->prepare("UPDATE interactive_assignments SET due_date=? WHERE id=? AND lecturer_id=?");
+    $stmt->bind_param("sii", $new_due, $id, $lecturer_id);
+    if ($stmt->execute()) {
+        json_exit(['success' => true]);
+    } else {
+        json_exit(['success' => false, 'message' => 'Update failed']);
+    }
+}
 
 ?>
 <!doctype html>
@@ -454,6 +468,7 @@ table th{background:var(--primary);color:#fff}
 </style>
 </head>
 <body>
+
 <div class="container">
 
   <!-- Manage Assignments -->
@@ -560,6 +575,15 @@ table th{background:var(--primary);color:#fff}
           <input class="input" type="datetime-local" name="due_date" id="edit_due_date" required>
         </div>
         <div>
+  <label class="input-group label">Due Date</label>
+  <input class="input" type="datetime-local" name="due_date" id="edit_due_date" required>
+  <!-- Extend Deadline Button -->
+  <button type="button" class="btn btn-warning" style="margin-top:8px;" onclick="extendDeadlineModal()">
+    Extend Deadline
+  </button>
+</div>
+
+        <div>
           <label class="input-group label">Unit</label>
           <select class="input" name="unit_id" id="edit_unit_id" required>
             <option value="">-- Select Unit --</option>
@@ -575,11 +599,14 @@ table th{background:var(--primary);color:#fff}
 
       <div style="display:flex;gap:12px;margin-top:12px">
         <button type="button" class="btn btn-add" onclick="editAddQuestion()">+ Add New Question</button>
+        
         <button type="submit" class="btn btn-green">Save Changes</button>
       </div>
     </form>
   </div>
 </div>
+
+
 <script>
 let questionCount = 0;
 let createQuestionIndex = 0;
@@ -677,83 +704,57 @@ function createToggleOptions(idx){
   document.getElementById('create_options_'+idx).style.display = (sel.value === 'multiple_choice') ? 'block' : 'none';
   document.getElementById('create_audio_'+idx).style.display = (sel.value === 'speech') ? 'block' : 'none';
 }
-
-/* ---------- EDIT QUESTIONS ---------- */
-function openEditModal(id) {
-  const modal = document.getElementById('editModal');
-  const errBox = document.getElementById('edit_error');
-  if (errBox) { errBox.textContent = 'Loading...'; errBox.style.display = 'block'; }
-  if (modal) modal.style.display = 'flex';
-
-  fetch(`?action=get_assignment&id=${id}`)
-    .then(async r => {
-      const text = await r.text();
-      try { return JSON.parse(text); } catch(e) { throw new Error(text || 'Failed to load assignment data'); }
-    })
-    .then(data => {
-      if (!data || data.success === false) {
-        const msg = (data && (data.message || data.error)) || 'Failed to load assignment';
-        if (errBox) { errBox.textContent = msg; errBox.style.display = 'block'; }
-        return;
-      }
-      if (errBox) { errBox.textContent = ''; errBox.style.display = 'none'; }
-      const a = data.assignment;
-      document.getElementById('edit_id').value = a.id;
-      document.getElementById('edit_title').value = a.title;
-      document.getElementById('edit_description').value = a.description;
-      document.getElementById('edit_due_date').value = a.due_date ? a.due_date.replace(' ', 'T') : '';
-      document.getElementById('edit_unit_id').value = a.unit_id;
-
-      const c = document.getElementById('editQuestionsContainer');
-      c.innerHTML = '';
-      editQuestionIndex = 0;
-      (data.questions || []).forEach((q, idx) => {
-        const html = editQuestionMarkup(idx, q);
-        c.insertAdjacentHTML('beforeend', html);
-      });
-    })
-    .catch(err => {
-      console.error('Edit load failed:', err);
-      const eDiv = document.getElementById('edit_error');
-      let errorMsg = err.message;
-      if (errorMsg.includes('login') || errorMsg.includes('Sign In') || errorMsg.includes('<!DOCTYPE html>')) {
-        errorMsg = 'Your session has expired. Please refresh the page and login again.';
-        setTimeout(() => { window.location.reload(); }, 3000);
-      }
-      if (eDiv) { eDiv.textContent = errorMsg; eDiv.style.display = 'block'; }
-    });
-}
-
-function editQuestionMarkup(idx,q){
+function editQuestionMarkup(idx, q) {
   const type = q.type || 'text';
-  const mediaNote = q.media_url ? `<div class="small">Existing media: <a target="_blank" href="${q.media_url}">view</a></div>` : '';
-  const imageNote = q.image_url ? `<div class="small">Existing image: <a target="_blank" href="${q.image_url}">view</a></div>` : '';
 
+  /* --- PREVIEW MEDIA --- */
+  const imagePreview = q.image_url 
+    ? `<div class="small"><p>Existing image:</p>
+         <img src="${q.image_url}" style="max-width:150px;max-height:150px;border:1px solid #ccc;margin-top:6px;"></div>`
+    : '';
+
+  const audioPreview = q.media_url
+    ? `<div class="small"><p>Existing audio:</p>
+         <audio controls style="margin-top:6px; max-width:200px;">
+            <source src="${q.media_url}">
+         </audio></div>`
+    : '';
+
+  /* --- MULTIPLE CHOICE OPTIONS --- */
   let optionsHtml = '';
   if (type === 'multiple_choice' && q.options && q.options.length) {
     q.options.forEach((opt, oi) => {
       optionsHtml += `
-        <div class="option-input">
+        <div class="option-input" style="margin-bottom:6px;">
           <input type="radio" name="questions[${idx}][correct]" value="${oi+1}" ${opt.is_correct==1?'checked':''}>
-          <input class="input" type="text" name="questions[${idx}][options][]" value="${escapeHtml(opt.option_text)}" placeholder="Option ${oi+1}">
+          <input class="input" type="text" name="questions[${idx}][options][]" 
+                 value="${escapeHtml(opt.option_text)}" placeholder="Option ${oi+1}">
         </div>`;
     });
-  } else if (type === 'multiple_choice') {
-    optionsHtml = `
-      <div class="option-input">
-        <input type="radio" name="questions[${idx}][correct]" value="1">
-        <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1">
-      </div>
-      <div class="option-input">
-        <input type="radio" name="questions[${idx}][correct]" value="2">
-        <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2">
-      </div>`;
   }
+
+  /* -----------------------
+      TEXT ANSWER FIELDS
+  ------------------------ */
+  const textAnswerHtml = `
+    <div id="edit_text_answer_${idx}" style="margin-top:8px; display:${type==='text' ? 'block' : 'none'}">
+      <label class="input-group label">Correct Answer (Lecturer Answer)</label>
+      <textarea class="input" name="questions[${idx}][correct_answer]" rows="2"
+      >${q.correct_answer ? escapeHtml(q.correct_answer) : ''}</textarea>
+
+      <label class="input-group label" style="margin-top:8px;">Keywords (comma separated)</label>
+      <input class="input" type="text" name="questions[${idx}][keywords]"
+             value="${q.keywords ? escapeHtml(q.keywords) : ''}" 
+             placeholder="e.g. photosynthesis, chlorophyll, sunlight">
+    </div>
+  `;
 
   return `
     <div class="question-card" id="edit_q_${idx}">
-      <div class="question-number">${idx+1}</div>
+      <div class="question-number">${idx + 1}</div>
+
       <input type="hidden" name="questions[${idx}][id]" value="${q.id}">
+
       <div>
         <label class="input-group label">Question Type</label>
         <select class="input" name="questions[${idx}][type]" onchange="editToggleOptions(${idx})">
@@ -764,31 +765,36 @@ function editQuestionMarkup(idx,q){
       </div>
 
       <div style="margin-top:8px">
-        <label class="input-group label">Question Text</label>
-        <input class="input" type="text" name="questions[${idx}][text]" value="${escapeHtml(q.question_text)}" required>
+        <label class="input-group label">Question</label>
+        <textarea class="input" name="questions[${idx}][text]" rows="2" required>${escapeHtml(q.question_text)}</textarea>
       </div>
 
       <div style="margin-top:8px">
         <label class="input-group label">Points</label>
-        <input class="input" type="number" name="questions[${idx}][points]" min="1" value="${q.points}" required>
+        <input class="input" type="number" min="1" name="questions[${idx}][points]" value="${q.points}">
       </div>
 
-      <div id="edit_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
+      ${textAnswerHtml}
+
+      <!-- MCQ -->
+      <div id="edit_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice' ? 'block' : 'none'}">
         <label class="input-group label">Options</label>
         ${optionsHtml}
         <button type="button" class="btn btn-add" onclick="editAddOption(${idx})">Add option</button>
       </div>
 
+      <!-- AUDIO -->
       <div id="edit_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
         <label class="input-group label">Replace / Upload question audio</label>
         <input type="file" name="questions[${idx}][audio]" accept="audio/*">
-        ${mediaNote}
+        ${audioPreview}
       </div>
 
+      <!-- IMAGE -->
       <div id="edit_image_${idx}" style="margin-top:8px; display:block">
         <label class="input-group label">Replace / Upload question image</label>
         <input type="file" name="questions[${idx}][image]" accept="image/*">
-        ${imageNote}
+        ${imagePreview}
       </div>
 
       <div style="margin-top:10px">
@@ -802,12 +808,17 @@ function removeEditQuestion(idx){
   const el = document.getElementById('edit_q_'+idx);
   if(el) el.remove();
 }
+function editToggleOptions(idx) {
+  const type = document.querySelector(`select[name="questions[${idx}][type]"]`).value;
 
-function editToggleOptions(idx){
-  const sel = document.querySelector(`#edit_q_${idx} select[name="questions[${idx}][type]"]`);
-  if(!sel) return;
-  document.getElementById('edit_options_'+idx).style.display = (sel.value==='multiple_choice')?'block':'none';
-  document.getElementById('edit_audio_'+idx).style.display = (sel.value==='speech')?'block':'none';
+  document.getElementById(`edit_text_answer_${idx}`).style.display =
+      type === 'text' ? 'block' : 'none';
+
+  document.getElementById(`edit_options_${idx}`).style.display =
+      type === 'multiple_choice' ? 'block' : 'none';
+
+  document.getElementById(`edit_audio_${idx}`).style.display =
+      type === 'speech' ? 'block' : 'none';
 }
 
 function editAddOption(qIdx){
@@ -915,6 +926,29 @@ window.onclick = function(event) {
   const modal = document.getElementById('editModal');
   if (event.target == modal) { modal.style.display = 'none'; }
 }
+function extendDeadlineModal() {
+    const assignmentId = document.getElementById('edit_id').value;
+    const currentDue = document.getElementById('edit_due_date').value;
+
+    let newDate = prompt("Enter new deadline (YYYY-MM-DD HH:MM):", currentDue);
+    if (!newDate) return;
+
+    fetch('interactive_assignments.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'action=extend_deadline&id=' + assignmentId + '&new_due_date=' + encodeURIComponent(newDate)
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('Deadline updated!');
+            document.getElementById('edit_due_date').value = newDate; // update modal input
+        } else {
+            alert('Error: ' + data.message);
+        }
+    });
+}
+
 </script>
 
 </body>
