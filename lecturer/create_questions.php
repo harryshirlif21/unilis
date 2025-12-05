@@ -700,6 +700,113 @@ function createToggleOptions(idx) {
     document.getElementById('create_options_' + idx).style.display = sel.value === 'multiple_choice' ? 'block' : 'none';
     document.getElementById('create_audio_' + idx).style.display = sel.value === 'speech' ? 'block' : 'none';
 }
+let createQuestionIndex = 0;
+let editQuestionIndex = 0;
+
+/* ---------- UTILITY ---------- */
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"'\/]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;'}[s]));
+}
+
+/* ---------- CREATE QUESTIONS ---------- */
+function addQuestion(prefill = null) {
+    const container = document.getElementById('questionsContainer');
+    const idx = createQuestionIndex++;
+    container.insertAdjacentHTML('beforeend', createQuestionMarkup(idx, prefill));
+}
+
+function createQuestionMarkup(idx, prefill = null) {
+    const type = prefill?.type || 'text';
+    const textVal = prefill?.question_text || '';
+    const pointsVal = prefill?.points || 1;
+    const mediaNote = prefill?.media_url ? `<div class="small">Existing media: <a target="_blank" href="${prefill.media_url}">view</a></div>` : '';
+    const imageNote = prefill?.image_url ? `<div class="small">Existing image: <a target="_blank" href="${prefill.image_url}">view</a></div>` : '';
+
+    return `
+    <div class="question-card" id="create_q_${idx}">
+        <div class="question-number">${idx + 1}</div>
+
+        <div>
+            <label class="input-group label">Question Type</label>
+            <select class="input" name="questions[${idx}][type]" onchange="createToggleOptions(${idx})">
+                <option value="text"${type==='text'?' selected':''}>Text Answer</option>
+                <option value="multiple_choice"${type==='multiple_choice'?' selected':''}>Multiple Choice</option>
+                <option value="speech"${type==='speech'?' selected':''}>Speech / Audio</option>
+            </select>
+        </div>
+
+        <div style="margin-top:8px">
+            <label class="input-group label">Question Text</label>
+            <textarea class="input" name="questions[${idx}][text]" required>${textVal}</textarea>
+        </div>
+
+        <div style="margin-top:8px">
+            <label class="input-group label">Points</label>
+            <input class="input" type="number" name="questions[${idx}][points]" min="1" value="${pointsVal}" required>
+        </div>
+
+        <div id="create_text_answer_${idx}" style="margin-top:8px; display:${type==='text'?'block':'none'}">
+            <label class="input-group label">Correct Answer (Lecturer Answer)</label>
+            <textarea class="input" name="questions[${idx}][correct_answer]" rows="2">${prefill?.correct_answer || ''}</textarea>
+            <label class="input-group label" style="margin-top:8px;">Keywords (comma separated)</label>
+            <input class="input" type="text" name="questions[${idx}][keywords]" value="${prefill?.keywords || ''}">
+        </div>
+
+        <div id="create_options_${idx}" style="margin-top:8px; display:${type==='multiple_choice'?'block':'none'}">
+            <label class="input-group label">Options</label>
+            <div id="create_options_list_${idx}">
+                <div class="option-input">
+                    <input type="radio" name="questions[${idx}][correct]" value="1">
+                    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 1" value="${prefill?.options?.[0]?.option_text || ''}">
+                </div>
+                <div class="option-input">
+                    <input type="radio" name="questions[${idx}][correct]" value="2">
+                    <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option 2" value="${prefill?.options?.[1]?.option_text || ''}">
+                </div>
+            </div>
+            <button type="button" class="btn btn-add" onclick="createAddOption(${idx})">Add option</button>
+        </div>
+
+        <div id="create_audio_${idx}" style="margin-top:8px; display:${type==='speech'?'block':'none'}">
+            <label class="input-group label">Upload question audio (optional)</label>
+            <input type="file" name="questions[${idx}][audio]" accept="audio/*">
+            ${mediaNote}
+        </div>
+
+        <div id="create_image_${idx}" style="margin-top:8px; display:block">
+            <label class="input-group label">Upload question image (optional)</label>
+            <input type="file" name="questions[${idx}][image]" accept="image/*">
+            ${imageNote}
+        </div>
+
+        <div style="margin-top:10px">
+            <button type="button" class="btn btn-delete" onclick="removeCreateQuestion(${idx})">Remove Question</button>
+        </div>
+    </div>`;
+}
+
+function createAddOption(idx) {
+    const div = document.getElementById('create_options_list_' + idx);
+    if (!div) return;
+    const count = div.querySelectorAll('.option-input').length + 1;
+    div.insertAdjacentHTML('beforeend', `<div class="option-input">
+        <input type="radio" name="questions[${idx}][correct]" value="${count}">
+        <input class="input" type="text" name="questions[${idx}][options][]" placeholder="Option ${count}">
+    </div>`);
+}
+
+function removeCreateQuestion(idx) {
+    const el = document.getElementById('create_q_' + idx);
+    if (el) el.remove();
+}
+
+function createToggleOptions(idx) {
+    const sel = document.querySelector(`select[name="questions[${idx}][type]"]`);
+    document.getElementById('create_options_' + idx).style.display = sel.value === 'multiple_choice' ? 'block' : 'none';
+    document.getElementById('create_text_answer_' + idx).style.display = sel.value === 'text' ? 'block' : 'none';
+    document.getElementById('create_audio_' + idx).style.display = sel.value === 'speech' ? 'block' : 'none';
+}
 
 /* ---------- EDIT / UPDATE QUESTIONS ---------- */
 function openEditModal(id) {
@@ -707,7 +814,6 @@ function openEditModal(id) {
     modal.style.display = 'block';
     document.getElementById('edit_id').value = id;
 
-    // Clear previous questions
     const container = document.getElementById('editQuestionsContainer');
     container.innerHTML = '';
     editQuestionIndex = 0;
@@ -729,8 +835,7 @@ function openEditModal(id) {
             document.getElementById('edit_unit_id').value = a.unit_id;
 
             // Populate questions
-            questions.forEach((q, idx) => {
-                // Convert question_type -> type for JS
+            questions.forEach(q => {
                 q.type = q.question_type;
                 container.insertAdjacentHTML('beforeend', editQuestionMarkup(editQuestionIndex++, q));
             });
@@ -862,17 +967,38 @@ function viewQuestions(id, btn) {
 
             container.innerHTML = questions.map((q, i) => {
                 const type = q.question_type;
-                const options = (type === 'multiple_choice' && q.options && q.options.length) 
-                    ? `<ul style="margin:5px 0;padding-left:20px">` + q.options.map(o => `<li>${escapeHtml(o.option_text)} ${o.is_correct==1?'✅':''}</li>`).join('') + `</ul>`
-                    : '';
-                const media = q.media_url ? `<div class="small">Media: <a target="_blank" href="${q.media_url}">view</a></div>` : '';
-                const image = q.image_url ? `<div class="small">Image: <a target="_blank" href="${q.image_url}">view</a></div>` : '';
-                return `<div class="question-card">
-                    <div class="question-number">${i+1}</div>
-                    <div><b>Type:</b> ${type} &nbsp; <b>Points:</b> ${q.points}</div>
-                    <div style="margin-top:6px"><b>Q:</b> ${escapeHtml(q.question_text)}</div>
-                    ${media}${image}${options}
-                </div>`;
+
+                let optionsHtml = '';
+                if (type === 'multiple_choice' && q.options && q.options.length) {
+                    optionsHtml = '<ul style="margin:5px 0;padding-left:20px">';
+                    optionsHtml += q.options.map((o, idx) => `<li>${escapeHtml(o.option_text)} ${o.is_correct==1?'✅ Correct':''}</li>`).join('');
+                    optionsHtml += '</ul>';
+                }
+
+                let mediaHtml = '';
+                if (type === 'speech' && q.media_url) {
+                    mediaHtml += `<div class="small">Audio: <audio controls><source src="${q.media_url}"></audio></div>`;
+                }
+
+                if (q.image_url) {
+                    mediaHtml += `<div class="small">Image: <a target="_blank" href="${q.image_url}">view</a></div>`;
+                }
+
+                let textAnswerHtml = '';
+                if (type === 'text' && q.correct_answer) {
+                    textAnswerHtml = `<div class="small"><b>Lecturer Answer:</b> ${escapeHtml(q.correct_answer)}</div>`;
+                }
+
+                return `
+                    <div class="question-card">
+                        <div class="question-number">${i+1}</div>
+                        <div><b>Type:</b> ${type} &nbsp; <b>Points:</b> ${q.points}</div>
+                        <div style="margin-top:6px"><b>Q:</b> ${escapeHtml(q.question_text)}</div>
+                        ${optionsHtml}
+                        ${textAnswerHtml}
+                        ${mediaHtml}
+                    </div>
+                `;
             }).join('');
         })
         .catch(e => {
@@ -880,7 +1006,6 @@ function viewQuestions(id, btn) {
             console.error(e);
         });
 }
-
 /* ---------- DELETE ASSIGNMENT ---------- */
 function deleteAssignment(id) {
     if (!confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) return;
