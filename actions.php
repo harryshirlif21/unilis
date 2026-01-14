@@ -161,7 +161,7 @@ $result = $stmt->get_result();
 if ($result->num_rows > 0) {
     $_SESSION['signup_errors'] = ["Reg No or Email already registered. <a href='login.php'>Login here</a>"];
     $stmt->close();
-    header("Location: student/signup.php");
+    header("Location: signup.php");
     exit;
 }
 $stmt->close();
