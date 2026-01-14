@@ -189,7 +189,7 @@ $stmt->bind_param(
 if (!$stmt->execute()) {
     $_SESSION['signup_errors'] = ["Database error. Please try again."];
     $stmt->close();
-    header("Location: student/signup.php");
+    header("Location: signup.php");
     exit;
 }
 
@@ -251,7 +251,7 @@ $stmt->close();
         exit;
     } else {
         $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
-        header("Location: student/signup.php");
+        header("Location: ../login.php");
         exit;
     }
 }
