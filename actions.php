@@ -125,9 +125,8 @@ if ($action === 'save_questions' && isset($_SESSION['user_id']) && $_SESSION['us
     }
 }
 
-// === STUDENT SIGNUP ACTION — FULLY CONVERTED TO MySQLi ($conn) ===
+// === STUDENT SIGNUP ACTION (100% Self-Contained with Real Email Sending) ===
 if ($action === 'signup_student') {
-
     // === 1. Collect and sanitize input ===
     $reg_no         = trim($_POST['reg_no']);
     $name           = trim($_POST['name']);
@@ -155,49 +154,93 @@ if ($action === 'signup_student') {
     }
 
     // === 3. Check for duplicates ===
-    $stmt = $conn->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
-    $stmt->bind_param("ss", $reg_no, $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
+    $stmt = $pdo->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
+    $stmt->execute([$reg_no, $email]);
+    if ($stmt->fetch()) {
         $_SESSION['signup_errors'] = ["Reg No or Email already registered. <a href='login.php'>Login here</a>"];
-        $stmt->close();
         header("Location: student/signup.php");
         exit;
     }
-    $stmt->close();
 
     // === 4. Create student + verification token ===
-    $token       = bin2hex(random_bytes(32)); // still stored in DB for later verification
-    $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
+    $token      = bin2hex(random_bytes(32));
+    $expires_at = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
     $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
 
-    $stmt = $conn->prepare("
+    $stmt = $pdo->prepare("
         INSERT INTO students (
             reg_no, name, email, university_id, department_id, course_id,
             year_of_study, year_joined, password,
-            verification_code, token_expires_at, is_verified
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            verified, verification_token, token_expires_at
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?
+        )
     ");
-
-    $stmt->bind_param(
-        "sssiiiiisss",
+    $stmt->execute([
         $reg_no, $name, $email, $university_id, $department_id, $course_id,
         $year_of_study, $year_joined, $hashed_pass,
         $token, $expires_at
-    );
+    ]);
 
-    if (!$stmt->execute()) {
-        $_SESSION['signup_errors'] = ["Database error. Please try again."];
-        $stmt->close();
+    // === 5. SEND VERIFICATION EMAIL USING PHPMailer (Embedded) ===
+    
+
+    $mail = new PHPMailer(true);
+    $email_sent = false;
+
+    try {
+        // SMTP Configuration
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis717@gmail.com';           // Your real email
+        $mail->Password   = 'your-16-digit-app-password-here'; // ← CHANGE THIS!
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        // Recipients
+        $mail->setFrom('unilis717@gmail.com', 'UNILIS');
+        $mail->addAddress($email);
+
+        // Verification Link
+        $verify_link = "https://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']) . "/verify.php?token=" . $token;
+
+        // Email Content
+        $mail->isHTML(true);
+        $mail->Subject = 'Verify Your UNILIS Account';
+        $mail->Body    = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background: #f9f9f9;'>
+                <h2 style='color: #007bff; text-align: center;'>Welcome to UNILIS!</h2>
+                <p>Hi <strong>$name</strong>,</p>
+                <p>Thank you for registering. Please click the button below to verify your email address:</p>
+                <div style='text-align: center; margin: 30px 0;'>
+                    <a href='$verify_link' style='background:#007bff; color:white; padding:15px 40px; text-decoration:none; border-radius:8px; font-size:16px; display:inline-block;'>Verify Email Now</a>
+                </div>
+                <p>Or copy this link:<br>
+                   <code style='background:#eee; padding:8px; word-break:break-all; display:inline-block;'>$verify_link</code>
+                </p>
+                <p><small>This link expires in " . TOKEN_EXPIRY_MINUTES . " minutes.</small></p>
+                <hr>
+                <p style='color:#666; font-size:12px;'>© " . date('Y') . " UNILIS • University Learning Information System</p>
+            </div>
+        ";
+
+        $mail->send();
+        $email_sent = true;
+    } catch (Exception $e) {
+        error_log("PHPMailer Error: " . $mail->ErrorInfo);
+        $email_sent = false;
+    }
+
+    // === 6. Final Redirect ===
+    if ($email_sent) {
+        header("Location: verify.php?sent=1&email=" . urlencode($email));
+        exit;
+    } else {
+        $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
         header("Location: student/signup.php");
         exit;
     }
-    $stmt->close();
-
-    // === 5. Redirect to verify.php WITHOUT sending email and WITHOUT token ===
-    header("Location: verify.php");
-    exit;
 }
 // === UNIVERSAL LOGIN WITH RETURN URL SUPPORT ===
 if ($action === 'universal_login') {
