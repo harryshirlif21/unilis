@@ -154,33 +154,46 @@ if ($action === 'signup_student') {
     }
 
     // === 3. Check for duplicates ===
-    $stmt = $pdo->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
-    $stmt->execute([$reg_no, $email]);
-    if ($stmt->fetch()) {
-        $_SESSION['signup_errors'] = ["Reg No or Email already registered. <a href='login.php'>Login here</a>"];
-        header("Location: student/signup.php");
-        exit;
-    }
+$stmt = $conn->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
+$stmt->bind_param("ss", $reg_no, $email);
+$stmt->execute();
+$result = $stmt->get_result();
+if ($result->num_rows > 0) {
+    $_SESSION['signup_errors'] = ["Reg No or Email already registered. <a href='login.php'>Login here</a>"];
+    $stmt->close();
+    header("Location: student/signup.php");
+    exit;
+}
+$stmt->close();
 
-    // === 4. Create student + verification token ===
-    $token      = bin2hex(random_bytes(32));
-    $expires_at = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
-    $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
+// === 4. Create student + verification token ===
+$token       = bin2hex(random_bytes(32));
+$expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
+$hashed_pass = password_hash($password, PASSWORD_DEFAULT);
 
-    $stmt = $pdo->prepare("
-        INSERT INTO students (
-            reg_no, name, email, university_id, department_id, course_id,
-            year_of_study, year_joined, password,
-            verified, verification_token, token_expires_at
-        ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?
-        )
-    ");
-    $stmt->execute([
-        $reg_no, $name, $email, $university_id, $department_id, $course_id,
-        $year_of_study, $year_joined, $hashed_pass,
-        $token, $expires_at
-    ]);
+$stmt = $conn->prepare("
+    INSERT INTO students (
+        reg_no, name, email, university_id, department_id, course_id,
+        year_of_study, year_joined, password,
+        verified, verification_token, token_expires_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+");
+
+$stmt->bind_param(
+    "sssiiiiisss",
+    $reg_no, $name, $email, $university_id, $department_id, $course_id,
+    $year_of_study, $year_joined, $hashed_pass,
+    $token, $expires_at
+);
+
+if (!$stmt->execute()) {
+    $_SESSION['signup_errors'] = ["Database error. Please try again."];
+    $stmt->close();
+    header("Location: student/signup.php");
+    exit;
+}
+
+$stmt->close();
 
     // === 5. SEND VERIFICATION EMAIL USING PHPMailer (Embedded) ===
     
