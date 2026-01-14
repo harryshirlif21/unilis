@@ -175,7 +175,7 @@ $stmt = $conn->prepare("
     INSERT INTO students (
         reg_no, name, email, university_id, department_id, course_id,
         year_of_study, year_joined, password,
-        is_verified, verification_token, token_expires_at
+        is_verified, verification_code, token_expires_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
 ");
 
