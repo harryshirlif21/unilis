@@ -149,7 +149,7 @@ if ($action === 'signup_student') {
     if (!empty($errors)) {
         $_SESSION['signup_errors'] = $errors;
         $_SESSION['old_input'] = $_POST;
-        header("Location: student/signup.php");
+        header("Location: signup.php");
         exit;
     }
 
@@ -161,7 +161,7 @@ $result = $stmt->get_result();
 if ($result->num_rows > 0) {
     $_SESSION['signup_errors'] = ["Reg No or Email already registered. <a href='login.php'>Login here</a>"];
     $stmt->close();
-    header("Location: signup.php");
+   // header("Location: signup.php");
     exit;
 }
 $stmt->close();
@@ -189,7 +189,7 @@ $stmt->bind_param(
 if (!$stmt->execute()) {
     $_SESSION['signup_errors'] = ["Database error. Please try again."];
     $stmt->close();
-    header("Location: signup.php");
+    //header("Location: signup.php");
     exit;
 }
 
