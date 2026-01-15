@@ -1,5 +1,26 @@
 <?php
+session_start();
 include '../actions.php';
+
+// Initialize variables
+$error = '';
+$success = '';
+$old_input = [];
+
+if (isset($_SESSION['signup_errors'])) {
+    $error = implode('<br>', $_SESSION['signup_errors']);
+    unset($_SESSION['signup_errors']);
+}
+
+if (isset($_SESSION['signup_success'])) {
+    $success = $_SESSION['signup_success'];
+    unset($_SESSION['signup_success']);
+}
+
+if (isset($_SESSION['old_input'])) {
+    $old_input = $_SESSION['old_input'];
+    unset($_SESSION['old_input']);
+}
 ?>
 
 <!DOCTYPE html>
@@ -254,23 +275,24 @@ include '../actions.php';
     </div>
 
     <div class="form-body">
-      <?php if (!empty($success)): ?><div class="success"><?= htmlspecialchars($success) ?></div><?php endif; ?>
-      <?php if (!empty($error)): ?><div class="error"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+      <?php if (!empty($success)): ?><div class="success"><?= $success ?></div><?php endif; ?>
+      <?php if (!empty($error)): ?><div class="error"><?= $error ?></div><?php endif; ?>
 
       <form method="POST" id="signupForm" novalidate>
         <input type="hidden" name="action" value="signup_student">
-        <!-- University is now hidden but always sends JKUAT -->
         <input type="hidden" name="university" value="JKUAT">
 
         <!-- Step 1 -->
         <div class="form-step active">
           <div class="form-group">
             <label>Registration Number <span style="color:var(--danger)">*</span></label>
-            <input type="text" name="reg_no" required placeholder="e.g. CS/001/2024">
+            <input type="text" name="reg_no" required placeholder="e.g. CS/001/2024"
+                   value="<?= htmlspecialchars($old_input['reg_no'] ?? '') ?>">
           </div>
           <div class="form-group">
             <label>Full Name <span style="color:var(--danger)">*</span></label>
-            <input type="text" name="name" required placeholder="John Doe">
+            <input type="text" name="name" required placeholder="John Doe"
+                   value="<?= htmlspecialchars($old_input['name'] ?? '') ?>">
           </div>
         </div>
 
@@ -278,17 +300,17 @@ include '../actions.php';
         <div class="form-step">
           <div class="form-group">
             <label>Email Address <span style="color:var(--danger)">*</span></label>
-            <input type="email" name="email" required placeholder="student@jkuat.ac.ke">
+            <input type="email" name="email" required placeholder="student@jkuat.ac.ke"
+                   value="<?= htmlspecialchars($old_input['email'] ?? '') ?>">
           </div>
           <div class="form-group">
             <label>School / Faculty <span style="color:var(--danger)">*</span></label>
             <select name="school" required>
               <option value="">-- Select School --</option>
-              <option value="School of Computing & IT">School of Computing & IT</option>
-              <option value="School of Engineering">School of Engineering</option>
-              <option value="School of Business">School of Business</option>
-              <option value="School of Health Sciences">School of Health Sciences</option>
-              <!-- Add more from DB later -->
+              <option value="School of Computing & IT" <?= (isset($old_input['school']) && $old_input['school']=='School of Computing & IT')?'selected':'' ?>>School of Computing & IT</option>
+              <option value="School of Engineering" <?= (isset($old_input['school']) && $old_input['school']=='School of Engineering')?'selected':'' ?>>School of Engineering</option>
+              <option value="School of Business" <?= (isset($old_input['school']) && $old_input['school']=='School of Business')?'selected':'' ?>>School of Business</option>
+              <option value="School of Health Sciences" <?= (isset($old_input['school']) && $old_input['school']=='School of Health Sciences')?'selected':'' ?>>School of Health Sciences</option>
             </select>
           </div>
         </div>
@@ -302,7 +324,8 @@ include '../actions.php';
               <?php
               $res = $conn->query("SELECT * FROM departments");
               while ($row = $res->fetch_assoc()) {
-                  echo "<option value='{$row['id']}'>{$row['name']}</option>";
+                  $selected = (isset($old_input['department']) && $old_input['department']==$row['id']) ? 'selected' : '';
+                  echo "<option value='{$row['id']}' $selected>{$row['name']}</option>";
               }
               ?>
             </select>
@@ -314,7 +337,8 @@ include '../actions.php';
               <?php
               $res = $conn->query("SELECT * FROM courses");
               while ($row = $res->fetch_assoc()) {
-                  echo "<option value='{$row['id']}'>{$row['name']}</option>";
+                  $selected = (isset($old_input['course']) && $old_input['course']==$row['id']) ? 'selected' : '';
+                  echo "<option value='{$row['id']}' $selected>{$row['name']}</option>";
               }
               ?>
             </select>
@@ -325,15 +349,18 @@ include '../actions.php';
         <div class="form-step">
           <div class="form-group">
             <label>Year of Study <span style="color:var(--danger)">*</span></label>
-            <input type="number" name="year_of_study" min="1" max="6" required placeholder="e.g. 3">
+            <input type="number" name="year_of_study" min="1" max="6" required placeholder="e.g. 3"
+                   value="<?= htmlspecialchars($old_input['year_of_study'] ?? '') ?>">
           </div>
           <div class="form-group">
             <label>Year Joined <span style="color:var(--danger)">*</span></label>
-            <input type="number" name="year_joined" min="2000" max="<?= date('Y') ?>" required placeholder="<?= date('Y') ?>">
+            <input type="number" name="year_joined" min="2000" max="<?= date('Y') ?>" required
+                   placeholder="<?= date('Y') ?>"
+                   value="<?= htmlspecialchars($old_input['year_joined'] ?? '') ?>">
           </div>
         </div>
 
-        <!-- Step 5 - Password -->
+        <!-- Step 5 -->
         <div class="form-step">
           <div class="form-group">
             <label>Password <span style="color:var(--danger)">*</span></label>
@@ -344,7 +371,6 @@ include '../actions.php';
             <div class="password-strength"><div class="strength-bar"></div></div>
             <div class="strength-text" id="strengthText">Enter a password (must be very strong)</div>
           </div>
-
           <div class="form-group">
             <label>Confirm Password <span style="color:var(--danger)">*</span></label>
             <input type="password" name="confirm_password" id="confirmPassword" required placeholder="Re-type password">
@@ -380,11 +406,9 @@ include '../actions.php';
         if (i < n) ind.classList.add('completed');
         if (i === n) ind.classList.add('active');
       });
-
       prevBtn.style.display = n === 0 ? 'none' : 'block';
       nextBtn.style.display = n === steps.length - 1 ? 'none' : 'block';
       submitBtn.style.display = n === steps.length - 1 ? 'block' : 'none';
-
       currentStep = n;
     }
 
@@ -405,7 +429,6 @@ include '../actions.php';
       if (currentStep > 0) showStep(currentStep - 1);
     });
 
-    // Password strength (very strict)
     passwordInput.addEventListener('input', () => {
       const val = passwordInput.value;
       let score = 0;
@@ -416,32 +439,28 @@ include '../actions.php';
       if (/[0-9]/.test(val)) score++;
       if (/[^A-Za-z0-9]/.test(val)) score++;
 
-      let level = 'weak';
-      let text = 'Too weak';
+      let level = 'weak', text = 'Too weak';
       if (score >= 5) { level = 'very-strong'; text = 'Very Strong - Excellent!'; }
       else if (score >= 4) { level = 'strong'; text = 'Strong'; }
       else if (score >= 3) { level = 'medium'; text = 'Medium'; }
 
-      strengthBar.parentElement.className = `password-strength ${level}`;
+      strengthBar.parentElement.className = 'password-strength ' + level;
       strengthText.textContent = text;
-      strengthText.style.color = score >= 5 ? '#059669' : score >= 4 ? '#10b981' : score >= 3 ? '#f59e0b' : '#ef4444';
-
-      submitBtn.disabled = score < 5 || passwordInput.value !== confirmInput.value;
+      submitBtn.disabled = score < 4 || val !== confirmInput.value;
     });
 
     confirmInput.addEventListener('input', () => {
-      submitBtn.disabled = passwordInput.value !== confirmInput.value || !passwordInput.value;
+      submitBtn.disabled = passwordInput.value !== confirmInput.value || passwordInput.value.length < 8;
     });
 
     togglePassword.addEventListener('click', () => {
       const type = passwordInput.type === 'password' ? 'text' : 'password';
       passwordInput.type = type;
-      togglePassword.classList.toggle('fa-eye');
+      confirmInput.type = type;
       togglePassword.classList.toggle('fa-eye-slash');
     });
 
-    // Initial
-    showStep(0);
+    showStep(currentStep);
   </script>
 </body>
 </html>

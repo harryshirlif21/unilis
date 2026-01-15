@@ -125,48 +125,55 @@ if ($action === 'save_questions' && isset($_SESSION['user_id']) && $_SESSION['us
     }
 }
 
-// === STUDENT SIGNUP ACTION — FULLY CONVERTED TO MySQLi ($conn) ===
-if ($action === 'signup_student') {
-    // === 1. Collect and sanitize input ===
-    $reg_no         = trim($_POST['reg_no']);
-    $name           = trim($_POST['name']);
-    $email          = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
-    $university_id  = (int)$_POST['university'];
-    $department_id  = (int)$_POST['department'];
-    $course_id      = (int)$_POST['course'];
-    $year_of_study  = (int)$_POST['year_of_study'];
-    $year_joined    = (int)$_POST['year_joined'];
-    $password       = $_POST['password'] ?? '';
-    $confirm_password = $_POST['confirm_password'] ?? '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signup_student') {
 
-    // === 2. Validation ===
+    // === 1. Collect and sanitize input ===
+    $reg_no          = trim($_POST['reg_no'] ?? '');
+    $name            = trim($_POST['name'] ?? '');
+    $email           = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
+    $university_id   = trim($_POST['university'] ?? 'JKUAT'); // Always JKUAT
+    $department_id   = (int)($_POST['department'] ?? 0);
+    $course_id       = (int)($_POST['course'] ?? 0);
+    $year_of_study   = (int)($_POST['year_of_study'] ?? 0);
+    $year_joined     = (int)($_POST['year_joined'] ?? 0);
+    $password        = $_POST['password'] ?? '';
+    $confirm_password= $_POST['confirm_password'] ?? '';
+
+    // === 2. Validate inputs ===
     $errors = [];
+
+    if (empty($reg_no)) $errors[] = "Registration number is required.";
+    if (empty($name)) $errors[] = "Full name is required.";
     if (!$email) $errors[] = "Please enter a valid email address.";
+    if ($department_id <= 0) $errors[] = "Please select a valid department.";
+    if ($course_id <= 0) $errors[] = "Please select a valid course.";
+    if ($year_of_study < 1 || $year_of_study > 6) $errors[] = "Year of study must be between 1 and 6.";
+    if ($year_joined < 2000 || $year_joined > date('Y')) $errors[] = "Year joined must be between 2000 and " . date('Y') . ".";
     if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters long.";
     if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
-    if (empty($reg_no) || empty($name)) $errors[] = "Registration number and name are required.";
 
     if (!empty($errors)) {
         $_SESSION['signup_errors'] = $errors;
         $_SESSION['old_input'] = $_POST;
-        header("Location: student/signup.php");
+        header("Location: signup.php");
         exit;
     }
 
-    // === 3. Check for duplicates (MySQLi) ===
+    // === 3. Check for duplicate reg_no or email ===
     $stmt = $conn->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
     $stmt->bind_param("ss", $reg_no, $email);
     $stmt->execute();
     $result = $stmt->get_result();
     if ($result->num_rows > 0) {
-        $_SESSION['signup_errors'] = ["Reg No or Email already registered. <a href='login.php'>Login here</a>"];
         $stmt->close();
-        header("Location: student/signup.php");
+        $_SESSION['signup_errors'] = ["Email or Registration number already registered. <a href='../login.php'>Login here</a>"];
+        $_SESSION['old_input'] = $_POST;
+        header("Location: signup.php");
         exit;
     }
     $stmt->close();
 
-    // === 4. Create student + verification token ===
+    // === 4. Insert student record ===
     $token       = bin2hex(random_bytes(32));
     $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
     $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
@@ -176,9 +183,7 @@ if ($action === 'signup_student') {
             reg_no, name, email, university_id, department_id, course_id,
             year_of_study, year_joined, password,
             verification_code, token_expires_at, is_verified
-        ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0
-        )
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     ");
     $stmt->bind_param(
         "sssiiiiisss",
@@ -188,28 +193,28 @@ if ($action === 'signup_student') {
     );
 
     if (!$stmt->execute()) {
-        $_SESSION['signup_errors'] = ["Database error. Please try again."];
+        $_SESSION['signup_errors'] = ["Database error: " . $stmt->error];
+        $_SESSION['old_input'] = $_POST;
         $stmt->close();
-        header("Location: student/signup.php");
+        header("Location: signup.php");
         exit;
     }
     $stmt->close();
 
-    // === 5. SEND VERIFICATION EMAIL USING PHPMailer ===
-    require_once 'includes/mailer.php'; // Make sure this file exists and uses $conn if needed
-
+    // === 5. Send verification email ===
     $email_sent = send_verification_email($email, $token, $name);
 
-    // === 6. Final Redirect ===
     if ($email_sent) {
-        header("Location: verify.php?sent=1&email=" . urlencode($email));
+        $_SESSION['signup_success'] = "Account created! A verification email has been sent to $email.";
+        header("Location: student/verify.php?sent=1&email=" . urlencode($email));
         exit;
     } else {
         $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
-        header("Location: student/signup.php");
+        header("Location: signup.php");
         exit;
     }
 }
+
 // === UNIVERSAL LOGIN WITH RETURN URL SUPPORT ===
 if ($action === 'universal_login') {
     $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
