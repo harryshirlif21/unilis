@@ -2,18 +2,7 @@
 require_once 'config/db.php';
 //require_once 'vendor/autoload.php';
 require_once 'vendor/autoload.php';
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
-require 'PHPMailer/src/Exception.php';
-require 'PHPMailer/src/PHPMailer.php';
-require 'PHPMailer/src/SMTP.php';
-
-$email_sent = false;
-$show_resend_div = false;
-$show_success_div = false;
-$email = '';
-$name = '';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -136,10 +125,8 @@ if ($action === 'save_questions' && isset($_SESSION['user_id']) && $_SESSION['us
     }
 }
 
-
-
+// === STUDENT SIGNUP ACTION — FULLY CONVERTED TO MySQLi ($conn) ===
 if ($action === 'signup_student') {
-
     // === 1. Collect and sanitize input ===
     $reg_no         = trim($_POST['reg_no']);
     $name           = trim($_POST['name']);
@@ -162,22 +149,24 @@ if ($action === 'signup_student') {
     if (!empty($errors)) {
         $_SESSION['signup_errors'] = $errors;
         $_SESSION['old_input'] = $_POST;
+        header("Location: student/signup.php");
         exit;
     }
 
-    // === 3. Check for duplicates ===
+    // === 3. Check for duplicates (MySQLi) ===
     $stmt = $conn->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
     $stmt->bind_param("ss", $reg_no, $email);
     $stmt->execute();
     $result = $stmt->get_result();
     if ($result->num_rows > 0) {
-        $_SESSION['signup_errors'] = ["Reg No or Email already registered."];
+        $_SESSION['signup_errors'] = ["Reg No or Email already registered. <a href='login.php'>Login here</a>"];
         $stmt->close();
+        header("Location: student/signup.php");
         exit;
     }
     $stmt->close();
 
-    // === 4. Create student + token ===
+    // === 4. Create student + verification token ===
     $token       = bin2hex(random_bytes(32));
     $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
     $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
@@ -186,10 +175,11 @@ if ($action === 'signup_student') {
         INSERT INTO students (
             reg_no, name, email, university_id, department_id, course_id,
             year_of_study, year_joined, password,
-            is_verified, verification_code, token_expires_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+            verification_code, token_expires_at, is_verified
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0
+        )
     ");
-
     $stmt->bind_param(
         "sssiiiiisss",
         $reg_no, $name, $email, $university_id, $department_id, $course_id,
@@ -198,151 +188,28 @@ if ($action === 'signup_student') {
     );
 
     if (!$stmt->execute()) {
-        $_SESSION['signup_errors'] = ["Database error."];
+        $_SESSION['signup_errors'] = ["Database error. Please try again."];
         $stmt->close();
+        header("Location: student/signup.php");
         exit;
     }
     $stmt->close();
 
-    // === 5. Send verification email ===
-    try {
-        $mail = new PHPMailer(true);
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis717@gmail.com';
-        $mail->Password   = 'YOUR_16_DIGIT_APP_PASSWORD';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+    // === 5. SEND VERIFICATION EMAIL USING PHPMailer ===
+    require_once 'includes/mailer.php'; // Make sure this file exists and uses $conn if needed
 
-        $mail->setFrom('unilis717@gmail.com', 'UNILIS');
-        $mail->addAddress($email);
+    $email_sent = send_verification_email($email, $token, $name);
 
-        $verify_link = "https://" . $_SERVER['HTTP_HOST']
-            . dirname($_SERVER['SCRIPT_NAME'])
-            . "/verify.php?token=" . $token;
-
-        $mail->isHTML(true);
-        $mail->Subject = 'Verify Your UNILIS Account';
-        $mail->Body = "
-            <h3>Hello $name,</h3>
-            <p>Click below to verify your email:</p>
-            <p><a href='$verify_link'>Verify Email</a></p>
-        ";
-
-        $mail->send();
-        $email_sent = true;
-        $show_success_div = true;
-
-    } catch (Exception $e) {
-        error_log($mail->ErrorInfo);
-        $show_resend_div = true;
+    // === 6. Final Redirect ===
+    if ($email_sent) {
+        header("Location: verify.php?sent=1&email=" . urlencode($email));
+        exit;
+    } else {
+        $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
+        header("Location: student/signup.php");
+        exit;
     }
 }
-
-/* ================= RESEND VERIFICATION ================= */
-
-if (isset($_POST['resend_verification'])) {
-
-    $email = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
-
-    if ($email) {
-        $stmt = $conn->prepare("
-            SELECT name, verification_code, token_expires_at
-            FROM students
-            WHERE email = ? AND is_verified = 0
-        ");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($result->num_rows === 1) {
-
-            $student = $result->fetch_assoc();
-            $name = $student['name'];
-            $token = $student['verification_code'];
-            $expires_at = $student['token_expires_at'];
-
-            if (strtotime($expires_at) < time()) {
-                $token = bin2hex(random_bytes(32));
-                $expires_at = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
-
-                $update = $conn->prepare("
-                    UPDATE students
-                    SET verification_code=?, token_expires_at=?
-                    WHERE email=?
-                ");
-                $update->bind_param("sss", $token, $expires_at, $email);
-                $update->execute();
-                $update->close();
-            }
-
-            try {
-                $mail = new PHPMailer(true);
-                $mail->isSMTP();
-                $mail->Host = 'smtp.gmail.com';
-                $mail->SMTPAuth = true;
-                $mail->Username = 'unilis717@gmail.com';
-                $mail->Password = 'YOUR_16_DIGIT_APP_PASSWORD';
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port = 587;
-
-                $mail->setFrom('unilis717@gmail.com', 'UNILIS');
-                $mail->addAddress($email);
-
-                $verify_link = "https://" . $_SERVER['HTTP_HOST']
-                    . dirname($_SERVER['SCRIPT_NAME'])
-                    . "/verify.php?token=" . $token;
-
-                $mail->isHTML(true);
-                $mail->Subject = 'Verify Your UNILIS Account';
-                $mail->Body = "
-                    <h3>Hello $name,</h3>
-                    <p>Click below to verify your email:</p>
-                    <p><a href='$verify_link'>Verify Email</a></p>
-                ";
-
-                $mail->send();
-                $show_success_div = true;
-
-            } catch (Exception $e) {
-                error_log($mail->ErrorInfo);
-                $show_resend_div = true;
-            }
-        }
-        $stmt->close();
-    }
-}
-?>
-
-<!-- ================= UI OUTPUT ================= -->
-
-<?php if ($show_resend_div): ?>
-<div style="border:1px solid #ffc107;padding:20px;background:#fff3cd;border-radius:8px;">
-    <h4>Email Not Sent</h4>
-    <p>Click below to resend verification email.</p>
-    <form method="POST">
-        <input type="hidden" name="email" value="<?= htmlspecialchars($email) ?>">
-        <button type="submit" name="resend_verification"
-            style="padding:10px 25px;background:#007bff;color:white;border:none;border-radius:5px;">
-            Resend Email
-        </button>
-    </form>
-</div>
-<?php endif; ?>
-
-<?php if ($show_success_div): ?>
-<div style="border:1px solid #28a745;padding:25px;background:#e9f9ef;border-radius:8px;">
-    <h3>Email Sent Successfully</h3>
-    <p>Please open your email and verify your account.</p>
-    <a href="login.php"
-       style="display:inline-block;margin-top:15px;padding:12px 30px;
-              background:#28a745;color:white;text-decoration:none;border-radius:6px;">
-        Go to Login
-    </a>
-</div>
-<?php endif; ?>
-
 // === UNIVERSAL LOGIN WITH RETURN URL SUPPORT ===
 if ($action === 'universal_login') {
     $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
