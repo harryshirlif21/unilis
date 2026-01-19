@@ -2,7 +2,7 @@
 require_once 'config/db.php';
 //require_once 'vendor/autoload.php';
 require_once 'vendor/autoload.php';
-
+require_once 'includes/mailer.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -206,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
 
     if ($email_sent) {
         $_SESSION['signup_success'] = "Account created! A verification email has been sent to $email.";
-        header("Location: student/verify.php?sent=1&email=" . urlencode($email));
+        header("Location: ../verify.php?sent=1&email=" . urlencode($email));
         exit;
     } else {
         $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
