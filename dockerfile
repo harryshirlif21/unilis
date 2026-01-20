@@ -32,7 +32,6 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY composer.json composer.lock* ./
 
 # Install dependencies (including PHPMailer)
-# If composer.json doesn't exist yet → create a minimal one automatically
 RUN if [ -f composer.json ]; then \
         composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; \
     else \
@@ -45,14 +44,30 @@ COPY . .
 # Ensure vendor/autoload.php exists even if composer.json was missing
 RUN composer dump-autoload --optimize --classmap-authoritative || true
 
-# Fix permissions
+# Create required folders and set correct permissions
+RUN mkdir -p /var/www/html/assets/uploads \
+    /var/www/uploads \
+    /var/www/html/assets/assignments \
+    /var/www/html/assets/meetings \
+    && chown -R www-data:www-data /var/www/html/assets/uploads \
+    /var/www/uploads \
+    /var/www/html/assets/assignments \
+    /var/www/html/assets/meetings \
+    && chmod -R 775 /var/www/html/assets/uploads \
+    /var/www/uploads \
+    /var/www/html/assets/assignments \
+    /var/www/html/assets/meetings
+
+# Fix permissions for the whole app
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+
 # Make PHP errors visible in docker logs
 RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/php.ini \
     && echo "log_errors = On" >> /usr/local/etc/php/php.ini \
     && echo "display_errors = On" >> /usr/local/etc/php/php.ini
+
 # Expose port
 EXPOSE 80
 

@@ -1454,5 +1454,53 @@ if ($action === 'generate_unit_submission_pdf') {
     $dompdf->stream("submission_report_unit_$unit_id.pdf", ["Attachment" => false]);
     exit;
 }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verify_student_email') {
+
+    $email = trim($_POST['student_email'] ?? '');
+
+    if (empty($email)) {
+        $_SESSION['verify_error'] = "Email is required.";
+        header("Location: lecturer/dashboard.php");
+        exit;
+    }
+
+    // Check if student exists
+    $stmt = $conn->prepare("SELECT id, is_verified FROM students WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows === 0) {
+        $_SESSION['verify_error'] = "No student found with that email.";
+        $stmt->close();
+        header("Location: lecturer/dashboard.php");
+        exit;
+    }
+
+    $student = $result->fetch_assoc();
+
+    // If already verified
+    if ($student['is_verified'] == 1) {
+        $_SESSION['verify_success'] = "This email is already verified.";
+        $stmt->close();
+        header("Location: lecturer/dashboard.php");
+        exit;
+    }
+
+    // Update verification
+    $stmt->close();
+    $stmt = $conn->prepare("UPDATE students SET is_verified = 1 WHERE email = ?");
+    $stmt->bind_param("s", $email);
+
+    if ($stmt->execute()) {
+        $_SESSION['verify_success'] = "Student email verified successfully.";
+    } else {
+        $_SESSION['verify_error'] = "Failed to verify. Try again.";
+    }
+
+    $stmt->close();
+    header("Location: lecturer/dashboard.php");
+    exit;
+}
 
 ?>

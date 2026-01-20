@@ -10,13 +10,13 @@ services:
       - .:/var/www/html
 
       # Keep vendor inside the container (don’t override with host)
-      - /var/www/html/vendor
+      - vendor:/var/www/html/vendor
 
-      # 🆕 Persist uploads
+      # Persist uploads
       - ./assets/uploads:/var/www/html/assets/uploads
-      - ./uploads:/var/www/html/uploads
-      - ./assets/assignments:/var/www/html/assets/assignments  # optional for assignments
-      - ./assets/meetings:/var/www/html/assets/meetings        # optional for meeting recordings
+      - ./uploads:/var/www/uploads
+      - ./assets/assignments:/var/www/html/assets/assignments
+      - ./assets/meetings:/var/www/html/assets/meetings
 
     depends_on:
       - db
@@ -51,3 +51,4 @@ services:
 
 volumes:
   db_data:
+  vendor:

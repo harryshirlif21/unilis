@@ -129,7 +129,7 @@ unset($_SESSION['login_error']); // Clear after display
             </form>
 
             <div class="bottom-links">
-                <a href="verify.php">Didn't receive verification email?</a><br><br>
+             
                 <a href="student/signup.php">Don't have an account? Register as Student</a>
             </div>
         </div>

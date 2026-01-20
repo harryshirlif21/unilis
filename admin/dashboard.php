@@ -10,6 +10,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
 $user_id = $_SESSION['user_id'];
 $admin_res = $conn->query("SELECT * FROM admins WHERE id = $user_id");
 $admin = $admin_res->fetch_assoc();
+
+$verify_success = $_SESSION['verify_success'] ?? '';
+$verify_error   = $_SESSION['verify_error'] ?? '';
+
+unset($_SESSION['verify_success']);
+unset($_SESSION['verify_error']);
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -20,6 +28,24 @@ $admin = $admin_res->fetch_assoc();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
     <style>
+        .success {
+    background: #d4edda;
+    color: #155724;
+    padding: 12px;
+    border: 1px solid #c3e6cb;
+    border-radius: 6px;
+    margin-bottom: 15px;
+}
+
+.error {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 12px;
+    border: 1px solid #f5c6cb;
+    border-radius: 6px;
+    margin-bottom: 15px;
+}
+
         /* small in-file styles kept (you can move to styles.css) */
         .floating-message {
             position: fixed;
@@ -66,6 +92,7 @@ $admin = $admin_res->fetch_assoc();
     <button class="menu-item" onclick="openModal('courseModal')"><i class="fas fa-book"></i> Add Course</button>
     <button class="menu-item" onclick="openModal('unitSingleModal')"><i class="fas fa-cube"></i> Add Single Unit</button>
     <button class="menu-item" onclick="openModal('unitModal')"><i class="fas fa-cubes"></i> Add Multiple Units</button>
+    <button class="menu-item" onclick="openModal('verifyEmailModal')">Verify Student Email</button>
     <button class="menu-item" onclick="openModal('lecturerModal')"><i class="fas fa-chalkboard-teacher"></i> Add Lecturer</button>
     <div class="menu-section-title">System</div>
     <button class="menu-item" onclick="alert('System Settings not implemented yet!')"><i class="fas fa-cogs"></i> System Settings</button>
@@ -428,6 +455,35 @@ $admin = $admin_res->fetch_assoc();
             </form>
         </div>
     </div>
+<!-- EMAIL VERIFICATION MODAL -->
+<div id="verifyEmailModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('verifyEmailModal')">×</span>
+        <h3>Verify Student Email</h3>
+
+        <?php if (!empty($verify_success)) : ?>
+    <div class="success">
+        <?php echo $verify_success; ?>
+    </div>
+<?php endif; ?>
+
+<?php if (!empty($verify_error)) : ?>
+    <div class="error">
+        <?php echo $verify_error; ?>
+    </div>
+<?php endif; ?>
+
+
+        <form method="POST" action="../actions.php">
+            <input type="hidden" name="action" value="verify_student_email">
+
+            <label>Student Email:</label>
+            <input type="email" name="student_email" required>
+
+            <button type="submit">Verify</button>
+        </form>
+    </div>
+</div>
 
 </div> <!-- end .content -->
 
@@ -435,6 +491,14 @@ $admin = $admin_res->fetch_assoc();
      All JS consolidated below
      =========================== -->
 <script>
+    function openModal(id) {
+    document.getElementById(id).style.display = "block";
+}
+
+function closeModal(id) {
+    document.getElementById(id).style.display = "none";
+}
+
 /* Helper: safe JSON parse with debugging */
 function parseJSONSafe(text) {
     if (text === null || text === undefined || text.trim() === '') {
