@@ -382,7 +382,8 @@ if (isset($_SESSION['old_input'])) {
           <button type="button" class="btn-next" id="nextBtn">Next</button>
           <button type="submit" id="submitBtn" class="btn-next" disabled>Register</button>
         </div>
-      </form>
+      </form><br>
+      <a href="../index.html">Back to Home</a>
     </div>
   </div>
 
