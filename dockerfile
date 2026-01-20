@@ -53,7 +53,7 @@ RUN mkdir -p /var/www/html/assets/uploads \
     /var/www/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
-    && chmod -R 775 /var/www/html/assets/uploads \
+    && chmod -R 776 /var/www/html/assets/uploads \
     /var/www/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings
