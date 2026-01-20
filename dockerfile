@@ -40,6 +40,11 @@ COPY . .
 # Ensure vendor exists
 RUN composer dump-autoload --optimize --classmap-authoritative || true
 
+# Fix permissions for the whole app
+RUN chown -R www-data:www-data /var/www/html \
+    && find /var/www/html -type d -exec chmod 755 {} \; \
+    && find /var/www/html -type f -exec chmod 644 {} \;
+
 # Create required folders and set correct permissions
 RUN mkdir -p /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
@@ -47,14 +52,10 @@ RUN mkdir -p /var/www/html/assets/uploads \
     && chown -R www-data:www-data /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
-    && chmod -R 775 /var/www/html/assets/uploads \
+    && chmod -R 776 /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings
 
-# Fix permissions for the whole app
-RUN chown -R www-data:www-data /var/www/html \
-    && find /var/www/html -type d -exec chmod 755 {} \; \
-    && find /var/www/html -type f -exec chmod 644 {} \;
 
 # Make PHP errors visible in docker logs
 RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/php.ini \
