@@ -25,43 +25,36 @@ RUN a2enmod rewrite
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy Composer from official image (faster & more reliable)
+# Copy Composer from official image
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy only composer files first → better Docker layer caching
+# Copy only composer files first (for caching)
 COPY composer.json composer.lock* ./
 
-# Install dependencies (including PHPMailer)
-RUN if [ -f composer.json ]; then \
-        composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; \
-    else \
-        composer require phpmailer/phpmailer --no-interaction --prefer-dist; \
-    fi
+# Install dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-# Now copy the full application
+# Copy full application
 COPY . .
 
-# Ensure vendor/autoload.php exists even if composer.json was missing
+# Ensure vendor exists
 RUN composer dump-autoload --optimize --classmap-authoritative || true
 
 # Create required folders and set correct permissions
 RUN mkdir -p /var/www/html/assets/uploads \
-    /var/www/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
     && chown -R www-data:www-data /var/www/html/assets/uploads \
-    /var/www/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
-    && chmod -R 776 /var/www/html/assets/uploads \
-    /var/www/uploads \
+    && chmod -R 775 /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings
 
 # Fix permissions for the whole app
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+    && find /var/www/html -type d -exec chmod 755 {} \; \
+    && find /var/www/html -type f -exec chmod 644 {} \;
 
 # Make PHP errors visible in docker logs
 RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/php.ini \
