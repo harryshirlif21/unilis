@@ -1,24 +1,33 @@
 <?php
 require_once __DIR__ . '/../vendor/autoload.php';
+
 use PHPMailer\PHPMailer\PHPMailer;
-// stmp mail password: sbmx miaf btfk mkck
 use PHPMailer\PHPMailer\Exception;
 
 function send_verification_email($email, $token, $name = '') {
     $mail = new PHPMailer(true);
 
     try {
+        // SMTP setup
         $mail->isSMTP();
         $mail->Host       = 'unilis.jhubafrica.com';
         $mail->SMTPAuth   = true;
         $mail->Username   = 'noreply@unilis.jhubafrica.com';
-        $mail->Password   = 'Man.18hattan'; // ← from hosting
+        $mail->Password   = 'Man.18hattan'; // email account password
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL
         $mail->Port       = 465;
 
+        // 🔍 Enable SMTP debug → Docker logs
+        $mail->SMTPDebug = 2;
+        $mail->Debugoutput = function ($str, $level) {
+            error_log("SMTP DEBUG [$level]: $str");
+        };
+
+        // Headers
         $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
         $mail->addAddress($email);
 
+        // Content
         $verify_link = "https://unilis.jhubafrica.com/verify.php?token=$token";
 
         $mail->isHTML(true);
@@ -34,7 +43,7 @@ function send_verification_email($email, $token, $name = '') {
         return true;
 
     } catch (Exception $e) {
-        error_log("Verification email failed: " . $mail->ErrorInfo);
+        error_log("VERIFICATION EMAIL FAILED → " . $mail->ErrorInfo);
         return false;
     }
 }
