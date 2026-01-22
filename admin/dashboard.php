@@ -455,6 +455,7 @@ unset($_SESSION['verify_error']);
             </form>
         </div>
     </div>
+
 <!-- EMAIL VERIFICATION MODAL -->
 <div id="verifyEmailModal" class="modal" style="display:none;">
     <div class="modal-content">
@@ -480,8 +481,15 @@ unset($_SESSION['verify_error']);
             <label>Student Email:</label>
             <input type="email" name="student_email" required>
 
-            <button type="submit">Verify</button>
+            <button type="submit">Verify</button><br><br>
+
         </form>
+        <!-- Pending Approval Button -->
+        <div style="margin-top:15px; text-align:center;">
+            <a href="pendingreq.php" class="btn-secondary">
+                View Pending Approvals
+            </a>
+        </div>
     </div>
 </div>
 

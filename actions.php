@@ -1454,6 +1454,7 @@ if ($action === 'generate_unit_submission_pdf') {
     $dompdf->stream("submission_report_unit_$unit_id.pdf", ["Attachment" => false]);
     exit;
 }
+// approve student requests.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verify_student_email') {
 
     $email = trim($_POST['student_email'] ?? '');
