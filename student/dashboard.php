@@ -837,6 +837,7 @@ document.querySelectorAll('.modal').forEach(modal => {
 });
 </script>
 </div>
+
      <div id="notes-content" class="hidden">
     <section class="mb-8">
         <h2 class="text-2xl font-semibold mb-4 stat-text-secondary">

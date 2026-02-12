@@ -1,5 +1,8 @@
 <?php
 require_once '../config/db.php';
+require_once '../vendor/autoload.php'; // Dompdf autoload
+use Dompdf\Dompdf;
+
 session_start();
 
 // Redirect if not logged in or not a student
@@ -9,162 +12,107 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
 }
 
 $student_id = $_SESSION['user_id'];
-$assignment_id = intval($_GET['id'] ?? 0);
+$course_id = $_SESSION['course_id'] ?? 0;
+$year_of_study = $_SESSION['year_of_study'] ?? 1;
 
-if ($assignment_id <= 0) {
-    $_SESSION['error'] = "Invalid assignment ID.";
-    header("Location: dashboard.php");
-    exit;
-}
+// Handle PDF generation
+if (isset($_POST['generate_pdf'])) {
+    try {
+        // Fetch student info
+        $stu_query = $conn->prepare("
+            SELECT s.name, s.reg_no, s.email, s.year_of_study, c.name AS course_name, u.name AS university_name
+            FROM students s
+            LEFT JOIN courses c ON s.course_id = c.id
+            LEFT JOIN universities u ON s.university_id = u.id
+            WHERE s.id = ?
+        ");
+        $stu_query->bind_param("i", $student_id);
+        $stu_query->execute();
+        $student = $stu_query->get_result()->fetch_assoc();
+        $stu_query->close();
 
-// Check if already submitted
-$already_submitted = false;
-$previous_score = 0;
-try {
-    $check_stmt = $conn->prepare("SELECT id, score FROM interactive_submissions WHERE assignment_id = ? AND student_id = ?");
-    $check_stmt->bind_param("ii", $assignment_id, $student_id);
-    $check_stmt->execute();
-    $submission = $check_stmt->get_result()->fetch_assoc();
-    $check_stmt->close();
+        // Fetch submitted assignments
+        $sub_query = $conn->prepare("
+            SELECT s.file_path, s.submitted_at, s.comment, s.marks, a.title, u.name AS unit_name
+            FROM submissions s
+            JOIN assignments a ON s.assignment_id = a.id
+            JOIN units u ON a.unit_id = u.id
+            WHERE s.student_id = ? AND u.course_id = ? AND u.year = ?
+            ORDER BY s.submitted_at DESC
+        ");
+        $sub_query->bind_param("iii", $student_id, $course_id, $year_of_study);
+        $sub_query->execute();
+        $subs = $sub_query->get_result();
+        $sub_query->close();
 
-    if ($submission) {
-        $already_submitted = true;
-        $previous_score = $submission['score'];
-    }
-} catch (Exception $e) {
-    error_log("Error checking submission: " . $e->getMessage());
-    $_SESSION['error'] = "Error checking submission status.";
-    header("Location: dashboard.php");
-    exit;
-}
+        // Generate a unique signature (hash of student ID + timestamp)
+        $signature = hash('sha256', $student_id . time());
 
-// Handle form submission
-$results = [];
-if (!$already_submitted && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_assignment'])) {
-    $answers = $_POST['answers'] ?? [];
+        // Build HTML for PDF
+        $html = "
+        <div style='text-align:center; margin-bottom:20px;'>
+            <h1>" . htmlspecialchars($student['university_name']) . "</h1>
+            <h2>Submitted Assignments Report</h2>
+        </div>
 
-    if (!empty($answers)) {
-        $conn->begin_transaction();
-        try {
-            // Insert submission record
-            $stmt = $conn->prepare("INSERT INTO interactive_submissions (student_id, assignment_id, submitted_at) VALUES (?, ?, NOW())");
-            $stmt->bind_param("ii", $student_id, $assignment_id);
-            $stmt->execute();
-            $submission_id = $conn->insert_id;
-            $stmt->close();
+        <table style='width:100%; margin-bottom:20px; font-size:14px;'>
+            <tr><td><strong>Name:</strong> " . htmlspecialchars($student['name']) . "</td>
+                <td><strong>Reg No:</strong> " . htmlspecialchars($student['reg_no']) . "</td></tr>
+            <tr><td><strong>Email:</strong> " . htmlspecialchars($student['email']) . "</td>
+                <td><strong>Course:</strong> " . htmlspecialchars($student['course_name']) . "</td></tr>
+            <tr><td><strong>Year of Study:</strong> " . htmlspecialchars($student['year_of_study']) . "</td>
+                <td><strong>Date Generated:</strong> " . date('d M Y, h:i A') . "</td></tr>
+        </table>
 
-            $total_score = 0;
+        <table border='1' cellpadding='5' cellspacing='0' width='100%'>
+            <thead>
+                <tr>
+                    <th>Unit</th>
+                    <th>Title</th>
+                    <th>Date Submitted</th>
+                    <th>Marks</th>
+                    <th>Comment</th>
+                </tr>
+            </thead>
+            <tbody>
+        ";
 
-            foreach ($answers as $question_id => $answer) {
-                $marks_awarded = 0;
-                $is_correct = 0;
-
-                // Determine question type
-                $q_stmt = $conn->prepare("SELECT question_type, points FROM interactive_questions WHERE id = ?");
-                $q_stmt->bind_param("i", $question_id);
-                $q_stmt->execute();
-                $q_data = $q_stmt->get_result()->fetch_assoc();
-                $q_stmt->close();
-
-                if (!$q_data) continue;
-
-                $points = (float)$q_data['points'];
-                $question_type = $q_data['question_type'];
-
-                if ($question_type === 'multiple_choice') {
-                    // Check if option is correct
-                    $opt_stmt = $conn->prepare("SELECT is_correct FROM interactive_options WHERE id = ?");
-                    $opt_stmt->bind_param("i", $answer);
-                    $opt_stmt->execute();
-                    $is_correct = (int)$opt_stmt->get_result()->fetch_assoc()['is_correct'];
-                    $opt_stmt->close();
-
-                    $marks_awarded = $is_correct ? $points : 0;
-                } else {
-                    // For short answer or others, optionally auto-grade exact match
-                    $correct_stmt = $conn->prepare("SELECT option_text FROM interactive_options WHERE question_id = ? AND is_correct=1 LIMIT 1");
-                    $correct_stmt->bind_param("i", $question_id);
-                    $correct_stmt->execute();
-                    $correct_ans = $correct_stmt->get_result()->fetch_assoc()['option_text'] ?? '';
-                    $correct_stmt->close();
-
-                    $is_correct = (strtolower(trim($answer)) === strtolower(trim($correct_ans))) ? 1 : 0;
-                    $marks_awarded = $is_correct ? $points : 0;
-                }
-
-                $total_score += $marks_awarded;
-
-                // Insert answer
-                $ins_stmt = $conn->prepare("INSERT INTO interactive_answers (submission_id, question_id, option_id, answer_text, marks_awarded, is_correct) VALUES (?, ?, ?, ?, ?, ?)");
-                $opt_id = ($question_type === 'multiple_choice') ? $answer : null;
-                $text_answer = ($question_type !== 'multiple_choice') ? $answer : null;
-                $ins_stmt->bind_param("iiisdi", $submission_id, $question_id, $opt_id, $text_answer, $marks_awarded, $is_correct);
-                $ins_stmt->execute();
-                $ins_stmt->close();
-
-                $results[$question_id] = [
-                    'marks_awarded' => $marks_awarded,
-                    'points' => $points,
-                    'is_correct' => $is_correct,
-                    'answer' => $answer
-                ];
+        if ($subs->num_rows === 0) {
+            $html .= "<tr><td colspan='5'>No assignments submitted yet.</td></tr>";
+        } else {
+            while ($s = $subs->fetch_assoc()) {
+                $marks = is_null($s['marks']) ? "Not graded" : htmlspecialchars($s['marks']);
+                $comment = !empty($s['comment']) ? htmlspecialchars($s['comment']) : "No comment";
+                $html .= "<tr>
+                            <td>" . htmlspecialchars($s['unit_name']) . "</td>
+                            <td>" . htmlspecialchars($s['title']) . "</td>
+                            <td>" . date('d M Y, h:i A', strtotime($s['submitted_at'])) . "</td>
+                            <td>$marks</td>
+                            <td>$comment</td>
+                          </tr>";
             }
-
-            // Update submission total score
-            $conn->query("UPDATE interactive_submissions SET score=$total_score, graded=1 WHERE id=$submission_id");
-            $conn->commit();
-            $already_submitted = true;
-            $previous_score = $total_score;
-
-        } catch (Exception $e) {
-            $conn->rollback();
-            error_log("Error submitting assignment: " . $e->getMessage());
-            $_SESSION['error'] = "Error submitting assignment. Try again.";
-            header("Location: take_assignment.php?id=$assignment_id");
-            exit;
         }
+
+        $html .= "</tbody></table>";
+
+        // Signature at the bottom
+        $html .= "<p style='margin-top:20px; font-size:12px; text-align:right;'>
+                    Unique Signature: <strong>$signature</strong>
+                  </p>";
+
+        // Generate PDF
+        $dompdf = new Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        $dompdf->stream("submitted_assignments.pdf", ["Attachment" => true]);
+        exit;
+
+    } catch (mysqli_sql_exception $e) {
+        die("Error generating PDF: " . $e->getMessage());
     }
 }
 
-// Get assignment details
-$assignment_stmt = $conn->prepare("
-    SELECT a.id, a.title, a.description, a.due_date, u.name AS unit_name
-    FROM interactive_assignments a
-    JOIN units u ON a.unit_id = u.id
-    WHERE a.id = ?
-");
-$assignment_stmt->bind_param("i", $assignment_id);
-$assignment_stmt->execute();
-$assignment = $assignment_stmt->get_result()->fetch_assoc();
-$assignment_stmt->close();
-
-if (!$assignment) {
-    $_SESSION['error'] = "Assignment not found.";
-    header("Location: dashboard.php");
-    exit;
-}
-
-// Get questions and options
-$questions = [];
-$q_stmt = $conn->prepare("SELECT * FROM interactive_questions WHERE interactive_assignment_id=? ORDER BY id ASC");
-$q_stmt->bind_param("i", $assignment_id);
-$q_stmt->execute();
-$q_res = $q_stmt->get_result();
-while ($q = $q_res->fetch_assoc()) {
-    $q['options'] = [];
-    if ($q['question_type'] === 'multiple_choice') {
-        $opt_stmt = $conn->prepare("SELECT id, option_text FROM interactive_options WHERE question_id=?");
-        $opt_stmt->bind_param("i", $q['id']);
-        $opt_stmt->execute();
-        $opt_res = $opt_stmt->get_result();
-        while ($opt = $opt_res->fetch_assoc()) {
-            $q['options'][] = $opt;
-        }
-        $opt_stmt->close();
-    }
-    $questions[] = $q;
-}
-$q_stmt->close();
 ?>
 
 <!DOCTYPE html>
@@ -172,132 +120,341 @@ $q_stmt->close();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Take Assignment - <?= htmlspecialchars($assignment['title']) ?></title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<style>
-/* Add all your previous CSS styles here */
-body{font-family:Segoe UI,sans-serif;margin:0;background:#ecf0f1;color:#333}
-.header{background:#2c3e50;color:#fff;padding:15px 30px;display:flex;justify-content:space-between;align-items:center}
-.header h1{margin:0;font-size:1.8em;font-weight:400}
-.back-btn{background:#3498db;color:#fff;padding:10px 20px;border:none;border-radius:5px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:0.2s}
-.back-btn:hover{background:#2ecc71}
-.container{max-width:1000px;margin:30px auto;padding:0 20px}
-.assignment-header,.questions-container,.submit-section{background:#fff;border-radius:12px;padding:30px;margin-bottom:30px;box-shadow:0 4px 15px rgba(0,0,0,0.08)}
-.assignment-title{color:#2c3e50;font-size:2.2em;margin-bottom:15px;border-bottom:2px solid #3498db;padding-bottom:15px}
-.assignment-description{background:#f8f9fa;padding:20px;border-radius:8px;border-left:4px solid #3498db}
-.question-card{background:#f8f9fa;border-radius:8px;padding:25px;margin-bottom:25px;border-left:4px solid #3498db}
-.question-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
-.question-number{background:#3498db;color:#fff;padding:8px 15px;border-radius:20px;font-weight:bold;font-size:0.9em}
-.question-points{background:#2ecc71;color:#fff;padding:8px 15px;border-radius:20px;font-weight:bold;font-size:0.9em}
-.options-container{display:flex;flex-direction:column;gap:12px}
-.option-item{display:flex;align-items:center;padding:15px;background:#fff;border:2px solid #ddd;border-radius:8px;cursor:pointer;transition:0.2s}
-.option-item:hover{border-color:#3498db;background:#f0f8ff}
-.option-item input[type=radio]{margin-right:15px;transform:scale(1.2)}
-.option-item input[type=radio]:checked + .option-text{font-weight:bold;color:#3498db}
-.option-item:has(input[type=radio]:checked){border-color:#3498db;background:#e3f2fd}
-.submit-btn{background:#28a745;color:#fff;padding:15px 40px;border:none;border-radius:8px;font-size:1.1em;font-weight:bold;cursor:pointer;display:inline-flex;align-items:center;gap:10px;transition:0.2s}
-.submit-btn:hover{background:#218838}
-.error-message{background:#f8d7da;color:#721c24;padding:15px;border-radius:8px;margin-bottom:20px;border:1px solid #f5c6cb}
-.success-message{background:#d4edda;color:#155724;padding:15px;border-radius:8px;margin-bottom:20px;border:1px solid #c3e6cb}
-</style>
+<title>Assignments Dashboard</title>
+
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- External CSS -->
+<link rel="stylesheet" href="css/take_assignment.css">
+
 </head>
 <body>
+
 <header class="header">
-<h1>Take Assignment</h1>
-<a href="dashboard.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+    <h1>Assignments Dashboard</h1>
+    <a href="dashboard.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
 </header>
 
 <div class="container">
-<div class="assignment-header">
-<h2 class="assignment-title"><?= htmlspecialchars($assignment['title']) ?></h2>
-<div class="assignment-meta">
-<div class="meta-item"><div class="meta-label">Unit</div><div class="meta-value"><?= htmlspecialchars($assignment['unit_name']) ?></div></div>
-<div class="meta-item"><div class="meta-label">Due Date</div><div class="meta-value"><?= date("d M Y, h:i A", strtotime($assignment['due_date'])) ?></div></div>
-<div class="meta-item"><div class="meta-label">Status</div><div class="meta-value"><?= (new DateTime() > new DateTime($assignment['due_date'])) ? '<span style="color:red;">Expired</span>' : '<span style="color:green;">Active</span>' ?></div></div>
-</div>
-<?php if(!empty($assignment['description'])): ?>
-<div class="assignment-description"><?= nl2br(htmlspecialchars($assignment['description'])) ?></div>
-<?php endif; ?>
-</div>
+<!-- ================= Interactive Assignments ================= -->
+<section class="card interactive-assignments">
+    <h2>Interactive Assignments / CATs</h2>
 
-<?php
-if(isset($_SESSION['error'])){
-    echo "<div class='error-message'>".htmlspecialchars($_SESSION['error'])."</div>";
-    unset($_SESSION['error']);
-}
-if($already_submitted){
-    echo "<div class='success-message'>Assignment submitted successfully! Your score: $previous_score</div>";
-}
-?>
+    <div class="unit-filter">
+        <label>Filter by Unit:</label>
+        <select id="ia-unit-filter">
+            <option value="">-- All Units --</option>
+            <?php
+            $uf = $conn->prepare("
+                SELECT id, name 
+                FROM units 
+                WHERE course_id = ? AND year = ? 
+                ORDER BY name ASC
+            ");
+            $uf->bind_param("ii", $course_id, $year_of_study);
+            $uf->execute();
+            $units_result = $uf->get_result();
 
-<?php if(!$already_submitted): ?>
-<form method="POST">
-<div class="questions-container">
-<h3>Questions</h3>
-<?php if(empty($questions)): ?>
-<div class="error-message">No questions found for this assignment.</div>
-<?php else: ?>
-<?php foreach($questions as $index=>$q): ?>
-<div class="question-card">
-<div class="question-header">
-<div class="question-number">Question <?= $index+1 ?></div>
-<div class="question-points"><?= $q['points'] ?> points</div>
-</div>
-<div class="question-text"><?= htmlspecialchars($q['question_text']) ?></div>
-<div class="options-container">
-<?php if($q['question_type']==='multiple_choice'): ?>
-<?php foreach($q['options'] as $opt): ?>
-<label class="option-item">
-<input type="radio" name="answers[<?= $q['id'] ?>]" value="<?= $opt['id'] ?>" required>
-<span class="option-text"><?= htmlspecialchars($opt['option_text']) ?></span>
-</label>
-<?php endforeach; ?>
-<?php else: ?>
-<input type="text" name="answers[<?= $q['id'] ?>]" placeholder="Type your answer" required style="padding:10px;border:1px solid #ddd;border-radius:5px;width:100%">
-<?php endif; ?>
-</div>
-</div>
-<?php endforeach; ?>
-<?php endif; ?>
-</div>
-<div class="submit-section">
-<button type="submit" name="submit_assignment" class="submit-btn"><i class="fas fa-paper-plane"></i> Submit Assignment</button>
-</div>
-</form>
-<?php else: ?>
-<!-- Show detailed results -->
-<div class="questions-container">
-<h3>Assignment Results</h3>
-<?php
-foreach($questions as $index=>$q){
-    $res = $results[$q['id']] ?? null;
-    $student_ans = '';
-    $is_correct = '';
-    if($q['question_type']==='multiple_choice'){
-        foreach($q['options'] as $opt){
-            if(isset($_POST['answers'][$q['id']]) && $_POST['answers'][$q['id']] == $opt['id']){
-                $student_ans = htmlspecialchars($opt['option_text']);
-                $is_correct = ($res['is_correct'] ?? 0) ? 'Correct' : 'Incorrect';
-                break;
+            while ($unit_row = $units_result->fetch_assoc()) {
+                echo '<option value="' . $unit_row['id'] . '">' 
+                     . htmlspecialchars($unit_row['name']) 
+                     . '</option>';
             }
+            $uf->close();
+            ?>
+        </select>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Unit</th>
+                    <th>Title</th>
+                    <th>Deadline</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="interactive-rows">
+            <?php
+            $query = $conn->prepare("
+                SELECT 
+                    a.id, 
+                    a.title, 
+                    a.due_date, 
+                    u.name AS unit_name,
+                    u.id   AS unit_id
+                FROM interactive_assignments a
+                JOIN units u ON a.unit_id = u.id
+                WHERE u.course_id = ? 
+                  AND u.year = ? 
+                  AND a.due_date >= NOW()
+                ORDER BY a.due_date ASC
+            ");
+            $query->bind_param("ii", $course_id, $year_of_study);
+            $query->execute();
+            $result = $query->get_result();
+
+            if ($result->num_rows === 0) {
+                echo "<tr><td colspan='4' class='text-center'>No active interactive assignments or CATs at the moment.</td></tr>";
+            } else {
+                while ($row = $result->fetch_assoc()) {
+
+                    // Check if already submitted
+                    $check = $conn->prepare("
+                        SELECT 1 
+                        FROM interactive_submissions 
+                        WHERE assignment_id = ? AND student_id = ?
+                    ");
+                    $check->bind_param("ii", $row['id'], $student_id);
+                    $check->execute();
+                    $submitted = $check->get_result()->num_rows > 0;
+                    $check->close();
+
+                    $action_html = $submitted
+                        ? '<span class="submitted">Submitted</span>'
+                        : '<a href="take_interactive_assignment.php?id=' . $row['id'] . '" class="action-btn">Answer MCQs</a>';
+
+                    echo "
+                    <tr data-unit=\"{$row['unit_id']}\">
+                        <td>" . htmlspecialchars($row['unit_name']) . "</td>
+                        <td>" . htmlspecialchars($row['title']) . "</td>
+                        <td>" . date('d M Y, h:i A', strtotime($row['due_date'])) . "</td>
+                        <td>$action_html</td>
+                    </tr>";
+                }
+            }
+            $query->close();
+            ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ================= Submitted Assignments ================= -->
+<section class="card submitted-assignments">
+    <h2>Submitted Assignments</h2>
+    <form method="POST">
+        <button type="submit" name="generate_pdf" class="btn-generate-pdf">
+            <i class="fas fa-file-pdf"></i> Generate PDF of All Submitted Assignments
+        </button>
+    </form>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Unit</th>
+                    <th>Title</th>
+                    <th>Date Submitted</th>
+                    <th>Marks</th>
+                    <th>Comment</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php
+            try {
+                $sub_query = $conn->prepare("
+                    SELECT s.file_path, s.submitted_at, s.comment, s.marks, a.title, u.name AS unit_name
+                    FROM submissions s
+                    JOIN assignments a ON s.assignment_id = a.id
+                    JOIN units u ON a.unit_id = u.id
+                    WHERE s.student_id = ? AND u.course_id = ? AND u.year = ?
+                    ORDER BY s.submitted_at DESC
+                ");
+                $sub_query->bind_param("iii", $student_id, $course_id, $year_of_study);
+                $sub_query->execute();
+                $subs = $sub_query->get_result();
+
+                if ($subs->num_rows === 0) {
+                    echo "<tr><td colspan='5'>No assignments submitted yet.</td></tr>";
+                } else {
+                    while ($s = $subs->fetch_assoc()) {
+                        $marks = is_null($s['marks']) ? "<em>Not graded</em>" : htmlspecialchars($s['marks']);
+                        $comment = !empty($s['comment']) ? htmlspecialchars($s['comment']) : "<em>No comment</em>";
+                        echo "<tr>
+                            <td>" . htmlspecialchars($s['unit_name']) . "</td>
+                            <td>" . htmlspecialchars($s['title']) . "</td>
+                            <td>" . date('d M Y, h:i A', strtotime($s['submitted_at'])) . "</td>
+                            <td>$marks</td>
+                            <td>$comment</td>
+                        </tr>";
+                    }
+                }
+
+                $sub_query->close();
+            } catch (mysqli_sql_exception $e) {
+                echo "<tr><td colspan='5'>Error loading submitted assignments.</td></tr>";
+            }
+            ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ================= Regular Assignments ================= -->
+<section class="card regular-assignments">
+    <h2>Assignments for Year <?= htmlspecialchars($year_of_study) ?></h2>
+    <div class="grid">
+        <?php
+        try {
+            $a_query = $conn->prepare("
+                SELECT a.id, a.title, a.deadline, a.file_path, u.name AS unit_name
+                FROM assignments a
+                JOIN units u ON a.unit_id = u.id
+                WHERE u.course_id = ? AND u.year = ?
+                ORDER BY u.name ASC, a.deadline DESC
+            ");
+            $a_query->bind_param("ii", $course_id, $year_of_study);
+            $a_query->execute();
+            $assignments = $a_query->get_result();
+
+            if ($assignments->num_rows === 0) {
+                echo "<p>No assignments found for your course and year.</p>";
+            } else {
+                $units = [];
+                while ($a = $assignments->fetch_assoc()) {
+                    $units[$a['unit_name']][] = $a;
+                }
+
+                $now = new DateTime();
+                $unitIndex = 0;
+
+                foreach ($units as $unitName => $unitAssignments) {
+                    $modalId = "modal-$unitIndex";
+                    echo "<div class='unit-card'>
+                        <h3>$unitName</h3>
+                        <button class='btn-view' data-modal-target='$modalId'>View Assignments</button>
+                        <div id='$modalId' class='modal'>
+                            <div class='modal-content'>
+                                <h4>Assignments for $unitName</h4>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Deadline</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>";
+                    foreach ($unitAssignments as $a) {
+                        $filePath = $a['file_path'] ?? '';
+                        $fullPath = "../assets/uploads/assignments/" . htmlspecialchars($filePath);
+
+                        $deadline = new DateTime($a['deadline']);
+$passed = $now > $deadline;
+
+// Check if already submitted
+$submissionQuery = $conn->prepare("SELECT file_path FROM submissions WHERE assignment_id = ? AND student_id = ?");
+$submissionQuery->bind_param("ii", $a['id'], $student_id);
+$submissionQuery->execute();
+$submissionResult = $submissionQuery->get_result()->fetch_assoc();
+$submissionQuery->close();
+
+$alreadySubmitted = !empty($submissionResult['file_path']);
+
+// Disable if deadline passed OR already submitted
+$disabledAttr = ($passed || $alreadySubmitted) ? "disabled" : "";
+
+
+                        $actions = '';
+                        if (!empty($filePath) && file_exists($fullPath)) {
+                            $actions .= "<a href='$fullPath' target='_blank' class='action-btn'>View</a> | <a href='$fullPath' download class='action-btn'>Download</a><br>";
+                        }
+
+                        $actions .= "<form method='POST' enctype='multipart/form-data' action='submit_assignment.php'>
+                            <input type='hidden' name='assignment_id' value='{$a['id']}'>
+                            <input type='file' name='file' accept='.pdf,.doc,.docx' required $disabledAttr>
+                            <button type='submit' $disabledAttr class='btn-submit'>Submit</button>
+                        </form>";
+
+                        // Already submitted file
+                        $submissionQuery = $conn->prepare("SELECT file_path FROM submissions WHERE assignment_id = ? AND student_id = ?");
+                        $submissionQuery->bind_param("ii", $a['id'], $student_id);
+                        $submissionQuery->execute();
+                        $submissionResult = $submissionQuery->get_result()->fetch_assoc();
+                        $submissionQuery->close();
+
+                        if (!empty($submissionResult['file_path'])) {
+                            $submittedFile = "../assets/uploads/submissions/" . htmlspecialchars($submissionResult['file_path']);
+                            if (file_exists($submittedFile)) {
+                                $actions .= "<br><strong>Your Submission:</strong> <a href='$submittedFile' target='_blank'>View</a> | <a href='$submittedFile' download>Download</a>";
+                            }
+                        }
+
+                        echo "<tr>
+                                <td>" . htmlspecialchars($a['title']) . "</td>
+                                <td>" . date("d M Y, h:i A", strtotime($a['deadline'])) . "</td>
+                                <td>$actions</td>
+                              </tr>";
+                    }
+
+                    echo "</tbody></table>
+                          <button class='close-modal'>Close</button>
+                        </div></div></div>";
+                    $unitIndex++;
+                }
+            }
+            $a_query->close();
+        } catch (mysqli_sql_exception $e) {
+            echo "<p>Error loading assignments.</p>";
         }
-    } else {
-        $student_ans = $_POST['answers'][$q['id']] ?? '';
-        $is_correct = ($res['is_correct'] ?? 0) ? 'Correct' : 'Incorrect';
-    }
-    echo "<div class='question-card'>
-        <div class='question-header'>
-            <div class='question-number'>Question ".($index+1)."</div>
-            <div class='question-points'>".($res['marks_awarded']??0)." / ".$q['points']." points</div>
-        </div>
-        <div class='question-text'>".htmlspecialchars($q['question_text'])."</div>
-        <div><strong>Your answer:</strong> $student_ans</div>
-        <div><strong>Status:</strong> $is_correct</div>
-    </div>";
-}
-?>
+        ?>
+    </div>
+</section>
+
 </div>
-<?php endif; ?>
-</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // Open modal
+    const viewButtons = document.querySelectorAll("[data-modal-target]");
+    viewButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const modalId = btn.getAttribute("data-modal-target");
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add("active");
+        });
+    });
+
+    // Close modal
+    const closeButtons = document.querySelectorAll(".close-modal");
+    closeButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const modal = btn.closest(".modal");
+            if (modal) modal.classList.remove("active");
+        });
+    });
+
+    // Close modal on overlay click
+    const modals = document.querySelectorAll(".modal");
+    modals.forEach(modal => {
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) modal.classList.remove("active");
+        });
+    });
+});
+
+<!-- JavaScript for unit filtering -->
+
+document.addEventListener("DOMContentLoaded", () => {
+    const filterSelect = document.getElementById("ia-unit-filter");
+    const rows = document.querySelectorAll("#interactive-rows tr[data-unit]");
+
+    if (!filterSelect || rows.length === 0) return;
+
+    filterSelect.addEventListener("change", () => {
+        const selectedUnit = filterSelect.value;
+
+        rows.forEach(row => {
+            const unitId = row.getAttribute("data-unit");
+            row.style.display = (selectedUnit === "" || unitId === selectedUnit) 
+                ? "" 
+                : "none";
+        });
+    });
+});
+
+</script>
 </body>
 </html>
