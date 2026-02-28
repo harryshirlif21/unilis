@@ -301,31 +301,52 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-    <!-- COURSE MODAL -->
-    <div id="courseModal" class="modal" style="display:none;">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('courseModal')">×</span>
-            <h3>Add Course</h3>
-            <?php if (!empty($course_success)) echo "<p class='success'>$course_success</p>"; ?>
-            <?php if (!empty($course_error)) echo "<p class='error'>$course_error</p>"; ?>
-            <form method="POST" action="../actions.php">
-                <input type="hidden" name="action" value="add_course">
-                <label>Course Name:</label>
-                <input type="text" name="course_name" required>
-                <label>Department:</label>
-                <select name="department_id" required>
-                    <option value="">-- Select Department --</option>
-                    <?php
-                    $departments = $conn->query("SELECT * FROM departments");
-                    while ($d = $departments->fetch_assoc()) {
-                        echo "<option value='{$d['id']}'>" . htmlspecialchars($d['name']) . "</option>";
-                    }
-                    ?>
-                </select>
-                <button type="submit">Save</button>
-            </form>
-        </div>
+   <!-- COURSE MODAL -->
+<div id="courseModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('courseModal')">×</span>
+        <h3>Add Course</h3>
+
+        <?php if (!empty($_SESSION['course_success'])): ?>
+            <p class="success"><?php echo $_SESSION['course_success']; unset($_SESSION['course_success']); ?></p>
+        <?php endif; ?>
+
+        <?php if (!empty($_SESSION['course_error'])): ?>
+            <p class="error"><?php echo $_SESSION['course_error']; unset($_SESSION['course_error']); ?></p>
+        <?php endif; ?>
+
+        <form method="POST" action="../actions.php">
+            <input type="hidden" name="action" value="add_course">
+
+            <label>Course Name:</label>
+            <input type="text" name="course_name" required>
+
+            <label>Department:</label>
+            <select name="department_id" required>
+                <option value="">-- Select Department --</option>
+                <?php
+                $departments = $conn->query("SELECT * FROM departments");
+                while ($d = $departments->fetch_assoc()) {
+                    echo "<option value='{$d['id']}'>" . htmlspecialchars($d['name']) . "</option>";
+                }
+                ?>
+            </select>
+
+            <label>Duration (Years):</label>
+            <input type="number" name="duration" min="1" required>
+
+            <label>Course Type:</label>
+            <select name="course_type" required>
+                <option value="">-- Select Type --</option>
+                <option value="Degree">Degree</option>
+                <option value="Diploma">Diploma</option>
+                <option value="Certificate">Certificate</option>
+            </select>
+
+            <button type="submit">Save</button>
+        </form>
     </div>
+</div>
 
     <!-- UNIT SINGLE MODAL -->
     <div id="unitSingleModal" class="modal" style="display:none;">

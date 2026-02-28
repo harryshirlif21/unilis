@@ -365,28 +365,32 @@ if ($action === 'add_department') {
     echo json_encode($response);
     exit;
 }
-
 // === ADD COURSE ===
 if ($action === 'add_course') {
+
     $name = trim($_POST['course_name']);
     $dept_id = intval($_POST['department_id']);
-    $duration = intval($_POST['duration']);
+    $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 0;
+    $course_type = trim($_POST['course_type']);
+
+    // Check if course already exists
     $stmt = $conn->prepare("SELECT id FROM courses WHERE name = ? AND department_id = ?");
     $stmt->bind_param("si", $name, $dept_id);
     $stmt->execute();
     $stmt->store_result();
+
     if ($stmt->num_rows > 0) {
         $_SESSION['course_error'] = "Course already exists.";
     } else {
-        $stmt = $conn->prepare("INSERT INTO courses (name, department_id, duration) VALUES (?, ?, ?)");
-        $stmt->bind_param("sii", $name, $dept_id, $duration);
+        $stmt = $conn->prepare("INSERT INTO courses (name, department_id, duration, course_type) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("siis", $name, $dept_id, $duration, $course_type);
         $stmt->execute();
-        $_SESSION['course_success'] = "Course added.";
+        $_SESSION['course_success'] = "Course added successfully.";
     }
+
     header("Location: admin/dashboard.php");
     exit;
 }
-
 // === ADD LECTURER ===
 if ($action === 'add_lecturer') {
     $name = $_POST['lecturer_name'];

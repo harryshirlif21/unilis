@@ -376,9 +376,6 @@ td a:hover {
    UPLOAD ASSIGNMENT MODAL – restored & modernized
 ───────────────────────────────────────────────── */
 
-#uploadAssignmentModal {
-    /* already has .modal base styles – background overlay etc. */
-}
 
 #uploadAssignmentModal .modal-content {
     background: white;

@@ -8,13 +8,13 @@ $mail = new PHPMailer(true);
 
 try {
     // SMTP Server Settings
-    $mail->isSMTP();
-    $mail->Host       = 'unilis.jhubafrica.com';
-    $mail->SMTPAuth   = true;
-    $mail->Username   = 'noreply@unilis.jhubafrica.com';
-    $mail->Password   = 'Man.18hattan'; // put actual email password here
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL
-    $mail->Port       = 465;
+// SMTP Server Settings (Local Mail Server)
+$mail->isSMTP();
+$mail->Host       = 'localhost';   // Use local mail server
+$mail->Port       = 25;            // Default local SMTP port
+$mail->SMTPAuth   = false;         // No authentication needed locally
+$mail->SMTPSecure = false;         // No SSL needed for localhost
+    
 
     // Sender
     $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
