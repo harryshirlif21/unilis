@@ -63,35 +63,58 @@ $stmt->close();
     <!-- <style> body { background: #ffebee !important; } </style> -->
 </head>
 <body>
-
-<!-- NAVBAR -->
+<!-- NAVBAR - lecturer version, styled like student -->
 <nav class="navbar">
-    <h2>Lecturer Dashboard</h2>
-    <div class="navbar-right">
-        <div class="notification">
-            <i class="fa fa-bell"></i>
-        </div>
-        <div class="profile">
-            <div class="avatar"><?= strtoupper(substr($lecturer_name ?? 'L', 0, 1)) ?></div>
-        </div>
+    <!-- Centered welcome message -->
+    <div class="welcome-msg">
+        <strong>👋 Welcome back, <?= htmlspecialchars($lecturer_name ?? 'Lecturer') ?>!</strong>
+    </div>
+
+    <!-- Mobile sidebar toggle button -->
+    <div class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-ellipsis-v"></i>
+    </div>
+
+    <!-- Notifications icon -->
+    <div class="nav-icon" id="notifications-icon">
+        <i class="fas fa-bell"></i>
+        <!-- Optional: show badge if you have unread count -->
+        <!-- <span class="badge">3</span> -->
+    </div>
+
+    <!-- Profile icon -->
+    <div class="nav-icon" id="profile-icon">
+        <i class="fas fa-user"></i>
     </div>
 </nav>
 
-<!-- SIDEBAR -->
-<aside class="sidebar">
-    <ul>
-        <li class="active"><i class="fa fa-home"></i> Dashboard</li>
-        <li><i class="fa fa-book"></i> Training</li>
-        <li><i class="fa fa-file-alt"></i> Exams</li>
-        <li><i class="fa fa-chalkboard-teacher"></i> Lessons</li>
-        <li><i class="fa fa-chart-line"></i> My Progress</li>
-        <li><i class="fa fa-user"></i> Account</li>
-        <li><i class="fa fa-user-circle"></i> Profile</li>
-        <li><i class="fa fa-cog"></i> Settings</li>
-        <li><i class="fa fa-sign-out-alt"></i> Logout</li>
-    </ul>
-</aside>
+<!-- SIDEBAR - lecturer version, matching student colors & layout -->
+<aside class="sidebar" id="sidebar">
+    <!-- Main Navigation -->
+    <div class="sidebar-section">
+        <h4>Main Navigation</h4>
+        <ul>
+            <li class="blue active"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></li>
+            <li class="green"><i class="fas fa-book"></i><span>Training</span></li>
+            <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
+            <li class="golden"><i class="fas fa-chalkboard-teacher"></i><span>Lessons</span></li>
+            <li class="brown"><i class="fas fa-chart-line"></i><span>My Progress</span></li>
+        </ul>
+    </div>
 
+    <!-- Account Section -->
+    <div class="sidebar-section">
+        <h4>Account</h4>
+        <ul>
+            <li class="blue"><i class="fas fa-user-circle"></i><span>Account</span></li>
+            <li class="green"><i class="fas fa-user"></i><span>Profile</span></li>
+            <li class="orange"><i class="fas fa-cog"></i><span>Settings</span></li>
+            <li class="brown" onclick="window.location.href='../logout.php'">
+                <i class="fas fa-sign-out-alt"></i><span>Logout</span>
+            </li>
+        </ul>
+    </div>
+</aside>
 <!-- MAIN CONTENT -->
 <div class="main-content">
     <div class="dashboard-card">
