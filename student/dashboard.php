@@ -109,26 +109,28 @@ $unread_count = $unread_stmt->get_result()->fetch_assoc()['unread_count'];
 
 </head>
 <body>
-
 <!-- Navbar -->
 <nav class="navbar">
     <div class="welcome-msg">
         <strong>👋 Welcome back!</strong>
     </div>
-    <div class="nav-icon" id="profile-icon">
+
+    <!-- Notifications -->
+    <div class="nav-icon" id="notifications-icon" style="position:relative; cursor:pointer;">
+        <i class="fas fa-bell"></i>
+        <!-- Red circle indicator for new notifications -->
+        <span id="notificationCount" 
+              style="position:absolute; top:0; right:0; width:12px; height:12px; background:red; border-radius:50%; display:block;">
+        </span>
+    </div>
+<div class="nav-icon" id="profile-icon">
         <i class="fas fa-user"></i>
     </div>
-
     <!-- Mobile Sidebar Toggle -->
 <div class="sidebar-toggle">
     <i class="fas fa-ellipsis-v"></i>
 </div>
-    <div class="nav-icon" id="notifications-icon">
-        <i class="fas fa-bell"></i>
-        <?php if($unread_count > 0): ?>
-            <span class="badge" id="notificationCount"><?php echo $unread_count; ?></span>
-        <?php endif; ?>
-    </div>
+    
 </nav>
 
 <!-- Sidebar -->
@@ -459,6 +461,39 @@ const modal = document.getElementById('allNotificationsModal');
 const closeModal = modal.querySelector('.close');
 const notificationCount = document.getElementById('notificationCount');
 
+// Track read notifications
+let readNotifications = new Set(); // stores data-id of read notifications
+const notificationItems = notificationsContent.querySelectorAll('.notification-item');
+
+// Function to update red circle visibility
+function updateNotificationIndicator() {
+    let unreadExists = false;
+    notificationItems.forEach(item => {
+        const id = item.dataset.id;
+        if (!readNotifications.has(id)) {
+            unreadExists = true;
+        }
+    });
+    notificationCount.style.display = unreadExists ? 'block' : 'none';
+}
+
+// Initialize: bold unread notifications
+notificationItems.forEach(item => {
+    const id = item.dataset.id;
+    if (!readNotifications.has(id)) {
+        item.style.fontWeight = 'bold';
+    } else {
+        item.style.fontWeight = 'normal';
+    }
+
+    // Click on individual notification
+    item.addEventListener('click', () => {
+        readNotifications.add(id);
+        item.style.fontWeight = 'normal';
+        updateNotificationIndicator();
+    });
+});
+
 // Toggle profile popup
 profileIcon.addEventListener('click', () => {
     profilePopup.style.display = profilePopup.style.display === 'block' ? 'none' : 'block';
@@ -471,48 +506,57 @@ notificationsIcon.addEventListener('click', () => {
     profilePopup.style.display = 'none';
 });
 
-// View all notifications (mark all as read using JS only)
+// View all notifications modal
 viewAllBtn.addEventListener('click', () => {
     modal.style.display = 'block';
     notificationsContent.style.display = 'none';
 
-    // Hide badge
-    if(notificationCount) notificationCount.style.display = 'none';
-
-    // Remove bold from latest notifications
-    notificationsContent.querySelectorAll('li[style*="bold"]').forEach(item => {
+    // Mark all notifications as read
+    notificationItems.forEach(item => {
+        const id = item.dataset.id;
+        readNotifications.add(id);
         item.style.fontWeight = 'normal';
     });
+
+    updateNotificationIndicator();
 });
 
 // Close modal
-closeModal.addEventListener('click', () => modal.style.display = 'none');
+closeModal.addEventListener('click', () => {
+    modal.style.display = 'none';
+});
 
 // Close popups & modal if clicking outside
 document.addEventListener('click', e => {
-    if(profilePopup && !profilePopup.contains(e.target) && !profileIcon.contains(e.target)){
+    if (profilePopup && !profilePopup.contains(e.target) && !profileIcon.contains(e.target)) {
         profilePopup.style.display = 'none';
     }
-    if(notificationsContent && !notificationsContent.contains(e.target) && !notificationsIcon.contains(e.target)){
+    if (notificationsContent && !notificationsContent.contains(e.target) && !notificationsIcon.contains(e.target)) {
         notificationsContent.style.display = 'none';
     }
-    if(modal && e.target === modal){
+    if (modal && e.target === modal) {
         modal.style.display = 'none';
     }
 });
+
+// Sidebar toggle (if you have one)
 const sidebar = document.querySelector('.sidebar');
 const sidebarToggle = document.querySelector('.sidebar-toggle');
 
-sidebarToggle.addEventListener('click', () => {
+sidebarToggle?.addEventListener('click', () => {
     sidebar.classList.toggle('show');
 });
 
 // Optional: close sidebar if clicking outside
 document.addEventListener('click', (e) => {
-    if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
+    if (sidebar && !sidebar.contains(e.target) && !sidebarToggle?.contains(e.target)) {
         sidebar.classList.remove('show');
     }
 });
+
+// Initial call to set red circle visibility
+updateNotificationIndicator();
+
 
 </script>
 

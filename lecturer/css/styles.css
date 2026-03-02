@@ -1325,3 +1325,202 @@ td a:hover {
         gap: 12px;
     }
 }
+/* ────────────────────────────────────────────────
+   ATTENDANCE BUTTON (golden, prominent, hover lift)
+───────────────────────────────────────────────── */
+.btn-golden {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 40px;
+    font-weight: 600;
+    font-size: 1.15rem;
+    cursor: pointer;
+    transition: all 0.28s ease;
+    box-shadow: 0 6px 16px rgba(245, 158, 11, 0.35);
+    letter-spacing: 0.3px;
+}
+
+.btn-golden:hover {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(245, 158, 11, 0.45);
+}
+
+.btn-golden:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+/* ────────────────────────────────────────────────
+   ATTENDANCE MODAL - improved layout & scrollable
+───────────────────────────────────────────────── */
+#attendanceModal .modal-content {
+    background: white;
+    width: 90%;
+    max-width: 620px;
+    max-height: 92vh;
+    border-radius: 20px;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.28);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(245, 158, 11, 0.18);
+}
+
+/* Close button - golden hover */
+#attendanceModal .close {
+    position: absolute;
+    top: 20px;
+    right: 28px;
+    font-size: 2.6rem;
+    color: #6b7280;
+    cursor: pointer;
+    z-index: 20;
+    transition: color 0.2s, transform 0.2s;
+}
+
+#attendanceModal .close:hover {
+    color: #f59e0b;
+    transform: rotate(90deg);
+}
+
+/* Modal title - centered, golden accent */
+#attendanceModal h3 {
+    margin: 0;
+    padding: 32px 40px 24px 40px;
+    font-size: 1.65rem;
+    font-weight: 700;
+    color: #111827;
+    background: linear-gradient(to bottom, #fffbeb, #ffffff);
+    border-bottom: 1px solid #fde68a;
+    text-align: center;
+    letter-spacing: -0.2px;
+}
+
+/* Scrollable form area */
+#attendanceModal form {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 48px 60px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    scrollbar-width: thin;
+    scrollbar-color: #fcd34d #fffbeb;
+}
+
+/* Scrollbar styling */
+#attendanceModal form::-webkit-scrollbar {
+    width: 8px;
+}
+
+#attendanceModal form::-webkit-scrollbar-track {
+    background: #fffbeb;
+    border-radius: 4px;
+}
+
+#attendanceModal form::-webkit-scrollbar-thumb {
+    background: #fcd34d;
+    border-radius: 4px;
+}
+
+#attendanceModal form::-webkit-scrollbar-thumb:hover {
+    background: #fbbf24;
+}
+
+/* Labels */
+#attendanceModal label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 1rem;
+    margin-bottom: 8px;
+    display: block;
+}
+
+/* Required star */
+#attendanceModal .text-red-500 {
+    color: #ef4444;
+    font-weight: bold;
+}
+
+/* Inputs & Select */
+#attendanceModal input,
+#attendanceModal select,
+#attendanceModal textarea {
+    width: 100%;
+    padding: 14px 18px;
+    border: 1.5px solid #fcd34d60;
+    border-radius: 12px;
+    font-size: 1.05rem;
+    color: #111827;
+    background-color: #fffef2;
+    transition: all 0.22s ease;
+    box-sizing: border-box;
+}
+
+#attendanceModal input:focus,
+#attendanceModal select:focus,
+#attendanceModal textarea:focus {
+    outline: none;
+    border-color: #f59e0b;
+    background-color: white;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.18);
+}
+
+/* Textarea */
+#attendanceModal textarea {
+    min-height: 130px;
+    resize: vertical;
+}
+
+/* Submit button - full width on mobile, centered */
+#attendanceModal button[type="submit"] {
+    align-self: center;
+    margin-top: 32px;
+    padding: 16px 64px;
+    font-size: 1.18rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    min-width: 280px;
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+    transition: all 0.25s ease;
+}
+
+#attendanceModal button[type="submit"]:hover {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    transform: translateY(-3px);
+    box-shadow: 0 14px 32px rgba(245, 158, 11, 0.45);
+}
+
+#attendanceModal button[type="submit"]:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    #attendanceModal .modal-content {
+        width: 94%;
+        border-radius: 16px;
+    }
+
+    #attendanceModal form {
+        padding: 24px 32px 48px 32px;
+    }
+
+    #attendanceModal h3 {
+        padding: 28px 32px 20px 32px;
+        font-size: 1.45rem;
+    }
+
+    #attendanceModal button[type="submit"] {
+        padding: 14px 48px;
+        min-width: 240px;
+        font-size: 1.08rem;
+    }
+}

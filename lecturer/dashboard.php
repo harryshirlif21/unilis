@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 }
 
 $lecturer_id   = $_SESSION['user_id'];
-$lecturer_name = $_SESSION['user_name'];
+$lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
 
 /* ================= FETCH UNITS ================= */
 $units = [];
@@ -56,41 +56,32 @@ $stmt->close();
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Your local CSS - this path is correct for your folder structure -->
+    <!-- Your CSS -->
     <link rel="stylesheet" href="./css/styles.css">
-    
-    <!-- Temporary test - remove after confirming CSS works -->
-    <!-- <style> body { background: #ffebee !important; } </style> -->
 </head>
 <body>
-<!-- NAVBAR - lecturer version, styled like student -->
+
+<!-- NAVBAR -->
 <nav class="navbar">
-    <!-- Centered welcome message -->
     <div class="welcome-msg">
-        <strong>👋 Welcome back, <?= htmlspecialchars($lecturer_name ?? 'Lecturer') ?>!</strong>
+        <strong>👋 Welcome back, <?= htmlspecialchars($lecturer_name) ?>!</strong>
     </div>
 
-    <!-- Mobile sidebar toggle button -->
     <div class="sidebar-toggle" id="sidebarToggle">
         <i class="fas fa-ellipsis-v"></i>
     </div>
 
-    <!-- Notifications icon -->
     <div class="nav-icon" id="notifications-icon">
         <i class="fas fa-bell"></i>
-        <!-- Optional: show badge if you have unread count -->
-        <!-- <span class="badge">3</span> -->
     </div>
 
-    <!-- Profile icon -->
     <div class="nav-icon" id="profile-icon">
         <i class="fas fa-user"></i>
     </div>
 </nav>
 
-<!-- SIDEBAR - lecturer version, matching student colors & layout -->
+<!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
-    <!-- Main Navigation -->
     <div class="sidebar-section">
         <h4>Main Navigation</h4>
         <ul>
@@ -102,7 +93,6 @@ $stmt->close();
         </ul>
     </div>
 
-    <!-- Account Section -->
     <div class="sidebar-section">
         <h4>Account</h4>
         <ul>
@@ -115,30 +105,33 @@ $stmt->close();
         </ul>
     </div>
 </aside>
+
 <!-- MAIN CONTENT -->
 <div class="main-content">
     <div class="dashboard-card">
+
         <nav class="card-navbar">
             <ul>
                 <li class="notes active">Notes</li>
                 <li class="assignments">Assignments</li>
                 <li class="units">Units</li>
                 <li class="meetings">Meetings</li>
+                <li class="attendance">Attendance</li>
             </ul>
         </nav>
 
         <!-- NOTES SECTION -->
         <div class="notes-content content-section">
             <div class="notes-box">
-                <h3>Welcome, <?= htmlspecialchars($lecturer_name ?? 'Lecturer') ?>!</h3>
+                <h3>Welcome, <?= htmlspecialchars($lecturer_name) ?>!</h3>
                 <p style="margin: 16px 0; color: #555; line-height: 1.5;">
                     Manage your lecture notes here.<br>
                     View existing materials or upload new ones for your assigned units.
                 </p>
                 <div style="margin-top: 20px; display: flex; gap: 16px; justify-content: center;">
-                   <a href="upload_notes.php" class="btn btn-secondary" id="view-notes-btn">
-    View Interactive Notes
-</a>
+                    <a href="upload_notes.php" class="btn btn-secondary" id="view-notes-btn">
+                        View Interactive Notes
+                    </a>
                     <button id="uploadNotesBtn" class="btn btn-green">Upload Notes</button>
                 </div>
             </div>
@@ -155,7 +148,6 @@ $stmt->close();
                 <?php endif; ?>
             </div>
 
-            <!-- Hidden notes data containers -->
             <div id="all-notes-data" style="display:none;">
                 <?php foreach ($notesByUnit as $unitId => $notes): ?>
                     <div class="unit-notes-data" data-unit-id="<?= $unitId ?>">
@@ -188,300 +180,159 @@ $stmt->close();
             </div>
         </div>
 
-        <!-- Other tabs placeholders -->
+        <!-- ASSIGNMENTS SECTION -->
         <div class="assignments-content content-section" style="display:none;">
             <h3>Assignments</h3>
             <div class="assignments-controls">
-    <button id="uploadAssignmentBtn" class="btn-primary">Upload Assignment</button>
-    <button id="interactiveAssignmentsBtn" class="btn-secondary">Interactive Assignments</button>
-    <button class="btn-secondary" onclick="window.location.href='assignment_submissions.php'">
-    View Submissions
-</button>
-</div>
-<div id="interactive-tiles-section">
-    <div class="tiles-grid">
-
-        <a href="create_questions.php" class="tile-card">
-            <div class="icon-wrapper">
-                <i class="fas fa-plus"></i>
+                <button id="uploadAssignmentBtn" class="btn-primary">Upload Assignment</button>
+                <button id="interactiveAssignmentsBtn" class="btn-secondary">Interactive Assignments</button>
+                <button class="btn-secondary" id="viewSubmissionsBtn" onclick="window.location.href='assignment_submissions.php'">
+                    View Submissions
+                </button>
             </div>
-            <span>Create Assignment</span>
-        </a>
 
-        <a href="scores_overview.php" class="tile-card">
-            <div class="icon-wrapper">
-                <i class="fas fa-chart-line"></i>
-            </div>
-            <span>View Student Scores</span>
-        </a>
-
-        <a href="submission_stats.php" class="tile-card">
-            <div class="icon-wrapper">
-                <i class="fas fa-chart-bar"></i>
-            </div>
-            <span>Submission Stats</span>
-        </a>
-
-        <a href="AIGrading.php" class="tile-card">
-            <div class="icon-wrapper">
-                <i class="fas fa-robot"></i>
-            </div>
-            <span>AI Grading</span>
-        </a>
-
-    </div>
-</div>
-
-    <!-- Assignments Table Section -->
-    <div id="assignments-table-section" class="hidden">
-        <!-- Keep your existing assignments table PHP here -->
-    </div>
-
-    <!-- Submissions Section -->
-    <div id="submissions-section" class="hidden">
-        <!-- Keep your existing submissions PHP table here -->
-    </div>
-
-</div>
-<div id="uploadAssignmentModal" class="modal hidden">
-    <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
-        <span class="close text-92400e text-2xl font-bold cursor-pointer hover:text-f59e0b" id="uploadAssignmentClose">&times;</span>
-        <h3 class="text-xl font-semibold stat-text-secondary mb-4">Create Assignment</h3>
-
-        <form action="../actions.php" method="POST" enctype="multipart/form-data">
-            <input type="hidden" name="action" value="create_assignment">
-
-            <!-- Unit selection -->
-            <label class="block text-sm font-medium stat-text-primary mb-2">Unit:</label>
-            <select name="unit_id" id="assignmentUnit" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e">
-                <option value="">-- Select Unit --</option>
-                <?php foreach ($units as $u): ?>
-                    <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
-
-            <!-- Assignment Title -->
-            <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Assignment Title:</label>
-            <input type="text" name="title" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e">
-
-            <!-- Instructions / Description -->
-            <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Written Instructions:</label>
-            <textarea name="instructions" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e" rows="4"></textarea>
-
-            <!-- Deadline -->
-            <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Deadline:</label>
-            <input type="datetime-local" name="due_date" required class="w-full px-3 py-2 border border-f5e6b2 rounded-lg text-92400e">
-
-            <!-- Optional File -->
-            <label class="block text-sm font-medium stat-text-primary mt-4 mb-2">Attach File (optional):</label>
-            <input type="file" name="assignment_file" class="text-sm text-92400e">
-
-            <button type="submit" class="btn-primary px-4 py-2 mt-4 rounded-lg">Create Assignment</button>
-        </form>
-    </div>
-</div>
-       <div class="units-content content-section" style="display:none;">
-
-    <div class="units-header">
-        <h3>My Units</h3>
-        <button class="btn-primary" onclick="showModal('addUnitModal')">
-            + Add Unit
-        </button>
-    </div>
-
-    <div class="units-grid">
-        <?php if (count($units) > 0): ?>
-            <?php foreach ($units as $unit): ?>
-                <div class="unit-slim-tile">
-                    <div class="unit-name">
-                        <?= htmlspecialchars($unit['name']) ?>
-                    </div>
+            <div id="interactive-tiles-section" class="hidden">
+                <div class="tiles-grid">
+                    <a href="create_questions.php" class="tile-card">
+                        <div class="icon-wrapper"><i class="fas fa-plus"></i></div>
+                        <span>Create Assignment</span>
+                    </a>
+                    <a href="scores_overview.php" class="tile-card">
+                        <div class="icon-wrapper"><i class="fas fa-chart-line"></i></div>
+                        <span>View Student Scores</span>
+                    </a>
+                    <a href="submission_stats.php" class="tile-card">
+                        <div class="icon-wrapper"><i class="fas fa-chart-bar"></i></div>
+                        <span>Submission Stats</span>
+                    </a>
+                    <a href="AIGrading.php" class="tile-card">
+                        <div class="icon-wrapper"><i class="fas fa-robot"></i></div>
+                        <span>AI Grading</span>
+                    </a>
                 </div>
-            <?php endforeach; ?>
-        <?php else: ?>
-            <p class="no-units">No units assigned yet.</p>
-        <?php endif; ?>
-    </div>
+            </div>
 
-</div>
-        <div id="addUnitModal" class="modal hidden">
-    <div class="modal-content">
-        <span class="close" onclick="hideModal('addUnitModal')">&times;</span>
-        <h3>Add Unit</h3>
+            <div id="assignments-table-section" class="hidden">
+                <!-- Your assignments table PHP here -->
+            </div>
 
-        <form action="../actions.php" method="POST">
-            <input type="hidden" name="action" value="add_single_lecturer_unit">
-
-            <label>Select Course:</label>
-            <select name="course_id" id="courseSelect" required>
-                <option value="">-- Select Course --</option>
-                <?php
-                try {
-                    $courseRes = $conn->query("SELECT id, name FROM courses");
-                    while ($course = $courseRes->fetch_assoc()) {
-                        echo "<option value='{$course['id']}'>" . htmlspecialchars($course['name']) . "</option>";
-                    }
-                } catch (mysqli_sql_exception $e) {
-                    echo "<option value=''>Error loading courses</option>";
-                }
-                ?>
-            </select>
-
-            <label>Select Unit:</label>
-            <select name="unit_id" id="unitSelect" required>
-                <option value="">-- Select Unit --</option>
-            </select>
-
-            <button type="submit" class="btn-primary">Add Unit</button>
-        </form>
-    </div>
-</div>
-        
-       <!-- Meetings / Office Hours Section -->
-<div class="meetings-content content-section" style="display:none;">
-
-    <!-- Header -->
-    <div class="meetings-header">
-        <h3>Office Hours & Meetings</h3>
-        <div class="header-actions">
-            <button class="btn-primary" id="scheduleMeetingBtn">
-                <i class="fas fa-plus mr-2"></i> Schedule Meeting
-            </button>
-            <!-- Optional future button -->
-            <!-- <button class="btn-secondary"><i class="far fa-calendar-alt mr-2"></i> My Calendar</button> -->
+            <div id="submissions-section" class="hidden">
+                <!-- Your submissions table PHP here -->
+            </div>
         </div>
-    </div>
 
-    <!-- Quick Actions (optional - can be removed if you prefer only table) -->
-    <div class="meetings-quick-actions hidden md:grid">
-        <div class="action-tile" data-action="availability">
-            <div class="icon-wrapper"><i class="fas fa-calendar-check"></i></div>
-            <span>Set Availability</span>
+        <!-- UNITS SECTION -->
+        <div class="units-content content-section" style="display:none;">
+            <div class="units-header">
+                <h3>My Units</h3>
+                <button class="btn-primary" onclick="showModal('addUnitModal')">
+                    + Add Unit
+                </button>
+            </div>
+
+            <div class="units-grid">
+                <?php if (count($units) > 0): ?>
+                    <?php foreach ($units as $unit): ?>
+                        <div class="unit-slim-tile">
+                            <div class="unit-name">
+                                <?= htmlspecialchars($unit['name']) ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p class="no-units">No units assigned yet.</p>
+                <?php endif; ?>
+            </div>
         </div>
-        <div class="action-tile" data-action="reminders">
-            <div class="icon-wrapper"><i class="fas fa-bell"></i></div>
-            <span>Send Reminders</span>
-        </div>
-    </div>
 
-    <!-- Upcoming Meetings Table (your original logic preserved + styled) -->
-    <section class="card bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <h2 class="text-xl font-semibold mb-5 text-gray-800">Upcoming Meetings & Office Hours</h2>
-        
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="border-b-2 border-amber-200 bg-gray-50">
-                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Title</th>
-                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Unit</th>
-                        <th class="py-3 px-4 text-sm font-semibold text-amber-700 uppercase tracking-wide">Time</th>
-                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="text-gray-800">
-                    <?php
-                    try {
-                        $now = date('Y-m-d H:i:s');
-                        $stmt = $conn->prepare("
-                            SELECT m.id, m.title, m.scheduled_time, u.name AS unit_name 
-                            FROM meetings m 
-                            JOIN units u ON m.unit_id = u.id 
-                            JOIN lecturer_units lu ON u.id = lu.unit_id
-                            WHERE lu.lecturer_id = ? AND m.scheduled_time >= ?
-                            ORDER BY m.scheduled_time ASC
-                        ");
-                        $stmt->bind_param("is", $lecturer_id, $now);
-                        $stmt->execute();
-                        $res = $stmt->get_result();
+        <!-- MEETINGS SECTION -->
+        <div class="meetings-content content-section" style="display:none;">
+            <div class="meetings-header">
+                <h3>Office Hours & Meetings</h3>
+                <div class="header-actions">
+                    <button class="btn-primary" id="scheduleMeetingBtn">
+                        <i class="fas fa-plus mr-2"></i> Schedule Meeting
+                    </button>
+                </div>
+            </div>
 
-                        if ($res->num_rows > 0) {
-                            while ($meeting = $res->fetch_assoc()) {
-                                $timeFormatted = date("d M Y • h:i A", strtotime($meeting['scheduled_time']));
-                                echo "<tr class='border-b border-gray-100 hover:bg-amber-50/40 transition-colors'>";
-                                echo "<td class='py-4 px-4 font-medium'>" . htmlspecialchars($meeting['title']) . "</td>";
-                                echo "<td class='py-4 px-4 text-gray-600'>" . htmlspecialchars($meeting['unit_name']) . "</td>";
-                                echo "<td class='py-4 px-4 text-sm text-amber-700 font-medium'>" . $timeFormatted . "</td>";
-                                echo "<td class='py-4 px-4'>";
-                                echo "<a class='text-amber-600 hover:text-amber-800 hover:underline font-medium' ";
-                                echo "href='meeting_ide.php?meeting_id=" . htmlspecialchars($meeting['id']) . "' target='_blank'>Join</a>";
-                                echo "</td>";
-                                echo "</tr>";
+            <section class="card bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                <h2 class="text-xl font-semibold mb-5 text-gray-800">Upcoming Meetings & Office Hours</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-amber-200 bg-gray-50">
+                                <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Title</th>
+                                <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Unit</th>
+                                <th class="py-3 px-4 text-sm font-semibold text-amber-700 uppercase tracking-wide">Time</th>
+                                <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-800">
+                            <?php
+                            try {
+                                $now = date('Y-m-d H:i:s');
+                                $stmt = $conn->prepare("
+                                    SELECT m.id, m.title, m.scheduled_time, u.name AS unit_name 
+                                    FROM meetings m 
+                                    JOIN units u ON m.unit_id = u.id 
+                                    JOIN lecturer_units lu ON u.id = lu.unit_id
+                                    WHERE lu.lecturer_id = ? AND m.scheduled_time >= ?
+                                    ORDER BY m.scheduled_time ASC
+                                ");
+                                $stmt->bind_param("is", $lecturer_id, $now);
+                                $stmt->execute();
+                                $res = $stmt->get_result();
+
+                                if ($res->num_rows > 0) {
+                                    while ($meeting = $res->fetch_assoc()) {
+                                        $timeFormatted = date("d M Y • h:i A", strtotime($meeting['scheduled_time']));
+                                        echo "<tr class='border-b border-gray-100 hover:bg-amber-50/40 transition-colors'>";
+                                        echo "<td class='py-4 px-4 font-medium'>" . htmlspecialchars($meeting['title']) . "</td>";
+                                        echo "<td class='py-4 px-4 text-gray-600'>" . htmlspecialchars($meeting['unit_name']) . "</td>";
+                                        echo "<td class='py-4 px-4 text-sm text-amber-700 font-medium'>" . $timeFormatted . "</td>";
+                                        echo "<td class='py-4 px-4'>";
+                                        echo "<a class='text-amber-600 hover:text-amber-800 hover:underline font-medium' ";
+                                        echo "href='meeting_ide.php?meeting_id=" . htmlspecialchars($meeting['id']) . "' target='_blank'>Join</a>";
+                                        echo "</td>";
+                                        echo "</tr>";
+                                    }
+                                } else {
+                                    echo "<tr><td colspan='4' class='py-10 text-center text-gray-500 italic'>No upcoming meetings or office hours scheduled.</td></tr>";
+                                }
+                                $stmt->close();
+                            } catch (mysqli_sql_exception $e) {
+                                echo "<tr><td colspan='4' class='py-10 text-center text-red-600'>Error loading meetings.</td></tr>";
                             }
-                        } else {
-                            echo "<tr><td colspan='4' class='py-10 text-center text-gray-500 italic'>No upcoming meetings or office hours scheduled.</td></tr>";
-                        }
-                        $stmt->close();
-                    } catch (mysqli_sql_exception $e) {
-                        echo "<tr><td colspan='4' class='py-10 text-center text-red-600'>Error loading meetings. Please try again later.</td></tr>";
-                        error_log("Meetings fetch error: " . $e->getMessage());
-                    }
-                    ?>
-                </tbody>
-            </table>
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
-    </section>
 
-</div>
-
-
-<!-- ── Schedule Meeting Modal ── -->
-<div id="scheduleMeetingModal" class="modal hidden">
-    <div class="modal-content max-w-lg mx-auto">
-        <div class="modal-header">
-            <h3>Schedule New Meeting / Office Hour</h3>
-            <span class="close" onclick="hideModal('scheduleMeetingModal')">×</span>
+        <!-- ATTENDANCE SECTION -->
+        <div class="attendance-content content-section" style="display:none;">
+            <div class="notes-box">
+                <h3>Take Attendance</h3>
+                <p style="margin: 16px 0; color: #555; line-height: 1.5;">
+                    Select a unit and mark student attendance for today's session.<br>
+                    Attendance will be recorded instantly.
+                </p>
+                <div style="margin-top: 24px;">
+                    <button id="openAttendanceModalBtn" class="btn-golden px-6 py-3 text-lg font-medium">
+                        Open Attendance Sheet
+                    </button>
+                </div>
+            </div>
         </div>
-        <div class="modal-body">
-            <form action="../actions.php" method="POST">
-                <input type="hidden" name="action" value="schedule_meeting">
 
-                <div class="form-group">
-                    <label>Title <span class="text-red-500">*</span></label>
-                    <input type="text" name="title" required placeholder="e.g. Office Hours - Week 5" class="w-full">
-                </div>
-
-                <div class="form-group">
-                    <label>Unit <span class="text-red-500">*</span></label>
-                    <select name="unit_id" required>
-                        <option value="">— Select Unit —</option>
-                        <?php foreach ($units as $u): ?>
-                            <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="form-group">
-                        <label>Date & Time <span class="text-red-500">*</span></label>
-                        <input type="datetime-local" name="scheduled_time" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Duration (minutes)</label>
-                        <input type="number" name="duration" min="15" max="180" value="60">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Meeting Link / Location (optional)</label>
-                    <input type="url" name="meeting_link" placeholder="https://meet.google.com/xxx-yyyy-zzz">
-                </div>
-
-                <div class="form-group">
-                    <label>Notes / Agenda</label>
-                    <textarea name="description" rows="3" placeholder="Topics to cover, preparation needed..."></textarea>
-                </div>
-
-                <div class="mt-6 flex justify-end gap-3">
-                    <button type="button" class="btn-secondary" onclick="hideModal('scheduleMeetingModal')">Cancel</button>
-                    <button type="submit" class="btn-primary">Schedule Meeting</button>
-                </div>
-            </form>
-        </div>
     </div>
 </div>
-  
 
-<!-- UPLOAD MODAL -->
+<!-- MODALS -->
+
+<!-- Upload Notes Modal -->
 <div id="uploadNotesModal" class="modal hidden">
     <div class="modal-content">
         <div class="modal-header">
@@ -491,25 +342,22 @@ $stmt->close();
         <div class="modal-body">
             <form action="../actions.php" method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="upload_notes">
-                <label style="display:block; margin:0 0 8px; font-weight:500;">Unit</label>
-                <select name="unit_id" required style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; margin-bottom:20px;">
+                <label>Unit</label>
+                <select name="unit_id" required>
                     <option value="">— Select Unit —</option>
                     <?php foreach ($units as $u): ?>
                         <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <label style="display:block; margin:0 0 8px; font-weight:500;">Files (PDF, Word, PowerPoint)</label>
-                <input type="file" name="notes_file[]" required multiple accept=".pdf,.doc,.docx,.ppt,.pptx"
-                       style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px;">
-                <div style="margin-top:28px; text-align:right;">
-                    <button type="submit" class="btn btn-green">Upload Files</button>
-                </div>
+                <label>Files (PDF, Word, PowerPoint)</label>
+                <input type="file" name="notes_file[]" required multiple accept=".pdf,.doc,.docx,.ppt,.pptx">
+                <button type="submit" class="btn btn-green">Upload Files</button>
             </form>
         </div>
     </div>
 </div>
 
-<!-- VIEW NOTES MODAL -->
+<!-- View Notes Modal -->
 <div id="notes-modal" class="modal hidden">
     <div class="modal-content">
         <div class="modal-header">
@@ -522,135 +370,261 @@ $stmt->close();
     </div>
 </div>
 
+<!-- Upload Assignment Modal -->
+<div id="uploadAssignmentModal" class="modal hidden">
+    <div class="modal-content bg-white p-6 rounded-2xl border border-f5e6b2">
+        <span class="close text-92400e text-2xl font-bold cursor-pointer hover:text-f59e0b" id="uploadAssignmentClose">×</span>
+        <h3 class="text-xl font-semibold stat-text-secondary mb-4">Create Assignment</h3>
+        <form action="../actions.php" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="create_assignment">
+            <label>Unit:</label>
+            <select name="unit_id" id="assignmentUnit" required>
+                <option value="">-- Select Unit --</option>
+                <?php foreach ($units as $u): ?>
+                    <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <label>Assignment Title:</label>
+            <input type="text" name="title" required>
+            <label>Written Instructions:</label>
+            <textarea name="instructions" required rows="4"></textarea>
+            <label>Deadline:</label>
+            <input type="datetime-local" name="due_date" required>
+            <label>Attach File (optional):</label>
+            <input type="file" name="assignment_file">
+            <button type="submit" class="btn-primary">Create Assignment</button>
+        </form>
+    </div>
+</div>
+
+<!-- Add Unit Modal -->
+<div id="addUnitModal" class="modal hidden">
+    <div class="modal-content">
+        <span class="close" onclick="hideModal('addUnitModal')">×</span>
+        <h3>Add Unit</h3>
+        <form action="../actions.php" method="POST">
+            <input type="hidden" name="action" value="add_single_lecturer_unit">
+            <label>Select Course:</label>
+            <select name="course_id" id="courseSelect" required>
+                <option value="">-- Select Course --</option>
+                <?php
+                $courseRes = $conn->query("SELECT id, name FROM courses");
+                while ($course = $courseRes->fetch_assoc()) {
+                    echo "<option value='{$course['id']}'>" . htmlspecialchars($course['name']) . "</option>";
+                }
+                ?>
+            </select>
+            <label>Select Unit:</label>
+            <select name="unit_id" id="unitSelect" required>
+                <option value="">-- Select Unit --</option>
+            </select>
+            <button type="submit" class="btn-primary">Add Unit</button>
+        </form>
+    </div>
+</div>
+
+<!-- Schedule Meeting Modal -->
+<div id="scheduleMeetingModal" class="modal hidden">
+    <div class="modal-content max-w-lg mx-auto">
+        <div class="modal-header">
+            <h3>Schedule New Meeting / Office Hour</h3>
+            <span class="close" onclick="hideModal('scheduleMeetingModal')">×</span>
+        </div>
+        <div class="modal-body">
+            <form action="../actions.php" method="POST">
+                <input type="hidden" name="action" value="schedule_meeting">
+                <div class="form-group">
+                    <label>Title <span class="text-red-500">*</span></label>
+                    <input type="text" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label>Unit <span class="text-red-500">*</span></label>
+                    <select name="unit_id" required>
+                        <option value="">— Select Unit —</option>
+                        <?php foreach ($units as $u): ?>
+                            <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label>Date & Time <span class="text-red-500">*</span></label>
+                        <input type="datetime-local" name="scheduled_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Duration (minutes)</label>
+                        <input type="number" name="duration" min="15" max="180" value="60">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Meeting Link / Location (optional)</label>
+                    <input type="url" name="meeting_link" placeholder="https://meet.google.com/...">
+                </div>
+                <div class="form-group">
+                    <label>Notes / Agenda</label>
+                    <textarea name="description" rows="3"></textarea>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" class="btn-secondary" onclick="hideModal('scheduleMeetingModal')">Cancel</button>
+                    <button type="submit" class="btn-primary">Schedule Meeting</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Modal -->
+<div id="attendanceModal" class="modal hidden">
+    <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl" style="max-width: 580px; max-height: 92vh; overflow-y: auto;">
+        <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10" id="attendanceModalClose">×</span>
+        <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">Take Attendance</h3>
+        <form id="attendanceForm" method="POST" action="attendance_functions.php" class="px-10 pb-10">
+            <div class="mb-6">
+                <label class="block text-sm font-medium stat-text-primary mb-3">
+                    Select Unit <span class="text-red-500">*</span>
+                </label>
+                <select name="unit_id" id="modalUnitId" required class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
+                    <option value="">-- Choose Unit --</option>
+                    <?php
+                    $lecturer_id = $_SESSION['user_id'] ?? 0;
+                    if ($lecturer_id > 0) {
+                        $stmt = $conn->prepare("
+                            SELECT u.id, u.name, c.name AS course_name, u.year, u.semester
+                            FROM units u
+                            JOIN lecturer_units lu ON u.id = lu.unit_id
+                            LEFT JOIN courses c ON u.course_id = c.id
+                            WHERE lu.lecturer_id = ?
+                            ORDER BY u.name
+                        ");
+                        $stmt->bind_param("i", $lecturer_id);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        while ($unit = $result->fetch_assoc()): ?>
+                            <option value="<?= $unit['id'] ?>"
+                                    data-course="<?= htmlspecialchars($unit['course_name'] ?? '') ?>"
+                                    data-year="<?= $unit['year'] ?? '' ?>"
+                                    data-semester="<?= $unit['semester'] ?? '' ?>">
+                                <?= htmlspecialchars($unit['name']) ?>
+                            </option>
+                        <?php endwhile;
+                        $stmt->close();
+                    }
+                    ?>
+                </select>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium stat-text-primary mb-3">Session Date</label>
+                <input type="date" name="session_date" value="<?= date('Y-m-d') ?>" required class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg">
+            </div>
+            <div class="mb-8">
+                <label class="block text-sm font-medium stat-text-primary mb-3">Remarks / Topic Covered (optional)</label>
+                <textarea name="remarks" rows="3" class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg resize-y"></textarea>
+            </div>
+            <div class="text-center">
+                <button type="submit" class="btn-golden px-10 py-4 text-xl font-semibold">Save Attendance</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-// TAB SWITCHING
-document.querySelectorAll('.card-navbar li').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.card-navbar li').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
-        const target = tab.className.split(' ')[0];
-        document.querySelector(`.${target}-content`).style.display = 'block';
-    });
-});
-
-// VIEW NOTES
-const viewBtn = document.getElementById('view-notes-btn');
-const tiles = document.getElementById('notes-tiles');
-const notesModal = document.getElementById('notes-modal');
-const modalClose = notesModal.querySelector('.close');
-const unitNameEl = document.getElementById('modal-unit-name');
-const notesListEl = document.getElementById('unit-notes-list');
-
-viewBtn?.addEventListener('click', () => tiles.classList.toggle('hidden'));
-
-document.querySelectorAll('.unit-tile').forEach(tile => {
-    tile.addEventListener('click', () => {
-        const unitId = tile.dataset.unitId;
-        unitNameEl.textContent = tile.textContent;
-        const data = document.querySelector(`.unit-notes-data[data-unit-id="${unitId}"]`);
-        notesListEl.innerHTML = data ? data.innerHTML : '<p style="color:#777;">No notes uploaded yet.</p>';
-        notesModal.classList.remove('hidden');
-    });
-});
-
-modalClose?.addEventListener('click', () => notesModal.classList.add('hidden'));
-notesModal?.addEventListener('click', e => {
-    if (e.target === notesModal) notesModal.classList.add('hidden');
-});
-
-// UPLOAD MODAL
-const uploadBtn = document.getElementById('uploadNotesBtn');
-const uploadModal = document.getElementById('uploadNotesModal');
-const uploadClose = document.getElementById('uploadModalClose');
-
-uploadBtn?.addEventListener('click', () => uploadModal.classList.remove('hidden'));
-uploadClose?.addEventListener('click', () => uploadModal.classList.add('hidden'));
-uploadModal?.addEventListener('click', e => {
-    if (e.target === uploadModal) uploadModal.classList.add('hidden');
-});
+// Single tab switching logic
 document.addEventListener('DOMContentLoaded', () => {
+    // Tab switching
+    document.querySelectorAll('.card-navbar li').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.card-navbar li').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
 
-    const uploadBtn = document.getElementById('uploadAssignmentBtn');
-    const interactiveBtn = document.getElementById('interactiveAssignmentsBtn');
-    const submissionsBtn = document.getElementById('viewSubmissionsBtn');
+            document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
 
-    const uploadModal = document.getElementById('uploadAssignmentModal');
-    const uploadClose = document.getElementById('uploadAssignmentClose');
-
-    const tilesSection = document.getElementById('interactive-tiles-section');
-    const assignmentsTable = document.getElementById('assignments-table-section');
-    const submissionsSection = document.getElementById('submissions-section');
-
-    function hideAllSections() {
-        tilesSection.classList.add('hidden');
-        assignmentsTable.classList.add('hidden');
-        submissionsSection.classList.add('hidden');
-    }
-
-    // Upload Assignment
-    uploadBtn.addEventListener('click', () => {
-        uploadModal.classList.remove('hidden');
+            const target = tab.className.split(' ')[0];
+            const section = document.querySelector(`.${target}-content`);
+            if (section) section.style.display = 'block';
+        });
     });
 
-    uploadClose.addEventListener('click', () => {
-        uploadModal.classList.add('hidden');
+    // Mobile sidebar toggle
+    document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+        document.getElementById('sidebar')?.classList.toggle('show');
     });
 
-    uploadModal.addEventListener('click', (e) => {
-        if (e.target === uploadModal) {
-            uploadModal.classList.add('hidden');
+    document.addEventListener('click', e => {
+        const sidebar = document.getElementById('sidebar');
+        const toggle = document.getElementById('sidebarToggle');
+        if (sidebar && toggle && !sidebar.contains(e.target) && !toggle.contains(e.target)) {
+            sidebar.classList.remove('show');
         }
     });
 
-    // Interactive Assignments
-    interactiveBtn.addEventListener('click', () => {
-        hideAllSections();
-        tilesSection.classList.remove('hidden');
-    });
+    // Notes functionality
+    const viewBtn = document.getElementById('view-notes-btn');
+    const tiles = document.getElementById('notes-tiles');
+    const notesModal = document.getElementById('notes-modal');
 
-    // View Submissions
-    submissionsBtn.addEventListener('click', () => {
-        hideAllSections();
-        submissionsSection.classList.remove('hidden');
-    });
+    viewBtn?.addEventListener('click', () => tiles?.classList.toggle('hidden'));
 
-});
-function showModal(id) {
-    document.getElementById(id).classList.remove('hidden');
-}
-
-function hideModal(id) {
-    document.getElementById(id).classList.add('hidden');
-}
-document.addEventListener('DOMContentLoaded', () => {
-
-    // Schedule Meeting button
-    const scheduleBtn = document.getElementById('scheduleMeetingBtn');
-    if (scheduleBtn) {
-        scheduleBtn.addEventListener('click', () => {
-            showModal('scheduleMeetingModal');
+    document.querySelectorAll('.unit-tile').forEach(tile => {
+        tile.addEventListener('click', () => {
+            const unitId = tile.dataset.unitId;
+            document.getElementById('modal-unit-name').textContent = tile.textContent;
+            const data = document.querySelector(`.unit-notes-data[data-unit-id="${unitId}"]`);
+            document.getElementById('unit-notes-list').innerHTML = data 
+                ? data.innerHTML 
+                : '<p style="color:#777;">No notes uploaded yet.</p>';
+            notesModal?.classList.remove('hidden');
         });
-    }
+    });
 
-    // Reuse your existing modal helpers if you have them, or add these:
-    function showModal(id) {
+    notesModal?.querySelector('.close')?.addEventListener('click', () => notesModal.classList.add('hidden'));
+    notesModal?.addEventListener('click', e => {
+        if (e.target === notesModal) notesModal.classList.add('hidden');
+    });
+
+    // Upload notes modal
+    document.getElementById('uploadNotesBtn')?.addEventListener('click', () => {
+        document.getElementById('uploadNotesModal')?.classList.remove('hidden');
+    });
+    document.getElementById('uploadModalClose')?.addEventListener('click', () => {
+        document.getElementById('uploadNotesModal')?.classList.add('hidden');
+    });
+    document.getElementById('uploadNotesModal')?.addEventListener('click', e => {
+        if (e.target === document.getElementById('uploadNotesModal')) {
+            document.getElementById('uploadNotesModal')?.classList.add('hidden');
+        }
+    });
+
+    // Attendance modal
+    document.getElementById('openAttendanceModalBtn')?.addEventListener('click', () => {
+        document.getElementById('attendanceModal')?.classList.remove('hidden');
+    });
+    document.getElementById('attendanceModalClose')?.addEventListener('click', () => {
+        document.getElementById('attendanceModal')?.classList.add('hidden');
+    });
+    document.getElementById('attendanceModal')?.addEventListener('click', e => {
+        if (e.target === document.getElementById('attendanceModal')) {
+            document.getElementById('attendanceModal')?.classList.add('hidden');
+        }
+    });
+
+    // Generic modal helpers
+    window.showModal = function(id) {
         const modal = document.getElementById(id);
         if (modal) {
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
-    }
+    };
 
-    function hideModal(id) {
+    window.hideModal = function(id) {
         const modal = document.getElementById(id);
         if (modal) {
             modal.classList.add('hidden');
             document.body.style.overflow = '';
         }
-    }
+    };
 
-    // Close on outside click or close button
+    // Close modals on outside click or close button
     document.addEventListener('click', e => {
         if (e.target.classList.contains('modal') || e.target.classList.contains('close')) {
             const modal = e.target.closest('.modal');
@@ -658,11 +632,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Optional: ESC key to close
+    // ESC key to close modals
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-            const open = document.querySelector('.modal:not(.hidden)');
-            if (open) hideModal(open.id);
+            const openModal = document.querySelector('.modal:not(.hidden)');
+            if (openModal) hideModal(openModal.id);
         }
     });
 });
