@@ -90,6 +90,12 @@ $stmt->close();
             <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
             <li class="golden"><i class="fas fa-chalkboard-teacher"></i><span>Lessons</span></li>
             <li class="brown"><i class="fas fa-chart-line"></i><span>My Progress</span></li>
+            <li class="teal"><i class="fas fa-users"></i><span>Create Team</span></a></li>
+        <li class="purple">
+        <a href="../teams/views/lecturer_teams.php" style="color:inherit; text-decoration:none;">
+            <i class="fas fa-users-cog"></i><span>Lecturer Teams</span>
+        </a>
+    </li>
         </ul>
     </div>
 

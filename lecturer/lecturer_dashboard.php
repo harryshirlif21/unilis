@@ -56,6 +56,7 @@ if ($stmt) {
         <button onclick="showModal('viewNotesModal')">View Notes</button>
         <button onclick="showModal('assignmentModal')">Create Assignment</button>
         <button onclick="showModal('submissionModal')">View Submissions</button>
+        <button onclick="window.location.href='../teams/views/create_team.php'">Create Team</button>
         <button onclick="window.location.href='../logout.php'">Logout</button>
     </div>
 

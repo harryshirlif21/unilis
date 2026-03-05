@@ -138,13 +138,19 @@ $unread_count = $unread_stmt->get_result()->fetch_assoc()['unread_count'];
     <!-- Main Navigation -->
     <div class="sidebar-section">
         <h4>Main Navigation</h4>
-        <ul>
-            <li class="blue"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></li>
-            <li class="green"><i class="fas fa-chalkboard-teacher"></i><span>Training</span></li>
-            <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
-            <li class="golden"><i class="fas fa-book"></i><span>Lessons</span></li>
-            <li class="brown"><i class="fas fa-chart-line"></i><span>My Progress</span></li>
-        </ul>
+       <ul>
+    <li class="blue"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></li>
+    <li class="green"><i class="fas fa-chalkboard-teacher"></i><span>Training</span></li>
+    <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
+    <li class="golden"><i class="fas fa-book"></i><span>Lessons</span></li>
+    <li class="purple"><i class="fas fa-check-double"></i><span>Attendance</span></li>
+    <li class="brown"><i class="fas fa-chart-line"></i><span>My Progress</span></li>
+    <li class="teal">
+        <a href="../teams/views/create_team.php">
+            <i class="fas fa-users"></i><span>Create Team</span>
+        </a>
+    </li>
+</ul>
     </div>
     <!-- Account Section -->
     <div class="sidebar-section">
@@ -438,7 +444,73 @@ function logout() {
     </div>
 
   </div>
+<!-- Student Attendance Modal -->
+<div id="studentAttendanceModal" class="modal hidden">
+    <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl max-w-md mx-auto" 
+         style="max-height: 90vh; overflow-y: auto;">
+        
+        <!-- Close button -->
+        <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10"
+              onclick="hideModal('studentAttendanceModal')">×</span>
 
+        <!-- Title -->
+        <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">
+            Enter Attendance Code
+        </h3>
+
+        <!-- Form -->
+        <form id="studentAttendanceForm" class="px-8 pb-10" method="POST" action="attendance_submit.php">
+            
+            <!-- Unit Selection -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium stat-text-primary mb-3">
+                    Unit <span class="text-red-500">*</span>
+                </label>
+                <select name="unit_id" id="studentUnitId" required
+                        class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg 
+                               focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
+                    <option value="">-- Choose Unit --</option>
+                    <?php
+                    $student_id = $_SESSION['user_id'] ?? 0;
+                    if ($student_id > 0) {
+                        $stmt = $conn->prepare("
+                            SELECT u.id, u.name
+                            FROM units u
+                            JOIN student_units su ON u.id = su.unit_id
+                            WHERE su.student_id = ?
+                            ORDER BY u.name
+                        ");
+                        $stmt->bind_param("i", $student_id);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        while ($unit = $result->fetch_assoc()) {
+                            echo "<option value='{$unit['id']}'>" . htmlspecialchars($unit['name']) . "</option>";
+                        }
+                        $stmt->close();
+                    }
+                    ?>
+                </select>
+            </div>
+
+            <!-- Attendance Code -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium stat-text-primary mb-3">
+                    Attendance Code <span class="text-red-500">*</span>
+                </label>
+                <input type="text" name="attendance_code" required maxlength="8" placeholder="e.g. ABCD1234"
+                       class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-xl text-center 
+                              tracking-widest focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition uppercase">
+            </div>
+
+            <!-- Submit -->
+            <div class="text-center mt-8">
+                <button type="submit" class="btn-golden px-12 py-4 text-lg font-semibold rounded-xl shadow-lg">
+                    Submit Attendance
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
   <!-- Bottom Bar -->
   <div class="footer-bottom">
     <p>&copy; 2026 Your Company Name. All rights reserved.</p>
@@ -476,8 +548,37 @@ function updateNotificationIndicator() {
     });
     notificationCount.style.display = unreadExists ? 'block' : 'none';
 }
+// Show modal function
+function showModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if(modal){
+        modal.classList.remove('hidden');   // remove hidden class
+        modal.style.display = 'block';      // optional, ensures it's visible
+    }
+}
 
-// Initialize: bold unread notifications
+// Hide modal function
+function hideModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if(modal){
+        modal.classList.add('hidden');      // add hidden class
+        modal.style.display = 'none';
+    }
+}
+
+// Attach click events to sidebar items
+document.querySelectorAll('.sidebar-section li').forEach(item => {
+    item.addEventListener('click', () => {
+        const text = item.querySelector('span')?.textContent.trim();
+        if(text === 'Attendance'){
+            showModal('studentAttendanceModal');
+
+            // Optional: manage active class
+            document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
+            item.classList.add('active');
+        }
+    });
+});// Initialize: bold unread notifications
 notificationItems.forEach(item => {
     const id = item.dataset.id;
     if (!readNotifications.has(id)) {
@@ -556,7 +657,18 @@ document.addEventListener('click', (e) => {
 
 // Initial call to set red circle visibility
 updateNotificationIndicator();
-
+// Open student attendance modal when clicking sidebar item
+document.querySelectorAll('.sidebar-section li').forEach(item => {
+    item.addEventListener('click', () => {
+        const text = item.querySelector('span')?.textContent.trim();
+        if (text === 'Attendance') {
+            showModal('studentAttendanceModal');
+            // Optional: remove active class from other items if needed
+            document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
+            item.classList.add('active');
+        }
+    });
+});
 
 </script>
 

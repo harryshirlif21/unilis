@@ -1,0 +1,233 @@
+[2026-03-03 09:44:05] === REQUEST START ===
+[2026-03-03 09:44:05] Request method: POST
+[2026-03-03 09:44:05] Remote IP: 172.19.0.1
+[2026-03-03 09:44:05] Session ID: 8cebdcfb0d193b756daf20ceb83c8d60
+[2026-03-03 09:44:05] Checking session...
+[2026-03-03 09:44:05] Session missing: user_id or role not set
+[2026-03-03 09:44:05] Current session contents: Array
+(
+)
+
+[2026-03-03 09:47:23] === REQUEST START ===
+[2026-03-03 09:47:23] Request method: POST
+[2026-03-03 09:47:23] Remote IP: 172.19.0.1
+[2026-03-03 09:47:23] Session ID: 8cebdcfb0d193b756daf20ceb83c8d60
+[2026-03-03 09:47:23] Checking session...
+[2026-03-03 09:47:23] Session missing: user_id or role not set
+[2026-03-03 09:47:23] Current session contents: Array
+(
+)
+
+[2026-03-03 09:47:52] === REQUEST START ===
+[2026-03-03 09:47:52] Request method: POST
+[2026-03-03 09:47:52] Remote IP: 172.19.0.1
+[2026-03-03 09:47:52] Session ID: 0aca80be16299d10adf2663acaaede4b
+[2026-03-03 09:47:52] Checking session...
+[2026-03-03 09:47:52] Session missing: user_id or role not set
+[2026-03-03 09:47:52] Current session contents: Array
+(
+)
+
+[2026-03-03 09:52:48] === REQUEST START ===
+[2026-03-03 09:52:48] Request method: POST
+[2026-03-03 09:52:48] Remote IP: 172.19.0.1
+[2026-03-03 09:52:48] Session ID: 0aca80be16299d10adf2663acaaede4b
+[2026-03-03 09:52:48] Checking session...
+[2026-03-03 09:52:48] Session missing: user_id or role not set
+[2026-03-03 09:52:48] Current session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => 216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7
+)
+
+[2026-03-03 09:55:38] === REQUEST START ===
+[2026-03-03 09:55:38] Session ID: 0aca80be16299d10adf2663acaaede4b
+[2026-03-03 09:55:38] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => 216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7
+)
+
+[2026-03-03 09:55:38] Authenticated user_id: 3, role: student
+[2026-03-03 09:55:38] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7"}
+[2026-03-03 09:55:38] CSRF validation passed.
+[2026-03-03 09:57:21] === REQUEST START ===
+[2026-03-03 09:57:21] Session ID: 0aca80be16299d10adf2663acaaede4b
+[2026-03-03 09:57:21] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => 216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7
+)
+
+[2026-03-03 09:57:21] Authenticated user_id: 3, role: student
+[2026-03-03 09:57:21] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7"}
+[2026-03-03 09:57:21] CSRF validation passed.
+[2026-03-03 09:59:29] === REQUEST START ===
+[2026-03-03 09:59:29] Session ID: 0aca80be16299d10adf2663acaaede4b
+[2026-03-03 09:59:29] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => 216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7
+)
+
+[2026-03-03 09:59:29] Authenticated user_id: 3, role: student
+[2026-03-03 09:59:29] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7"}
+[2026-03-03 09:59:30] CSRF validation passed.
+[2026-03-03 10:04:59] === REQUEST START ===
+[2026-03-03 10:04:59] Session ID: 0aca80be16299d10adf2663acaaede4b
+[2026-03-03 10:04:59] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => 216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7
+)
+
+[2026-03-03 10:04:59] Authenticated user_id: 3, role: student
+[2026-03-03 10:04:59] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7"}
+[2026-03-03 10:04:59] CSRF validation passed.
+[2026-03-03 10:04:59] Exception: Unknown column 'student_id' in 'field list'
+[2026-03-03 10:04:59] === REQUEST END ===
+
+[2026-03-03 10:06:52] === REQUEST START ===
+[2026-03-03 10:06:52] Session ID: 0aca80be16299d10adf2663acaaede4b
+[2026-03-03 10:06:52] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => 216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7
+)
+
+[2026-03-03 10:06:52] Authenticated user_id: 3, role: student
+[2026-03-03 10:06:52] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7"}
+[2026-03-03 10:06:52] CSRF validation passed.
+[2026-03-03 10:06:52] Exception: Unknown column 'reg_number' in 'field list'
+[2026-03-03 10:06:52] === REQUEST END ===
+
+[2026-03-03 10:07:22] === REQUEST START ===
+[2026-03-03 10:07:22] Session ID: 0aca80be16299d10adf2663acaaede4b
+[2026-03-03 10:07:22] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => 216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7
+)
+
+[2026-03-03 10:07:22] Authenticated user_id: 3, role: student
+[2026-03-03 10:07:22] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"216b61f656ed2f53682a06a3a53104ce79bf3895f9d860e29445ac32d13a58c7"}
+[2026-03-03 10:07:22] CSRF validation passed.
+[2026-03-03 10:07:22] Exception: Unknown column 'reg_number' in 'where clause'
+[2026-03-03 10:07:22] === REQUEST END ===
+
+[2026-03-03 10:08:00] === REQUEST START ===
+[2026-03-03 10:08:00] Session ID: fa1e7cacedd5088e1104ccfb26522404
+[2026-03-03 10:08:00] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => d0e1667c176442284b154632e5cae2d75eb9ba6f184480bd7d6fd1d99fae5e6b
+)
+
+[2026-03-03 10:08:00] Authenticated user_id: 3, role: student
+[2026-03-03 10:08:00] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"d0e1667c176442284b154632e5cae2d75eb9ba6f184480bd7d6fd1d99fae5e6b"}
+[2026-03-03 10:08:00] CSRF validation passed.
+[2026-03-03 10:08:00] Exception: Unknown column 'reg_number' in 'where clause'
+[2026-03-03 10:08:00] === REQUEST END ===
+
+[2026-03-03 10:08:27] === REQUEST START ===
+[2026-03-03 10:08:27] Session ID: fa1e7cacedd5088e1104ccfb26522404
+[2026-03-03 10:08:27] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => d0e1667c176442284b154632e5cae2d75eb9ba6f184480bd7d6fd1d99fae5e6b
+)
+
+[2026-03-03 10:08:27] Authenticated user_id: 3, role: student
+[2026-03-03 10:08:27] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"d0e1667c176442284b154632e5cae2d75eb9ba6f184480bd7d6fd1d99fae5e6b"}
+[2026-03-03 10:08:27] CSRF validation passed.
+[2026-03-03 10:08:27] Exception: Cannot add or update a child row: a foreign key constraint fails (`unilis`.`team_members`, CONSTRAINT `fk_tm_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE)
+[2026-03-03 10:08:27] === REQUEST END ===
+
+[2026-03-03 10:11:13] === REQUEST START ===
+[2026-03-03 10:11:13] Session ID: fa1e7cacedd5088e1104ccfb26522404
+[2026-03-03 10:11:13] Session contents: Array
+(
+    [user_id] => 3
+    [user_email] => mwendihillary21@gmail.com
+    [user_role] => student
+    [user_name] => mwendi kimaiga
+    [course_id] => 2
+    [year_of_study] => 4
+    [csrf_token] => d0e1667c176442284b154632e5cae2d75eb9ba6f184480bd7d6fd1d99fae5e6b
+)
+
+[2026-03-03 10:11:13] Authenticated user_id: 3, role: student
+[2026-03-03 10:11:13] Received input: {"team_id":"24","identifier":"SCT212-0132\/2022","csrf_token":"d0e1667c176442284b154632e5cae2d75eb9ba6f184480bd7d6fd1d99fae5e6b"}
+[2026-03-03 10:11:13] CSRF validation passed.
+[2026-03-03 10:11:13] Member added successfully: 5 to team 24
+[2026-03-03 10:11:13] === REQUEST END ===
+
+[2026-03-03 17:45:04] === REQUEST START ===
+[2026-03-03 17:45:04] Session ID: fa1e7cacedd5088e1104ccfb26522404
+[2026-03-03 17:45:04] Session contents: Array
+(
+    [user_id] => 1
+    [user_email] => mane@gmail.com
+    [user_role] => lecturer
+    [user_name] => mane
+    [csrf_token] => 755fea223eb0ff0e4554ad8b09ba6067908ee59f1ce877b3dd30c44c997dbed0
+)
+
+[2026-03-03 17:45:04] Authenticated user_id: 1, role: lecturer
+[2026-03-03 18:25:13] === REQUEST START ===
+[2026-03-03 18:25:13] Session ID: fa1e7cacedd5088e1104ccfb26522404
+[2026-03-03 18:25:13] Session contents: Array
+(
+    [user_id] => 1
+    [user_email] => mane@gmail.com
+    [user_role] => lecturer
+    [user_name] => mane
+    [csrf_token] => 755fea223eb0ff0e4554ad8b09ba6067908ee59f1ce877b3dd30c44c997dbed0
+)
+
+[2026-03-03 18:25:13] Authenticated user_id: 1, role: lecturer

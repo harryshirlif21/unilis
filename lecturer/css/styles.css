@@ -87,7 +87,7 @@ body {
 /* Mobile sidebar toggle */
 .sidebar-toggle {
     display: none;
-    position: absolute;
+    position: fixed;
     top: 50%;
     left: 20px;
     transform: translateY(-50%);
@@ -95,12 +95,12 @@ body {
     height: 44px;
     background-color: #4A90E2;
     color: white;
+    border: none;
     border-radius: 50%;
     cursor: pointer;
-    justify-content: center;
-    align-items: center;
     font-size: 20px;
     z-index: 1100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 /* ================= Sidebar ================= */
@@ -118,6 +118,11 @@ body {
     transition: transform 0.3s ease;
 }
 
+/* Make sidebar menu use flex + gap for perfect spacing */
+.sidebar-section {
+    margin-bottom: 30px;
+}
+
 .sidebar-section h4 {
     margin: 0 0 12px 0;
     font-size: 15px;
@@ -130,14 +135,16 @@ body {
 .sidebar-section ul {
     list-style: none;
     padding: 0;
-    margin: 0 0 30px 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* ← consistent spacing between items - this replaces margin-bottom */
 }
 
 .sidebar-section li {
     display: flex;
     align-items: center;
     padding: 12px 14px;
-    margin-bottom: 6px;
     cursor: pointer;
     border-radius: 10px;
     color: white;
@@ -169,6 +176,8 @@ body {
 .sidebar-section li.orange { background-color: #F97316; }
 .sidebar-section li.golden { background-color: #FBBF24; color: #1f2937; }
 .sidebar-section li.brown  { background-color: #A0522D; }
+.sidebar-section li.teal   { background-color: #0ea5e9; }
+.sidebar-section li.purple { background-color: #8b5cf6; }
 
 /* ================= Mobile Responsive ================= */
 @media (max-width: 992px) {
@@ -181,13 +190,19 @@ body {
         width: 280px;
         top: 0;
         height: 100vh;
-        padding-top: 80px;
+        padding-top: 80px; /* space for header */
+        box-shadow: 4px 0 20px rgba(0,0,0,0.15);
     }
 
     .sidebar.show {
         transform: translateX(0);
     }
 
+    /* Prevent any extra space at bottom on mobile */
+    .sidebar-section ul {
+        padding-bottom: 20px; /* small breathing room at bottom */
+    }
+}
     .navbar {
         padding: 0 20px;
         gap: 14px;
@@ -205,7 +220,7 @@ body {
         overflow: hidden;
         text-overflow: ellipsis;
     }
-}
+
 /* ────────────────────────────────────────────────
    MAIN CONTENT AREA
 ───────────────────────────────────────────────── */
