@@ -202,7 +202,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
     $stmt->close();
 
     // === 5. Send verification email ===
-    $email_sent = send_verification_email($email, $token, $name);
+error_log("=== ATTEMPTING EMAIL TO: $email | TOKEN: $token | NAME: $name ===");
+$email_sent = send_verification_email($email, $token, $name);
+error_log("=== EMAIL RESULT: " . ($email_sent ? 'SUCCESS' : 'FAILED') . " ===");
 
     if ($email_sent) {
         $_SESSION['signup_success'] = "Account created! A verification email has been sent to $email.";
