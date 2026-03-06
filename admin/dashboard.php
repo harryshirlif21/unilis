@@ -16,8 +16,6 @@ $verify_error   = $_SESSION['verify_error'] ?? '';
 
 unset($_SESSION['verify_success']);
 unset($_SESSION['verify_error']);
-
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -29,32 +27,16 @@ unset($_SESSION['verify_error']);
     <link rel="stylesheet" href="styles.css">
     <style>
         .success {
-    background: #d4edda;
-    color: #155724;
-    padding: 12px;
-    border: 1px solid #c3e6cb;
-    border-radius: 6px;
-    margin-bottom: 15px;
-}
-
-.error {
-    background: #f8d7da;
-    color: #721c24;
-    padding: 12px;
-    border: 1px solid #f5c6cb;
-    border-radius: 6px;
-    margin-bottom: 15px;
-}
-
-        /* small in-file styles kept (you can move to styles.css) */
+            background: #d4edda; color: #155724; padding: 12px;
+            border: 1px solid #c3e6cb; border-radius: 6px; margin-bottom: 15px;
+        }
+        .error {
+            background: #f8d7da; color: #721c24; padding: 12px;
+            border: 1px solid #f5c6cb; border-radius: 6px; margin-bottom: 15px;
+        }
         .floating-message {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 25px;
-            border-radius: 5px;
-            z-index: 9999;
-            display: none;
+            position: fixed; top: 20px; right: 20px; padding: 15px 25px;
+            border-radius: 5px; z-index: 9999; display: none;
             animation: slideIn 0.5s ease-out;
         }
         .floating-message.success { background-color: #28a745; color: white; }
@@ -63,13 +45,89 @@ unset($_SESSION['verify_error']);
             from { transform: translateX(100%); opacity: 0; }
             to   { transform: translateX(0); opacity: 1; }
         }
-        /* basic floating display and units grid */
         .floating-display { display:none; position:fixed; right:20px; top:80px; width:420px; max-height:70vh; overflow:auto; background:#fff; border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:999; }
         .floating-display.active { display:block; }
         .floating-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #eee; }
         .units-grid { padding:12px 16px; display:grid; gap:8px; }
         .unit-card { display:flex; justify-content:space-between; align-items:center; padding:10px; border-radius:6px; background:#fafafa; border:1px solid #eee; }
         .delete-modal .modal-content { max-width:400px; }
+
+        /* ── Students Modal ── */
+        #deleteStudentsModal .modal-content {
+            max-width: 720px;
+            width: 95%;
+        }
+        .students-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .students-toolbar input[type="text"] {
+            flex: 1;
+            min-width: 180px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .students-toolbar select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        #studentsTableWrapper {
+            max-height: 380px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        #studentsTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+        }
+        #studentsTable thead {
+            position: sticky;
+            top: 0;
+            background: #2c3e50;
+            color: #fff;
+            z-index: 2;
+        }
+        #studentsTable th, #studentsTable td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        #studentsTable tbody tr:hover { background: #f9f9f9; }
+        #studentsTable tbody tr.selected { background: #fff3cd; }
+        .badge-verified   { background:#d4edda; color:#155724; padding:2px 8px; border-radius:12px; font-size:11px; }
+        .badge-unverified { background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:12px; font-size:11px; }
+        .btn-delete-single {
+            background: #dc3545; color: #fff; border: none;
+            padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+        }
+        .btn-delete-single:hover { background: #c82333; }
+        .students-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        #studentCount { font-size: 13px; color: #666; }
+        .btn-bulk-delete {
+            background: #dc3545; color: #fff; border: none;
+            padding: 8px 18px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; font-weight: 500;
+        }
+        .btn-bulk-delete:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-bulk-delete:not(:disabled):hover { background: #c82333; }
+        #selectAllStudents { cursor: pointer; width: 15px; height: 15px; }
+        .loading-students { text-align:center; padding: 30px; color: #888; }
     </style>
 </head>
 <body>
@@ -94,6 +152,10 @@ unset($_SESSION['verify_error']);
     <button class="menu-item" onclick="openModal('unitModal')"><i class="fas fa-cubes"></i> Add Multiple Units</button>
     <button class="menu-item" onclick="openModal('verifyEmailModal')">Verify Student Email</button>
     <button class="menu-item" onclick="openModal('lecturerModal')"><i class="fas fa-chalkboard-teacher"></i> Add Lecturer</button>
+    <!-- NEW: Delete Students -->
+    <button class="menu-item" onclick="openDeleteStudentsModal()" style="color:#e74c3c;">
+        <i class="fas fa-user-times"></i> Delete Students
+    </button>
     <div class="menu-section-title">System</div>
     <button class="menu-item" onclick="alert('System Settings not implemented yet!')"><i class="fas fa-cogs"></i> System Settings</button>
     <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
@@ -106,7 +168,6 @@ unset($_SESSION['verify_error']);
 <div class="content">
     <h2>System Overview</h2>
 
-    <!-- Overview Statistics Section -->
     <?php
     $users_count = $conn->query("SELECT COUNT(*) as count FROM (SELECT id FROM students UNION SELECT id FROM lecturers UNION SELECT id FROM admins) as users")->fetch_assoc()['count'];
     $courses_count = $conn->query("SELECT COUNT(*) as count FROM courses")->fetch_assoc()['count'];
@@ -147,7 +208,6 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-    <!-- Data Visualization Section (Placeholders) -->
     <div class="charts-grid">
         <div class="chart-container">
             <h3>User Registration Trends</h3>
@@ -159,7 +219,6 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-    <!-- Course Units Section -->
     <div class="recent-activity-section">
         <h3>Course Units Management</h3>
         <div class="course-units-header">
@@ -193,18 +252,14 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-    <!-- Floating Units Display -->
     <div id="floatingUnitsDisplay" class="floating-display">
         <div class="floating-header">
             <h3>Course Units</h3>
             <button class="close-btn" onclick="closeFloatingDisplay()">×</button>
         </div>
-        <div class="units-grid" id="unitsGrid">
-            <!-- Units will be dynamically inserted here -->
-        </div>
+        <div class="units-grid" id="unitsGrid"></div>
     </div>
 
-    <!-- Delete Unit Confirmation Modal -->
     <div id="deleteUnitModal" class="modal delete-modal" style="display:none;">
         <div class="modal-content">
             <h3>Delete Unit?</h3>
@@ -217,7 +272,6 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-    <!-- Quick Admin Action Cards Section -->
     <div class="action-grid">
         <div class="action-card" onclick="openModal('universityModal')">
             <div class="icon"><i class="fas fa-university"></i></div>
@@ -249,15 +303,20 @@ unset($_SESSION['verify_error']);
             <h3>Add Lecturer</h3>
             <p>Register a new lecturer in the system.</p>
         </div>
+        <!-- NEW action card -->
+        <div class="action-card" onclick="openDeleteStudentsModal()" style="border-color:#e74c3c;">
+            <div class="icon" style="color:#e74c3c;"><i class="fas fa-user-times"></i></div>
+            <h3 style="color:#e74c3c;">Delete Students</h3>
+            <p>Remove registered students from the system.</p>
+        </div>
     </div>
 
-    <!-- UNIVERSITY MODAL -->
+    <!-- ===================== MODALS ===================== -->
+
     <div id="universityModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('universityModal')">×</span>
             <h3>Add University</h3>
-            <?php if (!empty($university_success)) echo "<p class='success'>$university_success</p>"; ?>
-            <?php if (!empty($university_error)) echo "<p class='error'>$university_error</p>"; ?>
             <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_university">
                 <label>University Name:</label>
@@ -267,10 +326,8 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-    <!-- Floating Message Div -->
     <div id="floatingMessage" class="floating-message" style="display: none;"></div>
 
-    <!-- DEPARTMENT MODAL -->
     <div id="departmentModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('departmentModal')">×</span>
@@ -301,60 +358,48 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-   <!-- COURSE MODAL -->
-<div id="courseModal" class="modal" style="display:none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal('courseModal')">×</span>
-        <h3>Add Course</h3>
-
-        <?php if (!empty($_SESSION['course_success'])): ?>
-            <p class="success"><?php echo $_SESSION['course_success']; unset($_SESSION['course_success']); ?></p>
-        <?php endif; ?>
-
-        <?php if (!empty($_SESSION['course_error'])): ?>
-            <p class="error"><?php echo $_SESSION['course_error']; unset($_SESSION['course_error']); ?></p>
-        <?php endif; ?>
-
-        <form method="POST" action="../actions.php">
-            <input type="hidden" name="action" value="add_course">
-
-            <label>Course Name:</label>
-            <input type="text" name="course_name" required>
-
-            <label>Department:</label>
-            <select name="department_id" required>
-                <option value="">-- Select Department --</option>
-                <?php
-                $departments = $conn->query("SELECT * FROM departments");
-                while ($d = $departments->fetch_assoc()) {
-                    echo "<option value='{$d['id']}'>" . htmlspecialchars($d['name']) . "</option>";
-                }
-                ?>
-            </select>
-
-            <label>Duration (Years):</label>
-            <input type="number" name="duration" min="1" required>
-
-            <label>Course Type:</label>
-            <select name="course_type" required>
-                <option value="">-- Select Type --</option>
-                <option value="Degree">Degree</option>
-                <option value="Diploma">Diploma</option>
-                <option value="Certificate">Certificate</option>
-            </select>
-
-            <button type="submit">Save</button>
-        </form>
+    <div id="courseModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('courseModal')">×</span>
+            <h3>Add Course</h3>
+            <?php if (!empty($_SESSION['course_success'])): ?>
+                <p class="success"><?php echo $_SESSION['course_success']; unset($_SESSION['course_success']); ?></p>
+            <?php endif; ?>
+            <?php if (!empty($_SESSION['course_error'])): ?>
+                <p class="error"><?php echo $_SESSION['course_error']; unset($_SESSION['course_error']); ?></p>
+            <?php endif; ?>
+            <form method="POST" action="../actions.php">
+                <input type="hidden" name="action" value="add_course">
+                <label>Course Name:</label>
+                <input type="text" name="course_name" required>
+                <label>Department:</label>
+                <select name="department_id" required>
+                    <option value="">-- Select Department --</option>
+                    <?php
+                    $departments = $conn->query("SELECT * FROM departments");
+                    while ($d = $departments->fetch_assoc()) {
+                        echo "<option value='{$d['id']}'>" . htmlspecialchars($d['name']) . "</option>";
+                    }
+                    ?>
+                </select>
+                <label>Duration (Years):</label>
+                <input type="number" name="duration" min="1" required>
+                <label>Course Type:</label>
+                <select name="course_type" required>
+                    <option value="">-- Select Type --</option>
+                    <option value="Degree">Degree</option>
+                    <option value="Diploma">Diploma</option>
+                    <option value="Certificate">Certificate</option>
+                </select>
+                <button type="submit">Save</button>
+            </form>
+        </div>
     </div>
-</div>
 
-    <!-- UNIT SINGLE MODAL -->
     <div id="unitSingleModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('unitSingleModal')">×</span>
             <h3>Add Single Unit</h3>
-            <?php if (!empty($unit_success)) echo "<p class='success'>$unit_success</p>"; ?>
-            <?php if (!empty($unit_error)) echo "<p class='error'>$unit_error</p>"; ?>
             <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_unit">
                 <div class="unit-selection">
@@ -370,18 +415,17 @@ unset($_SESSION['verify_error']);
                     </select>
                     <label>Year:</label>
                     <select name="year" required>
-                      <option value="">-- Select Year --</option>
-                      <option value="1">First Year</option>
-                      <option value="2">Second Year</option>
-                      <option value="3">Third Year</option>
-                      <option value="4">Fourth Year</option>
+                        <option value="">-- Select Year --</option>
+                        <option value="1">First Year</option>
+                        <option value="2">Second Year</option>
+                        <option value="3">Third Year</option>
+                        <option value="4">Fourth Year</option>
                     </select>
-
                     <label>Semester:</label>
                     <select name="semester" required>
-                      <option value="">-- Select Semester --</option>
-                      <option value="1">Semester 1</option>
-                      <option value="2">Semester 2</option>
+                        <option value="">-- Select Semester --</option>
+                        <option value="1">Semester 1</option>
+                        <option value="2">Semester 2</option>
                     </select>
                 </div>
                 <label>Unit Name:</label>
@@ -393,13 +437,10 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-    <!-- UNIT MODAL (Multiple Units) -->
     <div id="unitModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('unitModal')">×</span>
             <h3>Add Units (Max 8)</h3>
-            <?php if (!empty($unit_success)) echo "<p class='success'>$unit_success</p>"; ?>
-            <?php if (!empty($unit_error)) echo "<p class='error'>$unit_error</p>"; ?>
             <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_multiple_units">
                 <div class="unit-selection">
@@ -415,18 +456,17 @@ unset($_SESSION['verify_error']);
                     </select>
                     <label>Year:</label>
                     <select name="year" required>
-                      <option value="">-- Select Year --</option>
-                      <option value="1">First Year</option>
-                      <option value="2">Second Year</option>
-                      <option value="3">Third Year</option>
-                      <option value="4">Fourth Year</option>
+                        <option value="">-- Select Year --</option>
+                        <option value="1">First Year</option>
+                        <option value="2">Second Year</option>
+                        <option value="3">Third Year</option>
+                        <option value="4">Fourth Year</option>
                     </select>
-
                     <label>Semester:</label>
                     <select name="semester" required>
-                      <option value="">-- Select Semester --</option>
-                      <option value="1">Semester 1</option>
-                      <option value="2">Semester 2</option>
+                        <option value="">-- Select Semester --</option>
+                        <option value="1">Semester 1</option>
+                        <option value="2">Semester 2</option>
                     </select>
                 </div>
                 <hr>
@@ -447,13 +487,10 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-    <!-- LECTURER MODAL -->
     <div id="lecturerModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('lecturerModal')">×</span>
             <h3>Add Lecturer</h3>
-            <?php if (!empty($lecturer_success)) echo "<p class='success'>$lecturer_success</p>"; ?>
-            <?php if (!empty($lecturer_error)) echo "<p class='error'>$lecturer_error</p>"; ?>
             <form method="POST" action="../actions.php">
                 <input type="hidden" name="action" value="add_lecturer">
                 <label>Name:</label>
@@ -477,367 +514,355 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
-<!-- EMAIL VERIFICATION MODAL -->
-<div id="verifyEmailModal" class="modal" style="display:none;">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal('verifyEmailModal')">×</span>
-        <h3>Verify Student Email</h3>
-
-        <?php if (!empty($verify_success)) : ?>
-    <div class="success">
-        <?php echo $verify_success; ?>
-    </div>
-<?php endif; ?>
-
-<?php if (!empty($verify_error)) : ?>
-    <div class="error">
-        <?php echo $verify_error; ?>
-    </div>
-<?php endif; ?>
-
-
-        <form method="POST" action="../actions.php">
-            <input type="hidden" name="action" value="verify_student_email">
-
-            <label>Student Email:</label>
-            <input type="email" name="student_email" required>
-
-            <button type="submit">Verify</button><br><br>
-
-        </form>
-        <!-- Pending Approval Button -->
-        <div style="margin-top:15px; text-align:center;">
-            <a href="pendingreq.php" class="btn-secondary">
-                View Pending Approvals
-            </a>
+    <div id="verifyEmailModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('verifyEmailModal')">×</span>
+            <h3>Verify Student Email</h3>
+            <?php if (!empty($verify_success)): ?>
+                <div class="success"><?= $verify_success ?></div>
+            <?php endif; ?>
+            <?php if (!empty($verify_error)): ?>
+                <div class="error"><?= $verify_error ?></div>
+            <?php endif; ?>
+            <form method="POST" action="../actions.php">
+                <input type="hidden" name="action" value="verify_student_email">
+                <label>Student Email:</label>
+                <input type="email" name="student_email" required>
+                <button type="submit">Verify</button><br><br>
+            </form>
+            <div style="margin-top:15px; text-align:center;">
+                <a href="pendingreq.php" class="btn-secondary">View Pending Approvals</a>
+            </div>
         </div>
     </div>
-</div>
 
-</div> <!-- end .content -->
+    <!-- ===================== DELETE STUDENTS MODAL ===================== -->
+    <div id="deleteStudentsModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('deleteStudentsModal')">×</span>
+            <h3><i class="fas fa-user-times" style="color:#e74c3c;"></i> Manage Students</h3>
 
-<!-- ===========================
-     All JS consolidated below
-     =========================== -->
+            <!-- Toolbar: search + filter -->
+            <div class="students-toolbar">
+                <input type="text" id="studentSearch" placeholder="🔍 Search by name, email or reg no..." oninput="filterStudentsTable()">
+                <select id="studentVerifiedFilter" onchange="filterStudentsTable()">
+                    <option value="">All Students</option>
+                    <option value="1">Verified</option>
+                    <option value="0">Unverified</option>
+                </select>
+            </div>
+
+            <!-- Table -->
+            <div id="studentsTableWrapper">
+                <table id="studentsTable">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAllStudents" title="Select all"></th>
+                            <th>Reg No</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Year</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTableBody">
+                        <tr><td colspan="7" class="loading-students"><i class="fas fa-spinner fa-spin"></i> Loading students...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer -->
+            <div class="students-footer">
+                <span id="studentCount">0 students</span>
+                <button class="btn-bulk-delete" id="bulkDeleteBtn" disabled onclick="confirmBulkDelete()">
+                    <i class="fas fa-trash-alt"></i> Delete Selected
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm single delete -->
+    <div id="confirmDeleteStudentModal" class="modal delete-modal" style="display:none;">
+        <div class="modal-content">
+            <h3>⚠️ Confirm Delete</h3>
+            <p id="confirmDeleteStudentMsg">Are you sure you want to delete this student?</p>
+            <input type="hidden" id="deleteStudentId">
+            <div class="modal-actions" style="display:flex; gap:10px; margin-top:16px;">
+                <button onclick="closeModal('confirmDeleteStudentModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="executeDeleteStudent()" class="btn btn-danger" style="background:#dc3545; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+</div><!-- end .content -->
+
 <script>
-    function openModal(id) {
-    document.getElementById(id).style.display = "block";
-}
-
-function closeModal(id) {
-    document.getElementById(id).style.display = "none";
-}
-
-/* Helper: safe JSON parse with debugging */
+/* ─────────────────────────────────────────
+   Helpers
+───────────────────────────────────────── */
 function parseJSONSafe(text) {
-    if (text === null || text === undefined || text.trim() === '') {
-        return null;
-    }
-    try {
-        return JSON.parse(text);
-    } catch (e) {
-        console.error('Failed to parse JSON. Raw response:', text);
-        throw e;
-    }
+    if (!text || !text.trim()) return null;
+    try { return JSON.parse(text); } catch(e) { console.error('JSON parse error:', text); throw e; }
 }
-
-/* Floating message UI (single implementation) */
 function showFloatingMessage(message, type = 'success') {
-    const messageDiv = document.getElementById('floatingMessage');
-    if (!messageDiv) return;
-    messageDiv.textContent = message;
-    messageDiv.className = `floating-message ${type}`;
-    messageDiv.style.display = 'block';
-    setTimeout(() => {
-        messageDiv.style.display = 'none';
-    }, 3000);
+    const d = document.getElementById('floatingMessage');
+    if (!d) return;
+    d.textContent = message;
+    d.className = `floating-message ${type}`;
+    d.style.display = 'block';
+    setTimeout(() => { d.style.display = 'none'; }, 3000);
+}
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/[&<>"'`=\/]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#x60;","/":"&#x2F;"})[s]);
+}
+function escapeJs(str) {
+    if (str == null) return '';
+    return String(str).replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n').replace(/\r/g,'');
 }
 
-/* Off-Canvas Menu Logic: defensive checks */
-const hamburgerBtn = document.getElementById('hamburgerMenu');
-const closeMenuBtn = document.getElementById('closeMenuBtn');
-const offCanvasMenu = document.getElementById('offCanvasMenu');
-const menuOverlay = document.getElementById('menuOverlay');
+/* ─────────────────────────────────────────
+   Modal open/close
+───────────────────────────────────────── */
+function openModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'block'; }
+function closeModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+window.onclick = function(e) {
+    document.querySelectorAll('.modal').forEach(m => { if (e.target === m) m.style.display = 'none'; });
+};
 
+/* ─────────────────────────────────────────
+   Off-Canvas Menu
+───────────────────────────────────────── */
+const hamburgerBtn   = document.getElementById('hamburgerMenu');
+const closeMenuBtn   = document.getElementById('closeMenuBtn');
+const offCanvasMenu  = document.getElementById('offCanvasMenu');
+const menuOverlay    = document.getElementById('menuOverlay');
 function toggleOffCanvasMenu() {
-    if (!offCanvasMenu || !menuOverlay) return;
-    offCanvasMenu.classList.toggle('active');
-    menuOverlay.classList.toggle('active');
+    if (offCanvasMenu) offCanvasMenu.classList.toggle('active');
+    if (menuOverlay)   menuOverlay.classList.toggle('active');
 }
 if (hamburgerBtn) hamburgerBtn.addEventListener('click', toggleOffCanvasMenu);
 if (closeMenuBtn) closeMenuBtn.addEventListener('click', toggleOffCanvasMenu);
-if (menuOverlay) menuOverlay.addEventListener('click', toggleOffCanvasMenu);
+if (menuOverlay)  menuOverlay.addEventListener('click', toggleOffCanvasMenu);
+document.querySelectorAll('.off-canvas-menu .menu-item').forEach(item => {
+    item.addEventListener('click', () => setTimeout(toggleOffCanvasMenu, 150));
+});
 
-const menuItems = document.querySelectorAll('.off-canvas-menu .menu-item');
-if (menuItems && menuItems.length) {
-    menuItems.forEach(item => {
-        item.addEventListener('click', () => {
-            setTimeout(toggleOffCanvasMenu, 150);
-        });
-    });
-}
-
-/* Basic modal functions */
-function openModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'block';
-}
-function closeModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-}
-window.onclick = function(event) {
-    const modals = document.getElementsByClassName('modal');
-    for (let i = 0; i < modals.length; i++) {
-        if (event.target === modals[i]) {
-            modals[i].style.display = 'none';
-        }
-    }
-}
-
-/* Add Unit Logic for Multiple Units Modal */
+/* ─────────────────────────────────────────
+   Units
+───────────────────────────────────────── */
 let unitCount = 1;
 function addUnit() {
-    if (unitCount >= 8) {
-        alert('Maximum of 8 units allowed.');
-        return;
-    }
+    if (unitCount >= 8) { alert('Maximum of 8 units allowed.'); return; }
     unitCount++;
     const container = document.getElementById('unitContainer');
-    if (!container) return;
     const box = document.createElement('div');
     box.className = 'unit-box';
-    box.innerHTML = `
-        <h4>Unit ${unitCount}</h4>
-        <div class="unit-inputs">
-            <label>Unit Name:</label>
-            <input type="text" name="unit_name[]" required>
-            <label>Unit Code:</label>
-            <input type="text" name="unit_code[]" required>
-        </div>
-    `;
+    box.innerHTML = `<h4>Unit ${unitCount}</h4><div class="unit-inputs"><label>Unit Name:</label><input type="text" name="unit_name[]" required><label>Unit Code:</label><input type="text" name="unit_code[]" required></div>`;
     container.appendChild(box);
 }
-
-/* Filter courses by university (safe JSON parsing) */
 function filterByUniversity(universityId) {
-    const courseSelect = document.querySelector('select[name="course_id"]') || document.getElementById('courseSelect');
-    if (!courseSelect) return;
-    if (!universityId) {
-        // Reset select to original or to a placeholder
-        // Optionally you could reload the page or repopulate from a stored list
-        courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
-        return;
-    }
-    fetch(`../actions.php?action=get_university_data&university_id=${encodeURIComponent(universityId)}`)
-    .then(response => response.text())
-    .then(text => {
-        let data;
-        try {
-            data = parseJSONSafe(text);
-        } catch (e) {
-            showFloatingMessage('Invalid response from server', 'error');
-            return;
-        }
-        if (!data || !Array.isArray(data.courses)) {
-            courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
-            return;
-        }
-        courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
-        data.courses.forEach(course => {
-            const opt = document.createElement('option');
-            opt.value = course.id;
-            const label = course.name + (course.unit_count ? ` (${course.unit_count} units)` : '');
-            opt.textContent = label;
-            courseSelect.appendChild(opt);
-        });
-    })
-    .catch(err => {
-        console.error('Error fetching university data:', err);
-        showFloatingMessage('Error loading courses for that university', 'error');
-    });
-}
-
-/* View Course Units (safe response handling) */
-function viewCourseUnits() {
     const courseSelect = document.getElementById('courseSelect');
     if (!courseSelect) return;
-    const courseId = courseSelect.value;
-    if (!courseId) {
-        showFloatingMessage('Please select a course first', 'error');
-        return;
-    }
-
-    const floatingDisplay = document.getElementById('floatingUnitsDisplay');
-    const unitsGrid = document.getElementById('unitsGrid');
-    if (floatingDisplay) floatingDisplay.classList.add('active');
-    if (unitsGrid) unitsGrid.innerHTML = '<div class="loading">Loading units...</div>';
-
+    if (!universityId) { courseSelect.innerHTML = '<option value="">-- Select a Course --</option>'; return; }
+    fetch(`../actions.php?action=get_university_data&university_id=${encodeURIComponent(universityId)}`)
+    .then(r => r.text()).then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
+        courseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
+        if (data && Array.isArray(data.courses)) {
+            data.courses.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name + (c.unit_count ? ` (${c.unit_count} units)` : ''); courseSelect.appendChild(o); });
+        }
+    }).catch(() => showFloatingMessage('Error loading courses', 'error'));
+}
+function viewCourseUnits() {
+    const courseId = document.getElementById('courseSelect')?.value;
+    if (!courseId) { showFloatingMessage('Please select a course first', 'error'); return; }
+    const fd = document.getElementById('floatingUnitsDisplay');
+    const ug = document.getElementById('unitsGrid');
+    if (fd) fd.classList.add('active');
+    if (ug) ug.innerHTML = '<div class="loading">Loading units...</div>';
     fetch(`../actions.php?action=get_course_units&course_id=${encodeURIComponent(courseId)}`)
-    .then(response => response.text())
+    .then(r => r.text()).then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) { ug.innerHTML = '<div class="error-message">Invalid response.</div>'; return; }
+        if (!data || !data.course) { ug.innerHTML = '<div class="error-message">Course not found.</div>'; return; }
+        const h = fd?.querySelector('.floating-header h3');
+        if (h) h.textContent = `${data.course.department_name||''} - ${data.course.course_name||''}`;
+        if (!data.units || !data.units.length) { ug.innerHTML = '<div class="empty-message">No units found.</div>'; return; }
+        ug.innerHTML = '';
+        data.units.sort((a,b) => a.year !== b.year ? a.year - b.year : (a.semester||0)-(b.semester||0)).forEach(unit => {
+            const card = document.createElement('div'); card.className = 'unit-card';
+            card.innerHTML = `<div class="unit-info"><h4>${escapeHtml(unit.name)}</h4><div class="unit-code">${escapeHtml(unit.code)}</div><div class="unit-meta">Year ${escapeHtml(unit.year)}${unit.semester?', Semester '+escapeHtml(unit.semester):''}</div></div><button class="delete-btn" onclick="showDeleteUnitModal(${Number(unit.id)},'${escapeJs(unit.code)}')" title="Delete Unit"><i class="fas fa-trash-alt"></i></button>`;
+            ug.appendChild(card);
+        });
+    }).catch(() => { if(ug) ug.innerHTML = '<div class="error-message">Error loading units.</div>'; });
+}
+function closeFloatingDisplay() { document.getElementById('floatingUnitsDisplay')?.classList.remove('active'); }
+function showDeleteUnitModal(unitId, unitCode) {
+    document.getElementById('deleteUnitId').value = unitId;
+    document.querySelector('#deleteUnitModal p').textContent = `Delete ${unitCode}?`;
+    openModal('deleteUnitModal');
+}
+function confirmDeleteUnit() {
+    const unitId = document.getElementById('deleteUnitId')?.value;
+    if (!unitId) return;
+    fetch('../actions.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`action=delete_unit&unit_id=${encodeURIComponent(unitId)}` })
+    .then(r => r.text()).then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
+        if (data?.status === 'success') { closeModal('deleteUnitModal'); viewCourseUnits(); showFloatingMessage(data.message||'Unit deleted', 'success'); }
+        else showFloatingMessage(data?.message||'Failed to delete unit', 'error');
+    }).catch(() => showFloatingMessage('Error deleting unit', 'error'));
+}
+function exportUnitsPDF() {
+    const courseId = document.getElementById('courseSelect')?.value;
+    if (!courseId) { alert('Please select a course first'); return; }
+    window.open(`../actions.php?action=generate_unit_pdf&course_id=${encodeURIComponent(courseId)}`, '_blank');
+}
+function submitDepartmentForm(event) {
+    event.preventDefault();
+    fetch('../actions.php', { method:'POST', body: new FormData(event.target) })
+    .then(r => r.text()).then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
+        if (data?.status === 'success') { showFloatingMessage(data.message, 'success'); closeModal('departmentModal'); setTimeout(() => location.reload(), 1200); }
+        else showFloatingMessage(data?.message||'Failed to add department', 'error');
+    }).catch(() => showFloatingMessage('Error submitting form', 'error'));
+}
+
+/* ─────────────────────────────────────────
+   DELETE STUDENTS FEATURE
+───────────────────────────────────────── */
+let allStudents = [];
+
+function openDeleteStudentsModal() {
+    openModal('deleteStudentsModal');
+    loadStudents();
+}
+
+function loadStudents() {
+    const tbody = document.getElementById('studentsTableBody');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading-students"><i class="fas fa-spinner fa-spin"></i> Loading students...</td></tr>';
+
+    fetch('../actions.php?action=get_all_students')
+    .then(r => r.text())
     .then(text => {
-        let data;
-        try {
-            data = parseJSONSafe(text);
-        } catch (e) {
-            unitsGrid.innerHTML = '<div class="error-message">Invalid server response.</div>';
-            showFloatingMessage('Error parsing server response', 'error');
-            return;
+        let data; try { data = parseJSONSafe(text); } catch(e) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:red;">Error loading students.</td></tr>'; return;
         }
-
-        if (!data || !data.course) {
-            unitsGrid.innerHTML = '<div class="error-message">Course not found.</div>';
-            showFloatingMessage('Course not found', 'error');
-            return;
+        if (!data || !Array.isArray(data.students)) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;">No students found.</td></tr>'; return;
         }
-
-        // Update header
-        if (floatingDisplay) {
-            const header = floatingDisplay.querySelector('.floating-header h3');
-            if (header) header.textContent = `${data.course.department_name || ''} - ${data.course.course_name || ''}`;
-        }
-
-        if (!data.units || data.units.length === 0) {
-            unitsGrid.innerHTML = '<div class="empty-message">No units found for this course.</div>';
-            return;
-        }
-
-        // Sort units by year then semester
-        const sortedUnits = data.units.sort((a,b) => {
-            if (a.year !== b.year) return a.year - b.year;
-            return (a.semester || 0) - (b.semester || 0);
-        });
-
-        unitsGrid.innerHTML = '';
-        sortedUnits.forEach(unit => {
-            const unitCard = document.createElement('div');
-            unitCard.className = 'unit-card';
-            unitCard.innerHTML = `
-                <div class="unit-info">
-                    <h4>${escapeHtml(unit.name)}</h4>
-                    <div class="unit-code">${escapeHtml(unit.code)}</div>
-                    <div class="unit-meta">Year ${escapeHtml(unit.year)}${unit.semester ? ', Semester ' + escapeHtml(unit.semester) : ''}</div>
-                </div>
-                <button class="delete-btn" onclick="showDeleteUnitModal(${Number(unit.id)}, '${escapeJs(unit.code)}')" title="Delete Unit">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            `;
-            unitsGrid.appendChild(unitCard);
-        });
+        allStudents = data.students;
+        renderStudentsTable(allStudents);
     })
-    .catch(err => {
-        console.error('Error:', err);
-        if (unitsGrid) unitsGrid.innerHTML = '<div class="error-message">Error loading units. Please try again.</div>';
-        showFloatingMessage('Error loading units: ' + (err.message || err), 'error');
+    .catch(() => {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:red;">Failed to load students.</td></tr>';
     });
 }
 
-function closeFloatingDisplay() {
-    const floatingDisplay = document.getElementById('floatingUnitsDisplay');
-    if (floatingDisplay) floatingDisplay.classList.remove('active');
-}
+function renderStudentsTable(students) {
+    const tbody = document.getElementById('studentsTableBody');
+    const countEl = document.getElementById('studentCount');
+    countEl.textContent = `${students.length} student${students.length !== 1 ? 's' : ''}`;
 
-/* Delete unit modal/confirm (safe JSON handling) */
-function showDeleteUnitModal(unitId, unitCode) {
-    const idInput = document.getElementById('deleteUnitId');
-    const modalContent = document.querySelector('#deleteUnitModal p');
-    if (idInput) idInput.value = unitId;
-    if (modalContent) modalContent.textContent = `Delete ${unitCode}?`;
-    openModal('deleteUnitModal');
-}
-
-function confirmDeleteUnit() {
-    const unitId = document.getElementById('deleteUnitId')?.value;
-    if (!unitId) {
-        showFloatingMessage('Invalid unit selected', 'error');
+    if (!students.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">No students match your search.</td></tr>';
+        updateBulkDeleteBtn();
         return;
     }
+
+    tbody.innerHTML = '';
+    students.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = s.id;
+        const verified = parseInt(s.is_verified) === 1;
+        tr.innerHTML = `
+            <td><input type="checkbox" class="student-checkbox" value="${s.id}" onchange="updateBulkDeleteBtn()"></td>
+            <td>${escapeHtml(s.reg_no || '—')}</td>
+            <td>${escapeHtml(s.name)}</td>
+            <td>${escapeHtml(s.email)}</td>
+            <td>Year ${escapeHtml(s.year_of_study || '—')}</td>
+            <td><span class="${verified ? 'badge-verified' : 'badge-unverified'}">${verified ? '✔ Verified' : '✘ Unverified'}</span></td>
+            <td><button class="btn-delete-single" onclick="promptDeleteStudent(${s.id}, '${escapeJs(s.name)}')"><i class="fas fa-trash"></i> Delete</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    updateBulkDeleteBtn();
+}
+
+function filterStudentsTable() {
+    const search  = document.getElementById('studentSearch').value.toLowerCase();
+    const verified = document.getElementById('studentVerifiedFilter').value;
+    const filtered = allStudents.filter(s => {
+        const matchSearch = !search ||
+            (s.name  && s.name.toLowerCase().includes(search)) ||
+            (s.email && s.email.toLowerCase().includes(search)) ||
+            (s.reg_no && s.reg_no.toLowerCase().includes(search));
+        const matchVerified = verified === '' || String(s.is_verified) === verified;
+        return matchSearch && matchVerified;
+    });
+    renderStudentsTable(filtered);
+}
+
+document.getElementById('selectAllStudents').addEventListener('change', function() {
+    document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = this.checked);
+    updateBulkDeleteBtn();
+});
+
+function updateBulkDeleteBtn() {
+    const checked = document.querySelectorAll('.student-checkbox:checked').length;
+    const btn = document.getElementById('bulkDeleteBtn');
+    btn.disabled = checked === 0;
+    btn.textContent = checked > 0 ? `Delete Selected (${checked})` : 'Delete Selected';
+}
+
+function promptDeleteStudent(id, name) {
+    document.getElementById('deleteStudentId').value = id;
+    document.getElementById('confirmDeleteStudentMsg').textContent = `Are you sure you want to delete "${name}"? This cannot be undone.`;
+    openModal('confirmDeleteStudentModal');
+}
+
+function executeDeleteStudent() {
+    const id = document.getElementById('deleteStudentId').value;
+    fetch('../actions.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=delete_student&student_id=${encodeURIComponent(id)}`
+    })
+    .then(r => r.text())
+    .then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
+        if (data?.status === 'success') {
+            closeModal('confirmDeleteStudentModal');
+            showFloatingMessage(data.message || 'Student deleted.', 'success');
+            loadStudents();
+        } else {
+            showFloatingMessage(data?.message || 'Failed to delete student.', 'error');
+        }
+    }).catch(() => showFloatingMessage('Error deleting student.', 'error'));
+}
+
+function confirmBulkDelete() {
+    const ids = [...document.querySelectorAll('.student-checkbox:checked')].map(cb => cb.value);
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} selected student(s)? This cannot be undone.`)) return;
 
     fetch('../actions.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=delete_unit&unit_id=${encodeURIComponent(unitId)}`
+        body: `action=bulk_delete_students&student_ids=${encodeURIComponent(ids.join(','))}`
     })
-    .then(response => response.text())
+    .then(r => r.text())
     .then(text => {
-        let data;
-        try {
-            data = parseJSONSafe(text);
-        } catch (e) {
-            showFloatingMessage('Invalid server response', 'error');
-            return;
-        }
-        if (data && data.status === 'success') {
-            closeModal('deleteUnitModal');
-            viewCourseUnits();
-            showFloatingMessage(data.message || 'Unit deleted', 'success');
+        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
+        if (data?.status === 'success') {
+            showFloatingMessage(data.message || `${ids.length} students deleted.`, 'success');
+            document.getElementById('selectAllStudents').checked = false;
+            loadStudents();
         } else {
-            showFloatingMessage((data && data.message) ? data.message : 'Failed to delete unit', 'error');
+            showFloatingMessage(data?.message || 'Bulk delete failed.', 'error');
         }
-    })
-    .catch(err => {
-        console.error('Delete error:', err);
-        showFloatingMessage('An error occurred while deleting the unit', 'error');
-    });
+    }).catch(() => showFloatingMessage('Error during bulk delete.', 'error'));
 }
-
-/* Export units PDF */
-function exportUnitsPDF() {
-    const courseId = document.getElementById('courseSelect')?.value;
-    if (!courseId) {
-        alert('Please select a course first');
-        return;
-    }
-    window.open(`../actions.php?action=generate_unit_pdf&course_id=${encodeURIComponent(courseId)}`, '_blank');
-}
-
-/* Department form submit via AJAX */
-function submitDepartmentForm(event) {
-    event.preventDefault();
-    const form = event.target;
-    const formData = new FormData(form);
-
-    fetch('../actions.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.text())
-    .then(text => {
-        let data;
-        try {
-            data = parseJSONSafe(text);
-        } catch (e) {
-            showFloatingMessage('Invalid server response', 'error');
-            return;
-        }
-        if (data && data.status === 'success') {
-            showFloatingMessage(data.message, 'success');
-            closeModal('departmentModal');
-            setTimeout(() => { location.reload(); }, 1200);
-        } else {
-            showFloatingMessage((data && data.message) ? data.message : 'Failed to add department', 'error');
-        }
-    })
-    .catch(err => {
-        console.error('Department submit error:', err);
-        showFloatingMessage('An error occurred while submitting the form', 'error');
-    });
-}
-
-/* simple escaping helpers for DOM insertion */
-function escapeHtml(str) {
-    if (str === undefined || str === null) return '';
-    return String(str).replace(/[&<>"'`=\/]/g, function(s) {
-        return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#x60;","/":"&#x2F;"}[s];
-    });
-}
-/* escape for JS string literal (used when injecting into onclick attr) */
-function escapeJs(str) {
-    if (str === undefined || str === null) return '';
-    return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '');
-}
-
-/* End of consolidated JS */
 </script>
 </body>
 </html>
