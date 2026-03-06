@@ -8,14 +8,15 @@ $mail = new PHPMailer(true);
 
 try {
     $mail->isSMTP();
-    $mail->Host       = 'unilis.jhubafrica.com'; // ✅ Fixed: was 'localhost'
+    $mail->Host       = 'smtp.gmail.com';
     $mail->SMTPAuth   = true;
-    $mail->Username   = 'noreply@unilis.jhubafrica.com';
-    $mail->Password   = 'Man.18hattan';
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // ✅ Proper SSL constant
-    $mail->Port       = 465;
+    $mail->Username   = 'mwendihillary21@gmail.com';
+    $mail->Password   = 'mjiu ogiv oedp wlik';
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = 587;
 
     $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
+    $mail->addReplyTo('noreply@unilis.jhubafrica.com', 'UNILIS');
     $mail->addAddress('mwendihillary21@gmail.com');
 
     $mail->isHTML(true);
@@ -26,5 +27,5 @@ try {
     echo "✅ Email sent successfully!";
 
 } catch (Exception $e) {
-    echo "❌ Email sending try failed: {$mail->ErrorInfo}";
+    echo "❌ Email sending failed: {$mail->ErrorInfo}";
 }
