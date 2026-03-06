@@ -1,7 +1,7 @@
 # Use official PHP 8.1 with Apache
 FROM php:8.1-apache
 
-# Install system dependencies
+# Install system dependencies + Postfix + OpenDKIM
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
@@ -9,6 +9,11 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     git \
+    postfix \
+    libsasl2-modules \
+    opendkim \
+    opendkim-tools \
+    mailutils \
     && docker-php-ext-install \
         mysqli \
         pdo \
@@ -21,6 +26,18 @@ RUN apt-get update && apt-get install -y \
 
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
+
+# Configure Postfix
+RUN postconf -e "myhostname = unilis.jhubafrica.com" \
+    && postconf -e "mydomain = jhubafrica.com" \
+    && postconf -e "myorigin = unilis.jhubafrica.com" \
+    && postconf -e "inet_interfaces = all" \
+    && postconf -e "inet_protocols = ipv4" \
+    && postconf -e "mydestination = unilis.jhubafrica.com, localhost" \
+    && postconf -e "relayhost =" \
+    && postconf -e "smtpd_use_tls = yes" \
+    && postconf -e "smtp_tls_security_level = may" \
+    && postconf -e "smtpd_tls_security_level = may"
 
 # Set working directory
 WORKDIR /var/www/html
@@ -56,14 +73,17 @@ RUN mkdir -p /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings
 
-
 # Make PHP errors visible in docker logs
 RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/php.ini \
     && echo "log_errors = On" >> /usr/local/etc/php/php.ini \
     && echo "display_errors = On" >> /usr/local/etc/php/php.ini
 
-# Expose port
-EXPOSE 80
+# Copy startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
-# Start Apache
-CMD ["apache2-foreground"]
+# Expose ports
+EXPOSE 80 25 587
+
+# Start both Postfix and Apache
+CMD ["/start.sh"]

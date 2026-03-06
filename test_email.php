@@ -8,12 +8,17 @@ $mail = new PHPMailer(true);
 
 try {
     $mail->isSMTP();
-    $mail->Host       = 'smtp.gmail.com';
-    $mail->SMTPAuth   = true;
-    $mail->Username   = 'mwendihillary21@gmail.com';
-    $mail->Password   = 'mjiu ogiv oedp wlik';
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = 587;
+    $mail->Host       = 'localhost';
+    $mail->SMTPAuth   = false;
+    $mail->SMTPSecure = false;
+    $mail->Port       = 25;
+    $mail->SMTPOptions = [
+        'ssl' => [
+            'verify_peer'       => false,
+            'verify_peer_name'  => false,
+            'allow_self_signed' => true,
+        ]
+    ];
 
     $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
     $mail->addReplyTo('noreply@unilis.jhubafrica.com', 'UNILIS');
@@ -21,7 +26,14 @@ try {
 
     $mail->isHTML(true);
     $mail->Subject = 'UNILIS Email Test';
-    $mail->Body    = '<h2>UNILIS Mail Server Working ✅</h2>';
+    $mail->Body    = '
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #2c3e50;">UNILIS Mail Server Working ✅</h2>
+            <p>This is a test email from the UNILIS system.</p>
+            <p style="color: #7f8c8d; font-size: 12px;">This is an automated message, please do not reply.</p>
+        </div>
+    ';
+    $mail->AltBody = 'UNILIS Mail Server Working. This is a test email from the UNILIS system.';
 
     $mail->send();
     echo "✅ Email sent successfully!";
