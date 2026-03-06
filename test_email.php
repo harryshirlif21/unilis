@@ -16,7 +16,7 @@ try {
     $mail->Password   = 'Man.18hattan';
 
     $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-    $mail->Port       = 465;
+    $mail->Port       = 587;
 
     $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
     $mail->addAddress('mwendihillary21@gmail.com');
