@@ -12,7 +12,7 @@ $mail->isSMTP();
 $mail->Host       = 'localhost';
 $mail->SMTPAuth   = true;
 $mail->Username   = 'noreply@unilis.jhubafrica.com';
-$mail->Password   = 'YOUR_EMAIL_PASSWORD';
+$mail->Password   = 'Man.18hattan';
 $mail->SMTPSecure = 'ssl';
 $mail->Port       = 465;
 
