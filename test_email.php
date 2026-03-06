@@ -8,28 +8,26 @@ $mail = new PHPMailer(true);
 
 try {
 
-    $mail->isSMTP();
-    $mail->Host       = 'unilis.jhubafrica.com';
-    $mail->SMTPAuth   = true;
+$mail->isSMTP();
+$mail->Host       = 'localhost';
+$mail->SMTPAuth   = true;
+$mail->Username   = 'noreply@unilis.jhubafrica.com';
+$mail->Password   = 'YOUR_EMAIL_PASSWORD';
+$mail->SMTPSecure = 'ssl';
+$mail->Port       = 465;
 
-    $mail->Username   = 'noreply@unilis.jhubafrica.com';
-    $mail->Password   = 'Man.18hattan';
+$mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
 
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-    $mail->Port       = 587;
+$mail->addAddress('mwendihillary21@gmail.com');
 
-    $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
-    $mail->addAddress('mwendihillary21@gmail.com');
+$mail->isHTML(true);
+$mail->Subject = 'UNILIS Email Test';
+$mail->Body    = '<h2>UNILIS Mail Server Working ✅</h2>';
 
-    $mail->isHTML(true);
-    $mail->Subject = 'UNILIS Email Test';
-    $mail->Body    = '<h2>UNILIS Mail Server Working ✅</h2>';
+$mail->send();
 
-    $mail->send();
-
-    echo "✅ Email sent successfully!";
+echo "✅ Email sent successfully!";
 
 } catch (Exception $e) {
-
-    echo "❌ Email failed: {$mail->ErrorInfo}";
+echo "❌ Email failed: {$mail->ErrorInfo}";
 }
