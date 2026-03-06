@@ -29,5 +29,5 @@ $mail->send();
 echo "✅ Email sent successfully!";
 
 } catch (Exception $e) {
-echo "❌ Email failed: {$mail->ErrorInfo}";
+echo "❌ Email sending failed: {$mail->ErrorInfo}";
 }
