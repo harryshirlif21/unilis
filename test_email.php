@@ -9,13 +9,14 @@ $mail = new PHPMailer(true);
 try {
 
     $mail->isSMTP();
-    $mail->Host       = 'mail.unilis.jhubafrica.com';
+    $mail->Host       = 'unilis.jhubafrica.com';
     $mail->SMTPAuth   = true;
+
     $mail->Username   = 'noreply@unilis.jhubafrica.com';
     $mail->Password   = 'Man.18hattan';
 
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = 587;
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+    $mail->Port       = 465;
 
     $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
     $mail->addAddress('mwendihillary21@gmail.com');
