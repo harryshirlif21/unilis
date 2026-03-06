@@ -8,8 +8,7 @@ $queries = [];
 /* =========================
 TEAMS
 ========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS teams (
+$queries[] = "CREATE TABLE IF NOT EXISTS teams (
 id INT AUTO_INCREMENT PRIMARY KEY,
 title VARCHAR(200) NOT NULL,
 description TEXT,
@@ -35,8 +34,7 @@ FOREIGN KEY (created_by) REFERENCES students(id)
 /* =========================
 TEAM ACTIVITY LOG
 ========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS team_activity_log (
+$queries[] = "CREATE TABLE IF NOT EXISTS team_activity_log (
 id INT AUTO_INCREMENT PRIMARY KEY,
 team_id INT NOT NULL,
 user_id INT NOT NULL,
@@ -52,8 +50,7 @@ FOREIGN KEY (user_id) REFERENCES students(id)
 /* =========================
 TEAM ASSIGNMENTS
 ========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS team_assignments (
+$queries[] = "CREATE TABLE IF NOT EXISTS team_assignments (
 id INT AUTO_INCREMENT PRIMARY KEY,
 title VARCHAR(255) NOT NULL,
 description TEXT,
@@ -72,8 +69,7 @@ FOREIGN KEY (course_id) REFERENCES courses(id)
 /* =========================
 TEAM FILES
 ========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS team_files (
+$queries[] = "CREATE TABLE IF NOT EXISTS team_files (
 id INT AUTO_INCREMENT PRIMARY KEY,
 team_id INT NOT NULL,
 uploader_id INT NOT NULL,
@@ -92,30 +88,9 @@ FOREIGN KEY (uploader_id) REFERENCES students(id)
 ) ENGINE=InnoDB";
 
 /* =========================
-TEAM INVITATIONS
-========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS team_invitations (
-id INT AUTO_INCREMENT PRIMARY KEY,
-team_id INT NOT NULL,
-invited_student_id INT NOT NULL,
-invited_by INT NOT NULL,
-status ENUM('pending','accepted','rejected','cancelled') DEFAULT 'pending',
-invited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-responded_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-INDEX(team_id),
-INDEX(invited_student_id),
-INDEX(invited_by),
-FOREIGN KEY (team_id) REFERENCES teams(id),
-FOREIGN KEY (invited_student_id) REFERENCES students(id),
-FOREIGN KEY (invited_by) REFERENCES students(id)
-) ENGINE=InnoDB";
-
-/* =========================
 TEAM MEMBERS
 ========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS team_members (
+$queries[] = "CREATE TABLE IF NOT EXISTS team_members (
 id INT AUTO_INCREMENT PRIMARY KEY,
 team_id INT NOT NULL,
 student_id INT NOT NULL,
@@ -128,39 +103,9 @@ FOREIGN KEY (student_id) REFERENCES students(id)
 ) ENGINE=InnoDB";
 
 /* =========================
-TEAM SUBMISSIONS
-========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS team_submissions (
-id INT AUTO_INCREMENT PRIMARY KEY,
-team_id INT NOT NULL,
-student_id INT,
-assessment_id INT NOT NULL,
-file_name VARCHAR(255) NOT NULL,
-file_path VARCHAR(512) NOT NULL,
-mime_type VARCHAR(100),
-file_size BIGINT UNSIGNED DEFAULT 0,
-submission_type ENUM('team','individual') NOT NULL,
-version INT DEFAULT 1,
-is_current TINYINT UNSIGNED DEFAULT 1,
-uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-lecturer_status ENUM('Received','Under Review','Needs Revision','Accepted','Rejected') DEFAULT 'Received',
-lecturer_note TEXT,
-reviewed_at DATETIME,
-comments TEXT,
-INDEX(team_id),
-INDEX(student_id),
-INDEX(assessment_id),
-FOREIGN KEY (team_id) REFERENCES teams(id),
-FOREIGN KEY (student_id) REFERENCES students(id),
-FOREIGN KEY (assessment_id) REFERENCES team_assignments(id)
-) ENGINE=InnoDB";
-
-/* =========================
 TEAM TASKS
 ========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS team_tasks (
+$queries[] = "CREATE TABLE IF NOT EXISTS team_tasks (
 id INT AUTO_INCREMENT PRIMARY KEY,
 team_id INT NOT NULL,
 title VARCHAR(255) NOT NULL,
@@ -181,128 +126,117 @@ FOREIGN KEY (created_by) REFERENCES students(id)
 ) ENGINE=InnoDB";
 
 /* =========================
-SUBMISSION CHECKLIST
-========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS submission_checklist (
-id INT AUTO_INCREMENT PRIMARY KEY,
-team_id INT NOT NULL,
-item_label VARCHAR(255) NOT NULL,
-is_checked TINYINT(1) DEFAULT 0,
-checked_by INT,
-checked_at DATETIME,
-INDEX(team_id),
-INDEX(checked_by),
-FOREIGN KEY (team_id) REFERENCES teams(id),
-FOREIGN KEY (checked_by) REFERENCES students(id)
-) ENGINE=InnoDB";
-
-/* =========================
-SUBMISSION SIGNOFFS
-========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS submission_signoffs (
-id INT AUTO_INCREMENT PRIMARY KEY,
-team_id INT NOT NULL,
-user_id INT NOT NULL,
-signed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-INDEX(team_id),
-INDEX(user_id),
-FOREIGN KEY (team_id) REFERENCES teams(id),
-FOREIGN KEY (user_id) REFERENCES students(id)
-) ENGINE=InnoDB";
-
-/* =========================
-PEER EVALUATIONS
-========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS peer_evaluations (
-id INT AUTO_INCREMENT PRIMARY KEY,
-team_id INT NOT NULL,
-evaluator_id INT NOT NULL,
-evaluatee_id INT NOT NULL,
-contribution TINYINT UNSIGNED NOT NULL,
-communication TINYINT UNSIGNED NOT NULL,
-quality TINYINT UNSIGNED NOT NULL,
-reliability TINYINT UNSIGNED NOT NULL,
-submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-INDEX(team_id),
-INDEX(evaluator_id),
-INDEX(evaluatee_id),
-FOREIGN KEY (team_id) REFERENCES teams(id),
-FOREIGN KEY (evaluator_id) REFERENCES students(id),
-FOREIGN KEY (evaluatee_id) REFERENCES students(id)
-) ENGINE=InnoDB";
-
-/* =========================
-GHOST FLAGS
-========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS ghost_flags (
-id INT AUTO_INCREMENT PRIMARY KEY,
-team_id INT NOT NULL,
-user_id INT NOT NULL,
-flagged_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-nudge_sent_at DATETIME,
-resolved_at DATETIME,
-INDEX(team_id),
-INDEX(user_id),
-FOREIGN KEY (team_id) REFERENCES teams(id),
-FOREIGN KEY (user_id) REFERENCES students(id)
-) ENGINE=InnoDB";
-
-/* =========================
-STANDUP ENTRIES
-========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS standup_entries (
-id INT AUTO_INCREMENT PRIMARY KEY,
-team_id INT NOT NULL,
-user_id INT NOT NULL,
-did_today TEXT NOT NULL,
-will_do_next TEXT NOT NULL,
-blockers TEXT,
-entry_date DATE NOT NULL,
-created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-INDEX(team_id),
-INDEX(user_id),
-INDEX(entry_date),
-FOREIGN KEY (team_id) REFERENCES teams(id),
-FOREIGN KEY (user_id) REFERENCES students(id)
-) ENGINE=InnoDB";
-
-/* =========================
-ANNOUNCEMENTS
-========================= */
-$queries[] = "
-CREATE TABLE IF NOT EXISTS announcements (
-id INT AUTO_INCREMENT PRIMARY KEY,
-lecturer_id INT NOT NULL,
-unit_id INT,
-team_id INT,
-message TEXT NOT NULL,
-is_global TINYINT(1) DEFAULT 0,
-created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-INDEX(lecturer_id),
-INDEX(unit_id),
-INDEX(team_id),
-FOREIGN KEY (lecturer_id) REFERENCES lecturers(id),
-FOREIGN KEY (unit_id) REFERENCES units(id),
-FOREIGN KEY (team_id) REFERENCES teams(id)
-) ENGINE=InnoDB";
-
-/* =========================
-RUN ALL QUERIES
+RUN CREATION
 ========================= */
 
 foreach ($queries as $sql) {
 
     if ($conn->query($sql)) {
-        echo "Table created or already exists.<br>";
+        echo "Table checked/created successfully.<br>";
     } else {
         echo "Error: " . $conn->error . "<br>";
     }
 }
 
-echo "<br><b>Done.</b>";
+echo "<hr>";
+echo "<h2>Team Tables Structure</h2>";
+
+/* =========================
+TABLES TO DISPLAY
+========================= */
+
+$tables = [
+"teams",
+"team_activity_log",
+"team_assignments",
+"team_files",
+"team_members",
+"team_tasks"
+];
+
+foreach ($tables as $table) {
+
+echo "<h3>Table: $table</h3>";
+
+/* =========================
+SHOW COLUMNS
+========================= */
+
+$columns = $conn->query("SHOW COLUMNS FROM `$table`");
+
+echo "<b>Fields</b>";
+
+echo "<table border='1' cellpadding='6' cellspacing='0'>";
+echo "<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Null</th>
+<th>Key</th>
+<th>Default</th>
+<th>Extra</th>
+</tr>";
+
+while ($col = $columns->fetch_assoc()) {
+
+echo "<tr>
+<td>{$col['Field']}</td>
+<td>{$col['Type']}</td>
+<td>{$col['Null']}</td>
+<td>{$col['Key']}</td>
+<td>{$col['Default']}</td>
+<td>{$col['Extra']}</td>
+</tr>";
+}
+
+echo "</table><br>";
+
+/* =========================
+SHOW FOREIGN KEYS
+========================= */
+
+echo "<b>Foreign Keys</b>";
+
+$fk_query = "
+SELECT 
+COLUMN_NAME,
+REFERENCED_TABLE_NAME,
+REFERENCED_COLUMN_NAME
+FROM information_schema.KEY_COLUMN_USAGE
+WHERE TABLE_SCHEMA = DATABASE()
+AND TABLE_NAME = '$table'
+AND REFERENCED_TABLE_NAME IS NOT NULL
+";
+
+$fk_result = $conn->query($fk_query);
+
+if ($fk_result->num_rows > 0) {
+
+echo "<table border='1' cellpadding='6'>";
+echo "<tr>
+<th>Column</th>
+<th>References Table</th>
+<th>References Column</th>
+</tr>";
+
+while ($fk = $fk_result->fetch_assoc()) {
+
+echo "<tr>
+<td>{$fk['COLUMN_NAME']}</td>
+<td>{$fk['REFERENCED_TABLE_NAME']}</td>
+<td>{$fk['REFERENCED_COLUMN_NAME']}</td>
+</tr>";
+}
+
+echo "</table>";
+
+} else {
+
+echo "No Foreign Keys";
+
+}
+
+echo "<hr>";
+
+}
+
 ?>
