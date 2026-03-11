@@ -5,8 +5,27 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
-require_once '../../config/db.php';
-require_once __DIR__ . '/../models/ActivityLog.php';
+register_shutdown_function(function () {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'message' => 'Fatal error: ' . $err['message'] . ' in ' . basename($err['file']) . ' line ' . $err['line']
+        ]);
+    }
+});
+
+try {
+    require_once '../../config/db.php';
+    require_once __DIR__ . '/../models/ActivityLog.php';
+} catch (Throwable $e) {
+    ob_clean();
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Startup error: ' . $e->getMessage()]);
+    exit;
+}
 
 ob_clean();
 header('Content-Type: application/json');
@@ -14,6 +33,36 @@ header('Content-Type: application/json');
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+}
+
+$user_id = (int)$_SESSION['user_id'];
+
+// ── Resolve course_id from session or DB (same logic as get_enrolled_units.php)
+$course_id     = (int)($_SESSION['course_id'] ?? 0);
+$year_of_study = (int)($_SESSION['year_of_study'] ?? 0);
+
+if (!$course_id || !$year_of_study) {
+    $s = $conn->prepare("SELECT course_id, year_of_study FROM students WHERE id = ?");
+    $s->bind_param("i", $user_id);
+    $s->execute();
+    $student = $s->get_result()->fetch_assoc();
+    $s->close();
+
+    if (!$student) {
+        echo json_encode(['success' => false, 'message' => 'Student record not found']);
+        exit;
+    }
+
+    $course_id     = (int)$student['course_id'];
+    $year_of_study = (int)$student['year_of_study'];
+
+    $_SESSION['course_id']     = $course_id;
+    $_SESSION['year_of_study'] = $year_of_study;
+}
+
+if (!$course_id) {
+    echo json_encode(['success' => false, 'message' => 'Could not determine your course']);
     exit;
 }
 
@@ -51,10 +100,21 @@ if (!in_array($assessment_type, $allowed, true)) {
     exit;
 }
 
+// ── Verify unit belongs to student's course ───────────────────────────────────
+$chk = $conn->prepare("SELECT id FROM units WHERE id = ? AND course_id = ?");
+$chk->bind_param("ii", $unit_id, $course_id);
+$chk->execute();
+$chk->store_result();
+if ($chk->num_rows === 0) {
+    echo json_encode(['success' => false, 'message' => 'Selected unit does not belong to your course']);
+    exit;
+}
+$chk->close();
+
 // ── Insert team ───────────────────────────────────────────────────────────────
 $stmt = $conn->prepare("
-    INSERT INTO teams (title, unit_id, assessment_type, created_by)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO teams (title, unit_id, course_id, assessment_type, created_by)
+    VALUES (?, ?, ?, ?, ?)
 ");
 
 if (!$stmt) {
@@ -62,8 +122,8 @@ if (!$stmt) {
     exit;
 }
 
-// s=title  i=unit_id  s=assessment_type  i=created_by
-$stmt->bind_param("sisi", $title, $unit_id, $assessment_type, $_SESSION['user_id']);
+// s=title  i=unit_id  i=course_id  s=assessment_type  i=created_by
+$stmt->bind_param("siisi", $title, $unit_id, $course_id, $assessment_type, $user_id);
 
 if (!$stmt->execute()) {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $stmt->error]);
@@ -80,19 +140,19 @@ $stmt_leader = $conn->prepare("
 ");
 
 if ($stmt_leader) {
-    $stmt_leader->bind_param("ii", $team_id, $_SESSION['user_id']);
+    $stmt_leader->bind_param("ii", $team_id, $user_id);
     $stmt_leader->execute();
     $stmt_leader->close();
 }
 
-// ── Log activity (best-effort) ────────────────────────────────────────────────
+// ── Log activity ──────────────────────────────────────────────────────────────
 try {
     $logger = new ActivityLog($conn);
     $detail = sprintf(
-        'Team created: "%s" | unit_id=%d | type=%s | by user=%d',
-        $title, $unit_id, $assessment_type, (int)$_SESSION['user_id']
+        'Team created: "%s" | unit_id=%d | course_id=%d | type=%s | by user=%d',
+        $title, $unit_id, $course_id, $assessment_type, $user_id
     );
-    $logger->log($team_id, (int)$_SESSION['user_id'], 'team_create', $detail);
+    $logger->log($team_id, $user_id, 'team_create', $detail);
 } catch (Throwable $e) {
     error_log('ActivityLog error: ' . $e->getMessage());
 }
