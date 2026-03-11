@@ -10,10 +10,7 @@ register_shutdown_function(function () {
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
         ob_clean();
         header('Content-Type: application/json');
-        echo json_encode([
-            'success' => false,
-            'message' => 'Fatal error: ' . $err['message'] . ' in ' . basename($err['file']) . ' line ' . $err['line']
-        ]);
+        echo json_encode(['success' => false, 'message' => 'Fatal error: ' . $err['message'] . ' in ' . basename($err['file']) . ' line ' . $err['line']]);
     }
 });
 
@@ -38,8 +35,8 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = (int)$_SESSION['user_id'];
 
-// ── Resolve course_id from session or DB (same logic as get_enrolled_units.php)
-$course_id     = (int)($_SESSION['course_id'] ?? 0);
+// ── Resolve course_id + year_of_study from session or DB ─────────────────────
+$course_id     = (int)($_SESSION['course_id']     ?? 0);
 $year_of_study = (int)($_SESSION['year_of_study'] ?? 0);
 
 if (!$course_id || !$year_of_study) {
@@ -56,13 +53,12 @@ if (!$course_id || !$year_of_study) {
 
     $course_id     = (int)$student['course_id'];
     $year_of_study = (int)$student['year_of_study'];
-
     $_SESSION['course_id']     = $course_id;
     $_SESSION['year_of_study'] = $year_of_study;
 }
 
-if (!$course_id) {
-    echo json_encode(['success' => false, 'message' => 'Could not determine your course']);
+if (!$course_id || !$year_of_study) {
+    echo json_encode(['success' => false, 'message' => 'Could not determine your course or year']);
     exit;
 }
 
@@ -81,15 +77,12 @@ if (empty($data['csrf_token']) || $data['csrf_token'] !== $_SESSION['csrf_token'
 }
 
 // ── Inputs ────────────────────────────────────────────────────────────────────
-$title           = trim($data['title'] ?? '');
-$unit_id         = intval($data['unit_id'] ?? 0);
-$assessment_type = trim($data['assessment_type'] ?? '');
+$title           = trim($data['title']           ?? '');
+$unit_id         = intval($data['unit_id']        ?? 0);
+$assessment_type = trim($data['assessment_type']  ?? '');
 
 if (empty($title) || $unit_id <= 0 || empty($assessment_type)) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'All fields are required (title, unit, assessment type)'
-    ]);
+    echo json_encode(['success' => false, 'message' => 'All fields are required (title, unit, assessment type)']);
     exit;
 }
 
@@ -100,21 +93,22 @@ if (!in_array($assessment_type, $allowed, true)) {
     exit;
 }
 
-// ── Verify unit belongs to student's course ───────────────────────────────────
-$chk = $conn->prepare("SELECT id FROM units WHERE id = ? AND course_id = ?");
-$chk->bind_param("ii", $unit_id, $course_id);
+// ── Verify unit belongs to student's course + year ────────────────────────────
+$chk = $conn->prepare("SELECT id FROM units WHERE id = ? AND course_id = ? AND year = ?");
+$chk->bind_param("iii", $unit_id, $course_id, $year_of_study);
 $chk->execute();
 $chk->store_result();
 if ($chk->num_rows === 0) {
-    echo json_encode(['success' => false, 'message' => 'Selected unit does not belong to your course']);
+    echo json_encode(['success' => false, 'message' => 'Selected unit does not belong to your course/year']);
     exit;
 }
 $chk->close();
 
 // ── Insert team ───────────────────────────────────────────────────────────────
+// teams columns: title, unit_id, course_id, assessment_type, created_by, year
 $stmt = $conn->prepare("
-    INSERT INTO teams (title, unit_id, course_id, assessment_type, created_by)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO teams (title, unit_id, course_id, assessment_type, created_by, year)
+    VALUES (?, ?, ?, ?, ?, ?)
 ");
 
 if (!$stmt) {
@@ -122,8 +116,8 @@ if (!$stmt) {
     exit;
 }
 
-// s=title  i=unit_id  i=course_id  s=assessment_type  i=created_by
-$stmt->bind_param("siisi", $title, $unit_id, $course_id, $assessment_type, $user_id);
+// s=title  i=unit_id  i=course_id  s=assessment_type  i=created_by  i=year
+$stmt->bind_param("siisii", $title, $unit_id, $course_id, $assessment_type, $user_id, $year_of_study);
 
 if (!$stmt->execute()) {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $stmt->error]);
@@ -135,10 +129,8 @@ $stmt->close();
 
 // ── Add creator as leader ─────────────────────────────────────────────────────
 $stmt_leader = $conn->prepare("
-    INSERT INTO team_members (team_id, student_id, role)
-    VALUES (?, ?, 'leader')
+    INSERT INTO team_members (team_id, student_id, role) VALUES (?, ?, 'leader')
 ");
-
 if ($stmt_leader) {
     $stmt_leader->bind_param("ii", $team_id, $user_id);
     $stmt_leader->execute();
@@ -149,8 +141,8 @@ if ($stmt_leader) {
 try {
     $logger = new ActivityLog($conn);
     $detail = sprintf(
-        'Team created: "%s" | unit_id=%d | course_id=%d | type=%s | by user=%d',
-        $title, $unit_id, $course_id, $assessment_type, $user_id
+        'Team created: "%s" | unit_id=%d | course_id=%d | year=%d | type=%s | by user=%d',
+        $title, $unit_id, $course_id, $year_of_study, $assessment_type, $user_id
     );
     $logger->log($team_id, $user_id, 'team_create', $detail);
 } catch (Throwable $e) {
