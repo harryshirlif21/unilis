@@ -16,8 +16,8 @@ if (!$host) {
     }
 }
 
-$user = getenv('MYSQL_USER') ?: 'root';
-$password = getenv('MYSQL_PASSWORD') ?: 'password';
+$user = getenv('MYSQL_USER') ?: 'unilisuser';
+$password = getenv('MYSQL_PASSWORD') ?: 'unilispass';
 $dbname = getenv('MYSQL_DATABASE') ?: 'unilis';
 
 // Connection retry loop with improved error handling
@@ -68,4 +68,4 @@ if (!$conn) {
 
 // Make the connection available globally
 $GLOBALS['conn'] = $conn;
-?>
+

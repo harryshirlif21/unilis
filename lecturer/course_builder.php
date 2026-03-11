@@ -1,0 +1,1398 @@
+<?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+session_start();
+//error_log("Session status: " . session_status() . " | Headers sent: " . (headers_sent($file, $line) ? "YES at $file:$line" : "NO"));
+require_once '../config/db.php';
+
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+    header("Location: ../login.php");
+    exit;
+}
+
+$lecturer_id   = $_SESSION['user_id'];
+$lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
+
+
+// Fetch units assigned to this lecturer
+$units = [];
+try {
+    $stmt = $conn->prepare("
+        SELECT u.id, u.name
+        FROM units u
+        JOIN lecturer_units lu ON u.id = lu.unit_id
+        WHERE lu.lecturer_id = ?
+        ORDER BY u.name ASC
+    ");
+    $stmt->bind_param("i", $lecturer_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) $units[] = $row;
+    $stmt->close();
+} catch (mysqli_sql_exception $e) {
+    error_log("course_builder unit fetch: " . $e->getMessage());
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Course Builder — UNILIS</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+/* ── DESIGN SYSTEM ─────────────────────────────────────── */
+:root {
+    --bg:          #0d0f14;
+    --surface:     #161921;
+    --surface2:    #1e2230;
+    --surface3:    #262c3d;
+    --border:      #2a3148;
+    --accent:      #4f8ef7;
+    --accent2:     #38d9a9;
+    --accent3:     #f7934f;
+    --danger:      #f75f5f;
+    --text:        #e8eaf0;
+    --text-muted:  #7a82a0;
+    --text-dim:    #4a5270;
+    --module-bar:  #1a2035;
+    --lesson-row:  #161921;
+    --shadow:      0 4px 24px rgba(0,0,0,0.4);
+    --radius:      10px;
+    --radius-sm:   6px;
+    --transition:  0.18s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* ── TOPBAR ─────────────────────────────────────────────── */
+.topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.topbar-brand {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+}
+.topbar-brand span { color: var(--text-muted); font-weight: 400; margin-left: 8px; font-size: 0.85rem; }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.topbar-user {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.btn-nav {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-decoration: none;
+    transition: var(--transition);
+    font-family: 'DM Sans', sans-serif;
+}
+.btn-nav:hover { background: var(--surface2); color: var(--text); }
+
+/* ── LAYOUT ─────────────────────────────────────────────── */
+.layout { display: flex; height: calc(100vh - 60px); }
+
+/* ── SIDEBAR ────────────────────────────────────────────── */
+.sidebar {
+    width: 300px;
+    min-width: 300px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 20px;
+    gap: 20px;
+    overflow-y: auto;
+}
+.sidebar-section label {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    display: block;
+    margin-bottom: 8px;
+}
+.styled-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    cursor: pointer;
+    outline: none;
+    transition: var(--transition);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237a82a0' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+.styled-select:focus { border-color: var(--accent); }
+
+.sidebar-stats {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.stat-item { text-align: center; }
+.stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+}
+.stat-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.sidebar-actions { display: flex; flex-direction: column; gap: 8px; }
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: var(--transition);
+    text-decoration: none;
+    justify-content: center;
+}
+.btn-primary   { background: var(--accent);  color: #fff; }
+.btn-primary:hover { background: #3a7ce8; transform: translateY(-1px); }
+.btn-success   { background: var(--accent2); color: #0d1a15; }
+.btn-success:hover { background: #2ec99a; transform: translateY(-1px); }
+.btn-warning   { background: var(--accent3); color: #1a0f00; }
+.btn-warning:hover { background: #f08040; }
+.btn-danger    { background: var(--danger);  color: #fff; }
+.btn-danger:hover  { background: #e04040; }
+.btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+.btn-icon { padding: 6px 8px; min-width: 32px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
+
+/* ── MAIN CONTENT ───────────────────────────────────────── */
+.main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* ── COURSE HEADER CARD ─────────────────────────────────── */
+.course-header-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    animation: fadeSlideIn 0.3s ease;
+}
+.course-header-info h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+.course-header-info p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    max-width: 500px;
+    line-height: 1.5;
+}
+.outline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 10px;
+}
+.outline-set   { background: rgba(56,217,169,0.15); color: var(--accent2); border: 1px solid rgba(56,217,169,0.3); }
+.outline-unset { background: rgba(247,95,95,0.12);  color: var(--danger);  border: 1px solid rgba(247,95,95,0.3); }
+
+/* ── MODULE TREE ────────────────────────────────────────── */
+.tree-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.tree-toolbar h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+#module-tree { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── MODULE CARD ────────────────────────────────────────── */
+.module-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: box-shadow var(--transition);
+    animation: fadeSlideIn 0.25s ease;
+}
+.module-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,142,247,0.25); }
+.module-card.dragging  { opacity: 0.4; }
+
+.module-header {
+    background: var(--module-bar);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: grab;
+    user-select: none;
+    border-bottom: 1px solid var(--border);
+}
+.module-header:active { cursor: grabbing; }
+.drag-handle {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 2px 4px;
+}
+.drag-handle span {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--text-dim);
+    border-radius: 2px;
+    transition: background var(--transition);
+}
+.module-header:hover .drag-handle span { background: var(--accent); }
+
+.module-number {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    background: rgba(79,142,247,0.12);
+    border: 1px solid rgba(79,142,247,0.25);
+    padding: 3px 8px;
+    border-radius: 999px;
+    min-width: 28px;
+    text-align: center;
+}
+.module-title-wrap { flex: 1; display: flex; align-items: center; gap: 10px; }
+.module-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+}
+.module-title-input {
+    background: var(--surface3);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    flex: 1;
+    outline: none;
+}
+.module-actions { display: flex; align-items: center; gap: 6px; }
+.module-toggle {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+    font-size: 0.85rem;
+}
+.module-toggle:hover { color: var(--text); background: var(--surface3); }
+
+/* ── LESSON LIST ────────────────────────────────────────── */
+.lessons-container {
+    padding: 12px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.lessons-list { display: flex; flex-direction: column; gap: 6px; min-height: 4px; }
+
+.lesson-row {
+    background: var(--lesson-row);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: grab;
+    transition: border-color var(--transition), background var(--transition);
+    animation: fadeSlideIn 0.2s ease;
+}
+.lesson-row:active { cursor: grabbing; }
+.lesson-row:hover  { border-color: var(--surface3); background: var(--surface2); }
+.lesson-row.drag-over { border-color: var(--accent2); background: rgba(56,217,169,0.05); }
+.lesson-row.dragging  { opacity: 0.35; }
+
+.lesson-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--accent2);
+    background: rgba(56,217,169,0.1);
+    border: 1px solid rgba(56,217,169,0.2);
+    padding: 2px 7px;
+    border-radius: 999px;
+    min-width: 36px;
+    text-align: center;
+    white-space: nowrap;
+}
+.lesson-drag { color: var(--text-dim); font-size: 0.75rem; }
+.lesson-title {
+    flex: 1;
+    font-size: 0.87rem;
+    color: var(--text);
+    cursor: pointer;
+}
+.lesson-title:hover { color: var(--accent); }
+.lesson-title-input {
+    flex: 1;
+    background: var(--surface3);
+    border: 1px solid var(--accent2);
+    color: var(--text);
+    padding: 4px 9px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+}
+.lesson-actions { display: flex; gap: 4px; }
+
+/* Add lesson row */
+.add-lesson-row {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    transition: var(--transition);
+    margin-top: 4px;
+}
+.add-lesson-row:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(56,217,169,0.04); }
+
+/* ── EMPTY STATE ────────────────────────────────────────── */
+.empty-state {
+    text-align: center;
+    padding: 60px 40px;
+    color: var(--text-dim);
+    animation: fadeSlideIn 0.3s ease;
+}
+.empty-state i { font-size: 2.5rem; margin-bottom: 16px; opacity: 0.4; }
+.empty-state h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+.empty-state p { font-size: 0.85rem; max-width: 320px; margin: 0 auto; }
+
+/* ── PLACEHOLDER ─────────────────────────────────────────── */
+#unit-placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.placeholder-inner { text-align: center; }
+.placeholder-inner i { font-size: 3rem; color: var(--text-dim); margin-bottom: 20px; }
+.placeholder-inner h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+.placeholder-inner p { font-size: 0.85rem; color: var(--text-dim); }
+
+/* ── MODAL ───────────────────────────────────────────────── */
+.modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    width: 480px;
+    max-width: 92vw;
+    box-shadow: var(--shadow);
+    transform: translateY(12px);
+    transition: transform 0.2s ease;
+}
+.modal-overlay.open .modal { transform: translateY(0); }
+.modal h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: var(--text);
+}
+.form-group { margin-bottom: 16px; }
+.form-group label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.form-input, .form-textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color var(--transition);
+}
+.form-input:focus, .form-textarea:focus { border-color: var(--accent); }
+.form-textarea { resize: vertical; min-height: 90px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+/* ── TOAST ───────────────────────────────────────────────── */
+#toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+.toast-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 18px;
+    font-size: 0.85rem;
+    color: var(--text);
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: toastIn 0.25s ease, toastOut 0.25s ease 2.5s forwards;
+    max-width: 320px;
+}
+.toast-item.success { border-left: 3px solid var(--accent2); }
+.toast-item.error   { border-left: 3px solid var(--danger); }
+.toast-item.info    { border-left: 3px solid var(--accent); }
+
+/* ── LOADING ─────────────────────────────────────────────── */
+.spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+}
+
+/* ── ANIMATIONS ──────────────────────────────────────────── */
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes toastIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes toastOut {
+    from { opacity: 1; }
+    to   { opacity: 0; transform: translateX(20px); }
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── OUTLINE MODAL SPECIFICS ─────────────────────────────── */
+.char-count { font-size: 0.72rem; color: var(--text-dim); text-align: right; margin-top: 4px; }
+
+/* ── RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .layout { flex-direction: column; }
+    .sidebar { width: 100%; min-width: unset; height: auto; }
+    .main { padding: 16px; }
+    .topbar { padding: 0 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+    <div class="topbar-brand">
+        UNILIS <span>Course Builder</span>
+    </div>
+    <div class="topbar-right">
+        <span class="topbar-user"><i class="fas fa-user-circle"></i> <?= htmlspecialchars($lecturer_name) ?></span>
+        <a href="lesson_editor.php" class="btn-nav"><i class="fas fa-pen-nib"></i> Lesson Editor</a>
+        <a href="assessment_builder.php" class="btn-nav"><i class="fas fa-tasks"></i> Assessments</a>
+        <a href="dashboard.php" class="btn-nav"><i class="fas fa-home"></i> Dashboard</a>
+    </div>
+</header>
+
+<div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <label><i class="fas fa-book"></i> &nbsp;Select Unit</label>
+            <select class="styled-select" id="unit-select">
+                <option value="">— choose a unit —</option>
+                <?php foreach ($units as $u): ?>
+                    <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="sidebar-stats" id="sidebar-stats" style="display:none">
+            <div class="stat-item">
+                <div class="stat-num" id="stat-modules">0</div>
+                <div class="stat-label">Modules</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-num" id="stat-lessons">0</div>
+                <div class="stat-label">Lessons</div>
+            </div>
+        </div>
+
+        <div class="sidebar-actions" id="sidebar-actions" style="display:none">
+            <button class="btn btn-primary" onclick="openAddModuleModal()">
+                <i class="fas fa-plus"></i> Add Module
+            </button>
+            <button class="btn btn-ghost" onclick="openOutlineModal()">
+                <i class="fas fa-align-left"></i> Course Outline
+            </button>
+            <a id="btn-go-lessons" href="#" class="btn btn-success" style="display:none">
+                <i class="fas fa-pen-nib"></i> Edit Lessons
+            </a>
+        </div>
+
+        <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border);">
+            <p style="font-size:0.75rem; color:var(--text-dim); line-height:1.6;">
+                <i class="fas fa-grip-lines" style="color:var(--accent)"></i>
+                Drag modules and lessons to reorder them. Click titles to rename inline.
+            </p>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main" id="main-content">
+
+        <!-- Unit not selected yet -->
+        <div id="unit-placeholder">
+            <div class="placeholder-inner">
+                <i class="fas fa-layer-group"></i>
+                <h2>No Unit Selected</h2>
+                <p>Select a unit from the sidebar to start building your course structure.</p>
+            </div>
+        </div>
+
+        <!-- Course content (shown after unit selected) -->
+        <div id="course-content" style="display:none">
+
+            <!-- Course header -->
+            <div class="course-header-card" id="course-header-card">
+                <div class="course-header-info">
+                    <h2 id="course-unit-name">Unit Name</h2>
+                    <p id="course-description">No description set yet.</p>
+                    <span class="outline-badge outline-unset" id="outline-status">
+                        <i class="fas fa-circle-xmark"></i> Outline not set
+                    </span>
+                </div>
+                <div>
+                    <button class="btn btn-ghost btn-sm" onclick="openOutlineModal()">
+                        <i class="fas fa-edit"></i> Edit Outline
+                    </button>
+                </div>
+            </div>
+
+            <!-- Module tree -->
+            <div>
+                <div class="tree-toolbar">
+                    <h3><i class="fas fa-sitemap"></i> &nbsp;Course Structure</h3>
+                    <button class="btn btn-primary btn-sm" onclick="openAddModuleModal()">
+                        <i class="fas fa-plus"></i> Add Module
+                    </button>
+                </div>
+            </div>
+
+            <div id="module-tree"></div>
+
+        </div>
+    </main>
+</div>
+
+<!-- ── MODALS ─────────────────────────────────────────────── -->
+
+<!-- Add/Edit Module Modal -->
+<div class="modal-overlay" id="module-modal">
+    <div class="modal">
+        <h3 id="module-modal-title"><i class="fas fa-cubes"></i> Add Module</h3>
+        <div class="form-group">
+            <label>Module Title</label>
+            <input type="text" class="form-input" id="module-title-input"
+                   placeholder="e.g. Introduction to Networking">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('module-modal')">Cancel</button>
+            <button class="btn btn-primary" id="module-save-btn" onclick="saveModule()">
+                <i class="fas fa-save"></i> Save Module
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Course Outline Modal -->
+<div class="modal-overlay" id="outline-modal">
+    <div class="modal" style="width:560px">
+        <h3><i class="fas fa-align-left"></i> Course Outline</h3>
+        <div class="form-group">
+            <label>Course Description</label>
+            <textarea class="form-textarea" id="outline-description"
+                      placeholder="Brief overview of this unit/course..."
+                      oninput="updateCharCount(this,'desc-count',500)"></textarea>
+            <div class="char-count"><span id="desc-count">0</span>/500</div>
+        </div>
+        <div class="form-group">
+            <label>Course Outline / Syllabus</label>
+            <textarea class="form-textarea" id="outline-content"
+                      placeholder="Week 1: Introduction&#10;Week 2: Core Concepts&#10;..."
+                      style="min-height:140px"
+                      oninput="updateCharCount(this,'outline-count',2000)"></textarea>
+            <div class="char-count"><span id="outline-count">0</span>/2000</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('outline-modal')">Cancel</button>
+            <button class="btn btn-success" onclick="saveOutline()">
+                <i class="fas fa-save"></i> Save Outline
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast"></div>
+
+<!-- ── JAVASCRIPT ─────────────────────────────────────────── -->
+<script>
+// ─────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────
+let selectedUnitId   = null;
+let selectedUnitName = '';
+let modules          = [];   // [{id, title, position, lessons:[{id,title,lesson_number,position}]}]
+let outline          = null; // {description, outline} or null
+let editingModuleId  = null; // null = add, number = edit
+
+// ─────────────────────────────────────────────────────────────
+// UNIT SELECT
+// ─────────────────────────────────────────────────────────────
+document.getElementById('unit-select').addEventListener('change', function () {
+    selectedUnitId   = this.value || null;
+    selectedUnitName = this.options[this.selectedIndex].text;
+
+    if (!selectedUnitId) {
+        showPlaceholder();
+        return;
+    }
+    loadCourseTree();
+});
+
+function showPlaceholder() {
+    document.getElementById('unit-placeholder').style.display  = 'flex';
+    document.getElementById('course-content').style.display    = 'none';
+    document.getElementById('sidebar-stats').style.display     = 'none';
+    document.getElementById('sidebar-actions').style.display   = 'none';
+}
+
+// ─────────────────────────────────────────────────────────────
+// LOAD COURSE TREE
+// ─────────────────────────────────────────────────────────────
+function loadCourseTree() {
+    fetch(`ajax/get_course_tree.php?unit_id=${selectedUnitId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { toast(data.message || 'Failed to load', 'error'); return; }
+            modules = data.modules || [];
+            outline = data.outline || null;
+
+            document.getElementById('unit-placeholder').style.display = 'none';
+            document.getElementById('course-content').style.display   = 'flex';
+            document.getElementById('course-content').style.flexDirection = 'column';
+            document.getElementById('course-content').style.gap = '24px';
+            document.getElementById('sidebar-stats').style.display    = 'grid';
+            document.getElementById('sidebar-actions').style.display  = 'flex';
+
+            // Header
+            document.getElementById('course-unit-name').textContent = selectedUnitName;
+            renderOutlineHeader();
+
+            renderModuleTree();
+            updateStats();
+        })
+        .catch(() => toast('Network error loading course', 'error'));
+}
+
+function renderOutlineHeader() {
+    const desc   = document.getElementById('course-description');
+    const badge  = document.getElementById('outline-status');
+    if (outline && outline.description) {
+        desc.textContent = outline.description;
+        badge.className  = 'outline-badge outline-set';
+        badge.innerHTML  = '<i class="fas fa-circle-check"></i> Outline set';
+    } else {
+        desc.textContent = 'No description set yet. Click Edit Outline to add one.';
+        badge.className  = 'outline-badge outline-unset';
+        badge.innerHTML  = '<i class="fas fa-circle-xmark"></i> Outline not set';
+    }
+}
+
+function updateStats() {
+    const totalLessons = modules.reduce((s, m) => s + (m.lessons ? m.lessons.length : 0), 0);
+    document.getElementById('stat-modules').textContent = modules.length;
+    document.getElementById('stat-lessons').textContent = totalLessons;
+
+    const btn = document.getElementById('btn-go-lessons');
+    if (selectedUnitId) {
+        btn.href = `lesson_editor.php?unit_id=${selectedUnitId}`;
+        btn.style.display = 'flex';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER MODULE TREE
+// ─────────────────────────────────────────────────────────────
+function renderModuleTree() {
+    const tree = document.getElementById('module-tree');
+    tree.innerHTML = '';
+
+    if (modules.length === 0) {
+        tree.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-layer-group"></i>
+                <h3>No Modules Yet</h3>
+                <p>Click "Add Module" to create your first chapter.</p>
+            </div>`;
+        return;
+    }
+
+    modules.forEach((mod, idx) => {
+        const card = buildModuleCard(mod, idx);
+        tree.appendChild(card);
+    });
+
+    initModuleDrag();
+}
+
+function buildModuleCard(mod, idx) {
+    const card = document.createElement('div');
+    card.className   = 'module-card';
+    card.dataset.id  = mod.id;
+    card.draggable   = true;
+
+    const lessons = mod.lessons || [];
+
+    card.innerHTML = `
+        <div class="module-header" id="mh-${mod.id}">
+            <div class="drag-handle">
+                <span></span><span></span><span></span>
+            </div>
+            <span class="module-number">M${idx + 1}</span>
+            <div class="module-title-wrap">
+                <span class="module-title" id="mt-${mod.id}"
+                      ondblclick="inlineEditModule(${mod.id})"
+                      title="Double-click to rename">
+                    ${escHtml(mod.title)}
+                </span>
+            </div>
+            <div class="module-actions">
+                <button class="btn btn-ghost btn-sm btn-icon"
+                        onclick="openAddLessonInline(${mod.id})"
+                        title="Add Lesson">
+                    <i class="fas fa-plus" style="color:var(--accent2)"></i>
+                </button>
+                <button class="btn btn-ghost btn-sm btn-icon"
+                        onclick="toggleModule(${mod.id})"
+                        id="toggle-${mod.id}"
+                        title="Collapse/Expand">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <button class="btn btn-ghost btn-sm btn-icon"
+                        onclick="confirmDeleteModule(${mod.id}, '${escAttr(mod.title)}')"
+                        title="Delete Module">
+                    <i class="fas fa-trash" style="color:var(--danger)"></i>
+                </button>
+            </div>
+        </div>
+        <div class="lessons-container" id="lc-${mod.id}">
+            <div class="lessons-list" id="ll-${mod.id}" data-module-id="${mod.id}">
+                ${lessons.map(l => buildLessonRowHTML(l, mod.id)).join('')}
+            </div>
+            <div class="add-lesson-row" onclick="openAddLessonInline(${mod.id})">
+                <i class="fas fa-plus-circle"></i>
+                <span>Add Lesson</span>
+            </div>
+        </div>
+    `;
+
+    return card;
+}
+
+function buildLessonRowHTML(lesson, moduleId) {
+    return `
+        <div class="lesson-row" draggable="true" data-id="${lesson.id}" data-module="${moduleId}">
+            <i class="fas fa-grip-vertical lesson-drag" style="color:var(--text-dim);font-size:0.75rem"></i>
+            <span class="lesson-num">L${lesson.lesson_number}</span>
+            <span class="lesson-title"
+                  ondblclick="inlineEditLesson(${lesson.id}, ${moduleId})"
+                  id="lt-${lesson.id}"
+                  title="Double-click to rename">
+                ${escHtml(lesson.title)}
+            </span>
+            <div class="lesson-actions">
+                <a href="lesson_editor.php?lesson_id=${lesson.id}&unit_id=${selectedUnitId}"
+                   class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
+                    <i class="fas fa-pen" style="color:var(--accent)"></i>
+                </a>
+                <button class="btn btn-ghost btn-sm btn-icon"
+                        onclick="confirmDeleteLesson(${lesson.id}, '${escAttr(lesson.title)}', ${moduleId})"
+                        title="Delete">
+                    <i class="fas fa-trash" style="color:var(--danger)"></i>
+                </button>
+            </div>
+        </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// TOGGLE MODULE COLLAPSE
+// ─────────────────────────────────────────────────────────────
+function toggleModule(moduleId) {
+    const lc  = document.getElementById(`lc-${moduleId}`);
+    const btn = document.getElementById(`toggle-${moduleId}`);
+    const icon = btn.querySelector('i');
+    if (lc.style.display === 'none') {
+        lc.style.display = '';
+        icon.className   = 'fas fa-chevron-down';
+    } else {
+        lc.style.display = 'none';
+        icon.className   = 'fas fa-chevron-right';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// INLINE EDIT MODULE TITLE
+// ─────────────────────────────────────────────────────────────
+function inlineEditModule(moduleId) {
+    const titleEl = document.getElementById(`mt-${moduleId}`);
+    const current = titleEl.textContent.trim();
+    const mod     = modules.find(m => m.id === moduleId);
+
+    titleEl.style.display = 'none';
+    const input = document.createElement('input');
+    input.type      = 'text';
+    input.className = 'module-title-input';
+    input.value     = current;
+    titleEl.parentNode.insertBefore(input, titleEl.nextSibling);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+        const newTitle = input.value.trim();
+        input.remove();
+        titleEl.style.display = '';
+        if (!newTitle || newTitle === current) return;
+        titleEl.textContent = newTitle;
+        mod.title = newTitle;
+        ajaxSaveModule(moduleId, newTitle);
+    };
+    input.addEventListener('blur',   commit);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  commit();
+        if (e.key === 'Escape') { input.remove(); titleEl.style.display = ''; }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
+// INLINE EDIT LESSON TITLE
+// ─────────────────────────────────────────────────────────────
+function inlineEditLesson(lessonId, moduleId) {
+    const titleEl = document.getElementById(`lt-${lessonId}`);
+    const current = titleEl.textContent.trim();
+    const mod     = modules.find(m => m.id === moduleId);
+    const lesson  = mod.lessons.find(l => l.id === lessonId);
+
+    titleEl.style.display = 'none';
+    const input = document.createElement('input');
+    input.type      = 'text';
+    input.className = 'lesson-title-input';
+    input.value     = current;
+    titleEl.parentNode.insertBefore(input, titleEl.nextSibling);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+        const newTitle = input.value.trim();
+        input.remove();
+        titleEl.style.display = '';
+        if (!newTitle || newTitle === current) return;
+        titleEl.textContent = newTitle;
+        lesson.title = newTitle;
+        ajaxSaveLesson(lessonId, moduleId, newTitle);
+    };
+    input.addEventListener('blur',   commit);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  commit();
+        if (e.key === 'Escape') { input.remove(); titleEl.style.display = ''; }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
+// ADD LESSON INLINE (quick add at bottom of module)
+// ─────────────────────────────────────────────────────────────
+function openAddLessonInline(moduleId) {
+    const list = document.getElementById(`ll-${moduleId}`);
+
+    // Prevent duplicate inputs
+    if (list.querySelector('.new-lesson-input-row')) return;
+
+    const row = document.createElement('div');
+    row.className = 'lesson-row new-lesson-input-row';
+    row.style.borderColor = 'var(--accent2)';
+    row.innerHTML = `
+        <i class="fas fa-plus-circle" style="color:var(--accent2)"></i>
+        <input type="text" class="lesson-title-input" placeholder="Lesson title..." style="flex:1">
+        <button class="btn btn-success btn-sm" id="new-lesson-save-btn">Add</button>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.new-lesson-input-row').remove()">✕</button>
+    `;
+    list.appendChild(row);
+
+    const input   = row.querySelector('input');
+    const saveBtn = row.querySelector('#new-lesson-save-btn');
+    input.focus();
+
+    const submit = () => {
+        const title = input.value.trim();
+        if (!title) { input.focus(); return; }
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner"></span>';
+        ajaxAddLesson(moduleId, title, row);
+    };
+
+    saveBtn.addEventListener('click', submit);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  submit();
+        if (e.key === 'Escape') row.remove();
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODULE MODAL (for add via sidebar button)
+// ─────────────────────────────────────────────────────────────
+function openAddModuleModal() {
+    editingModuleId = null;
+    document.getElementById('module-modal-title').innerHTML = '<i class="fas fa-cubes"></i> Add Module';
+    document.getElementById('module-title-input').value = '';
+    openModal('module-modal');
+    setTimeout(() => document.getElementById('module-title-input').focus(), 150);
+}
+
+function saveModule() {
+    const title = document.getElementById('module-title-input').value.trim();
+    if (!title) { toast('Module title is required', 'error'); return; }
+
+    const btn = document.getElementById('module-save-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving...';
+
+    const body = new FormData();
+    body.append('unit_id',     selectedUnitId);
+    body.append('lecturer_id', '<?= $lecturer_id ?>');
+    body.append('title',       title);
+    if (editingModuleId) body.append('module_id', editingModuleId);
+
+    fetch('ajax/save_module.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                toast(data.message, 'success');
+                closeModal('module-modal');
+                loadCourseTree();
+            } else {
+                toast(data.message, 'error');
+            }
+        })
+        .catch(() => toast('Network error', 'error'))
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Save Module';
+        });
+}
+
+function ajaxSaveModule(moduleId, title) {
+    const body = new FormData();
+    body.append('module_id',   moduleId);
+    body.append('unit_id',     selectedUnitId);
+    body.append('lecturer_id', '<?= $lecturer_id ?>');
+    body.append('title',       title);
+    fetch('ajax/save_module.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(d => toast(d.success ? 'Module renamed' : d.message, d.success ? 'success' : 'error'))
+        .catch(() => toast('Rename failed', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// DELETE MODULE
+// ─────────────────────────────────────────────────────────────
+function confirmDeleteModule(moduleId, title) {
+    if (!confirm(`Delete module "${title}" and all its lessons?\n\nThis cannot be undone.`)) return;
+    const body = new FormData();
+    body.append('module_id', moduleId);
+    body.append('unit_id',   selectedUnitId);
+    fetch('ajax/delete_module.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) { toast('Module deleted', 'success'); loadCourseTree(); }
+            else toast(d.message, 'error');
+        })
+        .catch(() => toast('Delete failed', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// ADD LESSON (AJAX)
+// ─────────────────────────────────────────────────────────────
+function ajaxAddLesson(moduleId, title, rowEl) {
+    const body = new FormData();
+    body.append('module_id',   moduleId);
+    body.append('unit_id',     selectedUnitId);
+    body.append('title',       title);
+    fetch('ajax/save_lesson.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                toast('Lesson added', 'success');
+                rowEl.remove();
+                loadCourseTree();
+            } else {
+                toast(d.message, 'error');
+                rowEl.querySelector('button').disabled = false;
+                rowEl.querySelector('button').textContent = 'Add';
+            }
+        })
+        .catch(() => toast('Network error', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// SAVE LESSON TITLE (inline edit)
+// ─────────────────────────────────────────────────────────────
+function ajaxSaveLesson(lessonId, moduleId, title) {
+    const body = new FormData();
+    body.append('lesson_id', lessonId);
+    body.append('module_id', moduleId);
+    body.append('unit_id',   selectedUnitId);
+    body.append('title',     title);
+    fetch('ajax/save_lesson.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(d => toast(d.success ? 'Lesson renamed' : d.message, d.success ? 'success' : 'error'))
+        .catch(() => toast('Rename failed', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// DELETE LESSON
+// ─────────────────────────────────────────────────────────────
+function confirmDeleteLesson(lessonId, title, moduleId) {
+    if (!confirm(`Delete lesson "${title}"?\n\nAll content blocks will be removed.`)) return;
+    const body = new FormData();
+    body.append('lesson_id', lessonId);
+    body.append('unit_id',   selectedUnitId);
+    fetch('ajax/delete_lesson.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) { toast('Lesson deleted', 'success'); loadCourseTree(); }
+            else toast(d.message, 'error');
+        })
+        .catch(() => toast('Delete failed', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// COURSE OUTLINE
+// ─────────────────────────────────────────────────────────────
+function openOutlineModal() {
+    document.getElementById('outline-description').value = outline ? (outline.description || '') : '';
+    document.getElementById('outline-content').value     = outline ? (outline.outline     || '') : '';
+    updateCharCount(document.getElementById('outline-description'), 'desc-count',    500);
+    updateCharCount(document.getElementById('outline-content'),     'outline-count', 2000);
+    openModal('outline-modal');
+}
+
+function saveOutline() {
+    const desc    = document.getElementById('outline-description').value.trim();
+    const content = document.getElementById('outline-content').value.trim();
+    const body    = new FormData();
+    body.append('unit_id',     selectedUnitId);
+    body.append('lecturer_id', '<?= $lecturer_id ?>');
+    body.append('description', desc);
+    body.append('outline',     content);
+    fetch('ajax/save_course_outline.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                outline = { description: desc, outline: content };
+                renderOutlineHeader();
+                toast('Outline saved', 'success');
+                closeModal('outline-modal');
+            } else toast(d.message, 'error');
+        })
+        .catch(() => toast('Network error', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// DRAG & DROP — MODULES
+// ─────────────────────────────────────────────────────────────
+let dragSrcModule = null;
+
+function initModuleDrag() {
+    const cards = document.querySelectorAll('.module-card');
+    cards.forEach(card => {
+        card.addEventListener('dragstart', e => {
+            dragSrcModule = card;
+            card.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+            document.querySelectorAll('.module-card').forEach(c => c.classList.remove('drag-over'));
+            dragSrcModule = null;
+        });
+        card.addEventListener('dragover', e => {
+            e.preventDefault();
+            if (card !== dragSrcModule) card.classList.add('drag-over');
+        });
+        card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+        card.addEventListener('drop', e => {
+            e.preventDefault();
+            card.classList.remove('drag-over');
+            if (!dragSrcModule || dragSrcModule === card) return;
+            const tree = document.getElementById('module-tree');
+            const cards = [...tree.querySelectorAll('.module-card')];
+            const srcIdx  = cards.indexOf(dragSrcModule);
+            const destIdx = cards.indexOf(card);
+            if (srcIdx < destIdx) tree.insertBefore(dragSrcModule, card.nextSibling);
+            else                  tree.insertBefore(dragSrcModule, card);
+            saveModuleOrder();
+        });
+    });
+
+    // Lesson drag within each module
+    document.querySelectorAll('.lessons-list').forEach(list => initLessonDrag(list));
+}
+
+function saveModuleOrder() {
+    const ids = [...document.querySelectorAll('#module-tree .module-card')]
+                    .map(c => parseInt(c.dataset.id));
+    const body = new FormData();
+    body.append('unit_id', selectedUnitId);
+    body.append('order',   JSON.stringify(ids));
+    fetch('ajax/reorder_modules.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(d => { if (d.success) loadCourseTree(); })
+        .catch(() => toast('Reorder failed', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// DRAG & DROP — LESSONS
+// ─────────────────────────────────────────────────────────────
+let dragSrcLesson = null;
+
+function initLessonDrag(list) {
+    list.querySelectorAll('.lesson-row').forEach(row => {
+        row.addEventListener('dragstart', e => {
+            dragSrcLesson = row;
+            row.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.stopPropagation();
+        });
+        row.addEventListener('dragend', () => {
+            row.classList.remove('dragging');
+            list.querySelectorAll('.lesson-row').forEach(r => r.classList.remove('drag-over'));
+            dragSrcLesson = null;
+        });
+        row.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (row !== dragSrcLesson) row.classList.add('drag-over');
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+        row.addEventListener('drop', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            row.classList.remove('drag-over');
+            if (!dragSrcLesson || dragSrcLesson === row) return;
+            const rows    = [...list.querySelectorAll('.lesson-row')];
+            const srcIdx  = rows.indexOf(dragSrcLesson);
+            const destIdx = rows.indexOf(row);
+            if (srcIdx < destIdx) list.insertBefore(dragSrcLesson, row.nextSibling);
+            else                  list.insertBefore(dragSrcLesson, row);
+            saveLessonOrder(list.dataset.moduleId);
+        });
+    });
+}
+
+function saveLessonOrder(moduleId) {
+    const list = document.getElementById(`ll-${moduleId}`);
+    const ids  = [...list.querySelectorAll('.lesson-row')]
+                    .map(r => parseInt(r.dataset.id))
+                    .filter(id => !isNaN(id));
+    const body = new FormData();
+    body.append('module_id', moduleId);
+    body.append('unit_id',   selectedUnitId);
+    body.append('order',     JSON.stringify(ids));
+    fetch('ajax/reorder_lessons.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(() => {})
+        .catch(() => toast('Lesson reorder failed', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODAL HELPERS
+// ─────────────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+        if (e.target === overlay) overlay.classList.remove('open');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────
+// CHAR COUNT
+// ─────────────────────────────────────────────────────────────
+function updateCharCount(el, countId, max) {
+    const len = el.value.length;
+    document.getElementById(countId).textContent = len;
+    document.getElementById(countId).style.color = len > max * 0.9 ? 'var(--danger)' : '';
+}
+
+// ─────────────────────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+    const container = document.getElementById('toast');
+    const el = document.createElement('div');
+    el.className = `toast-item ${type}`;
+    const icons = { success: 'fa-circle-check', error: 'fa-circle-xmark', info: 'fa-circle-info' };
+    el.innerHTML = `<i class="fas ${icons[type] || 'fa-circle-info'}"></i> ${escHtml(msg)}`;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 2800);
+}
+
+// ─────────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────────
+function escHtml(s) {
+    return String(s||'')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+    return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

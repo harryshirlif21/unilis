@@ -123,14 +123,13 @@ $unread_count = $unread_stmt->get_result()->fetch_assoc()['unread_count'];
               style="position:absolute; top:0; right:0; width:12px; height:12px; background:red; border-radius:50%; display:block;">
         </span>
     </div>
-<div class="nav-icon" id="profile-icon">
+    <div class="nav-icon" id="profile-icon">
         <i class="fas fa-user"></i>
     </div>
     <!-- Mobile Sidebar Toggle -->
-<div class="sidebar-toggle">
-    <i class="fas fa-ellipsis-v"></i>
-</div>
-    
+    <div class="sidebar-toggle">
+        <i class="fas fa-ellipsis-v"></i>
+    </div>
 </nav>
 
 <!-- Sidebar -->
@@ -138,20 +137,49 @@ $unread_count = $unread_stmt->get_result()->fetch_assoc()['unread_count'];
     <!-- Main Navigation -->
     <div class="sidebar-section">
         <h4>Main Navigation</h4>
-       <ul>
-    <li class="blue"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></li>
-    <li class="green"><i class="fas fa-chalkboard-teacher"></i><span>Training</span></li>
-    <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
-    <li class="golden"><i class="fas fa-book"></i><span>Lessons</span></li>
-    <li class="purple"><i class="fas fa-check-double"></i><span>Attendance</span></li>
-    <li class="brown"><i class="fas fa-chart-line"></i><span>My Progress</span></li>
-    <li class="teal">
-        <a href="../teams/views/create_team.php">
-            <i class="fas fa-users"></i><span>Create Team</span>
-        </a>
-    </li>
-</ul>
+        <ul>
+            <li class="blue">
+                <a href="dashboard.php">
+                    <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+                </a>
+            </li>
+            <li class="green">
+                <a href="course_view.php">
+                    <i class="fas fa-chalkboard-teacher"></i><span>Training</span>
+                </a>
+            </li>
+            <li class="orange">
+                <a href="take_assessment.php">
+                    <i class="fas fa-file-alt"></i><span>Exams</span>
+                </a>
+            </li>
+            <li class="golden">
+                <a href="lesson_view.php">
+                    <i class="fas fa-book"></i><span>Lessons</span>
+                </a>
+            </li>
+            <!-- Attendance: no <a> tag — JS click handler opens the modal -->
+            <li class="purple">
+                <i class="fas fa-check-double"></i><span>Attendance</span>
+            </li>
+            <li class="brown">
+                <a href="my_progress.php">
+                    <i class="fas fa-chart-line"></i><span>My Progress</span>
+                </a>
+            </li>
+            <li class="teal">
+                <a href="../teams/views/create_team.php">
+                    <i class="fas fa-users"></i><span>Create Team</span>
+                </a>
+            </li>
+            <li style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;margin-top:4px">
+                <a href="my_units.php" style="color:#fff !important">
+                    <i class="fas fa-book-open"></i><span>My Units</span>
+                </a>
+            </li>
+        </ul>
     </div>
+
     <!-- Account Section -->
     <div class="sidebar-section">
         <h4>Account</h4>
@@ -159,21 +187,18 @@ $unread_count = $unread_stmt->get_result()->fetch_assoc()['unread_count'];
             <li class="blue"><i class="fas fa-user-circle"></i><span>Profile</span></li>
             <li class="green"><i class="fas fa-cog"></i><span>Settings</span></li>
             <li class="orange" onclick="logout()">
-  <i class="fas fa-sign-out-alt"></i>
-  <span>Logout</span>
-</li>
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </li>
+        </ul>
+    </div>
+</aside>
 
 <script>
 function logout() {
     window.location.href = "../logout.php";
 }
 </script>
-
-        </ul>
-    </div>
-
-</aside>
-
 
 <!-- Profile popup -->
 <div class="popup" id="profile-popup">
@@ -259,7 +284,7 @@ function logout() {
         </table>
     </div>
 </div>
-<!-- Hero Div below navbar -->
+
 <!-- Hero Div below navbar -->
 <div class="hero-section">
     <div class="hero-content">
@@ -267,10 +292,9 @@ function logout() {
         <h2>Explore New Features</h2>
         <button class="explore-btn">Explore</button>
     </div>
-
-    <!-- Avatar Image on the right -->
     <img src="images/lady.jpg" alt="Medical Lady Avatar" class="hero-avatar">
 </div>
+
 <div class="features-section">
 
   <!-- 1. Notes -->
@@ -292,8 +316,8 @@ function logout() {
     <p class="motivation">Keep going! You're doing great 📚</p>
     <div class="feature-buttons">
       <a href="viewnotes.php">
-  <button class="interactive-btn">Visit notes page</button>
-</a>
+        <button class="interactive-btn">Visit notes page</button>
+      </a>
     </div>
   </div>
 
@@ -315,9 +339,9 @@ function logout() {
     <p class="status">Deadline approaching ⚠️</p>
     <p class="motivation">Almost there — stay focused!</p>
     <div class="feature-buttons">
-        <a href="take_assignment.php">
-      <button class="interactive-btn">View Assignments</button>
-                </a>
+      <a href="take_assignment.php">
+        <button class="interactive-btn">View Assignments</button>
+      </a>
     </div>
   </div>
 
@@ -334,8 +358,9 @@ function logout() {
     </div>
     <p class="motivation">Stay connected with your class 💻</p>
     <div class="feature-buttons">
-         <a href="meeting_ide.php">
-      <button class="interactive-btn">Join Meeting</button></a>
+      <a href="meeting_ide.php">
+        <button class="interactive-btn">Join Meeting</button>
+      </a>
     </div>
   </div>
 
@@ -354,7 +379,9 @@ function logout() {
     </div>
     <p class="motivation">Stay sharp! Exams ready 🧠</p>
     <div class="feature-buttons">
-      <button class="interactive-btn">Take CAT</button>
+      <a href="take_assessment.php">
+        <button class="interactive-btn">Take CAT</button>
+      </a>
     </div>
   </div>
 
@@ -370,7 +397,9 @@ function logout() {
     </div>
     <p class="motivation">Track your academic journey 🎓</p>
     <div class="feature-buttons">
-      <button class="interactive-btn">View Details</button>
+      <a href="my_progress.php">
+        <button class="interactive-btn">View Details</button>
+      </a>
     </div>
   </div>
 
@@ -387,6 +416,7 @@ function logout() {
   </div>
 
 </div>
+
 <footer class="footer">
   <div class="footer-container">
 
@@ -416,20 +446,11 @@ function logout() {
       <h3>Get in Touch</h3>
       <p><strong>WhatsApp:</strong> <a href="https://wa.me/254792451666">+254 792 451 666</a></p>
       <p><strong>Email:</strong> <a href="mailto:hello@yourcompany.com">hello@yourcompany.com</a></p>
-
       <div class="social-links">
-        <a href="https://wa.me/254792451666" class="social whatsapp" target="_blank" aria-label="WhatsApp">
-          <span>WhatsApp</span>
-        </a>
-        <a href="https://facebook.com/yourpage" class="social facebook" target="_blank" aria-label="Facebook">
-          <span>Facebook</span>
-        </a>
-        <a href="https://instagram.com/yourhandle" class="social instagram" target="_blank" aria-label="Instagram">
-          <span>Instagram</span>
-        </a>
-        <a href="https://x.com/yourhandle" class="social twitter" target="_blank" aria-label="X / Twitter">
-          <span>X</span>
-        </a>
+        <a href="https://wa.me/254792451666" class="social whatsapp" target="_blank" aria-label="WhatsApp"><span>WhatsApp</span></a>
+        <a href="https://facebook.com/yourpage" class="social facebook" target="_blank" aria-label="Facebook"><span>Facebook</span></a>
+        <a href="https://instagram.com/yourhandle" class="social instagram" target="_blank" aria-label="Instagram"><span>Instagram</span></a>
+        <a href="https://x.com/yourhandle" class="social twitter" target="_blank" aria-label="X / Twitter"><span>X</span></a>
       </div>
     </div>
 
@@ -444,73 +465,79 @@ function logout() {
     </div>
 
   </div>
-<!-- Student Attendance Modal -->
-<div id="studentAttendanceModal" class="modal hidden">
-    <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl max-w-md mx-auto" 
-         style="max-height: 90vh; overflow-y: auto;">
-        
-        <!-- Close button -->
-        <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10"
-              onclick="hideModal('studentAttendanceModal')">×</span>
 
-        <!-- Title -->
-        <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">
-            Enter Attendance Code
-        </h3>
+  <!-- Student Attendance Modal -->
+  <div id="studentAttendanceModal" class="modal hidden">
+      <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl max-w-md mx-auto" 
+           style="max-height: 90vh; overflow-y: auto;">
+          
+          <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10"
+                onclick="hideModal('studentAttendanceModal')">×</span>
 
-        <!-- Form -->
-        <form id="studentAttendanceForm" class="px-8 pb-10" method="POST" action="attendance_submit.php">
-            
-            <!-- Unit Selection -->
-            <div class="mb-6">
-                <label class="block text-sm font-medium stat-text-primary mb-3">
-                    Unit <span class="text-red-500">*</span>
-                </label>
-                <select name="unit_id" id="studentUnitId" required
-                        class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg 
-                               focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
-                    <option value="">-- Choose Unit --</option>
-                    <?php
-                    $student_id = $_SESSION['user_id'] ?? 0;
-                    if ($student_id > 0) {
-                        $stmt = $conn->prepare("
-                            SELECT u.id, u.name
-                            FROM units u
-                            JOIN student_units su ON u.id = su.unit_id
-                            WHERE su.student_id = ?
-                            ORDER BY u.name
-                        ");
-                        $stmt->bind_param("i", $student_id);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                        while ($unit = $result->fetch_assoc()) {
-                            echo "<option value='{$unit['id']}'>" . htmlspecialchars($unit['name']) . "</option>";
-                        }
-                        $stmt->close();
-                    }
-                    ?>
-                </select>
-            </div>
+          <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">
+              Enter Attendance Code
+          </h3>
 
-            <!-- Attendance Code -->
-            <div class="mb-6">
-                <label class="block text-sm font-medium stat-text-primary mb-3">
-                    Attendance Code <span class="text-red-500">*</span>
-                </label>
-                <input type="text" name="attendance_code" required maxlength="8" placeholder="e.g. ABCD1234"
-                       class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-xl text-center 
-                              tracking-widest focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition uppercase">
-            </div>
+          <form id="studentAttendanceForm" class="px-8 pb-10" method="POST" action="attendance_submit.php">
+              
+              <div class="mb-6">
+                  <label class="block text-sm font-medium stat-text-primary mb-3">
+                      Unit <span class="text-red-500">*</span>
+                  </label>
+                  <select name="unit_id" id="studentUnitId" required
+                          class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg 
+                                 focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
+                      <option value="">-- Choose Unit --</option>
+                      <?php
+                      $att_student_id = intval($_SESSION['user_id'] ?? 0);
+                      $att_sem        = intval($_SESSION['semester'] ?? 1);
+                      $att_acad_year  = $_SESSION['academic_year']  ?? (date('Y') . '/' . (date('Y') + 1));
+                      if ($att_student_id > 0) {
+                          $stmt = $conn->prepare("
+                              SELECT u.id, u.name
+                              FROM units u
+                              JOIN student_unit_enrollments sue ON sue.unit_id = u.id
+                              WHERE sue.student_id    = ?
+                                AND sue.semester      = ?
+                                AND sue.academic_year = ?
+                              ORDER BY u.name ASC
+                          ");
+                          $stmt->bind_param("iis", $att_student_id, $att_sem, $att_acad_year);
+                          $stmt->execute();
+                          $result    = $stmt->get_result();
+                          $att_units = [];
+                          while ($unit = $result->fetch_assoc()) $att_units[] = $unit;
+                          $stmt->close();
+                          if (empty($att_units)) {
+                              echo '<option value="" disabled>No units enrolled — <a href="my_units.php">set up My Units</a></option>';
+                          } else {
+                              foreach ($att_units as $unit) {
+                                  echo "<option value='{$unit['id']}'>" . htmlspecialchars($unit['name']) . "</option>";
+                              }
+                          }
+                      }
+                      ?>
+                  </select>
+              </div>
 
-            <!-- Submit -->
-            <div class="text-center mt-8">
-                <button type="submit" class="btn-golden px-12 py-4 text-lg font-semibold rounded-xl shadow-lg">
-                    Submit Attendance
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+              <div class="mb-6">
+                  <label class="block text-sm font-medium stat-text-primary mb-3">
+                      Attendance Code <span class="text-red-500">*</span>
+                  </label>
+                  <input type="text" name="attendance_code" required maxlength="8" placeholder="e.g. ABCD1234"
+                         class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-xl text-center 
+                                tracking-widest focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition uppercase">
+              </div>
+
+              <div class="text-center mt-8">
+                  <button type="submit" class="btn-golden px-12 py-4 text-lg font-semibold rounded-xl shadow-lg">
+                      Submit Attendance
+                  </button>
+              </div>
+          </form>
+      </div>
+  </div>
+
   <!-- Bottom Bar -->
   <div class="footer-bottom">
     <p>&copy; 2026 Your Company Name. All rights reserved.</p>
@@ -524,72 +551,62 @@ function logout() {
 
 
 <script>
-const profileIcon = document.getElementById('profile-icon');
-const profilePopup = document.getElementById('profile-popup');
-const notificationsIcon = document.getElementById('notifications-icon');
+const profileIcon        = document.getElementById('profile-icon');
+const profilePopup       = document.getElementById('profile-popup');
+const notificationsIcon  = document.getElementById('notifications-icon');
 const notificationsContent = document.getElementById('notifications-content');
-const viewAllBtn = document.getElementById('viewAllBtn');
-const modal = document.getElementById('allNotificationsModal');
-const closeModal = modal.querySelector('.close');
-const notificationCount = document.getElementById('notificationCount');
+const viewAllBtn         = document.getElementById('viewAllBtn');
+const modal              = document.getElementById('allNotificationsModal');
+const closeModal         = modal.querySelector('.close');
+const notificationCount  = document.getElementById('notificationCount');
 
 // Track read notifications
-let readNotifications = new Set(); // stores data-id of read notifications
+let readNotifications = new Set();
 const notificationItems = notificationsContent.querySelectorAll('.notification-item');
 
-// Function to update red circle visibility
 function updateNotificationIndicator() {
     let unreadExists = false;
     notificationItems.forEach(item => {
-        const id = item.dataset.id;
-        if (!readNotifications.has(id)) {
-            unreadExists = true;
-        }
+        if (!readNotifications.has(item.dataset.id)) unreadExists = true;
     });
     notificationCount.style.display = unreadExists ? 'block' : 'none';
 }
-// Show modal function
+
 function showModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if(modal){
-        modal.classList.remove('hidden');   // remove hidden class
-        modal.style.display = 'block';      // optional, ensures it's visible
-    }
+    const m = document.getElementById(modalId);
+    if (m) { m.classList.remove('hidden'); m.style.display = 'block'; }
 }
 
-// Hide modal function
 function hideModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if(modal){
-        modal.classList.add('hidden');      // add hidden class
-        modal.style.display = 'none';
-    }
+    const m = document.getElementById(modalId);
+    if (m) { m.classList.add('hidden'); m.style.display = 'none'; }
 }
 
-// Attach click events to sidebar items
-document.querySelectorAll('.sidebar-section li').forEach(item => {
-    item.addEventListener('click', () => {
-        const text = item.querySelector('span')?.textContent.trim();
-        if(text === 'Attendance'){
-            showModal('studentAttendanceModal');
+function logout() {
+    window.location.href = "../logout.php";
+}
 
-            // Optional: manage active class
+// Sidebar click handler — only fires for items WITHOUT an <a> tag inside
+// (i.e. Attendance). Items with <a> tags navigate naturally.
+document.querySelectorAll('.sidebar-section li').forEach(item => {
+    item.addEventListener('click', (e) => {
+        // If the click originated from an <a> tag, let normal navigation happen
+        if (e.target.closest('a')) return;
+
+        const text = item.querySelector('span')?.textContent.trim();
+        if (text === 'Attendance') {
+            showModal('studentAttendanceModal');
             document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
             item.classList.add('active');
         }
     });
-});// Initialize: bold unread notifications
-notificationItems.forEach(item => {
-    const id = item.dataset.id;
-    if (!readNotifications.has(id)) {
-        item.style.fontWeight = 'bold';
-    } else {
-        item.style.fontWeight = 'normal';
-    }
+});
 
-    // Click on individual notification
+// Initialize: bold unread notifications
+notificationItems.forEach(item => {
+    item.style.fontWeight = readNotifications.has(item.dataset.id) ? 'normal' : 'bold';
     item.addEventListener('click', () => {
-        readNotifications.add(id);
+        readNotifications.add(item.dataset.id);
         item.style.fontWeight = 'normal';
         updateNotificationIndicator();
     });
@@ -611,65 +628,36 @@ notificationsIcon.addEventListener('click', () => {
 viewAllBtn.addEventListener('click', () => {
     modal.style.display = 'block';
     notificationsContent.style.display = 'none';
-
-    // Mark all notifications as read
     notificationItems.forEach(item => {
-        const id = item.dataset.id;
-        readNotifications.add(id);
+        readNotifications.add(item.dataset.id);
         item.style.fontWeight = 'normal';
     });
-
     updateNotificationIndicator();
 });
 
 // Close modal
-closeModal.addEventListener('click', () => {
-    modal.style.display = 'none';
-});
+closeModal.addEventListener('click', () => { modal.style.display = 'none'; });
 
-// Close popups & modal if clicking outside
+// Close popups & modal on outside click
 document.addEventListener('click', e => {
-    if (profilePopup && !profilePopup.contains(e.target) && !profileIcon.contains(e.target)) {
+    if (profilePopup && !profilePopup.contains(e.target) && !profileIcon.contains(e.target))
         profilePopup.style.display = 'none';
-    }
-    if (notificationsContent && !notificationsContent.contains(e.target) && !notificationsIcon.contains(e.target)) {
+    if (notificationsContent && !notificationsContent.contains(e.target) && !notificationsIcon.contains(e.target))
         notificationsContent.style.display = 'none';
-    }
-    if (modal && e.target === modal) {
+    if (modal && e.target === modal)
         modal.style.display = 'none';
-    }
 });
 
-// Sidebar toggle (if you have one)
-const sidebar = document.querySelector('.sidebar');
+// Sidebar mobile toggle
+const sidebar      = document.querySelector('.sidebar');
 const sidebarToggle = document.querySelector('.sidebar-toggle');
-
-sidebarToggle?.addEventListener('click', () => {
-    sidebar.classList.toggle('show');
-});
-
-// Optional: close sidebar if clicking outside
+sidebarToggle?.addEventListener('click', () => sidebar.classList.toggle('show'));
 document.addEventListener('click', (e) => {
-    if (sidebar && !sidebar.contains(e.target) && !sidebarToggle?.contains(e.target)) {
+    if (sidebar && !sidebar.contains(e.target) && !sidebarToggle?.contains(e.target))
         sidebar.classList.remove('show');
-    }
 });
 
-// Initial call to set red circle visibility
 updateNotificationIndicator();
-// Open student attendance modal when clicking sidebar item
-document.querySelectorAll('.sidebar-section li').forEach(item => {
-    item.addEventListener('click', () => {
-        const text = item.querySelector('span')?.textContent.trim();
-        if (text === 'Attendance') {
-            showModal('studentAttendanceModal');
-            // Optional: remove active class from other items if needed
-            document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
-            item.classList.add('active');
-        }
-    });
-});
-
 </script>
 
 </body>

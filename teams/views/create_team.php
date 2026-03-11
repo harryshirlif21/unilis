@@ -1,18 +1,15 @@
 <?php
 session_start();
 
-// Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: /login.php');
     exit;
 }
 
-// CSRF token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,356 +17,648 @@ if (empty($_SESSION['csrf_token'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create & Manage Teams – UniLIS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-orange: #f97316;
-            --primary-orange-dark: #ea580c;
-            --create-green: #16a34a;
-            --create-green-dark: #15803d;
-            --golden: #fbbf24;
-            --golden-dark: #f59e0b;
-            --gray: #6b7280;
-            --light: #f3f4f6;
-            --white: #ffffff;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --orange:       #f97316;
+            --orange-dark:  #ea580c;
+            --green:        #16a34a;
+            --amber:        #f59e0b;
+            --amber-light:  #fef3c7;
+            --gray-50:      #f9fafb;
+            --gray-100:     #f3f4f6;
+            --gray-200:     #e5e7eb;
+            --gray-400:     #9ca3af;
+            --gray-600:     #4b5563;
+            --gray-900:     #111827;
+            --white:        #ffffff;
+            --shadow-sm:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+            --shadow-md:    0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+            --shadow-lg:    0 10px 30px rgba(0,0,0,.1);
+            --radius:       14px;
         }
+
+        *, *::before, *::after { box-sizing: border-box; }
 
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: var(--light);
+            font-family: 'DM Sans', sans-serif;
+            background: var(--gray-100);
             margin: 0;
-            padding: 0;
-            color: #111827;
+            color: var(--gray-900);
+            min-height: 100vh;
         }
 
-        .container {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 1.5rem;
-        }
-
+        /* ── Header ── */
         header {
             background: var(--white);
-            padding: 1rem 0;
-            border-bottom: 1px solid #e5e7eb;
-            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--gray-200);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
-        .header-content {
+        .header-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+            height: 64px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
         }
 
-        h1 {
-            margin: 0;
-            color: var(--primary-orange);
-            font-size: 1.8rem;
+        .logo {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 1.4rem;
+            color: var(--orange);
+            letter-spacing: -.5px;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
         }
 
-        .user-info {
-            font-size: 0.95rem;
-            color: var(--gray);
+        .logo i { font-size: 1.1rem; }
+
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            font-size: .875rem;
+            color: var(--gray-600);
         }
 
-        .user-info a {
-            color: var(--primary-orange);
+        .user-pill .avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--orange), var(--amber));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: .8rem;
+        }
+
+        .logout-btn {
+            color: var(--gray-600);
             text-decoration: none;
-            font-weight: 500;
+            padding: .35rem .75rem;
+            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+            font-size: .8rem;
+            transition: all .15s;
         }
 
-        .user-info a:hover {
-            text-decoration: underline;
+        .logout-btn:hover {
+            background: var(--gray-100);
+            color: var(--gray-900);
         }
 
+        /* ── Layout ── */
+        .page {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 1.75rem;
+            align-items: start;
+        }
+
+        /* ── Card ── */
         .card {
             background: var(--white);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            padding: 1.5rem;
-            margin-bottom: 2rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
         }
 
-        .create-form {
+        .card-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            gap: .75rem;
+        }
+
+        .card-header .icon-wrap {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .95rem;
+            flex-shrink: 0;
+        }
+
+        .icon-green  { background: #dcfce7; color: var(--green); }
+        .icon-orange { background: #fff7ed; color: var(--orange); }
+
+        .card-header h2 {
+            margin: 0;
+            font-family: 'Syne', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+
+        .card-body { padding: 1.5rem; }
+
+        /* ── Alert ── */
+        #message {
+            display: none;
+            padding: .85rem 1rem;
+            border-radius: 9px;
+            margin-bottom: 1.25rem;
+            font-size: .875rem;
+            font-weight: 500;
+            align-items: center;
+            gap: .6rem;
+        }
+
+        #message.success { display: flex; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+        #message.error   { display: flex; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+        /* ── Form ── */
+        .form-stack { display: flex; flex-direction: column; gap: 1rem; }
+
+        .form-group { display: flex; flex-direction: column; gap: .4rem; }
+
+        label {
+            font-size: .8rem;
+            font-weight: 600;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        input[type="text"],
+        select {
+            padding: .7rem .95rem;
+            border: 1.5px solid var(--gray-200);
+            border-radius: 9px;
+            font-size: .95rem;
+            font-family: 'DM Sans', sans-serif;
+            color: var(--gray-900);
+            background: var(--white);
+            transition: border-color .15s, box-shadow .15s;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .select-wrap { position: relative; }
+
+        .select-wrap::after {
+            content: '\f107';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            right: .95rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-400);
+            pointer-events: none;
+            font-size: .85rem;
+        }
+
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--orange);
+            box-shadow: 0 0 0 3px rgba(249,115,22,.12);
+        }
+
+        select option[value=""] { color: var(--gray-400); }
+
+        .submit-btn {
+            width: 100%;
+            padding: .8rem;
+            border: none;
+            border-radius: 9px;
+            background: var(--orange);
+            color: white;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .15s, transform .1s, box-shadow .15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .5rem;
+            margin-top: .25rem;
+        }
+
+        .submit-btn:hover  { background: var(--orange-dark); box-shadow: 0 4px 12px rgba(249,115,22,.3); }
+        .submit-btn:active { transform: scale(.98); }
+        .submit-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+        /* ── Teams Grid ── */
+        .teams-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 1rem;
         }
 
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        label {
-            font-weight: 500;
-            color: #374151;
-        }
-
-        input[type="text"] {
-            padding: 0.75rem 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.2s;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            border-color: var(--primary-orange);
-            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
-        }
-
-        button {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        #createBtn {
-            background: var(--golden);
-            color: #1f2937;
-        }
-
-        #createBtn:hover {
-            background: var(--golden-dark);
-        }
-
-        #message {
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .success { background: #ecfdf5; color: #065f46; }
-        .error   { background: #fef2f2; color: #991b1b; }
-
-        .teams-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 1.5rem;
-        }
-
+        /* ── Team Card ── */
         .team-card {
             background: var(--white);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
+            border-radius: var(--radius);
+            border: 1px solid var(--gray-200);
+            box-shadow: var(--shadow-sm);
             overflow: hidden;
-            transition: transform 0.2s;
+            transition: transform .2s, box-shadow .2s;
         }
 
         .team-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
         }
 
-        .team-header {
-            padding: 1.25rem 1.5rem;
+        .tc-top {
+            padding: 1.1rem 1.25rem .9rem;
             background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+            border-bottom: 1px solid #fed7aa;
         }
 
-        .team-header h3 {
-            margin: 0;
-            color: var(--primary-orange);
-            font-size: 1.25rem;
+        .tc-top h3 {
+            margin: 0 0 .25rem;
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem;
+            color: var(--orange-dark);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .team-body {
-            padding: 1.25rem 1.5rem;
+        .tc-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            font-size: .72rem;
+            font-weight: 600;
+            padding: .2rem .55rem;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
         }
 
-        .team-info {
-            color: var(--gray);
-            font-size: 0.95rem;
-            margin: 0.5rem 0;
+        .badge-assignment { background: #dbeafe; color: #1e40af; }
+        .badge-project    { background: #dcfce7; color: #15803d; }
+        .badge-cat        { background: #fef9c3; color: #854d0e; }
+        .badge-practical  { background: #f3e8ff; color: #7e22ce; }
+        .badge-default    { background: var(--gray-100); color: var(--gray-600); }
+
+        .tc-body {
+            padding: .9rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: .45rem;
         }
 
-        .team-actions {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid #e5e7eb;
-            text-align: right;
+        .tc-row {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            font-size: .85rem;
+            color: var(--gray-600);
         }
 
-        .team-actions a {
-            background: var(--primary-orange);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
+        .tc-row i {
+            width: 15px;
+            color: var(--gray-400);
+            font-size: .8rem;
+            flex-shrink: 0;
+        }
+
+        .tc-foot {
+            padding: .85rem 1.25rem;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            gap: .5rem;
+            justify-content: flex-end;
+        }
+
+        .tc-foot a {
+            font-size: .8rem;
+            font-weight: 600;
+            padding: .4rem .85rem;
+            border-radius: 7px;
             text-decoration: none;
-            font-size: 0.9rem;
+            transition: background .15s;
         }
 
-        .team-actions a:hover {
-            background: var(--primary-orange-dark);
-        }
+        .btn-manage  { background: var(--orange);  color: white; }
+        .btn-manage:hover  { background: var(--orange-dark); }
+        .btn-workspace { background: #ecfdf5; color: var(--green); border: 1px solid #a7f3d0; }
+        .btn-workspace:hover { background: #dcfce7; }
 
-        .loading {
+        /* ── Empty / Loading ── */
+        .empty-state {
+            padding: 3rem 1.5rem;
             text-align: center;
-            color: var(--gray);
+            color: var(--gray-400);
+        }
+
+        .empty-state i {
+            font-size: 2.5rem;
+            margin-bottom: .75rem;
+            display: block;
+            opacity: .4;
+        }
+
+        .empty-state p { margin: 0; font-size: .95rem; }
+
+        .loading-dots {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: .4rem;
             padding: 3rem 0;
         }
 
-        h2.create-heading {
-            color: var(--create-green);
-            margin-top: 0;
+        .loading-dots span {
+            width: 8px;
+            height: 8px;
+            background: var(--orange);
+            border-radius: 50%;
+            animation: bounce 1.2s infinite ease-in-out;
+            opacity: .6;
+        }
+
+        .loading-dots span:nth-child(2) { animation-delay: .2s; }
+        .loading-dots span:nth-child(3) { animation-delay: .4s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(.8); opacity: .4; }
+            40%            { transform: scale(1.2); opacity: 1; }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 820px) {
+            .page { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
+<!-- Header -->
 <header>
-    <div class="container header-content">
-        <h1>Create & Manage Teams</h1>
-        <div class="user-info">
-            Welcome, Student #<?php echo htmlspecialchars($_SESSION['user_id']); ?> 
-            | <a href="/logout.php">Logout</a>
+    <div class="header-inner">
+        <div class="logo">
+            <i class="fas fa-users-rectangle"></i>
+            UniLIS Teams
+        </div>
+        <div class="user-pill">
+            <div class="avatar"><?php echo strtoupper(substr((string)$_SESSION['user_id'], 0, 1)); ?></div>
+            <span>Student #<?php echo htmlspecialchars($_SESSION['user_id']); ?></span>
+            <a href="/logout.php" class="logout-btn"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
         </div>
     </div>
 </header>
 
-<div class="container">
+<div class="page">
 
-    <!-- Create Team Card -->
-    <div class="card">
-        <h2 class="create-heading">Create a New Team</h2>
-        <div id="message"></div>
-        
-        <form id="createTeamForm" class="create-form">
-            <div class="form-group">
-                <label for="title">Team Title *</label>
-                <input type="text" id="title" placeholder="e.g. Quantum Coders" required>
+    <!-- ── Create Team Column ── -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="icon-wrap icon-green"><i class="fas fa-plus"></i></div>
+                <h2>Create a New Team</h2>
             </div>
-            <div class="form-group">
-                <label for="unit_name">Unit Name *</label>
-                <input type="text" id="unit_name" placeholder="e.g. Database Systems" required>
-            </div>
-            <div class="form-group">
-                <label for="assessment_title">Assessment *</label>
-                <input type="text" id="assessment_title" placeholder="e.g. Final Project" required>
-            </div>
-            <button type="submit" id="createBtn">Create Team</button>
-        </form>
-    </div>
+            <div class="card-body">
+                <div id="message"></div>
 
-    <!-- Your Teams Section -->
-    <div class="card">
-        <h2>Your Teams</h2>
-        <div id="teams-list">
-            <div class="loading">Loading your teams...</div>
+                <form id="createTeamForm" class="form-stack" novalidate>
+
+                    <div class="form-group">
+                        <label for="title">Team Title *</label>
+                        <input type="text" id="title" placeholder="e.g. Quantum Coders" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="unit_id">Unit *</label>
+                        <div class="select-wrap">
+                            <select id="unit_id" required>
+                                <option value="">Loading units…</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assessment_type">Assessment Type *</label>
+                        <div class="select-wrap">
+                            <select id="assessment_type" required>
+                                <option value="">Select type…</option>
+                                <option value="assignment">Assignment</option>
+                                <option value="cat">CAT</option>
+                                <option value="project">Project</option>
+                                <option value="practical">Practical</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="createBtn">
+                        <i class="fas fa-plus-circle"></i> Create Team
+                    </button>
+
+                </form>
+            </div>
         </div>
     </div>
 
-</div>
+    <!-- ── Teams List Column ── -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="icon-wrap icon-orange"><i class="fas fa-layer-group"></i></div>
+                <h2>Your Teams</h2>
+            </div>
+            <div class="card-body" style="padding:1rem 1.25rem">
+                <div id="teams-list">
+                    <div class="loading-dots"><span></span><span></span><span></span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- .page -->
 
 <script>
-const csrf = "<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>";
+const csrf       = "<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>";
 const messageDiv = document.getElementById('message');
 
-// Show message with icon
+/* ── Helpers ── */
 function showMessage(text, type = 'error') {
-    messageDiv.innerHTML = `
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
-        ${text}
-    `;
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    messageDiv.innerHTML = `<i class="fas ${icon}"></i> ${text}`;
     messageDiv.className = type;
-    messageDiv.style.display = 'flex';
-    messageDiv.style.alignItems = 'center';
-    messageDiv.style.gap = '0.75rem';
 }
 
-// Load user's teams
+function clearMessage() {
+    messageDiv.className = '';
+    messageDiv.innerHTML = '';
+}
+
+function badgeClass(type) {
+    const map = { assignment:'badge-assignment', project:'badge-project',
+                  cat:'badge-cat', practical:'badge-practical' };
+    return map[type] || 'badge-default';
+}
+
+/* ── Load Units into <select> ── */
+async function loadUnits() {
+    const sel = document.getElementById('unit_id');
+    try {
+        const res  = await fetch('/teams/api/get_enrolled_units.php', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Failed to load units');
+
+        sel.innerHTML = '<option value="">Select unit…</option>';
+        data.units.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value       = u.id;
+            opt.textContent = u.name;
+            sel.appendChild(opt);
+        });
+    } catch (err) {
+        sel.innerHTML = '<option value="">Could not load units</option>';
+        console.error('loadUnits error:', err);
+    }
+}
+
+/* ── Load User Teams ── */
 async function loadTeams() {
     const listDiv = document.getElementById('teams-list');
-    listDiv.innerHTML = '<div class="loading">Loading your teams...</div>';
+    listDiv.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
 
     try {
-        const res = await fetch('/teams/api/get_user_teams.php', {
-            credentials: 'same-origin'
-        });
-
+        const res  = await fetch('/teams/api/get_user_teams.php', { credentials: 'same-origin' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
         const data = await res.json();
-
         if (!data.success) throw new Error(data.error || 'Failed to load teams');
 
-        if (data.teams.length === 0) {
-            listDiv.innerHTML = '<p style="color:#6b7280">You are not in any teams yet.</p>';
+        if (!data.teams.length) {
+            listDiv.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-users-slash"></i>
+                    <p>You are not in any teams yet.<br>Create one to get started!</p>
+                </div>`;
             return;
         }
 
         listDiv.innerHTML = '';
+        const grid = document.createElement('div');
+        grid.className = 'teams-grid';
+
         data.teams.forEach(team => {
+            const aType   = (team.assessment_type || '').toLowerCase();
+            const label   = aType.charAt(0).toUpperCase() + aType.slice(1) || 'Unknown';
+            const members = Array.isArray(team.members) ? team.members.length : (team.member_count || 0);
+
             const card = document.createElement('div');
             card.className = 'team-card';
             card.innerHTML = `
-                <div class="team-header">
-                    <h3>${team.title}</h3>
+                <div class="tc-top">
+                    <h3>${escHtml(team.title)}</h3>
+                    <span class="tc-badge ${badgeClass(aType)}">${escHtml(label)}</span>
                 </div>
-                <div class="team-body">
-                    <p class="team-info"><strong>Unit:</strong> ${team.unit_name || '—'}</p>
-                    <p class="team-info"><strong>Assessment:</strong> ${team.assessment_title || '—'}</p>
-                    <p class="team-info"><strong>Status:</strong> ${team.status || 'active'}</p>
-                    <p class="team-info"><strong>Members:</strong> ${team.members?.length || 0}</p>
+                <div class="tc-body">
+                    <div class="tc-row">
+                        <i class="fas fa-book-open"></i>
+                        <span>${escHtml(team.unit_name || '—')}</span>
+                    </div>
+                    <div class="tc-row">
+                        <i class="fas fa-circle-dot"></i>
+                        <span>${escHtml(team.status || 'Active')}</span>
+                    </div>
+                    <div class="tc-row">
+                        <i class="fas fa-user-group"></i>
+                        <span>${members} member${members !== 1 ? 's' : ''}</span>
+                    </div>
                 </div>
-                <div class="team-actions">
-                    <a href="/teams/views/manage_team.php?team_id=${team.id}">Manage Team</a>
-                    <a href="/teams/views/workspace.php?team_id=${team.id}" style="margin-left:0.5rem;background:#10b981;">Open Workspace</a>
-                </div>
-            `;
-            listDiv.appendChild(card);
+                <div class="tc-foot">
+                    <a href="/teams/views/manage_team.php?team_id=${team.id}" class="btn-manage">
+                        <i class="fas fa-sliders"></i> Manage
+                    </a>
+                    <a href="/teams/views/workspace.php?team_id=${team.id}" class="btn-workspace">
+                        <i class="fas fa-arrow-up-right-from-square"></i> Workspace
+                    </a>
+                </div>`;
+            grid.appendChild(card);
         });
+
+        listDiv.appendChild(grid);
+
     } catch (err) {
-        listDiv.innerHTML = `<p class="error">Error loading teams: ${err.message}</p>`;
+        listDiv.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-triangle-exclamation"></i>
+                <p>Error loading teams: ${escHtml(err.message)}</p>
+            </div>`;
         console.error('loadTeams error:', err);
     }
 }
 
-// Create new team
+/* ── Create Team ── */
 document.getElementById('createTeamForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearMessage();
 
-    const title = document.getElementById('title').value.trim();
-    const unit_name = document.getElementById('unit_name').value.trim();
-    const assessment_title = document.getElementById('assessment_title').value.trim();
+    const title           = document.getElementById('title').value.trim();
+    const unit_id         = parseInt(document.getElementById('unit_id').value, 10);
+    const assessment_type = document.getElementById('assessment_type').value;
 
-    if (!title || !unit_name || !assessment_title) {
-        showMessage('Please fill in all fields', 'error');
+    if (!title || !unit_id || !assessment_type) {
+        showMessage('Please fill in all fields.', 'error');
         return;
     }
 
+    const btn = document.getElementById('createBtn');
+    btn.disabled   = true;
+    btn.innerHTML  = '<i class="fas fa-spinner fa-spin"></i> Creating…';
+
     try {
-        const res = await fetch('/teams/api/create_team.php', {
-            method: 'POST',
+        const res = await fetch('/teams/api/create.php', {
+            method:      'POST',
             credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, unit_name, assessment_title, csrf_token: csrf })
+            headers:     { 'Content-Type': 'application/json' },
+            body:        JSON.stringify({ title, unit_id, assessment_type, csrf_token: csrf })
         });
 
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
-
-        if (!data.success) throw new Error(data.error || 'Failed to create team');
+        if (!data.success) throw new Error(data.message || 'Failed to create team');
 
         showMessage('Team created successfully!', 'success');
         document.getElementById('createTeamForm').reset();
+        await loadUnits();   // re-reset the select
         loadTeams();
 
     } catch (err) {
-        showMessage('Error creating team: ' + err.message, 'error');
+        showMessage('Error: ' + err.message, 'error');
         console.error('createTeam error:', err);
+    } finally {
+        btn.disabled  = false;
+        btn.innerHTML = '<i class="fas fa-plus-circle"></i> Create Team';
     }
 });
 
-// Initial load
+/* ── XSS helper ── */
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(str ?? ''));
+    return d.innerHTML;
+}
+
+/* ── Boot ── */
+loadUnits();
 loadTeams();
 </script>
-
 </body>
 </html>

@@ -85,18 +85,26 @@ $stmt->close();
     <div class="sidebar-section">
         <h4>Main Navigation</h4>
         <ul>
-            <li class="blue active"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></li>
-            <li class="green"><i class="fas fa-book"></i><span>Training</span></li>
-            <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
-            <li class="golden"><i class="fas fa-chalkboard-teacher"></i><span>Lessons</span></li>
-            <li class="brown"><i class="fas fa-chart-line"></i><span>My Progress</span></li>
-            <li class="teal"><i class="fas fa-users"></i><span>Create Team</span></a></li>
-        <li class="purple">
-        <a href="../teams/views/lecturer_teams.php" style="color:inherit; text-decoration:none;">
+    <li class="blue active"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></li>
+    <li class="green">
+        <a href="../lecturer/course_builder.php" style="color:inherit;text-decoration:none;">
+            <i class="fas fa-book"></i><span>Training</span>
+        </a>
+    </li>
+    <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
+    <li class="golden">
+        <a href="../lecturer/lesson_editor.php" style="color:inherit;text-decoration:none;">
+            <i class="fas fa-chalkboard-teacher"></i><span>Lessons</span>
+        </a>
+    </li>
+    <li class="brown"><i class="fas fa-chart-line"></i><span>My Progress</span></li>
+    <li class="teal"><i class="fas fa-users"></i><span>Create Team</span></li>
+    <li class="purple">
+        <a href="../teams/views/lecturer_teams.php" style="color:inherit;text-decoration:none;">
             <i class="fas fa-users-cog"></i><span>Lecturer Teams</span>
         </a>
     </li>
-        </ul>
+</ul>
     </div>
 
     <div class="sidebar-section">

@@ -1,0 +1,5 @@
+﻿# Deny direct access to uploaded files
+Options -Indexes
+<FilesMatch "\.(php|php3|php4|php5|phtml|pl|py|cgi)$">
+    Deny from all
+</FilesMatch>
