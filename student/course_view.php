@@ -11,33 +11,36 @@ $student_id   = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'];
 $unit_id      = intval($_GET['unit_id'] ?? 0);
 
-// Semester / academic year filter (from GET or session)
-$semester      = intval($_GET['semester']      ?? $_SESSION['cv_semester']      ?? 1);
-$academic_year = trim($_GET['academic_year']   ?? $_SESSION['cv_academic_year'] ?? (date('Y') . '/' . (date('Y') + 1)));
+// Semester filter
+$semester = intval($_GET['semester'] ?? $_SESSION['cv_semester'] ?? 1);
 if ($semester < 1 || $semester > 2) $semester = 1;
-$_SESSION['cv_semester']      = $semester;
-$_SESSION['cv_academic_year'] = $academic_year;
+$_SESSION['cv_semester'] = $semester;
 
-// Academic year options
-$current_year   = intval(date('Y'));
-$academic_years = [];
-for ($y = $current_year - 1; $y <= $current_year + 1; $y++) {
-    $academic_years[] = $y . '/' . ($y + 1);
-}
+// Fetch student year_of_study (needed to filter units by year)
+$year_of_study = 0;
+try {
+    $stmt = $conn->prepare("SELECT year_of_study FROM students WHERE id = ? LIMIT 1");
+    $stmt->bind_param("i", $student_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $year_of_study = intval($row['year_of_study'] ?? 0);
+    $stmt->close();
+} catch (mysqli_sql_exception $e) { error_log($e->getMessage()); }
 
-// Fetch enrolled units for selected semester/year
+// Fetch enrolled units for selected semester
+// units table has its own semester + year columns — filter on those
 $enrolled_units = [];
 try {
     $stmt = $conn->prepare("
         SELECT u.id, u.name
         FROM units u
         JOIN student_unit_enrollments sue ON sue.unit_id = u.id
-        WHERE sue.student_id    = ?
-          AND sue.semester      = ?
-          AND sue.academic_year = ?
+        WHERE sue.student_id = ?
+          AND u.semester     = ?
+          AND u.year         = ?
         ORDER BY u.name ASC
     ");
-    $stmt->bind_param("iis", $student_id, $semester, $academic_year);
+    $stmt->bind_param("iii", $student_id, $semester, $year_of_study);
     $stmt->execute();
     $r = $stmt->get_result();
     while ($row = $r->fetch_assoc()) $enrolled_units[] = $row;
@@ -249,27 +252,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <!-- SIDEBAR -->
     <aside class="sidebar">
 
-        <!-- Semester & Academic Year dropdowns -->
-        <form method="GET" action="course_view.php" id="semester-form" style="margin-bottom:16px">
-            <?php if ($unit_id): ?>
-            <input type="hidden" name="unit_id" value="<?= $unit_id ?>">
-            <?php endif; ?>
-
-            <span class="sb-label" style="margin-bottom:6px"><i class="fas fa-calendar-alt"></i> &nbsp;Semester</span>
-            <select name="semester" class="sb-select" onchange="document.getElementById('semester-form').submit()">
-                <option value="1" <?= $semester === 1 ? 'selected' : '' ?>>Semester 1</option>
-                <option value="2" <?= $semester === 2 ? 'selected' : '' ?>>Semester 2</option>
-            </select>
-
-            <span class="sb-label" style="margin-top:10px;margin-bottom:6px"><i class="fas fa-graduation-cap"></i> &nbsp;Academic Year</span>
-            <select name="academic_year" class="sb-select" onchange="document.getElementById('semester-form').submit()">
-                <?php foreach ($academic_years as $ay): ?>
-                <option value="<?= $ay ?>" <?= $academic_year === $ay ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($ay) ?>
-                </option>
-                <?php endforeach; ?>
-            </select>
-        </form>
+        <!-- Semester tabs -->
+        <div style="display:flex;gap:6px;margin-bottom:14px">
+            <a href="course_view.php?semester=1<?= $unit_id ? '&unit_id='.$unit_id : '' ?>"
+               style="flex:1;text-align:center;padding:7px 4px;border-radius:7px;font-size:.78rem;font-weight:700;text-decoration:none;border:1px solid;
+                      <?= $semester===1 ? 'background:#4f6ef7;border-color:#4f6ef7;color:#fff' : 'background:var(--surf2);border-color:var(--border);color:var(--muted)' ?>">
+                Sem 1
+            </a>
+            <a href="course_view.php?semester=2<?= $unit_id ? '&unit_id='.$unit_id : '' ?>"
+               style="flex:1;text-align:center;padding:7px 4px;border-radius:7px;font-size:.78rem;font-weight:700;text-decoration:none;border:1px solid;
+                      <?= $semester===2 ? 'background:#4f6ef7;border-color:#4f6ef7;color:#fff' : 'background:var(--surf2);border-color:var(--border);color:var(--muted)' ?>">
+                Sem 2
+            </a>
+        </div>
 
         <div style="border-top:1px solid var(--border);margin-bottom:14px"></div>
 
@@ -291,7 +286,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <?php else: ?>
             <?php foreach ($enrolled_units as $u): ?>
                 <a class="unit-link <?= $unit_id == $u['id'] ? 'active' : '' ?>"
-                   href="course_view.php?unit_id=<?= $u['id'] ?>&semester=<?= $semester ?>&academic_year=<?= urlencode($academic_year) ?>">
+                   href="course_view.php?unit_id=<?= $u['id'] ?>&semester=<?= $semester ?>">
                     <i class="fas fa-circle-dot" style="font-size:.5rem"></i>
                     <?= htmlspecialchars($u['name']) ?>
                 </a>

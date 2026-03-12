@@ -1,11 +1,6 @@
 <?php
-ob_start();
-session_start();
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
-error_reporting(E_ALL);
-
 require_once '../config/db.php';
+session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
     header("Location: ../index.html");
@@ -30,100 +25,79 @@ try {
 $course_id     = $student['course_id'];
 $year_of_study = $student['year_of_study'];
 
-// ── Handle semester filter (default semester 1) ───────────────────────────
-$semester      = intval($_GET['semester'] ?? 1);
-$academic_year = trim($_GET['academic_year'] ?? date('Y') . '/' . (date('Y') + 1));
+// ── Semester filter — units table has its own semester column ─────────────
+$semester = intval($_GET['semester'] ?? 1);
 if ($semester < 1 || $semester > 2) $semester = 1;
 
 // ── Handle POST: save enrollment ──────────────────────────────────────────
-// NOTE: student_unit_enrollments has no semester/academic_year columns.
-// We manage enrollment purely by student_id + unit_id using INSERT IGNORE / DELETE.
 $save_message = '';
 $save_type    = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_units'])) {
-    $post_semester      = intval($_POST['semester']      ?? 1);
-    $post_academic_year = trim($_POST['academic_year']   ?? $academic_year);
-    $selected_unit_ids  = $_POST['unit_ids'] ?? [];
-
-    // Sanitise
-    $selected_unit_ids = array_values(array_filter(array_map('intval', $selected_unit_ids)));
+    $post_semester     = intval($_POST['semester'] ?? 1);
+    $selected_unit_ids = array_filter(array_map('intval', $_POST['unit_ids'] ?? []));
 
     try {
-        // Verify all selected units belong to this student's course + year + semester
+        // Verify selected units belong to this student's course + year + semester
         $valid_ids = [];
         if (!empty($selected_unit_ids)) {
-            $placeholders = implode(',', array_fill(0, count($selected_unit_ids), '?'));
-            $types        = str_repeat('i', count($selected_unit_ids));
-            $verify_stmt  = $conn->prepare("
+            $ph    = implode(',', array_fill(0, count($selected_unit_ids), '?'));
+            $types = str_repeat('i', count($selected_unit_ids));
+            $stmt  = $conn->prepare("
                 SELECT id FROM units
-                WHERE id IN ($placeholders)
-                  AND course_id = ?
-                  AND year      = ?
-                  AND semester  = ?
+                WHERE id IN ($ph) AND course_id = ? AND year = ? AND semester = ?
             ");
-            $params = array_merge($selected_unit_ids, [$course_id, $year_of_study, $post_semester]);
-            $verify_stmt->bind_param($types . 'iii', ...$params);
-            $verify_stmt->execute();
-            $valid_result = $verify_stmt->get_result();
-            while ($row = $valid_result->fetch_assoc()) $valid_ids[] = $row['id'];
-            $verify_stmt->close();
+            $params = array_merge(array_values($selected_unit_ids), [$course_id, $year_of_study, $post_semester]);
+            $stmt->bind_param($types . 'iii', ...$params);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            while ($row = $r->fetch_assoc()) $valid_ids[] = $row['id'];
+            $stmt->close();
         }
 
-        // Get all unit IDs for this student's course + year + semester
-        // so we only delete enrollments for THIS semester's units, not all
-        $sem_units_stmt = $conn->prepare("
-            SELECT id FROM units
-            WHERE course_id = ? AND year = ? AND semester = ?
+        // Get units in this semester already enrolled
+        $stmt = $conn->prepare("
+            SELECT sue.unit_id FROM student_unit_enrollments sue
+            JOIN units u ON u.id = sue.unit_id
+            WHERE sue.student_id = ? AND u.semester = ? AND u.year = ? AND u.course_id = ?
         ");
-        $sem_units_stmt->bind_param("iii", $course_id, $year_of_study, $post_semester);
-        $sem_units_stmt->execute();
-        $sem_result  = $sem_units_stmt->get_result();
-        $sem_unit_ids = [];
-        while ($row = $sem_result->fetch_assoc()) $sem_unit_ids[] = $row['id'];
-        $sem_units_stmt->close();
+        $stmt->bind_param("iiii", $student_id, $post_semester, $year_of_study, $course_id);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        $existing_ids = [];
+        while ($row = $r->fetch_assoc()) $existing_ids[] = $row['unit_id'];
+        $stmt->close();
 
-        // Delete existing enrollments only for units in this semester
-        if (!empty($sem_unit_ids)) {
-            $del_placeholders = implode(',', array_fill(0, count($sem_unit_ids), '?'));
-            $del_types        = str_repeat('i', count($sem_unit_ids));
-            $del = $conn->prepare("
-                DELETE FROM student_unit_enrollments
-                WHERE student_id = ?
-                  AND unit_id IN ($del_placeholders)
-            ");
-            $del_params = array_merge([$student_id], $sem_unit_ids);
-            $del->bind_param('i' . $del_types, ...$del_params);
+        // Remove deselected units
+        $to_remove = array_diff($existing_ids, $valid_ids);
+        if (!empty($to_remove)) {
+            $ph    = implode(',', array_fill(0, count($to_remove), '?'));
+            $types = 'i' . str_repeat('i', count($to_remove));
+            $del   = $conn->prepare("DELETE FROM student_unit_enrollments WHERE student_id = ? AND unit_id IN ($ph)");
+            $del->bind_param($types, $student_id, ...array_values($to_remove));
             $del->execute();
             $del->close();
         }
 
-        // Insert newly selected valid units
-        if (!empty($valid_ids)) {
-            $ins = $conn->prepare("
-                INSERT IGNORE INTO student_unit_enrollments (student_id, unit_id)
-                VALUES (?, ?)
-            ");
-            foreach ($valid_ids as $uid) {
+        // Add newly selected units
+        $to_add = array_diff($valid_ids, $existing_ids);
+        if (!empty($to_add)) {
+            $ins = $conn->prepare("INSERT IGNORE INTO student_unit_enrollments (student_id, unit_id) VALUES (?, ?)");
+            foreach ($to_add as $uid) {
                 $ins->bind_param("ii", $student_id, $uid);
                 $ins->execute();
             }
             $ins->close();
         }
 
-        // Refresh session so get_enrolled_units.php picks up new enrollments
-        $_SESSION['course_id']     = $course_id;
-        $_SESSION['year_of_study'] = $year_of_study;
-
-        $n            = count($valid_ids);
-        $save_message = $n . ' unit' . ($n !== 1 ? 's' : '') . ' saved for Semester ' . $post_semester . '.';
+        $total        = count($valid_ids);
+        $save_message = $total . ' unit' . ($total !== 1 ? 's' : '') . ' saved for Semester ' . $post_semester . '.';
         $save_type    = 'success';
-        $semester      = $post_semester;
-        $academic_year = $post_academic_year;
+        $semester     = $post_semester;
 
     } catch (mysqli_sql_exception $e) {
-        error_log("my_units save error: " . $e->getMessage());
-        $save_message = 'Error saving units: ' . $e->getMessage();
+        error_log("my_units save: " . $e->getMessage());
+        $save_message = 'Error saving units. Please try again.';
         $save_type    = 'error';
     }
 }
@@ -132,47 +106,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_units'])) {
 $available_units = [];
 try {
     $stmt = $conn->prepare("
-        SELECT id, name, code
-        FROM units
+        SELECT id, name, code FROM units
         WHERE course_id = ? AND year = ? AND semester = ?
         ORDER BY name ASC
     ");
     $stmt->bind_param("iii", $course_id, $year_of_study, $semester);
     $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) $available_units[] = $row;
+    $r = $stmt->get_result();
+    while ($row = $r->fetch_assoc()) $available_units[] = $row;
     $stmt->close();
 } catch (mysqli_sql_exception $e) {
     error_log("my_units available: " . $e->getMessage());
 }
 
-// ── Fetch already-enrolled unit IDs for current semester ─────────────────
-// Join with units table to filter by semester since enrollment table has no semester column
+// ── Fetch already-enrolled unit IDs for this semester ─────────────────────
 $enrolled_ids = [];
 try {
     $stmt = $conn->prepare("
-        SELECT sue.unit_id
-        FROM student_unit_enrollments sue
+        SELECT sue.unit_id FROM student_unit_enrollments sue
         JOIN units u ON u.id = sue.unit_id
-        WHERE sue.student_id = ?
-          AND u.course_id    = ?
-          AND u.year         = ?
-          AND u.semester     = ?
+        WHERE sue.student_id = ? AND u.semester = ? AND u.year = ? AND u.course_id = ?
     ");
-    $stmt->bind_param("iiii", $student_id, $course_id, $year_of_study, $semester);
+    $stmt->bind_param("iiii", $student_id, $semester, $year_of_study, $course_id);
     $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) $enrolled_ids[] = intval($row['unit_id']);
+    $r = $stmt->get_result();
+    while ($row = $r->fetch_assoc()) $enrolled_ids[] = intval($row['unit_id']);
     $stmt->close();
 } catch (mysqli_sql_exception $e) {
     error_log("my_units enrolled: " . $e->getMessage());
-}
-
-// ── Academic year options (display only) ──────────────────────────────────
-$current_year   = intval(date('Y'));
-$academic_years = [];
-for ($y = $current_year - 1; $y <= $current_year + 1; $y++) {
-    $academic_years[] = $y . '/' . ($y + 1);
 }
 ?>
 <!DOCTYPE html>
@@ -184,168 +145,180 @@ for ($y = $current_year - 1; $y <= $current_year + 1; $y++) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="css/styles.css">
 <style>
-.units-page { max-width: 780px; margin: 32px auto; padding: 0 20px 60px; font-family: inherit; }
-.units-title { font-size: 1.5rem; font-weight: 800; color: #1e293b; margin-bottom: 6px; }
-.units-subtitle { font-size: 0.88rem; color: #64748b; margin-bottom: 28px; }
+.units-page{max-width:700px;margin:32px auto;padding:0 20px 60px}
 
-.alert { padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; font-size: 0.9rem; display: flex; align-items: flex-start; gap: 10px; word-break: break-word; }
-.alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-.alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.page-title{font-size:1.45rem;font-weight:800;color:#1e293b;margin-bottom:4px}
+.page-sub{font-size:.88rem;color:#64748b;margin-bottom:28px;line-height:1.6}
 
-.filters-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; align-items: flex-end; }
-.filter-group { display: flex; flex-direction: column; gap: 5px; }
-.filter-group label { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.07em; }
-.filter-select { padding: 9px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.88rem; background: #fff; color: #1e293b; cursor: pointer; outline: none; transition: border-color 0.15s; appearance: none; padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
-.filter-select:focus { border-color: #6366f1; }
+.alert{padding:13px 18px;border-radius:10px;margin-bottom:20px;font-size:.88rem;display:flex;align-items:center;gap:10px}
+.alert-success{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+.alert-error  {background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
 
-.btn-filter { padding: 9px 18px; background: #6366f1; color: #fff; border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; display: inline-flex; align-items: center; gap: 7px; align-self: flex-end; }
-.btn-filter:hover { background: #4f46e5; transform: translateY(-1px); }
+/* semester tabs */
+.sem-tabs{display:flex;gap:8px;margin-bottom:22px}
+.sem-tab{padding:9px 24px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;
+         color:#64748b;font-size:.88rem;font-weight:600;cursor:pointer;text-decoration:none;
+         transition:all .15s;display:inline-flex;align-items:center;gap:7px}
+.sem-tab:hover{border-color:#6366f1;color:#6366f1}
+.sem-tab.active{background:#6366f1;border-color:#6366f1;color:#fff}
 
-.info-bar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: #475569; flex-wrap: wrap; }
-.info-bar i { color: #6366f1; }
+/* info bar */
+.info-bar{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;
+          margin-bottom:20px;font-size:.83rem;color:#475569;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.info-bar i{color:#6366f1}
 
-.units-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
-.units-card-header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
-.units-card-header h3 { font-size: 1rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; margin: 0; }
-.units-card-header span { font-size: 0.78rem; color: rgba(255,255,255,0.75); }
+/* card */
+.units-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;
+            box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.card-head{background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:16px 22px;
+           display:flex;align-items:center;justify-content:space-between}
+.card-head h3{font-size:.95rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:9px}
+.card-head span{font-size:.78rem;color:rgba(255,255,255,.75)}
 
-.unit-list { padding: 8px 0; }
-.unit-item { display: flex; align-items: center; gap: 14px; padding: 14px 24px; border-bottom: 1px solid #f1f5f9; transition: background 0.12s; cursor: pointer; }
-.unit-item:last-child { border-bottom: none; }
-.unit-item:hover { background: #f8fafc; }
-.unit-item.enrolled { background: #f0fdf4; }
-.unit-item.enrolled:hover { background: #dcfce7; }
+/* select all */
+.sel-all{display:flex;align-items:center;gap:10px;padding:11px 22px;
+         background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:.82rem;color:#64748b;cursor:pointer}
+.sel-all:hover{background:#f1f5f9}
+.sel-all label{cursor:pointer;font-weight:600}
 
-.unit-checkbox { width: 20px; height: 20px; accent-color: #6366f1; cursor: pointer; flex-shrink: 0; }
-.unit-info { flex: 1; }
-.unit-name { font-size: 0.92rem; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
-.unit-code { font-size: 0.76rem; color: #94a3b8; font-family: monospace; }
-.enrolled-badge { font-size: 0.7rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; white-space: nowrap; }
+/* unit rows */
+.unit-list{padding:4px 0}
+.unit-item{display:flex;align-items:center;gap:14px;padding:13px 22px;
+           border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .12s}
+.unit-item:last-child{border-bottom:none}
+.unit-item:hover{background:#f8fafc}
+.unit-item.enrolled{background:#f0fdf4}
+.unit-item.enrolled:hover{background:#dcfce7}
+.unit-cb{width:19px;height:19px;accent-color:#6366f1;cursor:pointer;flex-shrink:0}
+.unit-info{flex:1}
+.unit-name{font-size:.9rem;font-weight:600;color:#1e293b;margin-bottom:2px}
+.unit-code{font-size:.74rem;color:#94a3b8;font-family:monospace}
+.enroll-badge{font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.badge-enrolled{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+.badge-selected{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
 
-.empty-state { text-align: center; padding: 48px 24px; color: #94a3b8; }
-.empty-state i { font-size: 2.5rem; margin-bottom: 14px; display: block; opacity: 0.4; }
-.empty-state h3 { font-size: 1rem; font-weight: 700; color: #64748b; margin-bottom: 6px; }
-.empty-state p  { font-size: 0.85rem; }
+/* empty */
+.empty-units{text-align:center;padding:44px 24px;color:#94a3b8}
+.empty-units i{font-size:2.2rem;margin-bottom:12px;display:block;opacity:.35}
+.empty-units h3{font-size:.95rem;font-weight:700;color:#64748b;margin-bottom:6px}
+.empty-units p{font-size:.83rem;line-height:1.6}
 
-.select-all-row { display: flex; align-items: center; gap: 10px; padding: 12px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 0.82rem; color: #64748b; cursor: pointer; }
-.select-all-row:hover { background: #f1f5f9; }
-.select-all-row label { cursor: pointer; font-weight: 600; }
-
-.units-card-footer { padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.selected-count { font-size: 0.82rem; color: #64748b; }
-.selected-count strong { color: #6366f1; }
-
-.btn-save { padding: 11px 28px; background: #6366f1; color: #fff; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: background 0.15s, transform 0.1s; display: inline-flex; align-items: center; gap: 8px; }
-.btn-save:hover { background: #4f46e5; transform: translateY(-1px); }
-
-.btn-back { padding: 10px 18px; background: transparent; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem; color: #64748b; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; transition: border-color 0.15s, color 0.15s; }
-.btn-back:hover { border-color: #6366f1; color: #6366f1; }
-
-@media (max-width: 540px) { .filters-row { flex-direction: column; } .btn-filter { width: 100%; justify-content: center; } }
+/* footer */
+.card-foot{padding:15px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;
+           display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.sel-count{font-size:.82rem;color:#64748b}
+.sel-count strong{color:#6366f1}
+.btn-save{padding:10px 26px;background:#6366f1;color:#fff;border:none;border-radius:8px;
+          font-size:.88rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;
+          gap:7px;transition:background .15s,transform .1s}
+.btn-save:hover{background:#4f46e5;transform:translateY(-1px)}
+.btn-back{padding:9px 16px;background:transparent;border:1px solid #e2e8f0;border-radius:8px;
+          font-size:.83rem;color:#64748b;cursor:pointer;text-decoration:none;
+          display:inline-flex;align-items:center;gap:6px;transition:border-color .15s,color .15s}
+.btn-back:hover{border-color:#6366f1;color:#6366f1}
 </style>
 </head>
 <body>
+
 <div class="units-page">
 
     <div style="margin-bottom:20px">
         <a href="dashboard.php" class="btn-back"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
 
-    <div class="units-title">
-        <i class="fas fa-book-open" style="color:#6366f1;margin-right:10px"></i>My Units
-    </div>
-    <p class="units-subtitle">
-        Select the units you are studying this semester. These will appear across the LMS — lessons, assessments, labs, progress tracking, and attendance.
+    <div class="page-title"><i class="fas fa-book-open" style="color:#6366f1;margin-right:8px"></i>My Units</div>
+    <p class="page-sub">
+        Select the units you are studying this semester. They will appear in your lessons, assessments, labs, progress tracking and attendance.
+        <br><small style="color:#94a3b8">Showing Year <?= $year_of_study ?> units that match your current year of study.</small>
     </p>
 
     <?php if ($save_message): ?>
     <div class="alert alert-<?= $save_type ?>">
-        <i class="fas <?= $save_type === 'success' ? 'fa-circle-check' : 'fa-circle-xmark' ?>" style="margin-top:2px;flex-shrink:0"></i>
-        <span><?= $save_message ?></span>
+        <i class="fas <?= $save_type === 'success' ? 'fa-circle-check' : 'fa-circle-xmark' ?>"></i>
+        <?= htmlspecialchars($save_message) ?>
     </div>
     <?php endif; ?>
 
-    <div class="info-bar">
-        <i class="fas fa-info-circle"></i>
-        Showing units for <strong>&nbsp;Year <?= $year_of_study ?></strong> &nbsp;|&nbsp;
-        Semester <strong><?= $semester ?></strong> &nbsp;|&nbsp;
-        <?= count($available_units) ?> unit<?= count($available_units) !== 1 ? 's' : '' ?> available
+    <!-- Semester tabs -->
+    <div class="sem-tabs">
+        <a href="my_units.php?semester=1" class="sem-tab <?= $semester === 1 ? 'active' : '' ?>">
+            <i class="fas fa-calendar-day"></i> Semester 1
+        </a>
+        <a href="my_units.php?semester=2" class="sem-tab <?= $semester === 2 ? 'active' : '' ?>">
+            <i class="fas fa-calendar-day"></i> Semester 2
+        </a>
     </div>
 
-    <!-- Semester filter -->
-    <form method="GET" action="my_units.php">
-        <div class="filters-row">
-            <div class="filter-group">
-                <label><i class="fas fa-calendar-half"></i> Semester</label>
-                <select name="semester" class="filter-select">
-                    <option value="1" <?= $semester === 1 ? 'selected' : '' ?>>Semester 1</option>
-                    <option value="2" <?= $semester === 2 ? 'selected' : '' ?>>Semester 2</option>
-                </select>
-            </div>
-            <button type="submit" class="btn-filter">
-                <i class="fas fa-filter"></i> Apply
-            </button>
-        </div>
-    </form>
+    <!-- Info bar -->
+    <div class="info-bar">
+        <i class="fas fa-info-circle"></i>
+        Semester <strong>&nbsp;<?= $semester ?>&nbsp;</strong> &mdash;
+        Year <strong>&nbsp;<?= $year_of_study ?>&nbsp;</strong> &mdash;
+        <strong><?= count($available_units) ?></strong> unit<?= count($available_units) !== 1 ? 's' : '' ?> available &mdash;
+        <strong><?= count($enrolled_ids) ?></strong> enrolled
+    </div>
 
     <!-- Units selection form -->
-    <form method="POST" action="my_units.php" id="units-form">
+    <form method="POST" action="my_units.php?semester=<?= $semester ?>" id="units-form">
         <input type="hidden" name="save_units" value="1">
         <input type="hidden" name="semester"   value="<?= $semester ?>">
 
         <div class="units-card">
-            <div class="units-card-header">
+            <div class="card-head">
                 <h3><i class="fas fa-list-check"></i> Semester <?= $semester ?> Units</h3>
                 <span><?= count($enrolled_ids) ?> currently enrolled</span>
             </div>
 
             <?php if (empty($available_units)): ?>
-            <div class="empty-state">
+            <div class="empty-units">
                 <i class="fas fa-book"></i>
                 <h3>No units found</h3>
-                <p>No units are listed for Year <?= $year_of_study ?>, Semester <?= $semester ?> of your course.</p>
+                <p>No Semester <?= $semester ?> units are listed for Year <?= $year_of_study ?> of your course.<br>Please contact your administrator.</p>
             </div>
 
             <?php else: ?>
 
-            <div class="select-all-row" onclick="toggleAll()">
-                <input type="checkbox" id="select-all" class="unit-checkbox"
-                       onclick="event.stopPropagation(); toggleAll()"
+            <!-- Select All -->
+            <div class="sel-all" onclick="toggleAll()">
+                <input type="checkbox" id="sel-all" class="unit-cb"
+                       onclick="event.stopPropagation();toggleAll()"
                        <?= count($enrolled_ids) === count($available_units) && count($available_units) > 0 ? 'checked' : '' ?>>
-                <label for="select-all">Select / Deselect All</label>
-                <span style="margin-left:auto;font-size:0.78rem">
+                <label for="sel-all">Select / Deselect All</label>
+                <span style="margin-left:auto;font-size:.77rem">
                     <span id="count-label"><?= count($enrolled_ids) ?></span> / <?= count($available_units) ?> selected
                 </span>
             </div>
 
             <div class="unit-list">
                 <?php foreach ($available_units as $unit):
-                    $is_enrolled = in_array($unit['id'], $enrolled_ids);
+                    $checked = in_array($unit['id'], $enrolled_ids);
                 ?>
-                <label class="unit-item <?= $is_enrolled ? 'enrolled' : '' ?>" id="item-<?= $unit['id'] ?>">
+                <label class="unit-item <?= $checked ? 'enrolled' : '' ?>" id="item-<?= $unit['id'] ?>">
                     <input type="checkbox"
-                           class="unit-checkbox unit-check"
+                           class="unit-cb unit-check"
                            name="unit_ids[]"
                            value="<?= $unit['id'] ?>"
-                           onchange="updateCount(); updateRowStyle(<?= $unit['id'] ?>, this.checked)"
-                           <?= $is_enrolled ? 'checked' : '' ?>>
+                           onchange="updateCount(); styleRow(<?= $unit['id'] ?>, this.checked)"
+                           <?= $checked ? 'checked' : '' ?>>
                     <div class="unit-info">
                         <div class="unit-name"><?= htmlspecialchars($unit['name']) ?></div>
-                        <?php if (!empty($unit['code'])): ?>
+                        <?php if ($unit['code']): ?>
                         <div class="unit-code"><?= htmlspecialchars($unit['code']) ?></div>
                         <?php endif; ?>
                     </div>
-                    <span class="enrolled-badge" id="badge-<?= $unit['id'] ?>"
-                          style="<?= $is_enrolled ? '' : 'display:none' ?>">
-                        <i class="fas fa-check"></i> <?= $is_enrolled ? 'Enrolled' : 'Selected' ?>
+                    <span class="enroll-badge <?= $checked ? 'badge-enrolled' : 'badge-selected' ?>"
+                          id="badge-<?= $unit['id'] ?>"
+                          style="<?= $checked ? '' : 'display:none' ?>">
+                        <i class="fas fa-check"></i> <?= $checked ? 'Enrolled' : 'Selected' ?>
                     </span>
                 </label>
                 <?php endforeach; ?>
             </div>
 
-            <div class="units-card-footer">
-                <div class="selected-count">
-                    <strong id="footer-count"><?= count($enrolled_ids) ?></strong> unit<?= count($enrolled_ids) !== 1 ? 's' : '' ?> selected
+            <div class="card-foot">
+                <div class="sel-count">
+                    <strong id="footer-count"><?= count($enrolled_ids) ?></strong>
+                    unit<?= count($enrolled_ids) !== 1 ? 's' : '' ?> selected
                 </div>
                 <button type="submit" class="btn-save">
                     <i class="fas fa-save"></i> Save My Units
@@ -360,22 +333,24 @@ for ($y = $current_year - 1; $y <= $current_year + 1; $y++) {
 
 <script>
 function updateCount() {
-    const checked = document.querySelectorAll('.unit-check:checked').length;
-    const total   = document.querySelectorAll('.unit-check').length;
-    document.getElementById('count-label').textContent  = checked;
-    document.getElementById('footer-count').textContent = checked;
-    const sa = document.getElementById('select-all');
-    sa.checked       = checked === total && total > 0;
-    sa.indeterminate = checked > 0 && checked < total;
+    const n = document.querySelectorAll('.unit-check:checked').length;
+    const t = document.querySelectorAll('.unit-check').length;
+    document.getElementById('count-label').textContent  = n;
+    document.getElementById('footer-count').textContent = n;
+    const sa = document.getElementById('sel-all');
+    if (!sa) return;
+    sa.checked       = n === t && t > 0;
+    sa.indeterminate = n > 0 && n < t;
 }
 
-function updateRowStyle(unitId, checked) {
+function styleRow(unitId, checked) {
     const row   = document.getElementById('item-'  + unitId);
     const badge = document.getElementById('badge-' + unitId);
     if (checked) {
         row.classList.add('enrolled');
+        badge.className   = 'enroll-badge badge-enrolled';
+        badge.innerHTML   = '<i class="fas fa-check"></i> Enrolled';
         badge.style.display = '';
-        badge.innerHTML = '<i class="fas fa-check"></i> Selected';
     } else {
         row.classList.remove('enrolled');
         badge.style.display = 'none';
@@ -383,15 +358,16 @@ function updateRowStyle(unitId, checked) {
 }
 
 function toggleAll() {
-    const checks   = document.querySelectorAll('.unit-check');
-    const nChecked = document.querySelectorAll('.unit-check:checked').length;
-    const newState = nChecked < checks.length;
-    checks.forEach(cb => { cb.checked = newState; updateRowStyle(cb.value, newState); });
-    const sa = document.getElementById('select-all');
+    const checks  = document.querySelectorAll('.unit-check');
+    const checked = document.querySelectorAll('.unit-check:checked').length;
+    const newState = checked < checks.length;
+    checks.forEach(cb => { cb.checked = newState; styleRow(parseInt(cb.value), newState); });
+    const sa = document.getElementById('sel-all');
     sa.checked = newState; sa.indeterminate = false;
     updateCount();
 }
 
+// Warn before removing previously enrolled units
 document.getElementById('units-form')?.addEventListener('submit', function(e) {
     const enrolled = <?= json_encode($enrolled_ids) ?>;
     const selected = [...document.querySelectorAll('.unit-check:checked')].map(c => parseInt(c.value));
@@ -399,17 +375,18 @@ document.getElementById('units-form')?.addEventListener('submit', function(e) {
     if (removed.length > 0) {
         const ok = confirm(
             `You are removing ${removed.length} previously enrolled unit${removed.length > 1 ? 's' : ''}.\n\n` +
-            `Your existing progress and submissions will NOT be deleted, but those units will not appear in your dashboard until re-enrolled.\n\nContinue?`
+            `Your existing progress and submissions will NOT be deleted, but those units will no longer appear in your dashboard until re-enrolled.\n\nContinue?`
         );
         if (!ok) e.preventDefault();
     }
 });
 
-(function() {
-    const checks  = document.querySelectorAll('.unit-check');
-    const checked = document.querySelectorAll('.unit-check:checked').length;
-    const sa = document.getElementById('select-all');
-    if (sa && checked > 0 && checked < checks.length) sa.indeterminate = true;
+// Init indeterminate state on load
+(function(){
+    const n = document.querySelectorAll('.unit-check:checked').length;
+    const t = document.querySelectorAll('.unit-check').length;
+    const sa = document.getElementById('sel-all');
+    if (sa && n > 0 && n < t) sa.indeterminate = true;
 })();
 </script>
 </body>
