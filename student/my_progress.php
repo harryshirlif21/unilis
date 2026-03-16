@@ -10,11 +10,26 @@ $student_id   = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'];
 $unit_id      = intval($_GET['unit_id'] ?? 0);
 
-// Enrolled units
+// ── Enrolled units (via student_unit_enrollments → units.year + semester) ─
+$year_of_study = 0;
+try {
+    $stmt = $conn->prepare("SELECT year_of_study FROM students WHERE id = ? LIMIT 1");
+    $stmt->bind_param("i", $student_id);
+    $stmt->execute();
+    $year_of_study = intval($stmt->get_result()->fetch_assoc()['year_of_study'] ?? 0);
+    $stmt->close();
+} catch (mysqli_sql_exception $e) { error_log($e->getMessage()); }
+
 $enrolled_units = [];
 try {
-    $stmt = $conn->prepare("SELECT u.id, u.name FROM units u JOIN student_units su ON u.id = su.unit_id WHERE su.student_id = ? ORDER BY u.name");
-    $stmt->bind_param("i", $student_id);
+    $stmt = $conn->prepare("
+        SELECT u.id, u.name, u.semester
+        FROM units u
+        JOIN student_unit_enrollments sue ON sue.unit_id = u.id
+        WHERE sue.student_id = ? AND u.year = ?
+        ORDER BY u.semester ASC, u.name ASC
+    ");
+    $stmt->bind_param("ii", $student_id, $year_of_study);
     $stmt->execute();
     $r = $stmt->get_result();
     while ($row = $r->fetch_assoc()) $enrolled_units[] = $row;
@@ -25,61 +40,76 @@ if (!$unit_id && !empty($enrolled_units)) $unit_id = $enrolled_units[0]['id'];
 $unit_name = '';
 foreach ($enrolled_units as $u) { if ($u['id'] == $unit_id) { $unit_name = $u['name']; break; } }
 
-// ── PROGRESS DATA ────────────────────────────────────────
-$total_lessons = $done_lessons = 0;
+// ── Progress data ─────────────────────────────────────────────────────────
+$total_lessons      = 0;
+$done_lessons       = 0;
 $assessment_results = [];
-$recent_activity = [];
+$recent_activity    = [];
 
 if ($unit_id) {
     try {
-        // Lesson counts
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM course_lessons WHERE unit_id = ?");
+        // Total lessons for this unit (via course_modules → course_lessons)
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) FROM course_lessons cl
+            JOIN course_modules cm ON cm.id = cl.module_id
+            WHERE cl.unit_id = ?
+        ");
         $stmt->bind_param("i", $unit_id);
-        $stmt->execute(); $stmt->bind_result($total_lessons); $stmt->fetch(); $stmt->close();
+        $stmt->execute();
+        $stmt->bind_result($total_lessons);
+        $stmt->fetch();
+        $stmt->close();
 
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM student_progress WHERE student_id = ? AND unit_id = ? AND event_type = 'lesson_completed'");
+        // Completed lessons from student_progress
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) FROM student_progress
+            WHERE student_id = ? AND unit_id = ? AND event_type = 'lesson_completed'
+        ");
         $stmt->bind_param("ii", $student_id, $unit_id);
-        $stmt->execute(); $stmt->bind_result($done_lessons); $stmt->fetch(); $stmt->close();
+        $stmt->execute();
+        $stmt->bind_result($done_lessons);
+        $stmt->fetch();
+        $stmt->close();
 
-        // Assessment scores
+        // Assessment results — join assessments with assessment_submissions (live schema)
         $stmt = $conn->prepare("
             SELECT a.id, a.title, a.type, a.total_marks, a.pass_mark,
-                   sp.score, sp.created_at AS submitted_at,
-                   asub.status
+                   asub.score, asub.submitted_at, asub.status, asub.graded
             FROM assessments a
-            LEFT JOIN student_progress sp ON sp.assessment_id = a.id AND sp.student_id = ?
-            LEFT JOIN assessment_submissions asub ON asub.assessment_id = a.id AND asub.student_id = ?
+            LEFT JOIN assessment_submissions asub
+                ON asub.assessment_id = a.id AND asub.student_id = ?
             WHERE a.unit_id = ? AND a.is_published = 1
             ORDER BY a.type ASC, a.created_at ASC
         ");
-        $stmt->bind_param("iii", $student_id, $student_id, $unit_id);
+        $stmt->bind_param("ii", $student_id, $unit_id);
         $stmt->execute();
         $r = $stmt->get_result();
         while ($row = $r->fetch_assoc()) $assessment_results[] = $row;
         $stmt->close();
 
-        // Recent activity (last 10 events)
+        // Recent activity from student_progress
         $stmt = $conn->prepare("
-            SELECT sp.event_type, sp.score, sp.created_at,
-                   COALESCE(l.title, a.title) AS item_title,
+            SELECT sp.event_type, sp.score, sp.completed_at AS created_at,
+                   cl.title AS lesson_title,
+                   a.title  AS assessment_title,
                    sp.lesson_id, sp.assessment_id
             FROM student_progress sp
-            LEFT JOIN course_lessons l ON sp.lesson_id = l.id
-            LEFT JOIN assessments a ON sp.assessment_id = a.id
+            LEFT JOIN course_lessons cl  ON sp.lesson_id    = cl.id
+            LEFT JOIN assessments a      ON sp.assessment_id = a.id
             WHERE sp.student_id = ? AND sp.unit_id = ?
-            ORDER BY sp.created_at DESC LIMIT 12
+              AND sp.event_type IS NOT NULL
+            ORDER BY sp.completed_at DESC LIMIT 12
         ");
         $stmt->bind_param("ii", $student_id, $unit_id);
         $stmt->execute();
         $r = $stmt->get_result();
         while ($row = $r->fetch_assoc()) $recent_activity[] = $row;
         $stmt->close();
-    } catch (mysqli_sql_exception $e) { error_log($e->getMessage()); }
+
+    } catch (mysqli_sql_exception $e) { error_log("my_progress: " . $e->getMessage()); }
 }
 
-$lesson_pct   = $total_lessons > 0 ? round(($done_lessons / $total_lessons) * 100) : 0;
-$submitted_count = count(array_filter($assessment_results, fn($a) => $a['score'] !== null));
-$passed_count    = count(array_filter($assessment_results, fn($a) => $a['score'] !== null && $a['score'] >= $a['pass_mark']));
+$lesson_pct = $total_lessons > 0 ? round(($done_lessons / $total_lessons) * 100) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -87,240 +117,233 @@ $passed_count    = count(array_filter($assessment_results, fn($a) => $a['score']
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Progress — UNILIS</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
 :root{
-    --bg:#f2f5fb;--surf:#fff;--surf2:#f8faff;--surf3:#eef1f9;
-    --border:#e0e8f5;--accent:#4f6ef7;--green:#10b981;--amber:#f59e0b;--red:#ef4444;--purple:#8b5cf6;
-    --text:#1e2235;--muted:#64748b;--dim:#a0aec0;
-    --r:12px;--rs:7px;--tr:.15s ease;
-    --shadow:0 2px 16px rgba(79,110,247,.07);
+    --bg:#f0f4ff;--surf:#fff;--surf2:#f7f9ff;--surf3:#eef1fa;
+    --border:#dde3f5;--accent:#4f6ef7;--green:#10b981;--amber:#f59e0b;--red:#ef4444;
+    --purple:#8b5cf6;--text:#1e2235;--muted:#64748b;--dim:#a0aec0;
+    --r:12px;--rs:7px;--tr:.15s ease;--shadow:0 2px 16px rgba(79,110,247,.08);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
-.topbar{background:var(--surf);border-bottom:1px solid var(--border);padding:0 28px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.topbar{background:var(--surf);border-bottom:1px solid var(--border);padding:0 28px;height:58px;
+        display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
 .brand{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--accent)}
-.nav-right{display:flex;align-items:center;gap:8px}
-.btn-nav{background:var(--surf3);border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:var(--rs);font-size:.77rem;cursor:pointer;text-decoration:none;transition:var(--tr);font-family:'DM Sans',sans-serif}
+.brand span{color:var(--muted);font-weight:400;font-size:.8rem;margin-left:8px}
+.nav-right{display:flex;align-items:center;gap:10px}
+.btn-nav{background:var(--surf3);border:1px solid var(--border);color:var(--muted);padding:6px 13px;
+         border-radius:var(--rs);font-size:.78rem;cursor:pointer;text-decoration:none;transition:var(--tr);font-family:'DM Sans',sans-serif}
 .btn-nav:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
-.layout{display:flex;min-height:calc(100vh - 54px)}
+.layout{display:flex;min-height:calc(100vh - 58px)}
 
-.sidebar{width:240px;min-width:240px;background:var(--surf);border-right:1px solid var(--border);padding:18px 14px;overflow-y:auto}
-.sb-label{font-family:'Syne',sans-serif;font-size:.67rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:8px}
-.unit-link{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:var(--rs);text-decoration:none;color:var(--muted);font-size:.84rem;transition:var(--tr);border:1px solid transparent;margin-bottom:3px}
+/* SIDEBAR */
+.sidebar{width:240px;min-width:240px;background:var(--surf);border-right:1px solid var(--border);padding:20px 14px;overflow-y:auto}
+.sb-label{font-family:'Syne',sans-serif;font-size:.67rem;font-weight:700;letter-spacing:.12em;
+          text-transform:uppercase;color:var(--dim);display:block;margin-bottom:8px}
+.unit-link{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--rs);
+           text-decoration:none;color:var(--muted);font-size:.84rem;transition:var(--tr);
+           border:1px solid transparent;margin-bottom:3px}
 .unit-link:hover{background:var(--surf2);color:var(--text)}
 .unit-link.active{background:rgba(79,110,247,.08);border-color:rgba(79,110,247,.2);color:var(--accent);font-weight:500}
+.sem-chip{font-size:.65rem;padding:1px 6px;border-radius:999px;background:var(--surf3);
+          color:var(--dim);border:1px solid var(--border);margin-left:auto;white-space:nowrap}
 
-.main{flex:1;padding:28px 32px;display:flex;flex-direction:column;gap:24px;max-width:960px}
+/* MAIN */
+.main{flex:1;padding:28px 32px;max-width:960px;display:flex;flex-direction:column;gap:24px}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,#4f6ef7,#7c3aed);border-radius:var(--r);padding:28px 32px;
+      color:#fff;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-40px;top:-40px;width:200px;height:200px;
+             border-radius:50%;background:rgba(255,255,255,.06)}
+.hero h1{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:4px}
+.hero p{font-size:.85rem;opacity:.8;margin-bottom:18px}
+.progress-track{background:rgba(255,255,255,.2);border-radius:999px;height:9px;overflow:hidden;margin-bottom:6px}
+.progress-fill{height:100%;border-radius:999px;background:#fff;transition:width .6s ease}
+.progress-lbl{font-size:.78rem;opacity:.75}
 
 /* STAT CARDS */
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
-.stat-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow)}
-.stat-icon{width:36px;height:36px;border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:.9rem;margin-bottom:10px}
-.stat-val{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;line-height:1}
-.stat-lbl{font-size:.75rem;color:var(--muted);margin-top:4px}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.stat-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);
+           padding:16px 18px;box-shadow:var(--shadow);text-align:center}
+.stat-num{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;line-height:1}
+.stat-lbl{font-size:.75rem;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.06em}
+.c-blue{color:var(--accent)}.c-green{color:var(--green)}.c-amber{color:var(--amber)}.c-purple{color:var(--purple)}
 
-/* PROGRESS RING */
-.progress-section{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:22px 24px;box-shadow:var(--shadow);display:flex;align-items:center;gap:28px;flex-wrap:wrap}
-.ring-wrap{position:relative;width:100px;height:100px;flex-shrink:0}
-.ring-wrap svg{transform:rotate(-90deg)}
-.ring-bg{fill:none;stroke:var(--surf3);stroke-width:8}
-.ring-fill{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease}
-.ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.ring-pct{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;color:var(--accent)}
-.ring-sub{font-size:.65rem;color:var(--muted)}
-.progress-info h3{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;margin-bottom:6px}
-.progress-info p{font-size:.85rem;color:var(--muted);margin-bottom:12px}
-.mini-bars{display:flex;flex-direction:column;gap:8px;width:100%;max-width:320px}
-.mini-bar-row{display:flex;align-items:center;gap:10px}
-.mini-bar-lbl{font-size:.75rem;color:var(--muted);width:80px;flex-shrink:0}
-.mini-bar-track{flex:1;height:6px;background:var(--surf3);border-radius:999px;overflow:hidden}
-.mini-bar-fill{height:100%;border-radius:999px;transition:width .6s ease}
-.mini-bar-val{font-size:.73rem;color:var(--muted);width:32px;text-align:right}
+/* SECTION */
+.sec-title{font-family:'Syne',sans-serif;font-size:.82rem;font-weight:700;letter-spacing:.08em;
+           text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px}
 
 /* ASSESSMENT TABLE */
-.sec-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
-.sec-head{background:var(--surf2);padding:13px 18px;border-bottom:1px solid var(--border);font-family:'Syne',sans-serif;font-size:.82rem;font-weight:700;display:flex;align-items:center;gap:8px}
-.assess-table{width:100%;border-collapse:collapse}
-.assess-table th{font-family:'Syne',sans-serif;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border)}
-.assess-table td{padding:11px 16px;border-bottom:1px solid var(--border);font-size:.85rem}
+.assess-table{width:100%;border-collapse:collapse;background:var(--surf);border-radius:var(--r);
+              overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border)}
+.assess-table th{background:var(--surf2);font-family:'Syne',sans-serif;font-size:.72rem;font-weight:700;
+                 letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px 14px;
+                 text-align:left;border-bottom:1px solid var(--border)}
+.assess-table td{padding:12px 14px;border-bottom:1px solid var(--surf3);font-size:.85rem;vertical-align:middle}
 .assess-table tr:last-child td{border-bottom:none}
 .assess-table tr:hover td{background:var(--surf2)}
-.type-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
-.td-quiz{background:var(--accent)}.td-assignment{background:var(--green)}.td-cat{background:var(--amber)}.td-exam{background:var(--red)}
 
-.score-bar-wrap{width:100px;height:6px;background:var(--surf3);border-radius:999px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
-.score-bar-fill{height:100%;border-radius:999px}
-.chip{font-size:.7rem;padding:2px 8px;border-radius:999px;font-weight:600}
-.chip-pass{background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.2)}
-.chip-fail{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
-.chip-pending{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.2)}
-.chip-ns{background:var(--surf3);color:var(--dim);border:1px solid var(--border)}
+.type-pill{font-size:.68rem;padding:2px 8px;border-radius:999px;font-weight:700;text-transform:uppercase;
+           letter-spacing:.05em;border:1px solid}
+.pill-quiz{background:rgba(79,110,247,.08);color:var(--accent);border-color:rgba(79,110,247,.2)}
+.pill-assignment{background:rgba(16,185,129,.08);color:var(--green);border-color:rgba(16,185,129,.2)}
+.pill-cat{background:rgba(245,158,11,.08);color:var(--amber);border-color:rgba(245,158,11,.2)}
+.pill-exam{background:rgba(239,68,68,.08);color:var(--red);border-color:rgba(239,68,68,.2)}
 
-/* ACTIVITY */
-.activity-list{padding:6px 0}
-.activity-item{display:flex;align-items:flex-start;gap:12px;padding:10px 18px;border-bottom:1px solid var(--border)}
+.score-chip{font-size:.75rem;padding:3px 9px;border-radius:999px;font-weight:600;border:1px solid}
+.chip-pass{background:rgba(16,185,129,.1);color:var(--green);border-color:rgba(16,185,129,.25)}
+.chip-fail{background:rgba(239,68,68,.1);color:var(--red);border-color:rgba(239,68,68,.25)}
+.chip-pending{background:rgba(245,158,11,.1);color:var(--amber);border-color:rgba(245,158,11,.25)}
+.chip-ns{background:var(--surf3);color:var(--dim);border-color:var(--border)}
+
+/* ACTIVITY FEED */
+.activity-feed{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);
+               padding:16px 18px;box-shadow:var(--shadow)}
+.activity-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;
+               border-bottom:1px solid var(--surf3)}
 .activity-item:last-child{border-bottom:none}
-.activity-icon{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;margin-top:2px}
-.icon-completed{background:rgba(16,185,129,.12);color:var(--green)}
-.icon-viewed{background:rgba(79,110,247,.1);color:var(--accent)}
-.icon-score{background:rgba(245,158,11,.1);color:var(--amber)}
-.activity-text{flex:1;font-size:.84rem;line-height:1.45}
-.activity-text strong{font-weight:500}
-.activity-time{font-size:.73rem;color:var(--dim);margin-top:3px}
+.act-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+          font-size:.85rem;flex-shrink:0}
+.act-lesson-completed{background:rgba(16,185,129,.1);color:var(--green)}
+.act-lesson-viewed{background:rgba(79,110,247,.1);color:var(--accent)}
+.act-quiz-score,.act-assignment-score,.act-cat-score,.act-exam-score{background:rgba(245,158,11,.1);color:var(--amber)}
+.act-lab-completed{background:rgba(139,92,246,.1);color:var(--purple)}
+.act-body{flex:1}
+.act-title{font-size:.87rem;font-weight:500;color:var(--text);margin-bottom:2px}
+.act-meta{font-size:.75rem;color:var(--dim)}
 
 .empty{text-align:center;padding:36px;color:var(--dim);font-size:.85rem}
-::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.empty i{font-size:1.8rem;margin-bottom:10px;display:block;opacity:.3}
+
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 </style>
 </head>
 <body>
 
 <header class="topbar">
-    <div class="brand">UNILIS <span style="color:var(--muted);font-weight:400;font-size:.8rem;margin-left:8px">My Progress</span></div>
+    <div class="brand">UNILIS <span>My Progress</span></div>
     <div class="nav-right">
-        <?php if ($unit_id): ?>
-        <a href="course_view.php?unit_id=<?= $unit_id ?>" class="btn-nav"><i class="fas fa-book-open"></i> Course View</a>
-        <?php endif; ?>
-        <a href="../dashboard.php" class="btn-nav"><i class="fas fa-home"></i> Dashboard</a>
+        <a href="course_view.php<?= $unit_id ? '?unit_id='.$unit_id : '' ?>" class="btn-nav">
+            <i class="fas fa-book-open"></i> Course View
+        </a>
+        <a href="dashboard.php" class="btn-nav"><i class="fas fa-home"></i> Dashboard</a>
     </div>
 </header>
 
 <div class="layout">
+
+    <!-- SIDEBAR -->
     <aside class="sidebar">
-        <span class="sb-label">My Units</span>
-        <?php foreach ($enrolled_units as $u): ?>
-        <a class="unit-link <?= $unit_id == $u['id'] ? 'active' : '' ?>"
-           href="my_progress.php?unit_id=<?= $u['id'] ?>">
-            <i class="fas fa-circle-dot" style="font-size:.45rem"></i>
-            <?= htmlspecialchars($u['name']) ?>
-        </a>
-        <?php endforeach; ?>
+        <span class="sb-label"><i class="fas fa-book"></i> &nbsp;My Units</span>
+        <?php if (empty($enrolled_units)): ?>
+            <p style="font-size:.8rem;color:var(--dim);padding:8px 4px">
+                No units enrolled. <a href="my_units.php" style="color:var(--accent)">Set up My Units</a>
+            </p>
+        <?php else: ?>
+            <?php foreach ($enrolled_units as $u): ?>
+            <a class="unit-link <?= $unit_id == $u['id'] ? 'active' : '' ?>"
+               href="my_progress.php?unit_id=<?= $u['id'] ?>">
+                <i class="fas fa-circle-dot" style="font-size:.45rem"></i>
+                <?= htmlspecialchars($u['name']) ?>
+                <span class="sem-chip">S<?= $u['semester'] ?></span>
+            </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </aside>
 
+    <!-- MAIN -->
     <main class="main">
-    <?php if (!$unit_id): ?>
-        <div class="empty"><i class="fas fa-chart-line" style="font-size:2rem;margin-bottom:12px;display:block"></i>Select a unit to view progress.</div>
-    <?php else: ?>
+
+        <?php if (!$unit_id): ?>
+            <div class="empty"><i class="fas fa-chart-line"></i>Select a unit to view your progress.</div>
+
+        <?php else: ?>
+
+        <!-- HERO -->
+        <div class="hero">
+            <h1><?= htmlspecialchars($unit_name) ?></h1>
+            <p>Lessons completed &nbsp;·&nbsp; <?= $done_lessons ?> of <?= $total_lessons ?></p>
+            <div class="progress-track">
+                <div class="progress-fill" style="width:<?= $lesson_pct ?>%"></div>
+            </div>
+            <div class="progress-lbl"><?= $lesson_pct ?>% lesson progress</div>
+        </div>
 
         <!-- STAT CARDS -->
-        <div class="stat-grid">
+        <?php
+        $total_assess   = count($assessment_results);
+        $submitted_count = count(array_filter($assessment_results, fn($a) => $a['score'] !== null));
+        $passed_count    = count(array_filter($assessment_results, fn($a) => $a['score'] !== null && $a['pass_mark'] && $a['score'] >= $a['pass_mark']));
+        $avg_score       = $submitted_count > 0
+            ? round(array_sum(array_column(array_filter($assessment_results, fn($a) => $a['score'] !== null), 'score')) / $submitted_count, 1)
+            : 0;
+        ?>
+        <div class="stat-row">
             <div class="stat-card">
-                <div class="stat-icon" style="background:rgba(79,110,247,.1);color:var(--accent)"><i class="fas fa-book-open"></i></div>
-                <div class="stat-val" style="color:var(--accent)"><?= $lesson_pct ?>%</div>
-                <div class="stat-lbl">Course Progress</div>
+                <div class="stat-num c-blue"><?= $lesson_pct ?>%</div>
+                <div class="stat-lbl">Lesson Progress</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background:rgba(16,185,129,.1);color:var(--green)"><i class="fas fa-circle-check"></i></div>
-                <div class="stat-val" style="color:var(--green)"><?= $done_lessons ?>/<?= $total_lessons ?></div>
-                <div class="stat-lbl">Lessons Done</div>
+                <div class="stat-num c-green"><?= $submitted_count ?></div>
+                <div class="stat-lbl">Assessments Done</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background:rgba(245,158,11,.1);color:var(--amber)"><i class="fas fa-paper-plane"></i></div>
-                <div class="stat-val" style="color:var(--amber)"><?= $submitted_count ?>/<?= count($assessment_results) ?></div>
-                <div class="stat-lbl">Submitted</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon" style="background:rgba(139,92,246,.1);color:var(--purple)"><i class="fas fa-trophy"></i></div>
-                <div class="stat-val" style="color:var(--purple)"><?= $passed_count ?></div>
+                <div class="stat-num c-amber"><?= $passed_count ?></div>
                 <div class="stat-lbl">Assessments Passed</div>
             </div>
-        </div>
-
-        <!-- PROGRESS RING -->
-        <div class="progress-section">
-            <?php $circ = 2 * M_PI * 42; $offset = $circ * (1 - $lesson_pct / 100); ?>
-            <div class="ring-wrap">
-                <svg viewBox="0 0 100 100" width="100" height="100">
-                    <circle class="ring-bg" cx="50" cy="50" r="42"/>
-                    <circle class="ring-fill" cx="50" cy="50" r="42"
-                            stroke-dasharray="<?= round($circ,2) ?>"
-                            stroke-dashoffset="<?= round($offset,2) ?>"/>
-                </svg>
-                <div class="ring-text">
-                    <span class="ring-pct"><?= $lesson_pct ?>%</span>
-                    <span class="ring-sub">complete</span>
-                </div>
-            </div>
-            <div class="progress-info">
-                <h3><?= htmlspecialchars($unit_name) ?></h3>
-                <p><?= $done_lessons ?> of <?= $total_lessons ?> lessons completed</p>
-                <?php
-                $types = [
-                    'Quizzes'     => ['quiz',       '#4f6ef7'],
-                    'Assignments' => ['assignment',  '#10b981'],
-                    'CATs'        => ['cat',         '#f59e0b'],
-                    'Exams'       => ['exam',        '#ef4444'],
-                ];
-                ?>
-                <div class="mini-bars">
-                <?php foreach ($types as $label => [$type, $colour]): ?>
-                <?php
-                    $type_assessments = array_filter($assessment_results, fn($a) => $a['type'] === $type);
-                    $type_total  = count($type_assessments);
-                    $type_passed = count(array_filter($type_assessments, fn($a) => $a['score'] !== null && $a['score'] >= $a['pass_mark']));
-                    $type_pct    = $type_total > 0 ? round(($type_passed / $type_total) * 100) : 0;
-                    if ($type_total === 0) continue;
-                ?>
-                <div class="mini-bar-row">
-                    <span class="mini-bar-lbl"><?= $label ?></span>
-                    <div class="mini-bar-track"><div class="mini-bar-fill" style="width:<?= $type_pct ?>%;background:<?= $colour ?>"></div></div>
-                    <span class="mini-bar-val"><?= $type_passed ?>/<?= $type_total ?></span>
-                </div>
-                <?php endforeach; ?>
-                </div>
+            <div class="stat-card">
+                <div class="stat-num c-purple"><?= $avg_score ?>%</div>
+                <div class="stat-lbl">Avg Score</div>
             </div>
         </div>
 
-        <!-- ASSESSMENT RESULTS TABLE -->
+        <!-- ASSESSMENT RESULTS -->
         <?php if (!empty($assessment_results)): ?>
-        <div class="sec-card">
-            <div class="sec-head"><i class="fas fa-tasks"></i> Assessment Results</div>
+        <div>
+            <div class="sec-title"><i class="fas fa-tasks"></i> Assessment Results</div>
             <table class="assess-table">
                 <thead>
                     <tr>
                         <th>Assessment</th>
                         <th>Type</th>
                         <th>Score</th>
+                        <th>Out of</th>
                         <th>Result</th>
-                        <th>Date</th>
+                        <th>Submitted</th>
                     </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($assessment_results as $a): ?>
-                <?php
-                    $score   = $a['score'];
-                    $passed  = $score !== null && $score >= $a['pass_mark'];
-                    $pending = $a['status'] && $score === null;
-                    $ns      = !$a['status'];
-                    $barPct  = $score !== null ? min(100, round($score)) : 0;
-                    $barCol  = $passed ? 'var(--green)' : ($score !== null ? 'var(--red)' : 'var(--dim)');
+                <?php foreach ($assessment_results as $a):
+                    $submitted = $a['score'] !== null;
+                    $passed    = $submitted && $a['pass_mark'] && $a['score'] >= $a['pass_mark'];
+                    $pending   = $submitted && !$a['graded'];
                 ?>
                 <tr>
                     <td style="font-weight:500"><?= htmlspecialchars($a['title']) ?></td>
+                    <td><span class="type-pill pill-<?= $a['type'] ?? 'quiz' ?>"><?= strtoupper($a['type'] ?? 'Quiz') ?></span></td>
                     <td>
-                        <span class="type-dot td-<?= $a['type'] ?>"></span>
-                        <?= ucfirst($a['type']) ?>
-                    </td>
-                    <td>
-                        <?php if ($score !== null): ?>
-                            <div class="score-bar-wrap"><div class="score-bar-fill" style="width:<?= $barPct ?>%;background:<?= $barCol ?>"></div></div>
-                            <?= round($score) ?>%
-                        <?php elseif ($pending): ?>
-                            <span style="color:var(--amber);font-size:.82rem">Awaiting grading</span>
+                        <?php if ($submitted): ?>
+                            <?= round($a['score'], 1) ?>%
                         <?php else: ?>
-                            <span style="color:var(--dim);font-size:.82rem">—</span>
+                            <span style="color:var(--dim)">—</span>
                         <?php endif; ?>
                     </td>
+                    <td><?= $a['total_marks'] ?></td>
                     <td>
-                        <?php if ($score !== null): ?>
-                            <span class="chip <?= $passed ? 'chip-pass' : 'chip-fail' ?>"><?= $passed ? 'Pass' : 'Fail' ?></span>
+                        <?php if (!$submitted): ?>
+                            <span class="score-chip chip-ns">Not Submitted</span>
                         <?php elseif ($pending): ?>
-                            <span class="chip chip-pending">Pending</span>
+                            <span class="score-chip chip-pending"><i class="fas fa-hourglass-half"></i> Pending</span>
+                        <?php elseif ($passed): ?>
+                            <span class="score-chip chip-pass"><i class="fas fa-check"></i> Pass</span>
                         <?php else: ?>
-                            <span class="chip chip-ns">Not submitted</span>
+                            <span class="score-chip chip-fail"><i class="fas fa-times"></i> Fail</span>
                         <?php endif; ?>
                     </td>
                     <td style="color:var(--muted);font-size:.8rem">
@@ -334,35 +357,62 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
         <?php endif; ?>
 
         <!-- RECENT ACTIVITY -->
-        <?php if (!empty($recent_activity)): ?>
-        <div class="sec-card">
-            <div class="sec-head"><i class="fas fa-history"></i> Recent Activity</div>
-            <div class="activity-list">
-            <?php foreach ($recent_activity as $ev): ?>
-            <?php
-                $icon = 'icon-viewed'; $ico = 'fa-eye';
-                if ($ev['event_type'] === 'lesson_completed') { $icon = 'icon-completed'; $ico = 'fa-check'; }
-                elseif (str_contains($ev['event_type'], '_score')) { $icon = 'icon-score'; $ico = 'fa-star'; }
-                $label = str_replace(['_', 'lesson ', 'quiz_', 'assignment_', 'cat_', 'exam_'], [' ', 'Lesson ', '', '', '', ''], $ev['event_type']);
-            ?>
-            <div class="activity-item">
-                <div class="activity-icon <?= $icon ?>"><i class="fas <?= $ico ?>"></i></div>
-                <div class="activity-text">
-                    <strong><?= ucfirst($label) ?></strong>:
-                    <?= htmlspecialchars($ev['item_title'] ?? 'Unknown') ?>
-                    <?php if ($ev['score'] !== null): ?>
-                        — <strong><?= round($ev['score']) ?>%</strong>
-                    <?php endif; ?>
-                    <div class="activity-time"><?= date('d M Y, H:i', strtotime($ev['created_at'])) ?></div>
-                </div>
-            </div>
-            <?php endforeach; ?>
+        <div>
+            <div class="sec-title"><i class="fas fa-history"></i> Recent Activity</div>
+            <div class="activity-feed">
+                <?php if (empty($recent_activity)): ?>
+                    <div class="empty" style="padding:20px">
+                        <i class="fas fa-clock" style="font-size:1.4rem"></i>
+                        No activity yet for this unit.
+                    </div>
+                <?php else: ?>
+                    <?php
+                    $event_icons = [
+                        'lesson_completed'  => 'fa-circle-check',
+                        'lesson_viewed'     => 'fa-eye',
+                        'quiz_score'        => 'fa-star',
+                        'assignment_score'  => 'fa-file-alt',
+                        'cat_score'         => 'fa-clipboard-list',
+                        'exam_score'        => 'fa-graduation-cap',
+                        'lab_completed'     => 'fa-flask',
+                    ];
+                    $event_labels = [
+                        'lesson_completed'  => 'Completed lesson',
+                        'lesson_viewed'     => 'Viewed lesson',
+                        'quiz_score'        => 'Quiz submitted',
+                        'assignment_score'  => 'Assignment submitted',
+                        'cat_score'         => 'CAT submitted',
+                        'exam_score'        => 'Exam submitted',
+                        'lab_completed'     => 'Lab completed',
+                    ];
+                    foreach ($recent_activity as $act):
+                        $type    = $act['event_type'] ?? 'lesson_viewed';
+                        $icon    = $event_icons[$type]  ?? 'fa-circle';
+                        $label   = $event_labels[$type] ?? ucfirst(str_replace('_',' ',$type));
+                        $title   = $act['lesson_title'] ?? $act['assessment_title'] ?? 'Activity';
+                        $ts      = $act['created_at'] ? date('d M, H:i', strtotime($act['created_at'])) : '';
+                    ?>
+                    <div class="activity-item">
+                        <div class="act-icon act-<?= $type ?>">
+                            <i class="fas <?= $icon ?>"></i>
+                        </div>
+                        <div class="act-body">
+                            <div class="act-title"><?= $label ?>: <?= htmlspecialchars($title) ?>
+                                <?php if ($act['score'] !== null): ?>
+                                    <span class="score-chip chip-pass" style="margin-left:6px"><?= round($act['score'],1) ?>%</span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="act-meta"><?= $ts ?></div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
-        <?php endif; ?>
 
-    <?php endif; ?>
+        <?php endif; ?>
     </main>
 </div>
+
 </body>
 </html>
