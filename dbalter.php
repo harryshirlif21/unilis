@@ -4,7 +4,7 @@ require_once 'config/db.php';
 echo "<h1>Database Structure Viewer</h1>";
 
 /* ================================================================
-   SECTION 1 — CREATE MISSING TABLES (original dbalter.php logic)
+   SECTION 1 — CREATE MISSING TABLES
    ================================================================ */
 
 $queries = [];
@@ -13,11 +13,17 @@ $queries[] = "CREATE TABLE IF NOT EXISTS assessments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     unit_id INT NOT NULL,
     lecturer_id INT NOT NULL,
+    module_id INT DEFAULT NULL,
+    lesson_id INT DEFAULT NULL,
     title VARCHAR(255) NOT NULL,
-    description TEXT,
-    total_marks INT DEFAULT 0,
-    due_date DATETIME,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    type ENUM('quiz','assignment','cat','exam') NOT NULL,
+    instructions TEXT,
+    time_limit_mins INT DEFAULT NULL,
+    total_marks INT NOT NULL DEFAULT 0,
+    pass_mark INT NOT NULL DEFAULT 0,
+    is_published TINYINT(1) NOT NULL DEFAULT 0,
+    due_date DATETIME DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX(unit_id), INDEX(lecturer_id),
     FOREIGN KEY (unit_id) REFERENCES units(id),
     FOREIGN KEY (lecturer_id) REFERENCES lecturers(id)
@@ -67,7 +73,6 @@ $queries[] = "CREATE TABLE IF NOT EXISTS submission_answers (
     FOREIGN KEY (question_id) REFERENCES assessment_questions(id)
 ) ENGINE=InnoDB";
 
-// course_modules — correct schema: unit_id + lecturer_id (NOT course_id)
 $queries[] = "CREATE TABLE IF NOT EXISTS course_modules (
     id INT AUTO_INCREMENT PRIMARY KEY,
     unit_id INT NOT NULL,
@@ -78,7 +83,6 @@ $queries[] = "CREATE TABLE IF NOT EXISTS course_modules (
     INDEX(unit_id), INDEX(lecturer_id)
 ) ENGINE=InnoDB";
 
-// course_lessons — correct schema: unit_id + lesson_number (no content column)
 $queries[] = "CREATE TABLE IF NOT EXISTS course_lessons (
     id INT AUTO_INCREMENT PRIMARY KEY,
     module_id INT NOT NULL,
@@ -91,7 +95,6 @@ $queries[] = "CREATE TABLE IF NOT EXISTS course_lessons (
     FOREIGN KEY (module_id) REFERENCES course_modules(id)
 ) ENGINE=InnoDB";
 
-// lesson_content_blocks — correct enum includes audio + diagram; LONGTEXT
 $queries[] = "CREATE TABLE IF NOT EXISTS lesson_content_blocks (
     id INT AUTO_INCREMENT PRIMARY KEY,
     lesson_id INT NOT NULL,
@@ -159,18 +162,28 @@ $queries[] = "CREATE TABLE IF NOT EXISTS course_outlines (
     UNIQUE KEY uq_unit_lecturer (unit_id, lecturer_id)
 ) ENGINE=InnoDB";
 
+// ── NEW: exam_violations (missing on live server) ──────────────
+$queries[] = "CREATE TABLE IF NOT EXISTS exam_violations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    submission_id INT NOT NULL,
+    student_id INT NOT NULL,
+    violation_type VARCHAR(100) NOT NULL,
+    occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    details TEXT,
+    INDEX(submission_id), INDEX(student_id)
+) ENGINE=InnoDB";
+
 echo "<h2>Checking / Creating Missing Tables</h2>";
 foreach ($queries as $sql) {
     echo $conn->query($sql) ? "Table OK / Created successfully<br>" : "Error: " . $conn->error . "<br>";
 }
 
 /* ================================================================
-   SECTION 2 — FIX EXISTING TABLES (migrate online DB to correct schema)
+   SECTION 2 — FIX EXISTING TABLE SCHEMAS
    ================================================================ */
 
 echo "<h2>Checking / Fixing Table Schemas</h2>";
 
-// Helper: check if a column exists
 function column_exists($conn, $table, $column) {
     $r = $conn->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE()
@@ -179,7 +192,6 @@ function column_exists($conn, $table, $column) {
     return $r && $r->num_rows > 0;
 }
 
-// Helper: check if an index exists
 function index_exists($conn, $table, $index) {
     $r = $conn->query("SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
         WHERE TABLE_SCHEMA = DATABASE()
@@ -188,7 +200,6 @@ function index_exists($conn, $table, $index) {
     return $r && $r->num_rows > 0;
 }
 
-// Helper: run ALTER and report
 function alter($conn, $sql, $label) {
     if ($conn->query($sql)) {
         echo "✔ $label<br>";
@@ -197,13 +208,90 @@ function alter($conn, $sql, $label) {
     }
 }
 
-/* ── course_modules ──────────────────────────────────────────────
-   Online (wrong): course_id FK to courses, has description
-   Correct:        unit_id + lecturer_id, no description           */
+/* ── assessments ─────────────────────────────────────────────────
+   Online (wrong): missing module_id, lesson_id, type, instructions,
+                   time_limit_mins, pass_mark, is_published
+                   Has extra 'description' column not in localhost
+   Correct:        full schema matching localhost                   */
 
+echo "<h3>assessments</h3>";
+
+// Drop 'description' column (exists online, not in localhost schema)
+if (column_exists($conn, 'assessments', 'description')) {
+    alter($conn, "ALTER TABLE `assessments` DROP COLUMN `description`", "Dropped column description");
+} else { echo "✔ description already absent<br>"; }
+
+// Add module_id
+if (!column_exists($conn, 'assessments', 'module_id')) {
+    alter($conn,
+        "ALTER TABLE `assessments` ADD COLUMN `module_id` INT DEFAULT NULL AFTER `lecturer_id`",
+        "Added column module_id"
+    );
+} else { echo "✔ module_id already exists<br>"; }
+
+// Add lesson_id
+if (!column_exists($conn, 'assessments', 'lesson_id')) {
+    alter($conn,
+        "ALTER TABLE `assessments` ADD COLUMN `lesson_id` INT DEFAULT NULL AFTER `module_id`",
+        "Added column lesson_id"
+    );
+} else { echo "✔ lesson_id already exists<br>"; }
+
+// Add type
+if (!column_exists($conn, 'assessments', 'type')) {
+    alter($conn,
+        "ALTER TABLE `assessments` ADD COLUMN `type` ENUM('quiz','assignment','cat','exam') NOT NULL AFTER `lesson_id`",
+        "Added column type"
+    );
+} else { echo "✔ type already exists<br>"; }
+
+// Add instructions
+if (!column_exists($conn, 'assessments', 'instructions')) {
+    alter($conn,
+        "ALTER TABLE `assessments` ADD COLUMN `instructions` TEXT DEFAULT NULL AFTER `type`",
+        "Added column instructions"
+    );
+} else { echo "✔ instructions already exists<br>"; }
+
+// Add time_limit_mins
+if (!column_exists($conn, 'assessments', 'time_limit_mins')) {
+    alter($conn,
+        "ALTER TABLE `assessments` ADD COLUMN `time_limit_mins` INT DEFAULT NULL AFTER `instructions`",
+        "Added column time_limit_mins"
+    );
+} else { echo "✔ time_limit_mins already exists<br>"; }
+
+// Add pass_mark (after total_marks)
+if (!column_exists($conn, 'assessments', 'pass_mark')) {
+    alter($conn,
+        "ALTER TABLE `assessments` ADD COLUMN `pass_mark` INT NOT NULL DEFAULT 0 AFTER `total_marks`",
+        "Added column pass_mark"
+    );
+} else { echo "✔ pass_mark already exists<br>"; }
+
+// Add is_published (after pass_mark)
+if (!column_exists($conn, 'assessments', 'is_published')) {
+    alter($conn,
+        "ALTER TABLE `assessments` ADD COLUMN `is_published` TINYINT(1) NOT NULL DEFAULT 0 AFTER `pass_mark`",
+        "Added column is_published"
+    );
+} else { echo "✔ is_published already exists<br>"; }
+
+// Fix due_date to DATETIME (online may have DATE type)
+alter($conn,
+    "ALTER TABLE `assessments` MODIFY COLUMN `due_date` DATETIME DEFAULT NULL",
+    "Ensured due_date is DATETIME"
+);
+
+// Fix created_at to DATETIME (online has TIMESTAMP)
+alter($conn,
+    "ALTER TABLE `assessments` MODIFY COLUMN `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "Ensured created_at is DATETIME"
+);
+
+/* ── course_modules ──────────────────────────────────────────────*/
 echo "<h3>course_modules</h3>";
 
-// Drop FK on course_id if it exists
 $fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_modules'
     AND COLUMN_NAME = 'course_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
@@ -236,10 +324,7 @@ if (!index_exists($conn, 'course_modules', 'idx_cm_lecturer')) {
     alter($conn, "ALTER TABLE `course_modules` ADD INDEX `idx_cm_lecturer` (`lecturer_id`)", "Added index idx_cm_lecturer");
 } else { echo "✔ idx_cm_lecturer already exists<br>"; }
 
-/* ── course_lessons ──────────────────────────────────────────────
-   Online (wrong): no unit_id, no lesson_number, has content
-   Correct:        unit_id + lesson_number, no content             */
-
+/* ── course_lessons ──────────────────────────────────────────────*/
 echo "<h3>course_lessons</h3>";
 
 if (column_exists($conn, 'course_lessons', 'content')) {
@@ -258,13 +343,9 @@ if (!index_exists($conn, 'course_lessons', 'idx_cl_unit')) {
     alter($conn, "ALTER TABLE `course_lessons` ADD INDEX `idx_cl_unit` (`unit_id`)", "Added index idx_cl_unit");
 } else { echo "✔ idx_cl_unit already exists<br>"; }
 
-/* ── lesson_content_blocks ───────────────────────────────────────
-   Online (wrong): enum has quiz/code; content is TEXT; no created_at
-   Correct:        enum has audio/diagram; LONGTEXT; has created_at */
-
+/* ── lesson_content_blocks ───────────────────────────────────────*/
 echo "<h3>lesson_content_blocks</h3>";
 
-// Fix enum — always run MODIFY to ensure correct values
 alter($conn,
     "ALTER TABLE `lesson_content_blocks`
         MODIFY COLUMN `block_type` ENUM('text','image','video','audio','diagram') NOT NULL DEFAULT 'text',
@@ -279,7 +360,7 @@ if (!column_exists($conn, 'lesson_content_blocks', 'created_at')) {
 echo "<h3>All fixes applied ✔</h3>";
 
 /* ================================================================
-   SECTION 3 — SHOW ALL TABLES (original structure viewer)
+   SECTION 3 — SHOW ALL TABLES
    ================================================================ */
 
 $tables_result = $conn->query("SHOW TABLES");
