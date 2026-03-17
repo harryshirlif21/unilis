@@ -1,53 +1,61 @@
 <?php
-ini_set('display_errors', 0);
-header('Content-Type: application/json');
+// ajax/delete_content_block.php
 session_start();
-require_once __DIR__ . '/../../config/db.php';
+require_once '../../config/db.php';
+header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']); exit;
+    echo json_encode(['success' => false, 'message' => 'Unauthorised']);
+    exit;
 }
 
-$lecturer_id = (int)$_SESSION['user_id'];
-$block_id    = isset($_POST['block_id'])  ? (int)$_POST['block_id']  : 0;
-$lesson_id   = isset($_POST['lesson_id']) ? (int)$_POST['lesson_id'] : 0;
-$unit_id     = isset($_POST['unit_id'])   ? (int)$_POST['unit_id']   : 0;
+$lecturer_id = $_SESSION['user_id'];
+$block_id    = intval($_POST['block_id']  ?? 0);
+$lesson_id   = intval($_POST['lesson_id'] ?? 0);
 
-if (!$block_id || !$lesson_id || !$unit_id) {
-    echo json_encode(['success' => false, 'message' => 'Invalid request']); exit;
+if (!$block_id || !$lesson_id) {
+    echo json_encode(['success' => false, 'message' => 'Missing parameters']);
+    exit;
 }
 
-// Verify ownership
-$chk = $conn->prepare("SELECT 1 FROM lecturer_units WHERE lecturer_id=? AND unit_id=?");
-$chk->bind_param("ii", $lecturer_id, $unit_id);
-$chk->execute();
-if (!$chk->get_result()->fetch_row()) {
-    echo json_encode(['success' => false, 'message' => 'Access denied']); exit;
-}
-$chk->close();
-
-// If block has a file (image/audio/video), optionally delete it from disk
-$file_check = $conn->prepare("SELECT block_type, content FROM lesson_content_blocks WHERE id=? AND lesson_id=?");
-$file_check->bind_param("ii", $block_id, $lesson_id);
-$file_check->execute();
-$block = $file_check->get_result()->fetch_assoc();
-$file_check->close();
-
-if ($block && in_array($block['block_type'], ['image','audio','video','diagram'])) {
-    $file_path = $block['content'];
-    if ($file_path && file_exists($_SERVER['DOCUMENT_ROOT'] . '/' . ltrim($file_path, '/'))) {
-        @unlink($_SERVER['DOCUMENT_ROOT'] . '/' . ltrim($file_path, '/'));
+try {
+    // Verify ownership via lecturer_units (works even if cm.lecturer_id is 0)
+    $stmt = $conn->prepare("
+        SELECT lcb.id FROM lesson_content_blocks lcb
+        JOIN course_lessons cl ON lcb.lesson_id = cl.id
+        JOIN lecturer_units lu ON lu.unit_id = cl.unit_id
+        WHERE lcb.id = ? AND lcb.lesson_id = ? AND lu.lecturer_id = ?
+    ");
+    $stmt->bind_param("iii", $block_id, $lesson_id, $lecturer_id);
+    $stmt->execute();
+    if (!$stmt->get_result()->fetch_assoc()) {
+        echo json_encode(['success' => false, 'message' => 'Block not found']);
+        exit;
     }
-}
+    $stmt->close();
 
-$stmt = $conn->prepare("DELETE FROM lesson_content_blocks WHERE id=? AND lesson_id=?");
-$stmt->bind_param("ii", $block_id, $lesson_id);
-$stmt->execute();
-$affected = $stmt->affected_rows;
-$stmt->close();
+    $stmt = $conn->prepare("DELETE FROM lesson_content_blocks WHERE id = ? AND lesson_id = ?");
+    $stmt->bind_param("ii", $block_id, $lesson_id);
+    $stmt->execute();
+    $stmt->close();
 
-if ($affected > 0) {
+    // Reorder remaining blocks
+    $stmt = $conn->prepare("SELECT id FROM lesson_content_blocks WHERE lesson_id = ? ORDER BY position ASC, id ASC");
+    $stmt->bind_param("i", $lesson_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $pos = 0;
+    $upd = $conn->prepare("UPDATE lesson_content_blocks SET position = ? WHERE id = ?");
+    while ($row = $result->fetch_assoc()) {
+        $upd->bind_param("ii", $pos, $row['id']);
+        $upd->execute();
+        $pos++;
+    }
+    $upd->close();
+    $stmt->close();
+
     echo json_encode(['success' => true, 'message' => 'Block deleted']);
-} else {
-    echo json_encode(['success' => false, 'message' => 'Block not found']);
+} catch (mysqli_sql_exception $e) {
+    error_log("delete_content_block: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Database error']);
 }

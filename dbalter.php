@@ -95,7 +95,7 @@ $queries[] = "CREATE TABLE IF NOT EXISTS course_lessons (
 $queries[] = "CREATE TABLE IF NOT EXISTS lesson_content_blocks (
     id INT AUTO_INCREMENT PRIMARY KEY,
     lesson_id INT NOT NULL,
-    block_type ENUM('text','image','video','audio','diagram') NOT NULL DEFAULT 'text',
+    block_type ENUM('text','image','video','audio','diagram','pdf') NOT NULL DEFAULT 'text',
     content LONGTEXT,
     position INT DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -247,6 +247,16 @@ if (!index_exists($conn, 'course_modules', 'idx_cm_lecturer')) {
     alter($conn, "ALTER TABLE `course_modules` ADD INDEX `idx_cm_lecturer` (`lecturer_id`)", "Added index idx_cm_lecturer");
 } else { echo "✔ idx_cm_lecturer already exists<br>"; }
 
+// Backfill lecturer_id=0 rows using lecturer_units
+// (happens when modules were created before the column existed)
+alter($conn,
+    "UPDATE `course_modules` cm
+     JOIN `lecturer_units` lu ON lu.unit_id = cm.unit_id
+     SET cm.lecturer_id = lu.lecturer_id
+     WHERE cm.lecturer_id = 0",
+    "Backfilled course_modules.lecturer_id from lecturer_units for rows with 0"
+);
+
 /* ── course_lessons ──────────────────────────────────────────────
    Online (wrong): no unit_id, no lesson_number, has content
    Correct:        unit_id + lesson_number, no content             */
@@ -278,7 +288,7 @@ echo "<h3>lesson_content_blocks</h3>";
 // Fix enum — always run MODIFY to ensure correct values
 alter($conn,
     "ALTER TABLE `lesson_content_blocks`
-        MODIFY COLUMN `block_type` ENUM('text','image','video','audio','diagram') NOT NULL DEFAULT 'text',
+        MODIFY COLUMN `block_type` ENUM('text','image','video','audio','diagram','pdf') NOT NULL DEFAULT 'text',
         MODIFY COLUMN `content` LONGTEXT",
     "Fixed block_type enum (audio/diagram) and content to LONGTEXT"
 );

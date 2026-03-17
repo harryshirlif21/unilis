@@ -1,66 +1,78 @@
 <?php
-ini_set('display_errors', 0);
+// lecturer/ajax/save_content_block.php
+session_start();
+require_once '../../config/db.php';
 header('Content-Type: application/json');
-if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../../config/db.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']); exit;
+    echo json_encode(['success' => false, 'message' => 'Unauthorised']); exit;
 }
 
-$lecturer_id = (int)$_SESSION['user_id'];
-$block_id    = isset($_POST['block_id'])  ? (int)$_POST['block_id']  : 0;
-$lesson_id   = isset($_POST['lesson_id']) ? (int)$_POST['lesson_id'] : 0;
-$block_type  = trim($_POST['block_type'] ?? '');
-$content     = $_POST['content'] ?? '';
-$position    = isset($_POST['position'])  ? (int)$_POST['position']  : 0;
+$lecturer_id = $_SESSION['user_id'];
+$lesson_id   = intval($_POST['lesson_id']  ?? 0);
+$block_id    = intval($_POST['block_id']   ?? 0);
+$block_type  = trim($_POST['block_type']   ?? '');
+$content     = $_POST['content']           ?? '';
+$position    = intval($_POST['position']   ?? 0);
 
-$valid_types = ['text', 'image', 'video', 'audio', 'diagram'];
-if (!$lesson_id || !in_array($block_type, $valid_types)) {
-    echo json_encode(['success' => false, 'message' => 'Missing or invalid fields']); exit;
+// FIX: added 'pdf' to allowed types
+$allowed_types = ['text', 'image', 'video', 'audio', 'diagram', 'pdf'];
+
+if (!$lesson_id || !in_array($block_type, $allowed_types)) {
+    echo json_encode(['success' => false, 'message' => "Invalid parameters (type: $block_type)"]); exit;
 }
 
-// Verify lecturer owns this lesson's unit (no unit_id needed from client)
-$chk = $conn->prepare("
-    SELECT lu.unit_id FROM course_lessons cl
-    JOIN course_modules cm ON cl.module_id = cm.id
-    JOIN lecturer_units lu ON cm.unit_id = lu.unit_id
-    WHERE cl.id = ? AND lu.lecturer_id = ?
-");
-$chk->bind_param("ii", $lesson_id, $lecturer_id);
-$chk->execute();
-if (!$chk->get_result()->fetch_row()) {
-    echo json_encode(['success' => false, 'message' => 'Access denied']); exit;
-}
-$chk->close();
-
-if ($block_id) {
+try {
+    // Verify lecturer owns this lesson via lecturer_units (works even if cm.lecturer_id is 0)
     $stmt = $conn->prepare("
-        UPDATE lesson_content_blocks
-        SET block_type=?, content=?, position=?
-        WHERE id=? AND lesson_id=?
+        SELECT cl.id FROM course_lessons cl
+        JOIN lecturer_units lu ON lu.unit_id = cl.unit_id
+        WHERE cl.id = ? AND lu.lecturer_id = ?
     ");
-    $stmt->bind_param("ssiii", $block_type, $content, $position, $block_id, $lesson_id);
+    $stmt->bind_param("ii", $lesson_id, $lecturer_id);
     $stmt->execute();
-    $stmt->close();
-    echo json_encode(['success' => true, 'message' => 'Block updated', 'block_id' => $block_id]);
-} else {
-    if (!$position) {
-        $ps = $conn->prepare("SELECT COALESCE(MAX(position),0)+1 AS p FROM lesson_content_blocks WHERE lesson_id=?");
-        $ps->bind_param("i", $lesson_id);
-        $ps->execute();
-        $position = (int)$ps->get_result()->fetch_assoc()['p'];
-        $ps->close();
+    if (!$stmt->get_result()->fetch_assoc()) {
+        echo json_encode(['success' => false, 'message' => 'Lesson not found or access denied']); exit;
     }
-    $stmt = $conn->prepare("
-        INSERT INTO lesson_content_blocks (lesson_id, block_type, content, position)
-        VALUES (?,?,?,?)
-    ");
-    $stmt->bind_param("issi", $lesson_id, $block_type, $content, $position);
-    if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => 'Block added', 'block_id' => $stmt->insert_id]);
+    $stmt->close();
+
+    if ($block_id) {
+        // UPDATE existing block
+        $stmt = $conn->prepare("
+            UPDATE lesson_content_blocks
+            SET block_type = ?, content = ?, position = ?
+            WHERE id = ? AND lesson_id = ?
+        ");
+        $stmt->bind_param("ssiii", $block_type, $content, $position, $block_id, $lesson_id);
+        $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => true, 'message' => 'Block updated', 'block_id' => $block_id]);
+
     } else {
-        echo json_encode(['success' => false, 'message' => 'DB error: ' . $conn->error]);
+        // INSERT new block
+        // FIX: use isset check on $_POST rather than falsy check on $position
+        // so position=0 is respected (first block)
+        if (!isset($_POST['position']) || $_POST['position'] === '') {
+            $stmt = $conn->prepare("SELECT COALESCE(MAX(position), -1) + 1 FROM lesson_content_blocks WHERE lesson_id = ?");
+            $stmt->bind_param("i", $lesson_id);
+            $stmt->execute();
+            $stmt->bind_result($position);
+            $stmt->fetch();
+            $stmt->close();
+        }
+
+        $stmt = $conn->prepare("
+            INSERT INTO lesson_content_blocks (lesson_id, block_type, content, position)
+            VALUES (?, ?, ?, ?)
+        ");
+        $stmt->bind_param("issi", $lesson_id, $block_type, $content, $position);
+        $stmt->execute();
+        $new_id = $stmt->insert_id;
+        $stmt->close();
+        echo json_encode(['success' => true, 'message' => 'Block created', 'block_id' => $new_id]);
     }
-    $stmt->close();
+
+} catch (mysqli_sql_exception $e) {
+    error_log("save_content_block: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }

@@ -10,15 +10,11 @@ $student_id   = $_SESSION['user_id'];
 $student_name = $_SESSION['user_name'];
 $unit_id      = intval($_GET['unit_id'] ?? 0);
 
-// ── Enrolled units (via student_unit_enrollments → units.year + semester) ─
-$year_of_study = 0;
-try {
-    $stmt = $conn->prepare("SELECT year_of_study FROM students WHERE id = ? LIMIT 1");
-    $stmt->bind_param("i", $student_id);
-    $stmt->execute();
-    $year_of_study = intval($stmt->get_result()->fetch_assoc()['year_of_study'] ?? 0);
-    $stmt->close();
-} catch (mysqli_sql_exception $e) { error_log($e->getMessage()); }
+// ── Enrolled units ────────────────────────────────────────────────────────
+// Use semester + academic_year from student_unit_enrollments (now in live DB)
+$semester      = intval($_GET['semester']      ?? $_SESSION['cv_semester']      ?? 1);
+$academic_year = trim($_GET['academic_year']   ?? $_SESSION['cv_academic_year'] ?? date('Y') . '/' . (date('Y') + 1));
+if ($semester < 1 || $semester > 2) $semester = 1;
 
 $enrolled_units = [];
 try {
@@ -26,10 +22,12 @@ try {
         SELECT u.id, u.name, u.semester
         FROM units u
         JOIN student_unit_enrollments sue ON sue.unit_id = u.id
-        WHERE sue.student_id = ? AND u.year = ?
-        ORDER BY u.semester ASC, u.name ASC
+        WHERE sue.student_id     = ?
+          AND sue.semester       = ?
+          AND sue.academic_year  = ?
+        ORDER BY u.name ASC
     ");
-    $stmt->bind_param("ii", $student_id, $year_of_study);
+    $stmt->bind_param("iis", $student_id, $semester, $academic_year);
     $stmt->execute();
     $r = $stmt->get_result();
     while ($row = $r->fetch_assoc()) $enrolled_units[] = $row;
@@ -74,7 +72,7 @@ if ($unit_id) {
         // Assessment results — join assessments with assessment_submissions (live schema)
         $stmt = $conn->prepare("
             SELECT a.id, a.title, a.type, a.total_marks, a.pass_mark,
-                   asub.score, asub.submitted_at, asub.status, asub.graded
+                   asub.score, asub.submitted_at, asub.status
             FROM assessments a
             LEFT JOIN assessment_submissions asub
                 ON asub.assessment_id = a.id AND asub.student_id = ?
@@ -322,7 +320,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                 <?php foreach ($assessment_results as $a):
                     $submitted = $a['score'] !== null;
                     $passed    = $submitted && $a['pass_mark'] && $a['score'] >= $a['pass_mark'];
-                    $pending   = $submitted && !$a['graded'];
+                    $pending   = $submitted && ($a['status'] !== 'graded');
                 ?>
                 <tr>
                     <td style="font-weight:500"><?= htmlspecialchars($a['title']) ?></td>
