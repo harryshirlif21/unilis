@@ -2,7 +2,6 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 session_start();
-//error_log("Session status: " . session_status() . " | Headers sent: " . (headers_sent($file, $line) ? "YES at $file:$line" : "NO"));
 require_once '../config/db.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
@@ -12,7 +11,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 
 $lecturer_id   = $_SESSION['user_id'];
 $lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
-
 
 // Fetch units assigned to this lecturer
 $units = [];
@@ -96,10 +94,7 @@ body {
 }
 .topbar-brand span { color: var(--text-muted); font-weight: 400; margin-left: 8px; font-size: 0.85rem; }
 .topbar-right { display: flex; align-items: center; gap: 16px; }
-.topbar-user {
-    font-size: 0.82rem;
-    color: var(--text-muted);
-}
+.topbar-user { font-size: 0.82rem; color: var(--text-muted); }
 .btn-nav {
     background: var(--surface3);
     border: 1px solid var(--border);
@@ -139,6 +134,14 @@ body {
     display: block;
     margin-bottom: 8px;
 }
+.unit-select-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.unit-select-header label { margin-bottom: 0; }
+
 .styled-select {
     width: 100%;
     background: var(--surface2);
@@ -431,7 +434,6 @@ body {
 }
 .lesson-actions { display: flex; gap: 4px; }
 
-/* Add lesson row */
 .add-lesson-row {
     border: 1px dashed var(--border);
     border-radius: var(--radius-sm);
@@ -541,6 +543,87 @@ body {
 .form-textarea { resize: vertical; min-height: 90px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 
+/* ── IMPORT UNIT MODAL SPECIFICS ─────────────────────────── */
+.import-unit-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 4px;
+}
+.import-unit-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: var(--transition);
+    user-select: none;
+}
+.import-unit-card:hover {
+    border-color: var(--accent);
+    background: var(--surface3);
+}
+.import-unit-card.selected {
+    border-color: var(--accent2);
+    background: rgba(56,217,169,0.06);
+}
+.import-unit-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: rgba(79,142,247,0.12);
+    border: 1px solid rgba(79,142,247,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+.import-unit-card.selected .import-unit-icon {
+    background: rgba(56,217,169,0.12);
+    border-color: rgba(56,217,169,0.3);
+    color: var(--accent2);
+}
+.import-unit-name {
+    flex: 1;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--text);
+}
+.import-unit-check {
+    color: var(--accent2);
+    font-size: 0.85rem;
+    opacity: 0;
+    transition: opacity var(--transition);
+}
+.import-unit-card.selected .import-unit-check { opacity: 1; }
+
+.import-notice {
+    background: rgba(79,142,247,0.06);
+    border: 1px solid rgba(79,142,247,0.18);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    line-height: 1.5;
+}
+.import-notice i { color: var(--accent); margin-right: 5px; }
+
+.empty-import {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+.empty-import i { display: block; font-size: 1.8rem; margin-bottom: 10px; opacity: 0.35; }
+
 /* ── TOAST ───────────────────────────────────────────────── */
 #toast {
     position: fixed;
@@ -593,9 +676,7 @@ body {
     from { opacity: 1; }
     to   { opacity: 0; transform: translateX(20px); }
 }
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── OUTLINE MODAL SPECIFICS ─────────────────────────────── */
 .char-count { font-size: 0.72rem; color: var(--text-dim); text-align: right; margin-top: 4px; }
@@ -629,7 +710,9 @@ body {
     <!-- SIDEBAR -->
     <aside class="sidebar">
         <div class="sidebar-section">
-            <label><i class="fas fa-book"></i> &nbsp;Select Unit</label>
+            <div class="unit-select-header">
+                <label><i class="fas fa-book"></i> &nbsp;Select Unit</label>
+            </div>
             <select class="styled-select" id="unit-select">
                 <option value="">— choose a unit —</option>
                 <?php foreach ($units as $u): ?>
@@ -656,6 +739,12 @@ body {
             <button class="btn btn-ghost" onclick="openOutlineModal()">
                 <i class="fas fa-align-left"></i> Course Outline
             </button>
+            <!-- Import from another unit — only shown when lecturer has >1 unit -->
+            <?php if (count($units) > 1): ?>
+            <button class="btn btn-ghost" id="btn-import-unit" onclick="openImportUnitModal()" style="border-color:rgba(247,147,79,0.4);color:var(--accent3)">
+                <i class="fas fa-file-import"></i> Import From Unit
+            </button>
+            <?php endif; ?>
             <a id="btn-go-lessons" href="#" class="btn btn-success" style="display:none">
                 <i class="fas fa-pen-nib"></i> Edit Lessons
             </a>
@@ -672,7 +761,6 @@ body {
     <!-- MAIN CONTENT -->
     <main class="main" id="main-content">
 
-        <!-- Unit not selected yet -->
         <div id="unit-placeholder">
             <div class="placeholder-inner">
                 <i class="fas fa-layer-group"></i>
@@ -681,10 +769,8 @@ body {
             </div>
         </div>
 
-        <!-- Course content (shown after unit selected) -->
         <div id="course-content" style="display:none">
 
-            <!-- Course header -->
             <div class="course-header-card" id="course-header-card">
                 <div class="course-header-info">
                     <h2 id="course-unit-name">Unit Name</h2>
@@ -700,7 +786,6 @@ body {
                 </div>
             </div>
 
-            <!-- Module tree -->
             <div>
                 <div class="tree-toolbar">
                     <h3><i class="fas fa-sitemap"></i> &nbsp;Course Structure</h3>
@@ -764,6 +849,34 @@ body {
     </div>
 </div>
 
+<!-- ── IMPORT FROM UNIT MODAL ─────────────────────────────── -->
+<div class="modal-overlay" id="import-unit-modal">
+    <div class="modal" style="width:520px">
+        <h3><i class="fas fa-file-import" style="color:var(--accent3)"></i> Import From Another Unit</h3>
+
+        <div class="import-notice">
+            <i class="fas fa-circle-info"></i>
+            Modules and lessons from the selected unit will be added to
+            <strong id="import-target-name" style="color:var(--text)">this unit</strong>.
+            Modules with the same title are skipped automatically — no duplicates will be created.
+        </div>
+
+        <div class="form-group" style="margin-top:14px">
+            <label>Choose a source unit</label>
+            <div class="import-unit-list" id="import-unit-list">
+                <!-- populated by JS -->
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('import-unit-modal')">Cancel</button>
+            <button class="btn btn-warning" id="import-confirm-btn" onclick="confirmImport()" disabled>
+                <i class="fas fa-file-import"></i> Import Modules
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast container -->
 <div id="toast"></div>
 
@@ -774,9 +887,12 @@ body {
 // ─────────────────────────────────────────────────────────────
 let selectedUnitId   = null;
 let selectedUnitName = '';
-let modules          = [];   // [{id, title, position, lessons:[{id,title,lesson_number,position}]}]
-let outline          = null; // {description, outline} or null
-let editingModuleId  = null; // null = add, number = edit
+let modules          = [];
+let outline          = null;
+let editingModuleId  = null;
+
+// All units from PHP (for import modal)
+const ALL_UNITS = <?= json_encode($units) ?>;
 
 // ─────────────────────────────────────────────────────────────
 // UNIT SELECT
@@ -784,11 +900,7 @@ let editingModuleId  = null; // null = add, number = edit
 document.getElementById('unit-select').addEventListener('change', function () {
     selectedUnitId   = this.value || null;
     selectedUnitName = this.options[this.selectedIndex].text;
-
-    if (!selectedUnitId) {
-        showPlaceholder();
-        return;
-    }
+    if (!selectedUnitId) { showPlaceholder(); return; }
     loadCourseTree();
 });
 
@@ -810,17 +922,15 @@ function loadCourseTree() {
             modules = data.modules || [];
             outline = data.outline || null;
 
-            document.getElementById('unit-placeholder').style.display = 'none';
-            document.getElementById('course-content').style.display   = 'flex';
+            document.getElementById('unit-placeholder').style.display    = 'none';
+            document.getElementById('course-content').style.display      = 'flex';
             document.getElementById('course-content').style.flexDirection = 'column';
-            document.getElementById('course-content').style.gap = '24px';
-            document.getElementById('sidebar-stats').style.display    = 'grid';
-            document.getElementById('sidebar-actions').style.display  = 'flex';
+            document.getElementById('course-content').style.gap          = '24px';
+            document.getElementById('sidebar-stats').style.display       = 'grid';
+            document.getElementById('sidebar-actions').style.display     = 'flex';
 
-            // Header
             document.getElementById('course-unit-name').textContent = selectedUnitName;
             renderOutlineHeader();
-
             renderModuleTree();
             updateStats();
         })
@@ -828,8 +938,8 @@ function loadCourseTree() {
 }
 
 function renderOutlineHeader() {
-    const desc   = document.getElementById('course-description');
-    const badge  = document.getElementById('outline-status');
+    const desc  = document.getElementById('course-description');
+    const badge = document.getElementById('outline-status');
     if (outline && outline.description) {
         desc.textContent = outline.description;
         badge.className  = 'outline-badge outline-set';
@@ -845,7 +955,6 @@ function updateStats() {
     const totalLessons = modules.reduce((s, m) => s + (m.lessons ? m.lessons.length : 0), 0);
     document.getElementById('stat-modules').textContent = modules.length;
     document.getElementById('stat-lessons').textContent = totalLessons;
-
     const btn = document.getElementById('btn-go-lessons');
     if (selectedUnitId) {
         btn.href = `lesson_editor.php?unit_id=${selectedUnitId}`;
@@ -865,32 +974,25 @@ function renderModuleTree() {
             <div class="empty-state">
                 <i class="fas fa-layer-group"></i>
                 <h3>No Modules Yet</h3>
-                <p>Click "Add Module" to create your first chapter.</p>
+                <p>Click "Add Module" to create your first chapter, or use "Import From Unit" to reuse content from another unit you teach.</p>
             </div>`;
         return;
     }
 
-    modules.forEach((mod, idx) => {
-        const card = buildModuleCard(mod, idx);
-        tree.appendChild(card);
-    });
-
+    modules.forEach((mod, idx) => tree.appendChild(buildModuleCard(mod, idx)));
     initModuleDrag();
 }
 
 function buildModuleCard(mod, idx) {
     const card = document.createElement('div');
-    card.className   = 'module-card';
-    card.dataset.id  = mod.id;
-    card.draggable   = true;
+    card.className  = 'module-card';
+    card.dataset.id = mod.id;
+    card.draggable  = true;
 
     const lessons = mod.lessons || [];
-
     card.innerHTML = `
         <div class="module-header" id="mh-${mod.id}">
-            <div class="drag-handle">
-                <span></span><span></span><span></span>
-            </div>
+            <div class="drag-handle"><span></span><span></span><span></span></div>
             <span class="module-number">M${idx + 1}</span>
             <div class="module-title-wrap">
                 <span class="module-title" id="mt-${mod.id}"
@@ -900,20 +1002,13 @@ function buildModuleCard(mod, idx) {
                 </span>
             </div>
             <div class="module-actions">
-                <button class="btn btn-ghost btn-sm btn-icon"
-                        onclick="openAddLessonInline(${mod.id})"
-                        title="Add Lesson">
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="openAddLessonInline(${mod.id})" title="Add Lesson">
                     <i class="fas fa-plus" style="color:var(--accent2)"></i>
                 </button>
-                <button class="btn btn-ghost btn-sm btn-icon"
-                        onclick="toggleModule(${mod.id})"
-                        id="toggle-${mod.id}"
-                        title="Collapse/Expand">
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleModule(${mod.id})" id="toggle-${mod.id}" title="Collapse/Expand">
                     <i class="fas fa-chevron-down"></i>
                 </button>
-                <button class="btn btn-ghost btn-sm btn-icon"
-                        onclick="confirmDeleteModule(${mod.id}, '${escAttr(mod.title)}')"
-                        title="Delete Module">
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteModule(${mod.id}, '${escAttr(mod.title)}')" title="Delete Module">
                     <i class="fas fa-trash" style="color:var(--danger)"></i>
                 </button>
             </div>
@@ -923,12 +1018,9 @@ function buildModuleCard(mod, idx) {
                 ${lessons.map(l => buildLessonRowHTML(l, mod.id)).join('')}
             </div>
             <div class="add-lesson-row" onclick="openAddLessonInline(${mod.id})">
-                <i class="fas fa-plus-circle"></i>
-                <span>Add Lesson</span>
+                <i class="fas fa-plus-circle"></i><span>Add Lesson</span>
             </div>
-        </div>
-    `;
-
+        </div>`;
     return card;
 }
 
@@ -937,20 +1029,14 @@ function buildLessonRowHTML(lesson, moduleId) {
         <div class="lesson-row" draggable="true" data-id="${lesson.id}" data-module="${moduleId}">
             <i class="fas fa-grip-vertical lesson-drag" style="color:var(--text-dim);font-size:0.75rem"></i>
             <span class="lesson-num">L${lesson.lesson_number}</span>
-            <span class="lesson-title"
-                  ondblclick="inlineEditLesson(${lesson.id}, ${moduleId})"
-                  id="lt-${lesson.id}"
-                  title="Double-click to rename">
+            <span class="lesson-title" ondblclick="inlineEditLesson(${lesson.id}, ${moduleId})" id="lt-${lesson.id}" title="Double-click to rename">
                 ${escHtml(lesson.title)}
             </span>
             <div class="lesson-actions">
-                <a href="lesson_editor.php?lesson_id=${lesson.id}&unit_id=${selectedUnitId}"
-                   class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
+                <a href="lesson_editor.php?lesson_id=${lesson.id}&unit_id=${selectedUnitId}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
                     <i class="fas fa-pen" style="color:var(--accent)"></i>
                 </a>
-                <button class="btn btn-ghost btn-sm btn-icon"
-                        onclick="confirmDeleteLesson(${lesson.id}, '${escAttr(lesson.title)}', ${moduleId})"
-                        title="Delete">
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteLesson(${lesson.id}, '${escAttr(lesson.title)}', ${moduleId})" title="Delete">
                     <i class="fas fa-trash" style="color:var(--danger)"></i>
                 </button>
             </div>
@@ -961,8 +1047,8 @@ function buildLessonRowHTML(lesson, moduleId) {
 // TOGGLE MODULE COLLAPSE
 // ─────────────────────────────────────────────────────────────
 function toggleModule(moduleId) {
-    const lc  = document.getElementById(`lc-${moduleId}`);
-    const btn = document.getElementById(`toggle-${moduleId}`);
+    const lc   = document.getElementById(`lc-${moduleId}`);
+    const btn  = document.getElementById(`toggle-${moduleId}`);
     const icon = btn.querySelector('i');
     if (lc.style.display === 'none') {
         lc.style.display = '';
@@ -980,28 +1066,24 @@ function inlineEditModule(moduleId) {
     const titleEl = document.getElementById(`mt-${moduleId}`);
     const current = titleEl.textContent.trim();
     const mod     = modules.find(m => m.id === moduleId);
-
     titleEl.style.display = 'none';
     const input = document.createElement('input');
     input.type      = 'text';
     input.className = 'module-title-input';
     input.value     = current;
     titleEl.parentNode.insertBefore(input, titleEl.nextSibling);
-    input.focus();
-    input.select();
-
+    input.focus(); input.select();
     const commit = () => {
         const newTitle = input.value.trim();
-        input.remove();
-        titleEl.style.display = '';
+        input.remove(); titleEl.style.display = '';
         if (!newTitle || newTitle === current) return;
         titleEl.textContent = newTitle;
         mod.title = newTitle;
         ajaxSaveModule(moduleId, newTitle);
     };
-    input.addEventListener('blur',   commit);
+    input.addEventListener('blur', commit);
     input.addEventListener('keydown', e => {
-        if (e.key === 'Enter')  commit();
+        if (e.key === 'Enter') commit();
         if (e.key === 'Escape') { input.remove(); titleEl.style.display = ''; }
     });
 }
@@ -1014,41 +1096,34 @@ function inlineEditLesson(lessonId, moduleId) {
     const current = titleEl.textContent.trim();
     const mod     = modules.find(m => m.id === moduleId);
     const lesson  = mod.lessons.find(l => l.id === lessonId);
-
     titleEl.style.display = 'none';
     const input = document.createElement('input');
     input.type      = 'text';
     input.className = 'lesson-title-input';
     input.value     = current;
     titleEl.parentNode.insertBefore(input, titleEl.nextSibling);
-    input.focus();
-    input.select();
-
+    input.focus(); input.select();
     const commit = () => {
         const newTitle = input.value.trim();
-        input.remove();
-        titleEl.style.display = '';
+        input.remove(); titleEl.style.display = '';
         if (!newTitle || newTitle === current) return;
         titleEl.textContent = newTitle;
         lesson.title = newTitle;
         ajaxSaveLesson(lessonId, moduleId, newTitle);
     };
-    input.addEventListener('blur',   commit);
+    input.addEventListener('blur', commit);
     input.addEventListener('keydown', e => {
-        if (e.key === 'Enter')  commit();
+        if (e.key === 'Enter') commit();
         if (e.key === 'Escape') { input.remove(); titleEl.style.display = ''; }
     });
 }
 
 // ─────────────────────────────────────────────────────────────
-// ADD LESSON INLINE (quick add at bottom of module)
+// ADD LESSON INLINE
 // ─────────────────────────────────────────────────────────────
 function openAddLessonInline(moduleId) {
     const list = document.getElementById(`ll-${moduleId}`);
-
-    // Prevent duplicate inputs
     if (list.querySelector('.new-lesson-input-row')) return;
-
     const row = document.createElement('div');
     row.className = 'lesson-row new-lesson-input-row';
     row.style.borderColor = 'var(--accent2)';
@@ -1056,14 +1131,11 @@ function openAddLessonInline(moduleId) {
         <i class="fas fa-plus-circle" style="color:var(--accent2)"></i>
         <input type="text" class="lesson-title-input" placeholder="Lesson title..." style="flex:1">
         <button class="btn btn-success btn-sm" id="new-lesson-save-btn">Add</button>
-        <button class="btn btn-ghost btn-sm" onclick="this.closest('.new-lesson-input-row').remove()">✕</button>
-    `;
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.new-lesson-input-row').remove()">✕</button>`;
     list.appendChild(row);
-
     const input   = row.querySelector('input');
     const saveBtn = row.querySelector('#new-lesson-save-btn');
     input.focus();
-
     const submit = () => {
         const title = input.value.trim();
         if (!title) { input.focus(); return; }
@@ -1071,16 +1143,15 @@ function openAddLessonInline(moduleId) {
         saveBtn.innerHTML = '<span class="spinner"></span>';
         ajaxAddLesson(moduleId, title, row);
     };
-
     saveBtn.addEventListener('click', submit);
     input.addEventListener('keydown', e => {
-        if (e.key === 'Enter')  submit();
+        if (e.key === 'Enter') submit();
         if (e.key === 'Escape') row.remove();
     });
 }
 
 // ─────────────────────────────────────────────────────────────
-// MODULE MODAL (for add via sidebar button)
+// MODULE MODAL
 // ─────────────────────────────────────────────────────────────
 function openAddModuleModal() {
     editingModuleId = null;
@@ -1093,33 +1164,22 @@ function openAddModuleModal() {
 function saveModule() {
     const title = document.getElementById('module-title-input').value.trim();
     if (!title) { toast('Module title is required', 'error'); return; }
-
     const btn = document.getElementById('module-save-btn');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Saving...';
-
     const body = new FormData();
     body.append('unit_id',     selectedUnitId);
     body.append('lecturer_id', '<?= $lecturer_id ?>');
     body.append('title',       title);
     if (editingModuleId) body.append('module_id', editingModuleId);
-
     fetch('ajax/save_module.php', { method: 'POST', body })
         .then(r => r.json())
         .then(data => {
-            if (data.success) {
-                toast(data.message, 'success');
-                closeModal('module-modal');
-                loadCourseTree();
-            } else {
-                toast(data.message, 'error');
-            }
+            if (data.success) { toast(data.message, 'success'); closeModal('module-modal'); loadCourseTree(); }
+            else toast(data.message, 'error');
         })
         .catch(() => toast('Network error', 'error'))
-        .finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-save"></i> Save Module';
-        });
+        .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Module'; });
 }
 
 function ajaxSaveModule(moduleId, title) {
@@ -1144,40 +1204,27 @@ function confirmDeleteModule(moduleId, title) {
     body.append('unit_id',   selectedUnitId);
     fetch('ajax/delete_module.php', { method: 'POST', body })
         .then(r => r.json())
-        .then(d => {
-            if (d.success) { toast('Module deleted', 'success'); loadCourseTree(); }
-            else toast(d.message, 'error');
-        })
+        .then(d => { if (d.success) { toast('Module deleted', 'success'); loadCourseTree(); } else toast(d.message, 'error'); })
         .catch(() => toast('Delete failed', 'error'));
 }
 
 // ─────────────────────────────────────────────────────────────
-// ADD LESSON (AJAX)
+// ADD / SAVE LESSON
 // ─────────────────────────────────────────────────────────────
 function ajaxAddLesson(moduleId, title, rowEl) {
     const body = new FormData();
-    body.append('module_id',   moduleId);
-    body.append('unit_id',     selectedUnitId);
-    body.append('title',       title);
+    body.append('module_id', moduleId);
+    body.append('unit_id',   selectedUnitId);
+    body.append('title',     title);
     fetch('ajax/save_lesson.php', { method: 'POST', body })
         .then(r => r.json())
         .then(d => {
-            if (d.success) {
-                toast('Lesson added', 'success');
-                rowEl.remove();
-                loadCourseTree();
-            } else {
-                toast(d.message, 'error');
-                rowEl.querySelector('button').disabled = false;
-                rowEl.querySelector('button').textContent = 'Add';
-            }
+            if (d.success) { toast('Lesson added', 'success'); rowEl.remove(); loadCourseTree(); }
+            else { toast(d.message, 'error'); rowEl.querySelector('button').disabled = false; rowEl.querySelector('button').textContent = 'Add'; }
         })
         .catch(() => toast('Network error', 'error'));
 }
 
-// ─────────────────────────────────────────────────────────────
-// SAVE LESSON TITLE (inline edit)
-// ─────────────────────────────────────────────────────────────
 function ajaxSaveLesson(lessonId, moduleId, title) {
     const body = new FormData();
     body.append('lesson_id', lessonId);
@@ -1200,10 +1247,7 @@ function confirmDeleteLesson(lessonId, title, moduleId) {
     body.append('unit_id',   selectedUnitId);
     fetch('ajax/delete_lesson.php', { method: 'POST', body })
         .then(r => r.json())
-        .then(d => {
-            if (d.success) { toast('Lesson deleted', 'success'); loadCourseTree(); }
-            else toast(d.message, 'error');
-        })
+        .then(d => { if (d.success) { toast('Lesson deleted', 'success'); loadCourseTree(); } else toast(d.message, 'error'); })
         .catch(() => toast('Delete failed', 'error'));
 }
 
@@ -1229,14 +1273,85 @@ function saveOutline() {
     fetch('ajax/save_course_outline.php', { method: 'POST', body })
         .then(r => r.json())
         .then(d => {
-            if (d.success) {
-                outline = { description: desc, outline: content };
-                renderOutlineHeader();
-                toast('Outline saved', 'success');
-                closeModal('outline-modal');
-            } else toast(d.message, 'error');
+            if (d.success) { outline = { description: desc, outline: content }; renderOutlineHeader(); toast('Outline saved', 'success'); closeModal('outline-modal'); }
+            else toast(d.message, 'error');
         })
         .catch(() => toast('Network error', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMPORT FROM UNIT
+// ─────────────────────────────────────────────────────────────
+let selectedImportSourceId = null;
+
+function openImportUnitModal() {
+    if (!selectedUnitId) { toast('Please select a target unit first', 'error'); return; }
+
+    selectedImportSourceId = null;
+    document.getElementById('import-confirm-btn').disabled = true;
+    document.getElementById('import-target-name').textContent = selectedUnitName;
+
+    // Build the list of other units (exclude currently selected unit)
+    const list = document.getElementById('import-unit-list');
+    const others = ALL_UNITS.filter(u => String(u.id) !== String(selectedUnitId));
+
+    if (others.length === 0) {
+        list.innerHTML = `
+            <div class="empty-import">
+                <i class="fas fa-folder-open"></i>
+                You only have one unit assigned. There is nothing to import from.
+            </div>`;
+    } else {
+        list.innerHTML = others.map(u => `
+            <div class="import-unit-card" data-id="${u.id}" onclick="selectImportSource(${u.id}, this)">
+                <div class="import-unit-icon"><i class="fas fa-book-open"></i></div>
+                <span class="import-unit-name">${escHtml(u.name)}</span>
+                <i class="fas fa-check-circle import-unit-check"></i>
+            </div>`).join('');
+    }
+
+    openModal('import-unit-modal');
+}
+
+function selectImportSource(unitId, cardEl) {
+    // Deselect all
+    document.querySelectorAll('.import-unit-card').forEach(c => c.classList.remove('selected'));
+    // Select clicked
+    cardEl.classList.add('selected');
+    selectedImportSourceId = unitId;
+    document.getElementById('import-confirm-btn').disabled = false;
+}
+
+function confirmImport() {
+    if (!selectedImportSourceId || !selectedUnitId) return;
+
+    const sourceName = ALL_UNITS.find(u => String(u.id) === String(selectedImportSourceId))?.name || 'that unit';
+    if (!confirm(`Import all modules and lessons from "${sourceName}" into "${selectedUnitName}"?\n\nModules with the same title will be skipped.`)) return;
+
+    const btn = document.getElementById('import-confirm-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Importing...';
+
+    const body = new FormData();
+    body.append('source_unit_id', selectedImportSourceId);
+    body.append('target_unit_id', selectedUnitId);
+
+    fetch('ajax/copy_unit_content.php', { method: 'POST', body })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeModal('import-unit-modal');
+                toast(data.message, 'success');
+                loadCourseTree();
+            } else {
+                toast(data.message || 'Import failed', 'error');
+            }
+        })
+        .catch(() => toast('Network error', 'error'))
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-file-import"></i> Import Modules';
+        });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1247,42 +1362,26 @@ let dragSrcModule = null;
 function initModuleDrag() {
     const cards = document.querySelectorAll('.module-card');
     cards.forEach(card => {
-        card.addEventListener('dragstart', e => {
-            dragSrcModule = card;
-            card.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-        });
-        card.addEventListener('dragend', () => {
-            card.classList.remove('dragging');
-            document.querySelectorAll('.module-card').forEach(c => c.classList.remove('drag-over'));
-            dragSrcModule = null;
-        });
-        card.addEventListener('dragover', e => {
-            e.preventDefault();
-            if (card !== dragSrcModule) card.classList.add('drag-over');
-        });
+        card.addEventListener('dragstart', e => { dragSrcModule = card; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+        card.addEventListener('dragend',   () => { card.classList.remove('dragging'); document.querySelectorAll('.module-card').forEach(c => c.classList.remove('drag-over')); dragSrcModule = null; });
+        card.addEventListener('dragover',  e => { e.preventDefault(); if (card !== dragSrcModule) card.classList.add('drag-over'); });
         card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
         card.addEventListener('drop', e => {
-            e.preventDefault();
-            card.classList.remove('drag-over');
+            e.preventDefault(); card.classList.remove('drag-over');
             if (!dragSrcModule || dragSrcModule === card) return;
             const tree = document.getElementById('module-tree');
-            const cards = [...tree.querySelectorAll('.module-card')];
-            const srcIdx  = cards.indexOf(dragSrcModule);
-            const destIdx = cards.indexOf(card);
-            if (srcIdx < destIdx) tree.insertBefore(dragSrcModule, card.nextSibling);
-            else                  tree.insertBefore(dragSrcModule, card);
+            const all  = [...tree.querySelectorAll('.module-card')];
+            const si   = all.indexOf(dragSrcModule), di = all.indexOf(card);
+            if (si < di) tree.insertBefore(dragSrcModule, card.nextSibling);
+            else         tree.insertBefore(dragSrcModule, card);
             saveModuleOrder();
         });
     });
-
-    // Lesson drag within each module
     document.querySelectorAll('.lessons-list').forEach(list => initLessonDrag(list));
 }
 
 function saveModuleOrder() {
-    const ids = [...document.querySelectorAll('#module-tree .module-card')]
-                    .map(c => parseInt(c.dataset.id));
+    const ids  = [...document.querySelectorAll('#module-tree .module-card')].map(c => parseInt(c.dataset.id));
     const body = new FormData();
     body.append('unit_id', selectedUnitId);
     body.append('order',   JSON.stringify(ids));
@@ -1299,33 +1398,17 @@ let dragSrcLesson = null;
 
 function initLessonDrag(list) {
     list.querySelectorAll('.lesson-row').forEach(row => {
-        row.addEventListener('dragstart', e => {
-            dragSrcLesson = row;
-            row.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.stopPropagation();
-        });
-        row.addEventListener('dragend', () => {
-            row.classList.remove('dragging');
-            list.querySelectorAll('.lesson-row').forEach(r => r.classList.remove('drag-over'));
-            dragSrcLesson = null;
-        });
-        row.addEventListener('dragover', e => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (row !== dragSrcLesson) row.classList.add('drag-over');
-        });
+        row.addEventListener('dragstart', e => { dragSrcLesson = row; row.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.stopPropagation(); });
+        row.addEventListener('dragend',   () => { row.classList.remove('dragging'); list.querySelectorAll('.lesson-row').forEach(r => r.classList.remove('drag-over')); dragSrcLesson = null; });
+        row.addEventListener('dragover',  e => { e.preventDefault(); e.stopPropagation(); if (row !== dragSrcLesson) row.classList.add('drag-over'); });
         row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
         row.addEventListener('drop', e => {
-            e.preventDefault();
-            e.stopPropagation();
-            row.classList.remove('drag-over');
+            e.preventDefault(); e.stopPropagation(); row.classList.remove('drag-over');
             if (!dragSrcLesson || dragSrcLesson === row) return;
-            const rows    = [...list.querySelectorAll('.lesson-row')];
-            const srcIdx  = rows.indexOf(dragSrcLesson);
-            const destIdx = rows.indexOf(row);
-            if (srcIdx < destIdx) list.insertBefore(dragSrcLesson, row.nextSibling);
-            else                  list.insertBefore(dragSrcLesson, row);
+            const rows = [...list.querySelectorAll('.lesson-row')];
+            const si   = rows.indexOf(dragSrcLesson), di = rows.indexOf(row);
+            if (si < di) list.insertBefore(dragSrcLesson, row.nextSibling);
+            else         list.insertBefore(dragSrcLesson, row);
             saveLessonOrder(list.dataset.moduleId);
         });
     });
@@ -1333,9 +1416,7 @@ function initLessonDrag(list) {
 
 function saveLessonOrder(moduleId) {
     const list = document.getElementById(`ll-${moduleId}`);
-    const ids  = [...list.querySelectorAll('.lesson-row')]
-                    .map(r => parseInt(r.dataset.id))
-                    .filter(id => !isNaN(id));
+    const ids  = [...list.querySelectorAll('.lesson-row')].map(r => parseInt(r.dataset.id)).filter(id => !isNaN(id));
     const body = new FormData();
     body.append('module_id', moduleId);
     body.append('unit_id',   selectedUnitId);
@@ -1353,9 +1434,7 @@ function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', e => {
-        if (e.target === overlay) overlay.classList.remove('open');
-    });
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -1384,11 +1463,7 @@ function toast(msg, type = 'info') {
 // UTILS
 // ─────────────────────────────────────────────────────────────
 function escHtml(s) {
-    return String(s||'')
-        .replace(/&/g,'&amp;')
-        .replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;');
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function escAttr(s) {
     return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
