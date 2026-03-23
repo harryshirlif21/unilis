@@ -16,7 +16,6 @@ if (!$assessment_id) {
     exit;
 }
 
-// Fetch assessment
 $assessment = null;
 try {
     $stmt = $conn->prepare("
@@ -35,7 +34,6 @@ if (!$assessment) {
     die("<p style='font-family:sans-serif;padding:40px;color:#f87171'>Assessment not found or not available.</p>");
 }
 
-// Check if already submitted
 $existing_submission = null;
 try {
     $stmt = $conn->prepare("SELECT id, score, status, submitted_at FROM assessment_submissions WHERE assessment_id = ? AND student_id = ?");
@@ -45,7 +43,6 @@ try {
     $stmt->close();
 } catch (mysqli_sql_exception $e) { error_log($e->getMessage()); }
 
-// Fetch questions + options
 $questions = [];
 try {
     $stmt = $conn->prepare("SELECT id, question_text, question_type, marks, position FROM assessment_questions WHERE assessment_id = ? ORDER BY position ASC, id ASC");
@@ -60,15 +57,11 @@ try {
         $or = $os->get_result();
         while ($opt = $or->fetch_assoc()) $row['options'][] = $opt;
         $os->close();
-        // Shuffle MCQ options (prevent pattern memorisation)
-        if ($row['question_type'] === 'mcq' && !empty($row['options'])) {
-            shuffle($row['options']);
-        }
-        // For matching: shuffle right-side pairs
+        if ($row['question_type'] === 'mcq' && !empty($row['options'])) shuffle($row['options']);
         if ($row['question_type'] === 'matching' && !empty($row['options'])) {
             $pairs = array_column($row['options'], 'match_pair');
             shuffle($pairs);
-            foreach ($row['options'] as $i => &$opt) { $opt['shuffled_pair'] = $pairs[$i]; }
+            foreach ($row['options'] as $i => &$opt) $opt['shuffled_pair'] = $pairs[$i];
             unset($opt);
         }
         $questions[] = $row;
@@ -76,9 +69,11 @@ try {
     $stmt->close();
 } catch (mysqli_sql_exception $e) { error_log($e->getMessage()); }
 
-$is_proctored  = in_array($assessment['type'], ['cat', 'exam']);
-$total_marks   = array_sum(array_column($questions, 'marks'));
-$q_count       = count($questions);
+$is_proctored = in_array($assessment['type'], ['cat', 'exam']);
+$total_marks  = array_sum(array_column($questions, 'marks'));
+$q_count      = count($questions);
+$PER_PAGE     = 5;
+$total_pages  = max(1, ceil($q_count / $PER_PAGE));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -86,425 +81,723 @@ $q_count       = count($questions);
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?= htmlspecialchars($assessment['title']) ?> — UNILIS</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
+/* ── DESIGN TOKENS ─────────────────────────────────── */
 :root {
-    --bg:      #0d1117;
-    --surf:    #161b22;
-    --surf2:   #1c2128;
-    --surf3:   #22272e;
-    --border:  #30363d;
-    --accent:  #58a6ff;
-    --green:   #3fb950;
-    --amber:   #d29922;
-    --red:     #f85149;
-    --purple:  #bc8cff;
-    --text:    #e6edf3;
-    --muted:   #8b949e;
-    --dim:     #3d444d;
-    --r:       10px;
-    --rs:      6px;
-    --tr:      .15s ease;
+    --bg:        #080b10;
+    --surf:      #0f1419;
+    --surf2:     #161d26;
+    --surf3:     #1c2535;
+    --border:    #243040;
+    --border2:   #2e3d52;
+    --accent:    #4f9eff;
+    --accent-gl: rgba(79,158,255,.12);
+    --green:     #34d399;
+    --green-gl:  rgba(52,211,153,.12);
+    --amber:     #fbbf24;
+    --amber-gl:  rgba(251,191,36,.12);
+    --red:       #f87171;
+    --red-gl:    rgba(248,113,113,.12);
+    --purple:    #a78bfa;
+    --text:      #e2eaf5;
+    --text2:     #8fa3bc;
+    --dim:       #3d5066;
+    --r:         14px;
+    --rs:        8px;
+    --tr:        .18s ease;
+    --shadow:    0 4px 24px rgba(0,0,0,.45);
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;user-select:none;-webkit-user-select:none}
-
-/* ── EXAM LOCKBAR ── */
-.lockbar{background:#0a0d12;border-bottom:2px solid var(--red);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
-.lockbar-left{display:flex;align-items:center;gap:14px}
-.exam-title{font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;color:var(--text)}
-.exam-type-badge{font-size:.68rem;padding:2px 9px;border-radius:999px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.badge-quiz{background:rgba(88,166,255,.12);color:var(--accent);border:1px solid rgba(88,166,255,.25)}
-.badge-assignment{background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.25)}
-.badge-cat{background:rgba(210,153,34,.12);color:var(--amber);border:1px solid rgba(210,153,34,.25)}
-.badge-exam{background:rgba(248,81,73,.12);color:var(--red);border:1px solid rgba(248,81,73,.25)}
-.lockbar-right{display:flex;align-items:center;gap:16px}
-
-/* TIMER */
-.timer-wrap{display:flex;align-items:center;gap:8px}
-.timer-icon{color:var(--amber);font-size:.9rem}
-#timer-display{font-family:'JetBrains Mono',monospace;font-size:1.05rem;font-weight:500;color:var(--text);min-width:60px}
-#timer-display.warning{color:var(--amber);animation:pulse 1s infinite}
-#timer-display.critical{color:var(--red);animation:pulse .5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-
-/* Security indicators */
-.sec-indicators{display:flex;gap:8px}
-.sec-dot{width:8px;height:8px;border-radius:50%;transition:var(--tr)}
-.sec-dot.ok{background:var(--green)}
-.sec-dot.warn{background:var(--red);animation:pulse .8s infinite}
-.sec-label{font-size:.72rem;color:var(--muted)}
-
-/* VIOLATION BANNER */
-#violation-banner{
-    background:rgba(248,81,73,.15);border-bottom:1px solid rgba(248,81,73,.4);
-    padding:10px 24px;display:none;align-items:center;justify-content:space-between;gap:12px;
-    font-size:.85rem;color:var(--red);position:sticky;top:52px;z-index:190;
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
 }
-#violation-banner i{font-size:1rem}
-#violation-banner button{background:rgba(248,81,73,.2);border:1px solid rgba(248,81,73,.4);color:var(--red);padding:4px 12px;border-radius:var(--rs);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.78rem}
 
-/* LAYOUT */
-.exam-layout{display:flex;height:calc(100vh - 52px);overflow:hidden}
-
-/* QUESTION NAV */
-.q-nav{width:200px;min-width:200px;background:var(--surf);border-right:1px solid var(--border);padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
-.q-nav-title{font-family:'Syne',sans-serif;font-size:.66rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
-.q-nav-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
-.q-nav-btn{
-    aspect-ratio:1;border-radius:var(--rs);font-family:'JetBrains Mono',monospace;font-size:.75rem;
-    font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surf2);
-    color:var(--muted);transition:var(--tr);display:flex;align-items:center;justify-content:center;
+/* ── LOCKBAR ─────────────────────────────────────── */
+.lockbar {
+    position: sticky; top: 0; z-index: 200;
+    background: rgba(8,11,16,.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    height: 56px;
+    display: flex; align-items: center;
+    padding: 0 24px; gap: 16px;
 }
-.q-nav-btn.current {border-color:var(--accent);background:rgba(88,166,255,.12);color:var(--accent)}
-.q-nav-btn.answered{border-color:var(--green);background:rgba(63,185,80,.1);color:var(--green)}
-.q-nav-btn.flagged {border-color:var(--amber);background:rgba(210,153,34,.1);color:var(--amber)}
-
-.nav-legend{margin-top:auto;display:flex;flex-direction:column;gap:5px;padding-top:12px;border-top:1px solid var(--border)}
-.legend-row{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--muted)}
-.legend-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
-.legend-dot.answered{background:var(--green)}
-.legend-dot.current{background:var(--accent)}
-.legend-dot.flagged{background:var(--amber)}
-.legend-dot.unanswered{background:var(--dim)}
-
-/* QUESTION PANEL */
-.q-panel{flex:1;overflow-y:auto;padding:28px 32px;display:flex;flex-direction:column;gap:20px}
-.q-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
-.q-card-header{background:var(--surf2);padding:12px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
-.q-num-badge{font-family:'JetBrains Mono',monospace;font-size:.7rem;background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.2);padding:2px 9px;border-radius:999px}
-.q-marks-badge{font-size:.7rem;color:var(--muted);margin-left:auto}
-.flag-btn{background:none;border:1px solid var(--border);padding:3px 9px;border-radius:var(--rs);cursor:pointer;font-size:.75rem;color:var(--muted);transition:var(--tr);font-family:'DM Sans',sans-serif}
-.flag-btn:hover,.flag-btn.flagged{border-color:var(--amber);color:var(--amber);background:rgba(210,153,34,.08)}
-.q-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
-.q-text{font-size:.95rem;line-height:1.65;color:var(--text)}
-
-/* MCQ OPTIONS */
-.opt-list{display:flex;flex-direction:column;gap:8px}
-.opt-item{
-    display:flex;align-items:center;gap:12px;
-    padding:11px 16px;border:1px solid var(--border);border-radius:var(--rs);
-    background:var(--surf2);cursor:pointer;transition:var(--tr);
+.lockbar-brand {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: .9rem;
+    color: var(--accent); flex-shrink: 0;
 }
-.opt-item:hover{border-color:var(--muted);background:var(--surf3)}
-.opt-item.selected{border-color:var(--accent);background:rgba(88,166,255,.08)}
-.opt-radio{width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;cursor:pointer}
-.opt-label{font-size:.88rem;color:var(--text);flex:1;cursor:pointer}
-.opt-letter{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);width:18px;text-align:center}
-
-/* TRUE/FALSE */
-.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.tf-btn{
-    padding:16px;border:1px solid var(--border);border-radius:var(--rs);
-    background:var(--surf2);cursor:pointer;text-align:center;transition:var(--tr);
+.type-pill {
+    font-size: .65rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .1em;
+    padding: 3px 10px; border-radius: 999px;
+    flex-shrink: 0;
 }
-.tf-btn:hover{border-color:var(--muted)}
-.tf-btn.selected-true{border-color:var(--green);background:rgba(63,185,80,.1);color:var(--green)}
-.tf-btn.selected-false{border-color:var(--red);background:rgba(248,81,73,.1);color:var(--red)}
-.tf-btn i{font-size:1.4rem;display:block;margin-bottom:6px}
-.tf-btn span{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700}
+.pill-quiz       { background: var(--accent-gl); color: var(--accent); border: 1px solid rgba(79,158,255,.3); }
+.pill-assignment { background: var(--green-gl);  color: var(--green);  border: 1px solid rgba(52,211,153,.3); }
+.pill-cat        { background: var(--amber-gl);  color: var(--amber);  border: 1px solid rgba(251,191,36,.3); }
+.pill-exam       { background: var(--red-gl);    color: var(--red);    border: 1px solid rgba(248,113,113,.3); }
 
-/* MATCHING */
-.match-table{width:100%;border-collapse:collapse}
-.match-table th{font-family:'Syne',sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:6px 12px;border-bottom:1px solid var(--border)}
-.match-table td{padding:8px 12px;border-bottom:1px solid var(--dim)}
-.match-term{font-size:.87rem;color:var(--text)}
-.match-select{width:100%;background:var(--surf3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.84rem;outline:none;cursor:pointer}
-.match-select:focus{border-color:var(--accent)}
+.lockbar-spacer { flex: 1; }
 
-/* SHORT ANSWER */
-.short-input{width:100%;background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.88rem;outline:none;transition:border-color var(--tr)}
-.short-input:focus{border-color:var(--accent)}
+.timer-box {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surf2); border: 1px solid var(--border);
+    border-radius: var(--rs); padding: 6px 14px;
+}
+.timer-box i { color: var(--amber); font-size: .85rem; }
+#timer-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem; font-weight: 500;
+    color: var(--text); min-width: 52px;
+}
+#timer-display.warning { color: var(--amber); animation: blink 1s infinite; }
+#timer-display.critical { color: var(--red);   animation: blink .5s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
 
-/* ESSAY */
-.essay-area{width:100%;min-height:160px;background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.88rem;line-height:1.6;outline:none;resize:vertical;transition:border-color var(--tr)}
-.essay-area:focus{border-color:var(--accent)}
-.word-count{font-size:.73rem;color:var(--dim);text-align:right;margin-top:4px}
+.prog-badge {
+    font-size: .78rem; color: var(--text2);
+    background: var(--surf2); border: 1px solid var(--border);
+    padding: 6px 12px; border-radius: var(--rs);
+    white-space: nowrap;
+}
+.sec-dots { display: flex; gap: 5px; align-items: center; }
+.sec-dot  { width: 7px; height: 7px; border-radius: 50%; }
+.sec-dot.ok   { background: var(--green); }
+.sec-dot.warn { background: var(--red); animation: blink .7s infinite; }
 
-/* FILE UPLOAD */
-.file-upload-zone{border:2px dashed var(--border);border-radius:var(--rs);padding:24px;text-align:center;cursor:pointer;transition:var(--tr);color:var(--muted)}
-.file-upload-zone:hover{border-color:var(--accent);color:var(--accent);background:rgba(88,166,255,.04)}
-.file-upload-zone input{display:none}
-.file-name{font-size:.8rem;color:var(--green);margin-top:8px}
+.btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 16px; border-radius: var(--rs);
+    font-family: 'DM Sans', sans-serif; font-size: .82rem;
+    font-weight: 500; cursor: pointer; border: none;
+    transition: var(--tr); text-decoration: none;
+    white-space: nowrap;
+}
+.btn-danger  { background: var(--red);   color: #fff; }
+.btn-danger:hover  { filter: brightness(1.12); }
+.btn-success { background: var(--green); color: #050e07; }
+.btn-success:hover { filter: brightness(1.08); }
+.btn-ghost   { background: var(--surf2); border: 1px solid var(--border); color: var(--text2); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-accent  { background: var(--accent); color: #05111f; }
+.btn-accent:hover { filter: brightness(1.1); }
+.btn-sm { padding: 6px 12px; font-size: .78rem; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
 
-/* BOTTOM NAV */
-.q-bottom-nav{display:flex;align-items:center;gap:10px;padding-top:4px}
-.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.84rem;font-weight:500;cursor:pointer;border:none;transition:var(--tr)}
-.btn-primary{background:var(--accent);color:#0d1117}.btn-primary:hover{background:#4a97f0;transform:translateY(-1px)}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
-.btn-success{background:var(--green);color:#050e07}.btn-success:hover{background:#35a844}
-.btn-danger{background:var(--red);color:#fff}.btn-danger:hover{background:#e04040}
-.btn-sm{padding:6px 13px;font-size:.78rem}
-.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+/* ── VIOLATION BANNER ────────────────────────────── */
+#vbanner {
+    display: none; position: sticky; top: 56px; z-index: 190;
+    background: rgba(248,113,113,.1); border-bottom: 1px solid rgba(248,113,113,.3);
+    padding: 9px 24px; gap: 12px;
+    align-items: center; justify-content: space-between;
+    font-size: .82rem; color: var(--red);
+}
+#vbanner button {
+    background: rgba(248,113,113,.15); border: 1px solid rgba(248,113,113,.3);
+    color: var(--red); padding: 3px 10px; border-radius: var(--rs);
+    cursor: pointer; font-size: .75rem; font-family: 'DM Sans', sans-serif;
+}
 
-/* RESULTS SCREEN */
-.results-wrap{max-width:600px;margin:60px auto;padding:0 24px;text-align:center}
-.score-ring{width:140px;height:140px;border-radius:50%;border:6px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto 24px}
-.score-ring.pass{border-color:var(--green)}
-.score-ring.fail{border-color:var(--red)}
-.score-pct{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800}
-.score-ring.pass .score-pct{color:var(--green)}
-.score-ring.fail .score-pct{color:var(--red)}
-.score-sub{font-size:.8rem;color:var(--muted)}
+/* ── PAGE WRAPPER ────────────────────────────────── */
+.page-wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 32px 20px 100px;
+}
 
-/* COVER SCREEN (pre-exam) */
-.cover-wrap{max-width:580px;margin:60px auto;padding:0 24px}
-.cover-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:32px}
-.cover-card h1{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;margin-bottom:8px}
-.cover-meta{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.cover-meta-item{display:flex;align-items:center;gap:6px;font-size:.83rem;color:var(--muted)}
-.cover-meta-item i{color:var(--accent)}
-.cover-rules{background:var(--surf2);border-radius:var(--rs);padding:14px 16px;margin:16px 0;font-size:.83rem;line-height:1.7;color:var(--muted)}
-.cover-rules strong{color:var(--red);display:block;margin-bottom:6px}
+/* ── PAGE HEADER ─────────────────────────────────── */
+.page-header {
+    margin-bottom: 28px;
+    display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.page-header-left h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.3rem; font-weight: 800;
+    color: var(--text); margin-bottom: 4px;
+}
+.page-header-left p {
+    font-size: .82rem; color: var(--text2);
+}
+.page-info-chips {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+}
+.info-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: .75rem; color: var(--text2);
+    background: var(--surf2); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 999px;
+}
+.info-chip i { color: var(--accent); font-size: .7rem; }
 
-/* ALREADY SUBMITTED */
-.submitted-card{max-width:500px;margin:80px auto;padding:0 24px;text-align:center}
+/* ── PAGINATION INDICATOR ───────────────────────── */
+.pager-strip {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; gap: 12px;
+}
+.pager-label {
+    font-family: 'Syne', sans-serif;
+    font-size: .75rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--text2);
+}
+.pager-dots {
+    display: flex; gap: 6px; flex: 1;
+    justify-content: center; flex-wrap: wrap;
+}
+.pager-dot {
+    width: 28px; height: 6px; border-radius: 3px;
+    background: var(--surf3); border: 1px solid var(--border);
+    cursor: pointer; transition: var(--tr);
+}
+.pager-dot.active   { background: var(--accent); border-color: var(--accent); }
+.pager-dot.done     { background: var(--green);  border-color: var(--green); }
+.pager-dot.partial  { background: var(--amber);  border-color: var(--amber); }
 
-/* OVERLAY MODALS */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(6px);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
-.modal-overlay.open{opacity:1;pointer-events:all}
-.modal-box{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:28px 32px;width:460px;max-width:92vw;text-align:center}
-.modal-box h3{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;margin-bottom:12px}
-.modal-box p{font-size:.86rem;color:var(--muted);line-height:1.6;margin-bottom:20px}
-.modal-actions{display:flex;gap:10px;justify-content:center}
+/* ── QUESTION PAGES ─────────────────────────────── */
+.q-page { display: none; flex-direction: column; gap: 20px; }
+.q-page.active { display: flex; }
 
-/* FULLSCREEN nudge */
-#fs-nudge{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(210,153,34,.15);border:1px solid rgba(210,153,34,.4);color:var(--amber);padding:10px 20px;border-radius:999px;font-size:.82rem;z-index:400;display:none;gap:10px;align-items:center}
-#fs-nudge button{background:rgba(210,153,34,.2);border:1px solid rgba(210,153,34,.4);color:var(--amber);padding:3px 10px;border-radius:var(--rs);cursor:pointer;font-size:.75rem;font-family:'DM Sans',sans-serif}
+/* ── QUESTION CARD ──────────────────────────────── */
+.q-card {
+    background: var(--surf);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    /* NO overflow:hidden — critical fix */
+}
 
-::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--surf3);border-radius:2px}
+.q-card-top {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 18px;
+    background: var(--surf2);
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--r) var(--r) 0 0;
+    flex-wrap: wrap; gap: 8px;
+}
+.q-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .7rem; font-weight: 500;
+    background: var(--accent-gl); color: var(--accent);
+    border: 1px solid rgba(79,158,255,.25);
+    padding: 3px 10px; border-radius: 999px;
+    flex-shrink: 0;
+}
+.q-type-label {
+    font-size: .72rem; color: var(--text2);
+    text-transform: capitalize;
+    flex-shrink: 0;
+}
+.q-flag-btn {
+    margin-left: auto;
+    background: none; border: 1px solid var(--border);
+    color: var(--text2); padding: 3px 10px;
+    border-radius: var(--rs); cursor: pointer;
+    font-size: .73rem; font-family: 'DM Sans', sans-serif;
+    transition: var(--tr); display: flex; align-items: center; gap: 5px;
+}
+.q-flag-btn:hover, .q-flag-btn.flagged {
+    border-color: var(--amber); color: var(--amber);
+    background: var(--amber-gl);
+}
+.q-marks {
+    font-size: .72rem; color: var(--text2);
+    background: var(--surf3); border: 1px solid var(--border);
+    padding: 3px 9px; border-radius: 999px;
+    white-space: nowrap; flex-shrink: 0;
+}
+
+/* ── QUESTION BODY ──────────────────────────────── */
+.q-body {
+    padding: 20px 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.q-text {
+    font-size: .97rem;
+    line-height: 1.7;
+    color: var(--text);
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+/* ── MCQ OPTIONS ────────────────────────────────── */
+.opt-list { display: flex; flex-direction: column; gap: 9px; }
+.opt-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--rs);
+    background: var(--surf2);
+    cursor: pointer;
+    transition: var(--tr);
+    user-select: none;
+}
+.opt-item:hover { border-color: var(--border2); background: var(--surf3); }
+.opt-item.selected {
+    border-color: var(--accent);
+    background: var(--accent-gl);
+}
+.opt-letter {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .7rem; color: var(--dim);
+    width: 20px; text-align: center;
+    flex-shrink: 0; margin-top: 2px;
+    font-weight: 500;
+}
+.opt-item.selected .opt-letter { color: var(--accent); }
+.opt-text {
+    font-size: .88rem;
+    line-height: 1.55;
+    color: var(--text);
+    flex: 1;
+    word-break: break-word;
+}
+
+/* ── TRUE / FALSE ───────────────────────────────── */
+.tf-row { display: flex; gap: 12px; }
+.tf-card {
+    flex: 1; padding: 18px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--rs);
+    background: var(--surf2);
+    cursor: pointer; text-align: center;
+    transition: var(--tr);
+}
+.tf-card:hover { border-color: var(--border2); }
+.tf-card.sel-true  { border-color: var(--green); background: var(--green-gl); }
+.tf-card.sel-false { border-color: var(--red);   background: var(--red-gl); }
+.tf-card i { font-size: 1.5rem; display: block; margin-bottom: 8px; }
+.tf-card.sel-true  i { color: var(--green); }
+.tf-card.sel-false i { color: var(--red); }
+.tf-card span { font-family: 'Syne', sans-serif; font-size: .85rem; font-weight: 700; }
+
+/* ── MATCHING ───────────────────────────────────── */
+.match-rows { display: flex; flex-direction: column; gap: 8px; }
+.match-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px;
+    background: var(--surf2); border: 1px solid var(--border);
+    border-radius: var(--rs);
+}
+.match-term {
+    flex: 1; font-size: .87rem; color: var(--text);
+    word-break: break-word;
+}
+.match-arrow { color: var(--dim); font-size: .8rem; flex-shrink: 0; }
+.match-sel {
+    flex: 1; background: var(--surf3); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 10px; border-radius: var(--rs);
+    font-family: 'DM Sans', sans-serif; font-size: .84rem;
+    outline: none; cursor: pointer; transition: border-color var(--tr);
+}
+.match-sel:focus { border-color: var(--accent); }
+
+/* ── SHORT ANSWER ───────────────────────────────── */
+.short-inp {
+    width: 100%;
+    background: var(--surf2); border: 1px solid var(--border);
+    color: var(--text); padding: 11px 14px;
+    border-radius: var(--rs);
+    font-family: 'DM Sans', sans-serif; font-size: .88rem;
+    outline: none; transition: border-color var(--tr);
+}
+.short-inp:focus { border-color: var(--accent); }
+.short-inp::placeholder { color: var(--dim); }
+
+/* ── ESSAY ──────────────────────────────────────── */
+.essay-wrap { display: flex; flex-direction: column; gap: 6px; }
+.essay-ta {
+    width: 100%; min-height: 140px;
+    background: var(--surf2); border: 1px solid var(--border);
+    color: var(--text); padding: 12px 14px;
+    border-radius: var(--rs);
+    font-family: 'DM Sans', sans-serif; font-size: .88rem;
+    line-height: 1.6; outline: none; resize: vertical;
+    transition: border-color var(--tr);
+}
+.essay-ta:focus { border-color: var(--accent); }
+.essay-ta::placeholder { color: var(--dim); }
+.wc-label { font-size: .72rem; color: var(--dim); text-align: right; }
+
+/* ── FILE UPLOAD ────────────────────────────────── */
+.file-zone {
+    border: 2px dashed var(--border); border-radius: var(--rs);
+    padding: 28px 20px; text-align: center; cursor: pointer;
+    transition: var(--tr); color: var(--text2);
+}
+.file-zone:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-gl); }
+.file-zone input { display: none; }
+.file-zone i { font-size: 1.8rem; display: block; margin-bottom: 8px; opacity: .55; }
+.file-zone small { color: var(--dim); font-size: .75rem; }
+.file-picked { font-size: .8rem; color: var(--green); margin-top: 8px; display: block; }
+
+/* ── STATUS BADGE on card ───────────────────────── */
+.q-status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0; margin-left: 2px;
+}
+.q-status-dot.answered { background: var(--green); }
+.q-status-dot.flagged  { background: var(--amber); }
+.q-status-dot.empty    { background: var(--dim); }
+
+/* ── PAGINATION NAV ─────────────────────────────── */
+.page-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-top: 28px;
+    padding-top: 20px; border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+.page-nav-center {
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+}
+.pg-num-btn {
+    width: 36px; height: 36px;
+    border-radius: var(--rs);
+    font-family: 'JetBrains Mono', monospace; font-size: .78rem;
+    cursor: pointer; border: 1px solid var(--border);
+    background: var(--surf2); color: var(--text2);
+    transition: var(--tr); display: flex; align-items: center; justify-content: center;
+}
+.pg-num-btn:hover   { border-color: var(--accent); color: var(--accent); }
+.pg-num-btn.active  { background: var(--accent); color: #05111f; border-color: var(--accent); font-weight: 700; }
+.pg-num-btn.all-done { border-color: var(--green); color: var(--green); background: var(--green-gl); }
+
+/* ── COVERS / RESULTS / SUBMITTED ───────────────── */
+.center-wrap {
+    max-width: 580px; margin: 50px auto; padding: 0 20px;
+}
+.cover-card, .result-card, .submitted-card {
+    background: var(--surf);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 32px 28px;
+    box-shadow: var(--shadow);
+}
+.cover-card h1, .result-card h2, .submitted-card h2 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; margin-bottom: 8px;
+}
+.cover-meta {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    padding: 14px 0; margin: 14px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.cm-item { display: flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--text2); }
+.cm-item i { color: var(--accent); }
+.cover-rules {
+    background: var(--surf2); border: 1px solid var(--border);
+    border-radius: var(--rs); padding: 14px 16px;
+    font-size: .82rem; line-height: 1.75; color: var(--text2);
+    margin-bottom: 20px;
+}
+.cover-rules strong { color: var(--red); display: block; margin-bottom: 6px; }
+.cover-instructions {
+    background: rgba(79,158,255,.06); border: 1px solid rgba(79,158,255,.2);
+    border-radius: var(--rs); padding: 12px 16px;
+    font-size: .84rem; color: var(--text2); line-height: 1.6; margin-bottom: 18px;
+}
+
+.score-ring {
+    width: 130px; height: 130px; border-radius: 50%; border: 6px solid;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    margin: 0 auto 22px;
+}
+.score-ring.pass { border-color: var(--green); }
+.score-ring.fail { border-color: var(--red); }
+.score-pct { font-family: 'Syne', sans-serif; font-size: 1.9rem; font-weight: 800; }
+.score-ring.pass .score-pct { color: var(--green); }
+.score-ring.fail .score-pct { color: var(--red); }
+.score-sub { font-size: .78rem; color: var(--text2); }
+
+/* ── MODAL ──────────────────────────────────────── */
+.modal-bg {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,.8); backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.modal-bg.open { opacity: 1; pointer-events: all; }
+.modal-box {
+    background: var(--surf); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 28px 28px 24px;
+    width: 440px; max-width: 92vw; text-align: center;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6);
+}
+.modal-box h3 { font-family: 'Syne', sans-serif; font-size: 1.05rem; font-weight: 700; margin-bottom: 10px; }
+.modal-box p  { font-size: .86rem; color: var(--text2); line-height: 1.6; margin-bottom: 22px; }
+.modal-actions { display: flex; gap: 10px; justify-content: center; }
+
+/* ── FS NUDGE ───────────────────────────────────── */
+#fs-nudge {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--amber-gl); border: 1px solid rgba(251,191,36,.35);
+    color: var(--amber); padding: 10px 18px; border-radius: 999px;
+    font-size: .8rem; z-index: 400; display: none;
+    gap: 10px; align-items: center;
+}
+#fs-nudge button {
+    background: var(--amber-gl); border: 1px solid rgba(251,191,36,.35);
+    color: var(--amber); padding: 3px 10px; border-radius: var(--rs);
+    cursor: pointer; font-size: .74rem; font-family: 'DM Sans', sans-serif;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surf3); border-radius: 2px; }
 </style>
 </head>
 <body>
 
 <?php if ($existing_submission && $existing_submission['status'] !== 'flagged'): ?>
-<!-- ── ALREADY SUBMITTED ── -->
-<div style="padding:20px">
-    <div class="submitted-card">
-        <i class="fas fa-circle-check" style="font-size:3rem;color:var(--green);margin-bottom:16px;display:block"></i>
-        <h2 style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:700;margin-bottom:8px">Already Submitted</h2>
-        <p style="color:var(--muted);font-size:.88rem;margin-bottom:20px">
+<!-- ── ALREADY SUBMITTED ─────────────────────── -->
+<div class="center-wrap">
+    <div class="submitted-card" style="text-align:center; margin-top:60px">
+        <i class="fas fa-circle-check" style="font-size:2.8rem;color:var(--green);display:block;margin-bottom:16px"></i>
+        <h2 style="font-size:1.3rem; margin-bottom:8px">Already Submitted</h2>
+        <p style="color:var(--text2);font-size:.87rem;margin-bottom:20px">
             You submitted this <?= $assessment['type'] ?> on
             <?= date('d M Y, H:i', strtotime($existing_submission['submitted_at'])) ?>.
         </p>
         <?php if ($existing_submission['score'] !== null): ?>
-        <div class="score-ring <?= ($existing_submission['score'] >= $assessment['pass_mark']) ? 'pass' : 'fail' ?>" style="margin-bottom:16px">
+        <div class="score-ring <?= $existing_submission['score'] >= $assessment['pass_mark'] ? 'pass':'fail' ?>" style="margin-bottom:16px">
             <span class="score-pct"><?= round($existing_submission['score']) ?>%</span>
-            <span class="score-sub"><?= $existing_submission['score'] >= $assessment['pass_mark'] ? 'PASS' : 'FAIL' ?></span>
+            <span class="score-sub"><?= $existing_submission['score'] >= $assessment['pass_mark'] ? 'PASS':'FAIL' ?></span>
         </div>
         <?php else: ?>
-        <p style="color:var(--amber);font-size:.85rem"><i class="fas fa-hourglass-half"></i> Awaiting grading</p>
+        <p style="color:var(--amber);font-size:.85rem;margin-bottom:16px">
+            <i class="fas fa-hourglass-half"></i> Awaiting grading
+        </p>
         <?php endif; ?>
-        <a href="course_view.php?unit_id=<?= $assessment['unit_id'] ?>" class="btn btn-ghost" style="margin-top:12px">
+        <a href="course_view.php?unit_id=<?= $assessment['unit_id'] ?>" class="btn btn-ghost">
             <i class="fas fa-arrow-left"></i> Back to Course
         </a>
     </div>
 </div>
 
 <?php elseif (!isset($_GET['start'])): ?>
-<!-- ── COVER / PRE-EXAM SCREEN ── -->
-<div style="padding:20px">
-<div class="cover-wrap">
+<!-- ── COVER SCREEN ──────────────────────────── -->
+<div class="center-wrap">
     <div class="cover-card">
         <div style="margin-bottom:12px">
-            <span class="exam-type-badge badge-<?= $assessment['type'] ?>"><?= strtoupper($assessment['type']) ?></span>
+            <span class="type-pill pill-<?= $assessment['type'] ?>"><?= strtoupper($assessment['type']) ?></span>
         </div>
-        <h1><?= htmlspecialchars($assessment['title']) ?></h1>
-        <p style="color:var(--muted);font-size:.87rem"><?= htmlspecialchars($assessment['unit_name']) ?></p>
+        <h1 style="font-size:1.45rem;margin-bottom:6px"><?= htmlspecialchars($assessment['title']) ?></h1>
+        <p style="color:var(--text2);font-size:.84rem"><?= htmlspecialchars($assessment['unit_name']) ?></p>
 
         <div class="cover-meta">
-            <div class="cover-meta-item"><i class="fas fa-circle-question"></i> <?= $q_count ?> Questions</div>
-            <div class="cover-meta-item"><i class="fas fa-star"></i> <?= $total_marks ?> Marks</div>
-            <div class="cover-meta-item"><i class="fas fa-check-circle"></i> Pass: <?= $assessment['pass_mark'] ?></div>
+            <div class="cm-item"><i class="fas fa-circle-question"></i> <?= $q_count ?> Questions</div>
+            <div class="cm-item"><i class="fas fa-star"></i> <?= $total_marks ?> Marks</div>
+            <div class="cm-item"><i class="fas fa-check-circle"></i> Pass: <?= $assessment['pass_mark'] ?></div>
             <?php if ($assessment['time_limit_mins']): ?>
-            <div class="cover-meta-item"><i class="fas fa-clock"></i> <?= $assessment['time_limit_mins'] ?> minutes</div>
+            <div class="cm-item"><i class="fas fa-clock"></i> <?= $assessment['time_limit_mins'] ?> min</div>
             <?php else: ?>
-            <div class="cover-meta-item"><i class="fas fa-infinity"></i> No time limit</div>
+            <div class="cm-item"><i class="fas fa-infinity"></i> No time limit</div>
             <?php endif; ?>
         </div>
 
-        <?php if ($assessment['instructions']): ?>
-        <div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;font-size:.86rem;color:var(--muted);line-height:1.6">
-            <strong style="color:var(--text)"><i class="fas fa-circle-info"></i> Instructions:</strong><br>
+        <?php if (!empty($assessment['instructions'])): ?>
+        <div class="cover-instructions">
+            <strong style="color:var(--text);display:block;margin-bottom:5px">
+                <i class="fas fa-circle-info"></i> Instructions
+            </strong>
             <?= nl2br(htmlspecialchars($assessment['instructions'])) ?>
         </div>
         <?php endif; ?>
 
         <?php if ($is_proctored): ?>
         <div class="cover-rules">
-            <strong><i class="fas fa-shield-halved"></i> &nbsp;Exam Security — Important</strong>
-            This is a proctored <?= strtoupper($assessment['type']) ?>. The following restrictions apply:<br>
-            • Switching tabs or windows will be detected and logged<br>
-            • Copy, paste and screen capture are disabled<br>
-            • Right-click is disabled during the exam<br>
-            • Keyboard shortcuts (Ctrl+C, Ctrl+V, Ctrl+T, F12, etc.) are blocked<br>
-            • The exam will request fullscreen mode<br>
-            • All violations are logged and reported to your lecturer<br>
-            • Multiple violations may result in your submission being flagged
+            <strong><i class="fas fa-shield-halved"></i> &nbsp;Exam Security Notice</strong>
+            • Tab switching, window blur and fullscreen exit are logged<br>
+            • Copy, paste, right-click and dev tools are disabled<br>
+            • Keyboard shortcuts (Ctrl+C, F12, PrintScreen, etc.) are blocked<br>
+            • 10+ violations trigger automatic submission<br>
+            • All events are reported to your lecturer
         </div>
         <?php endif; ?>
 
         <a href="take_assessment.php?assessment_id=<?= $assessment_id ?>&start=1"
-           class="btn btn-primary" style="width:100%;justify-content:center;padding:13px">
+           class="btn btn-accent" style="width:100%;justify-content:center;padding:13px;font-size:.9rem">
             <i class="fas fa-play-circle"></i>
-            <?= $is_proctored ? 'Start Proctored ' . strtoupper($assessment['type']) : 'Start ' . ucfirst($assessment['type']) ?>
+            <?= $is_proctored ? 'Start Proctored '.strtoupper($assessment['type']) : 'Start '.ucfirst($assessment['type']) ?>
         </a>
     </div>
 </div>
-</div>
 
 <?php else: ?>
-<!-- ── EXAM INTERFACE ── -->
+<!-- ── EXAM INTERFACE ─────────────────────────── -->
 
-<!-- LOCKBAR -->
 <div class="lockbar">
-    <div class="lockbar-left">
-        <span class="exam-title"><?= htmlspecialchars($assessment['title']) ?></span>
-        <span class="exam-type-badge badge-<?= $assessment['type'] ?>"><?= strtoupper($assessment['type']) ?></span>
-        <?php if ($is_proctored): ?>
-        <div class="sec-indicators" title="Security status">
-            <div class="sec-dot ok" id="tab-dot"   title="Tab monitoring"></div>
-            <div class="sec-dot ok" id="focus-dot" title="Focus monitoring"></div>
-            <div class="sec-dot ok" id="full-dot"  title="Fullscreen"></div>
-        </div>
-        <?php endif; ?>
+    <span class="lockbar-brand">UNILIS</span>
+    <span class="type-pill pill-<?= $assessment['type'] ?>"><?= strtoupper($assessment['type']) ?></span>
+    <span style="font-size:.82rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">
+        <?= htmlspecialchars($assessment['title']) ?>
+    </span>
+    <?php if ($is_proctored): ?>
+    <div class="sec-dots" title="Security">
+        <div class="sec-dot ok" id="dot-tab"></div>
+        <div class="sec-dot ok" id="dot-focus"></div>
+        <div class="sec-dot ok" id="dot-fs"></div>
     </div>
-    <div class="lockbar-right">
-        <?php if ($assessment['time_limit_mins']): ?>
-        <div class="timer-wrap">
-            <i class="fas fa-clock timer-icon"></i>
-            <span id="timer-display">--:--</span>
-        </div>
-        <?php endif; ?>
-        <span style="font-size:.78rem;color:var(--muted)" id="progress-label">0 / <?= $q_count ?> answered</span>
-        <button class="btn btn-danger btn-sm" onclick="confirmSubmit()">
-            <i class="fas fa-paper-plane"></i> Submit
-        </button>
+    <?php endif; ?>
+    <div class="lockbar-spacer"></div>
+    <?php if ($assessment['time_limit_mins']): ?>
+    <div class="timer-box">
+        <i class="fas fa-clock"></i>
+        <span id="timer-display">--:--</span>
     </div>
+    <?php endif; ?>
+    <span class="prog-badge" id="prog-label">0 / <?= $q_count ?> answered</span>
+    <button class="btn btn-danger btn-sm" onclick="confirmSubmit()">
+        <i class="fas fa-paper-plane"></i> Submit
+    </button>
 </div>
 
-<!-- VIOLATION BANNER -->
-<div id="violation-banner">
-    <div><i class="fas fa-triangle-exclamation"></i> &nbsp;<span id="violation-msg">Security violation detected.</span></div>
-    <button onclick="dismissBanner()">Dismiss</button>
+<div id="vbanner">
+    <div><i class="fas fa-triangle-exclamation"></i> &nbsp;<span id="vbanner-msg">Violation detected.</span></div>
+    <button onclick="this.parentElement.style.display='none'">Dismiss</button>
 </div>
 
-<!-- EXAM LAYOUT -->
-<div class="exam-layout">
+<div class="page-wrap">
 
-    <!-- Question Navigator -->
-    <aside class="q-nav">
-        <div class="q-nav-title">Questions</div>
-        <div class="q-nav-grid" id="q-nav-grid">
-            <?php foreach ($questions as $i => $q): ?>
-            <button class="q-nav-btn <?= $i === 0 ? 'current' : '' ?>"
-                    id="nav-<?= $i ?>"
-                    onclick="scrollToQ(<?= $i ?>)"><?= $i + 1 ?></button>
-            <?php endforeach; ?>
+    <!-- Page header info -->
+    <div class="page-header">
+        <div class="page-header-left">
+            <h1><?= htmlspecialchars($assessment['title']) ?></h1>
+            <p><?= htmlspecialchars($assessment['unit_name']) ?></p>
+            <div class="page-info-chips">
+                <span class="info-chip"><i class="fas fa-circle-question"></i> <?= $q_count ?> questions</span>
+                <span class="info-chip"><i class="fas fa-star"></i> <?= $total_marks ?> marks total</span>
+                <span class="info-chip"><i class="fas fa-layer-group"></i> <?= $total_pages ?> page<?= $total_pages > 1 ? 's' : '' ?></span>
+            </div>
         </div>
+    </div>
 
-        <div class="nav-legend">
-            <div class="legend-row"><div class="legend-dot current"></div> Current</div>
-            <div class="legend-row"><div class="legend-dot answered"></div> Answered</div>
-            <div class="legend-row"><div class="legend-dot flagged"></div> Flagged</div>
-            <div class="legend-row"><div class="legend-dot unanswered"></div> Not answered</div>
+    <!-- Page progress strip -->
+    <div class="pager-strip">
+        <span class="pager-label">Page <span id="cur-page-lbl">1</span> of <?= $total_pages ?></span>
+        <div class="pager-dots" id="pager-dots">
+            <?php for ($p = 0; $p < $total_pages; $p++): ?>
+            <div class="pager-dot <?= $p === 0 ? 'active' : '' ?>" onclick="goPage(<?= $p ?>)" title="Page <?= $p+1 ?>"></div>
+            <?php endfor; ?>
         </div>
-    </aside>
+        <span style="font-size:.75rem;color:var(--text2)" id="page-q-range"></span>
+    </div>
 
-    <!-- Questions -->
-    <div class="q-panel" id="q-panel">
-
-        <?php foreach ($questions as $i => $q): ?>
-        <div class="q-card" id="qcard-<?= $i ?>" data-index="<?= $i ?>">
-            <div class="q-card-header">
-                <span class="q-num-badge">Q<?= $i + 1 ?></span>
-                <span style="font-size:.78rem;color:var(--muted);text-transform:capitalize"><?= str_replace('_',' ', $q['question_type']) ?></span>
-                <button class="flag-btn" id="flag-<?= $i ?>" onclick="toggleFlag(<?= $i ?>)">
+    <!-- Question pages (each holds up to 5 questions) -->
+    <?php
+    $q_chunks = array_chunk($questions, $PER_PAGE, true);
+    $global_i = 0;
+    foreach ($q_chunks as $pi => $chunk):
+    ?>
+    <div class="q-page <?= $pi === 0 ? 'active' : '' ?>" id="qpage-<?= $pi ?>">
+        <?php foreach ($chunk as $q):
+            $qi = $global_i; $global_i++;
+        ?>
+        <div class="q-card" id="qcard-<?= $qi ?>">
+            <!-- Card top bar -->
+            <div class="q-card-top">
+                <span class="q-num">Q<?= $qi + 1 ?></span>
+                <span class="q-type-label"><?= str_replace('_', ' ', $q['question_type']) ?></span>
+                <div class="q-status-dot empty" id="qdot-<?= $qi ?>"></div>
+                <button class="q-flag-btn" id="flagbtn-<?= $qi ?>" onclick="toggleFlag(<?= $qi ?>)">
                     <i class="fas fa-flag"></i> Flag
                 </button>
-                <span class="q-marks-badge"><?= $q['marks'] ?> mark<?= $q['marks'] != 1 ? 's' : '' ?></span>
+                <span class="q-marks"><?= $q['marks'] ?> mark<?= $q['marks'] != 1 ? 's' : '' ?></span>
             </div>
-            <div class="q-body">
-                <div class="q-text"><?= nl2br(htmlspecialchars($q['question_text'])) ?></div>
 
+            <!-- Card body -->
+            <div class="q-body">
+
+                <!-- Question text -->
+                <div class="q-text"><?= htmlspecialchars($q['question_text']) ?></div>
+
+                <!-- ── MCQ ── -->
                 <?php if ($q['question_type'] === 'mcq'): ?>
-                <div class="opt-list" id="opts-<?= $i ?>">
-                    <?php $letters = ['A','B','C','D','E','F','G','H']; ?>
-                    <?php foreach ($q['options'] as $oi => $opt): ?>
-                    <div class="opt-item" id="opt-<?= $i ?>-<?= $oi ?>"
-                         onclick="selectMCQ(<?= $i ?>, <?= $opt['id'] ?>, this)">
-                        <span class="opt-letter"><?= $letters[$oi] ?? '' ?></span>
-                        <span class="opt-label"><?= htmlspecialchars($opt['option_text']) ?></span>
-                        <input type="radio" class="opt-radio" name="q<?= $i ?>" value="<?= $opt['id'] ?>" style="display:none">
+                <div class="opt-list" id="opts-<?= $qi ?>">
+                    <?php $ltrs = ['A','B','C','D','E','F','G','H'];
+                    foreach ($q['options'] as $oi => $opt): ?>
+                    <div class="opt-item"
+                         id="opt-<?= $qi ?>-<?= $oi ?>"
+                         onclick="pickMCQ(<?= $qi ?>, <?= $opt['id'] ?>, this)">
+                        <span class="opt-letter"><?= $ltrs[$oi] ?? '' ?></span>
+                        <span class="opt-text"><?= htmlspecialchars($opt['option_text']) ?></span>
                     </div>
                     <?php endforeach; ?>
                 </div>
 
+                <!-- ── TRUE/FALSE ── -->
                 <?php elseif ($q['question_type'] === 'true_false'): ?>
-                <div class="tf-grid" id="opts-<?= $i ?>">
-                    <?php foreach ($q['options'] as $opt): ?>
-                    <?php $isTrueOpt = (strtolower($opt['option_text']) === 'true'); ?>
-                    <div class="tf-btn" id="tf-<?= $i ?>-<?= $opt['id'] ?>"
-                         onclick="selectTF(<?= $i ?>, <?= $opt['id'] ?>, <?= $isTrueOpt ? 'true' : 'false' ?>, this)">
-                        <i class="fas <?= $isTrueOpt ? 'fa-circle-check' : 'fa-circle-xmark' ?>"></i>
+                <div class="tf-row" id="opts-<?= $qi ?>">
+                    <?php foreach ($q['options'] as $opt):
+                        $isTrueOpt = strtolower($opt['option_text']) === 'true'; ?>
+                    <div class="tf-card"
+                         id="tf-<?= $qi ?>-<?= $opt['id'] ?>"
+                         onclick="pickTF(<?= $qi ?>, <?= $opt['id'] ?>, <?= $isTrueOpt ? 'true':'false' ?>, this)">
+                        <i class="fas <?= $isTrueOpt ? 'fa-circle-check':'fa-circle-xmark' ?>"></i>
                         <span><?= htmlspecialchars($opt['option_text']) ?></span>
                     </div>
                     <?php endforeach; ?>
                 </div>
 
+                <!-- ── MATCHING ── -->
                 <?php elseif ($q['question_type'] === 'matching'): ?>
-                <table class="match-table" id="opts-<?= $i ?>">
-                    <thead>
-                        <tr>
-                            <th style="text-align:left">Term</th>
-                            <th style="text-align:left">Match</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $allPairs = array_column($q['options'], 'match_pair');
-                        shuffle($allPairs);
-                        ?>
-                        <?php foreach ($q['options'] as $oi => $opt): ?>
-                        <tr>
-                            <td class="match-term"><?= htmlspecialchars($opt['option_text']) ?></td>
-                            <td>
-                                <select class="match-select"
-                                        data-opt-id="<?= $opt['id'] ?>"
-                                        onchange="selectMatch(<?= $i ?>, <?= $opt['id'] ?>, this.value)">
-                                    <option value="">— select —</option>
-                                    <?php foreach ($allPairs as $pair): ?>
-                                    <option value="<?= htmlspecialchars($pair) ?>"><?= htmlspecialchars($pair) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <?php $allPairs = array_column($q['options'], 'match_pair'); shuffle($allPairs); ?>
+                <div class="match-rows" id="opts-<?= $qi ?>">
+                    <?php foreach ($q['options'] as $oi => $opt): ?>
+                    <div class="match-row">
+                        <span class="match-term"><?= htmlspecialchars($opt['option_text']) ?></span>
+                        <i class="fas fa-arrow-right match-arrow"></i>
+                        <select class="match-sel"
+                                data-opt="<?= $opt['id'] ?>"
+                                onchange="pickMatch(<?= $qi ?>, <?= $opt['id'] ?>, this.value)">
+                            <option value="">— select —</option>
+                            <?php foreach ($allPairs as $pair): ?>
+                            <option value="<?= htmlspecialchars($pair) ?>"><?= htmlspecialchars($pair) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
 
+                <!-- ── SHORT ANSWER ── -->
                 <?php elseif ($q['question_type'] === 'short_answer'): ?>
-                <input type="text" class="short-input"
-                       id="ans-<?= $i ?>"
-                       placeholder="Your answer..."
-                       oninput="saveTextAnswer(<?= $i ?>, this.value)">
+                <input type="text" class="short-inp"
+                       id="ans-<?= $qi ?>"
+                       placeholder="Type your answer here…"
+                       oninput="saveText(<?= $qi ?>, this.value)">
 
+                <!-- ── ESSAY ── -->
                 <?php elseif ($q['question_type'] === 'essay'): ?>
-                <textarea class="essay-area"
-                          id="ans-<?= $i ?>"
-                          placeholder="Write your answer here..."
-                          oninput="saveTextAnswer(<?= $i ?>, this.value); updateWordCount(<?= $i ?>)"></textarea>
-                <div class="word-count" id="wc-<?= $i ?>">0 words</div>
+                <div class="essay-wrap">
+                    <textarea class="essay-ta"
+                              id="ans-<?= $qi ?>"
+                              placeholder="Write your answer here…"
+                              oninput="saveText(<?= $qi ?>, this.value); countWords(<?= $qi ?>)"></textarea>
+                    <span class="wc-label" id="wc-<?= $qi ?>">0 words</span>
+                </div>
 
+                <!-- ── FILE UPLOAD ── -->
                 <?php elseif ($q['question_type'] === 'file_upload'): ?>
-                <div class="file-upload-zone" onclick="document.getElementById('file-<?= $i ?>').click()">
-                    <input type="file" id="file-<?= $i ?>"
-                           onchange="handleFileUpload(<?= $i ?>, <?= $q['id'] ?>, this)">
-                    <i class="fas fa-file-arrow-up" style="font-size:1.6rem;margin-bottom:8px;display:block;opacity:.5"></i>
+                <div class="file-zone" onclick="document.getElementById('fu-<?= $qi ?>').click()">
+                    <input type="file" id="fu-<?= $qi ?>"
+                           onchange="handleUpload(<?= $qi ?>, <?= $q['id'] ?>, this)">
+                    <i class="fas fa-file-arrow-up"></i>
                     <div>Click to upload your file</div>
-                    <small style="color:var(--dim)">PDF, DOCX, ZIP — max 20MB</small>
-                    <div class="file-name" id="fname-<?= $i ?>"></div>
+                    <small>PDF, DOCX, ZIP — max 20 MB</small>
+                    <span class="file-picked" id="fp-<?= $qi ?>"></span>
                 </div>
                 <?php endif; ?>
 
@@ -512,487 +805,463 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         </div><!-- /.q-card -->
         <?php endforeach; ?>
 
-        <!-- Bottom spacer + submit -->
-        <div class="q-bottom-nav">
-            <button class="btn btn-ghost" onclick="scrollToQ(0)"><i class="fas fa-arrow-up"></i> Top</button>
-            <div style="flex:1"></div>
+        <!-- Per-page navigation -->
+        <div class="page-nav">
+            <button class="btn btn-ghost" onclick="prevPage()" <?= $pi === 0 ? 'style="visibility:hidden"':'' ?>>
+                <i class="fas fa-arrow-left"></i> Previous
+            </button>
+            <div class="page-nav-center">
+                <?php for ($p = 0; $p < $total_pages; $p++): ?>
+                <button class="pg-num-btn <?= $p === $pi ? 'active':'' ?>"
+                        id="pnbtn-<?= $p ?>"
+                        onclick="goPage(<?= $p ?>)"><?= $p + 1 ?></button>
+                <?php endfor; ?>
+            </div>
+            <?php if ($pi < $total_pages - 1): ?>
+            <button class="btn btn-accent" onclick="nextPage()">
+                Next <i class="fas fa-arrow-right"></i>
+            </button>
+            <?php else: ?>
             <button class="btn btn-success" onclick="confirmSubmit()">
                 <i class="fas fa-paper-plane"></i> Submit <?= ucfirst($assessment['type']) ?>
             </button>
+            <?php endif; ?>
         </div>
 
-    </div><!-- /.q-panel -->
-</div><!-- /.exam-layout -->
+    </div><!-- /.q-page -->
+    <?php endforeach; ?>
+
+</div><!-- /.page-wrap -->
 
 <!-- Fullscreen nudge -->
 <div id="fs-nudge">
-    <i class="fas fa-expand"></i> Fullscreen recommended for this <?= $assessment['type'] ?>
-    <button onclick="enterFullscreen()">Enter Fullscreen</button>
-    <button onclick="document.getElementById('fs-nudge').style.display='none'" style="opacity:.6">Dismiss</button>
+    <i class="fas fa-expand"></i>
+    Fullscreen recommended
+    <button onclick="goFullscreen()">Enter</button>
+    <button onclick="this.parentElement.style.display='none'" style="opacity:.6">Dismiss</button>
 </div>
 
-<!-- Submit confirm modal -->
-<div class="modal-overlay" id="submit-modal">
+<!-- Submit modal -->
+<div class="modal-bg" id="modal-submit">
     <div class="modal-box">
         <h3><i class="fas fa-paper-plane" style="color:var(--accent)"></i> &nbsp;Submit <?= ucfirst($assessment['type']) ?>?</h3>
-        <p id="submit-modal-msg">You are about to submit. <span id="unanswered-warn" style="color:var(--amber)"></span> This cannot be undone.</p>
+        <p>You are about to submit. <span id="warn-unanswered" style="color:var(--amber)"></span>This cannot be undone.</p>
         <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closeModal('submit-modal')">Go Back</button>
-            <button class="btn btn-success" id="confirm-submit-btn" onclick="submitExam()">
+            <button class="btn btn-ghost" onclick="closeModal('modal-submit')">Go Back</button>
+            <button class="btn btn-success" id="do-submit-btn" onclick="submitExam()">
                 <i class="fas fa-check"></i> Yes, Submit
             </button>
         </div>
     </div>
 </div>
 
-<!-- Violation modal (severe) -->
-<div class="modal-overlay" id="violation-modal">
+<!-- Violation modal -->
+<div class="modal-bg" id="modal-violation">
     <div class="modal-box">
-        <i class="fas fa-triangle-exclamation" style="font-size:2rem;color:var(--red);margin-bottom:12px;display:block"></i>
-        <h3 style="color:var(--red)">Security Violation Detected</h3>
-        <p id="violation-modal-msg">A security violation has been recorded.</p>
+        <i class="fas fa-triangle-exclamation" style="font-size:2rem;color:var(--red);display:block;margin-bottom:12px"></i>
+        <h3 style="color:var(--red)">Security Violation</h3>
+        <p id="vmodal-msg">A violation has been recorded.</p>
         <div class="modal-actions">
-            <button class="btn btn-primary" onclick="closeModal('violation-modal');enterFullscreen()">Return to Exam</button>
+            <button class="btn btn-accent" onclick="closeModal('modal-violation');goFullscreen()">Return to Exam</button>
         </div>
     </div>
 </div>
 
 <?php endif; ?>
 
-<!-- ──────────────────────────────────────────────────────────
-     JAVASCRIPT — EXAM ENGINE + PROCTORING
-────────────────────────────────────────────────────────────── -->
+<!-- ── JAVASCRIPT ─────────────────────────────────────────────── -->
 <script>
-// ── CONFIG ───────────────────────────────────────────────
 const ASSESSMENT_ID  = <?= $assessment_id ?>;
 const STUDENT_ID     = <?= $student_id ?>;
 const IS_PROCTORED   = <?= $is_proctored ? 'true' : 'false' ?>;
 const TIME_LIMIT_SEC = <?= ($assessment['time_limit_mins'] ?? 0) * 60 ?>;
-const PASS_MARK      = <?= $assessment['pass_mark'] ?? 0 ?>;
 const Q_COUNT        = <?= $q_count ?>;
+const TOTAL_PAGES    = <?= $total_pages ?>;
+const PER_PAGE       = <?= $PER_PAGE ?>;
 const STARTED        = <?= isset($_GET['start']) ? 'true' : 'false' ?>;
 
-// ── STATE ─────────────────────────────────────────────────
-let answers        = {};   // { qIndex: { type, value, optionId, matchAnswers:{optId:pair} } }
-let flags          = {};   // { qIndex: bool }
+/* ── STATE ── */
+let answers        = {};
+let flags          = {};
 let violations     = [];
 let violationCount = 0;
 let timerInterval  = null;
 let timeLeft       = TIME_LIMIT_SEC;
-let examStartTime  = Date.now();
+let examStart      = Date.now();
 let submitting     = false;
+let curPage        = 0;
 
-// ── INIT ─────────────────────────────────────────────────
+/* ── BOOT ── */
 if (STARTED) {
     initExam();
+    updatePageRange();
 }
 
 function initExam() {
     if (IS_PROCTORED) {
         initProctoring();
         setTimeout(() => {
-            enterFullscreen();
-            document.getElementById('fs-nudge').style.display = 'flex';
-            setTimeout(() => document.getElementById('fs-nudge').style.display = 'none', 8000);
-        }, 800);
+            goFullscreen();
+            const nudge = document.getElementById('fs-nudge');
+            if (nudge) { nudge.style.display = 'flex'; setTimeout(() => nudge.style.display = 'none', 7000); }
+        }, 600);
     }
-    if (TIME_LIMIT_SEC > 0) initTimer();
-    initScrollSpy();
+    if (TIME_LIMIT_SEC > 0) startTimer();
 }
 
-// ── TIMER ─────────────────────────────────────────────────
-function initTimer() {
+/* ── TIMER ── */
+function startTimer() {
     timeLeft = TIME_LIMIT_SEC;
-    updateTimerDisplay();
+    renderTimer();
     timerInterval = setInterval(() => {
         timeLeft--;
-        updateTimerDisplay();
-        if (timeLeft <= 0) {
-            clearInterval(timerInterval);
-            toast('Time is up! Auto-submitting...', 'error');
-            setTimeout(submitExam, 2000);
-        }
+        renderTimer();
+        if (timeLeft <= 0) { clearInterval(timerInterval); toast('Time up — auto submitting…', 'red'); setTimeout(submitExam, 2000); }
     }, 1000);
 }
-
-function updateTimerDisplay() {
+function renderTimer() {
     const el = document.getElementById('timer-display');
     if (!el) return;
-    const m = Math.floor(timeLeft / 60);
-    const s = timeLeft % 60;
-    el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    if (timeLeft <= 60)  { el.className = 'critical'; }
-    else if (timeLeft <= 300) { el.className = 'warning'; }
-    else { el.className = ''; }
+    const m = String(Math.floor(timeLeft / 60)).padStart(2,'0');
+    const s = String(timeLeft % 60).padStart(2,'0');
+    el.textContent = `${m}:${s}`;
+    el.className = timeLeft <= 60 ? 'critical' : timeLeft <= 300 ? 'warning' : '';
 }
 
-// ── SCROLL SPY ────────────────────────────────────────────
-function initScrollSpy() {
-    const panel = document.getElementById('q-panel');
-    if (!panel) return;
-    const observer = new IntersectionObserver(entries => {
-        entries.forEach(e => {
-            if (e.isIntersecting) {
-                const idx = parseInt(e.target.dataset.index);
-                setCurrentNav(idx);
-            }
-        });
-    }, { root: panel, threshold: 0.5 });
-    document.querySelectorAll('.q-card').forEach(card => observer.observe(card));
-}
+/* ── PAGINATION ── */
+function goPage(p) {
+    document.querySelector('.q-page.active')?.classList.remove('active');
+    document.getElementById('qpage-' + p)?.classList.add('active');
+    curPage = p;
 
-function scrollToQ(idx) {
-    const card = document.getElementById(`qcard-${idx}`);
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function setCurrentNav(idx) {
-    document.querySelectorAll('.q-nav-btn').forEach((btn, i) => {
-        btn.classList.toggle('current', i === idx);
+    // update pager dots
+    document.querySelectorAll('.pager-dot').forEach((d,i) => {
+        d.classList.toggle('active', i === p);
     });
+    // update page number buttons
+    document.querySelectorAll('.pg-num-btn').forEach((b,i) => {
+        b.classList.toggle('active', i === p);
+    });
+    document.getElementById('cur-page-lbl').textContent = p + 1;
+    updatePageRange();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function nextPage() { if (curPage < TOTAL_PAGES - 1) goPage(curPage + 1); }
+function prevPage() { if (curPage > 0) goPage(curPage - 1); }
+
+function updatePageRange() {
+    const el = document.getElementById('page-q-range');
+    if (!el) return;
+    const from = curPage * PER_PAGE + 1;
+    const to   = Math.min((curPage + 1) * PER_PAGE, Q_COUNT);
+    el.textContent = `Q${from}–Q${to}`;
 }
 
-// ── ANSWER RECORDING ──────────────────────────────────────
-function selectMCQ(qIdx, optionId, el) {
-    // Clear siblings
+/* ── ANSWER HANDLERS ── */
+function pickMCQ(qi, optId, el) {
     el.closest('.opt-list').querySelectorAll('.opt-item').forEach(o => o.classList.remove('selected'));
     el.classList.add('selected');
-    el.querySelector('input[type=radio]').checked = true;
-
-    answers[qIdx] = { type: 'mcq', optionId };
-    markAnswered(qIdx);
+    answers[qi] = { type: 'mcq', optionId: optId };
+    markDot(qi, 'answered');
 }
 
-function selectTF(qIdx, optionId, isTrue, el) {
-    const container = el.closest('.tf-grid');
-    container.querySelectorAll('.tf-btn').forEach(b => b.className = 'tf-btn');
-    el.classList.add(isTrue ? 'selected-true' : 'selected-false');
-
-    answers[qIdx] = { type: 'true_false', optionId };
-    markAnswered(qIdx);
+function pickTF(qi, optId, isTrue, el) {
+    el.closest('.tf-row').querySelectorAll('.tf-card').forEach(c => c.className = 'tf-card');
+    el.classList.add(isTrue ? 'sel-true' : 'sel-false');
+    answers[qi] = { type: 'true_false', optionId: optId };
+    markDot(qi, 'answered');
 }
 
-function selectMatch(qIdx, optId, value) {
-    if (!answers[qIdx]) answers[qIdx] = { type: 'matching', matchAnswers: {} };
-    answers[qIdx].matchAnswers[optId] = value;
-
-    // Check if all matched
-    const card = document.getElementById(`qcard-${qIdx}`);
-    const selects = card.querySelectorAll('.match-select');
-    const allFilled = [...selects].every(s => s.value !== '');
-    if (allFilled) markAnswered(qIdx);
+function pickMatch(qi, optId, val) {
+    if (!answers[qi]) answers[qi] = { type: 'matching', matchAnswers: {} };
+    answers[qi].matchAnswers[optId] = val;
+    const card    = document.getElementById('qcard-' + qi);
+    const allFill = [...card.querySelectorAll('.match-sel')].every(s => s.value !== '');
+    markDot(qi, allFill ? 'answered' : 'empty');
 }
 
-function saveTextAnswer(qIdx, value) {
-    answers[qIdx] = { type: 'text', value: value.trim() };
-    const nav = document.getElementById(`nav-${qIdx}`);
-    if (nav) nav.classList.toggle('answered', value.trim().length > 0);
-    updateProgress();
+function saveText(qi, val) {
+    answers[qi] = { type: 'text', value: val.trim() };
+    markDot(qi, val.trim().length > 0 ? 'answered' : 'empty');
 }
 
-function handleFileUpload(qIdx, questionId, input) {
+function countWords(qi) {
+    const ta = document.getElementById('ans-' + qi);
+    const el = document.getElementById('wc-' + qi);
+    if (ta && el) {
+        const w = ta.value.trim().split(/\s+/).filter(w => w).length;
+        el.textContent = w + ' word' + (w !== 1 ? 's' : '');
+    }
+}
+
+function handleUpload(qi, questionId, input) {
     const file = input.files[0];
     if (!file) return;
-    document.getElementById(`fname-${qIdx}`).textContent = `Selected: ${file.name}`;
-
+    const fp = document.getElementById('fp-' + qi);
+    if (fp) fp.textContent = 'Uploading: ' + file.name;
     const fd = new FormData();
-    fd.append('file',          file);
-    fd.append('question_id',   questionId);
+    fd.append('file', file);
+    fd.append('question_id', questionId);
     fd.append('assessment_id', ASSESSMENT_ID);
-    fd.append('student_id',    STUDENT_ID);
-
-    fetch('../student/ajax/upload_answer_file.php', { method: 'POST', body: fd })
-        .then(r => r.json())
+    fd.append('student_id', STUDENT_ID);
+    safeFetch('ajax/upload_answer_file.php', { method: 'POST', body: fd })
         .then(d => {
-            if (d.success) {
-                answers[qIdx] = { type: 'file', filePath: d.path };
-                markAnswered(qIdx);
-                toast('File uploaded', 'success');
-            } else toast(d.message || 'Upload failed', 'error');
+            if (d && d.success) {
+                answers[qi] = { type: 'file', filePath: d.path };
+                markDot(qi, 'answered');
+                if (fp) fp.textContent = '✓ ' + file.name;
+                toast('File uploaded', 'green');
+            } else {
+                if (fp) fp.textContent = '';
+                toast((d && d.message) || 'Upload failed', 'red');
+            }
         })
-        .catch(() => toast('Upload error', 'error'));
+        .catch(err => { console.warn('Upload fetch error:', err); toast('Upload error — try again', 'red'); });
 }
 
-function markAnswered(qIdx) {
-    const nav = document.getElementById(`nav-${qIdx}`);
-    if (nav && !flags[qIdx]) {
-        nav.classList.add('answered');
-        nav.classList.remove('current');
-    }
+/* ── STATUS DOTS & FLAG ── */
+function markDot(qi, state) {
+    const dot = document.getElementById('qdot-' + qi);
+    if (!dot) return;
+    dot.className = 'q-status-dot ' + (flags[qi] ? 'flagged' : state);
     updateProgress();
+    updatePagerDots();
 }
 
-function toggleFlag(qIdx) {
-    flags[qIdx] = !flags[qIdx];
-    const btn = document.getElementById(`flag-${qIdx}`);
-    const nav = document.getElementById(`nav-${qIdx}`);
-    btn?.classList.toggle('flagged', flags[qIdx]);
-    nav?.classList.toggle('flagged', flags[qIdx]);
-    if (flags[qIdx]) nav?.classList.remove('answered');
-    else if (answers[qIdx]) nav?.classList.add('answered');
+function toggleFlag(qi) {
+    flags[qi] = !flags[qi];
+    const btn = document.getElementById('flagbtn-' + qi);
+    btn?.classList.toggle('flagged', flags[qi]);
+    const state = answers[qi] ? 'answered' : 'empty';
+    markDot(qi, flags[qi] ? 'flagged' : state);
 }
 
 function updateProgress() {
-    const answered = Object.keys(answers).filter(k => {
+    const n = Object.keys(answers).filter(k => {
         const a = answers[k];
         if (!a) return false;
         if (a.type === 'text')     return (a.value || '').length > 0;
         if (a.type === 'matching') return Object.keys(a.matchAnswers || {}).length > 0;
-        return a.optionId || a.filePath;
+        return !!(a.optionId || a.filePath);
     }).length;
-
-    const el = document.getElementById('progress-label');
-    if (el) el.textContent = `${answered} / ${Q_COUNT} answered`;
+    const el = document.getElementById('prog-label');
+    if (el) el.textContent = `${n} / ${Q_COUNT} answered`;
 }
 
-function updateWordCount(qIdx) {
-    const ta = document.getElementById(`ans-${qIdx}`);
-    const el = document.getElementById(`wc-${qIdx}`);
-    if (ta && el) {
-        const words = ta.value.trim().split(/\s+/).filter(w => w.length > 0).length;
-        el.textContent = `${words} word${words !== 1 ? 's' : ''}`;
-    }
+function updatePagerDots() {
+    const dots = document.querySelectorAll('.pager-dot');
+    dots.forEach((dot, pi) => {
+        const from = pi * PER_PAGE;
+        const to   = Math.min(from + PER_PAGE, Q_COUNT);
+        let answered = 0, flagged = 0;
+        for (let i = from; i < to; i++) {
+            if (flags[i]) flagged++;
+            else if (answers[i]) answered++;
+        }
+        dot.classList.remove('done', 'partial', 'active');
+        if (pi === curPage) dot.classList.add('active');
+        else if (flagged > 0) dot.classList.add('partial');
+        else if (answered === (to - from)) dot.classList.add('done');
+        else if (answered > 0) dot.classList.add('partial');
+    });
 }
 
-// ── SUBMIT ────────────────────────────────────────────────
+/* ── SAFE FETCH (handles browser-extension interference) ── */
+function safeFetch(url, options = {}) {
+    return new Promise((resolve, reject) => {
+        // Abort controller for timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => { controller.abort(); reject(new Error('Request timed out')); }, 30000);
+
+        fetch(url, { ...options, signal: controller.signal })
+            .then(response => {
+                clearTimeout(timeout);
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.text();
+            })
+            .then(text => {
+                try { resolve(JSON.parse(text)); }
+                catch (e) { reject(new Error('Invalid JSON response: ' + text.substring(0, 100))); }
+            })
+            .catch(err => {
+                clearTimeout(timeout);
+                // Swallow extension-caused channel-closed errors silently for violation logging
+                if (err && err.message && err.message.includes('message channel closed')) {
+                    resolve(null); // treat as no-op
+                } else {
+                    reject(err);
+                }
+            });
+    });
+}
+
+
+/* ── SUBMIT ── */
 function confirmSubmit() {
-    const answered = Object.keys(answers).length;
+    const answered  = Object.keys(answers).length;
     const unanswered = Q_COUNT - answered;
-    const warnEl = document.getElementById('unanswered-warn');
-    if (unanswered > 0 && warnEl) {
-        warnEl.textContent = `⚠ ${unanswered} question${unanswered > 1 ? 's' : ''} unanswered. `;
-    }
-    openModal('submit-modal');
+    const w = document.getElementById('warn-unanswered');
+    if (w) w.textContent = unanswered > 0 ? `⚠ ${unanswered} question${unanswered > 1 ? 's' : ''} unanswered. ` : '';
+    openModal('modal-submit');
 }
 
 function submitExam() {
     if (submitting) return;
     submitting = true;
     clearInterval(timerInterval);
-
-    const btn = document.getElementById('confirm-submit-btn');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Submitting...'; }
-
-    const payload = {
-        assessment_id: ASSESSMENT_ID,
-        student_id:    STUDENT_ID,
-        answers:       answers,
-        violations:    violations,
-        time_taken:    Math.floor((Date.now() - examStartTime) / 1000)
-    };
-
-    fetch('../student/ajax/submit_assessment.php', {
+    const btn = document.getElementById('do-submit-btn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting…'; }
+    safeFetch('ajax/submit_assessment.php', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload)
+        body:    JSON.stringify({
+            assessment_id: ASSESSMENT_ID,
+            student_id:    STUDENT_ID,
+            answers,
+            violations,
+            time_taken: Math.floor((Date.now() - examStart) / 1000)
+        })
     })
-    .then(r => r.json())
     .then(d => {
-        if (d.success) {
-            exitFullscreen();
-            // Show results
-            showResults(d);
-        } else {
-            toast(d.message || 'Submission failed', 'error');
+        if (d && d.success) { exitFullscreen(); showResult(d); }
+        else {
+            toast((d && d.message) || 'Submission failed', 'red');
             submitting = false;
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Yes, Submit'; }
         }
     })
-    .catch(() => {
-        toast('Network error — please try again', 'error');
+    .catch(err => {
+        console.warn('Submit error:', err);
+        toast('Network error — try again', 'red');
         submitting = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Yes, Submit'; }
     });
 }
 
-function showResults(data) {
-    closeModal('submit-modal');
-    document.querySelector('.exam-layout').innerHTML = `
-        <div class="results-wrap" style="width:100%">
-            <div class="score-ring ${data.passed ? 'pass' : 'fail'}">
-                <span class="score-pct">${data.score !== null ? Math.round(data.score) + '%' : '?'}</span>
-                <span class="score-sub">${data.score !== null ? (data.passed ? 'PASS' : 'FAIL') : 'PENDING'}</span>
+function showResult(data) {
+    closeModal('modal-submit');
+    document.querySelector('.page-wrap').innerHTML = `
+        <div style="max-width:480px;margin:60px auto;text-align:center">
+            <div class="score-ring ${data.passed ? 'pass':'fail'}">
+                <span class="score-pct">${data.score !== null ? Math.round(data.score)+'%' : '?'}</span>
+                <span class="score-sub">${data.score !== null ? (data.passed ? 'PASS':'FAIL') : 'PENDING'}</span>
             </div>
-            <h2 style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:700;margin-bottom:8px">
+            <h2 style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:8px">
                 ${data.score !== null ? 'Submitted & Auto-Graded' : 'Submitted Successfully'}
             </h2>
-            <p style="color:var(--muted);font-size:.88rem;margin-bottom:24px">
-                ${data.score !== null
-                    ? `You scored ${data.raw_score} / ${data.total_marks} marks.`
-                    : 'Your submission has been received. Manual grading is pending.'}
+            <p style="color:var(--text2);font-size:.87rem;margin-bottom:20px">
+                ${data.score !== null ? `You scored ${data.raw_score} / ${data.total_marks} marks.` : 'Your submission is received. Manual grading pending.'}
             </p>
-            ${violations.length > 0 ? `<p style="color:var(--amber);font-size:.82rem;margin-bottom:16px"><i class="fas fa-triangle-exclamation"></i> ${violations.length} security event${violations.length > 1 ? 's' : ''} were logged.</p>` : ''}
-            <a href="course_view.php?unit_id=${data.unit_id || ''}" class="btn btn-ghost">
+            ${violations.length ? `<p style="color:var(--amber);font-size:.8rem;margin-bottom:16px"><i class="fas fa-triangle-exclamation"></i> ${violations.length} security event(s) logged.</p>` : ''}
+            <a href="course_view.php?unit_id=${data.unit_id||''}" class="btn btn-ghost">
                 <i class="fas fa-arrow-left"></i> Back to Course
             </a>
         </div>`;
-    document.querySelector('.lockbar').style.display = 'none';
-    document.getElementById('violation-banner').style.display = 'none';
+    const lb = document.querySelector('.lockbar');
+    if (lb) lb.style.display = 'none';
 }
 
-// ── PROCTORING ENGINE ─────────────────────────────────────
+/* ── PROCTORING ── */
 function initProctoring() {
-    // 1. Visibility / tab switch
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            logViolation('tab_switch', 'Student switched tabs or minimised window');
-        }
+        if (document.hidden) logV('tab_switch', 'Tab switched');
     });
-
-    // 2. Window blur (Alt+Tab, click outside)
-    window.addEventListener('blur', () => {
-        logViolation('window_blur', 'Exam window lost focus');
-        updateSecDot('focus-dot', false);
-    });
-    window.addEventListener('focus', () => {
-        updateSecDot('focus-dot', true);
-    });
-
-    // 3. Disable right-click
-    document.addEventListener('contextmenu', e => {
-        e.preventDefault();
-        logViolation('right_click', 'Right-click attempted');
-        showBanner('Right-click is disabled during this exam.');
-    });
-
-    // 4. Block keyboard shortcuts
+    window.addEventListener('blur',  () => { logV('window_blur','Window lost focus'); setDot('dot-focus', false); });
+    window.addEventListener('focus', () => setDot('dot-focus', true));
+    document.addEventListener('contextmenu', e => { e.preventDefault(); logV('right_click','Right-click'); showBanner('Right-click is disabled.'); });
     document.addEventListener('keydown', e => {
-        const blocked = [
+        const bad = [
             e.ctrlKey && ['c','v','x','a','u','s','p'].includes(e.key.toLowerCase()),
-            e.ctrlKey && e.shiftKey,
-            e.ctrlKey && e.key === 'Tab',
-            e.altKey  && e.key === 'Tab',
-            e.key === 'F12',
-            e.key === 'PrintScreen',
-            e.ctrlKey && e.key === 't',
-            e.ctrlKey && e.key === 'w',
-            e.metaKey,
+            e.ctrlKey && e.shiftKey, e.ctrlKey && e.key==='Tab', e.altKey && e.key==='Tab',
+            ['F12','PrintScreen'].includes(e.key),
+            e.ctrlKey && ['t','w'].includes(e.key), e.metaKey
         ];
-        if (blocked.some(Boolean)) {
-            e.preventDefault();
-            e.stopPropagation();
-            logViolation('shortcut_blocked', `Blocked key: ${e.ctrlKey?'Ctrl+':''}${e.altKey?'Alt+':''}${e.key}`);
+        if (bad.some(Boolean)) {
+            e.preventDefault(); e.stopPropagation();
+            logV('key_blocked', e.key);
             showBanner('Keyboard shortcut blocked.');
-            return false;
         }
     }, true);
-
-    // 5. Block copy/paste/cut on document
-    ['copy','paste','cut','selectstart'].forEach(evt => {
-        document.addEventListener(evt, e => {
-            e.preventDefault();
-            logViolation(`${evt}_attempt`, `${evt} blocked`);
-        });
-    });
-
-    // 6. Fullscreen change detection
+    ['copy','paste','cut'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); logV(ev, ev+' blocked'); }));
     document.addEventListener('fullscreenchange', () => {
         if (!document.fullscreenElement) {
-            updateSecDot('full-dot', false);
-            logViolation('fullscreen_exit', 'Exited fullscreen');
-            showViolationModal('You exited fullscreen mode. This has been recorded.');
-        } else {
-            updateSecDot('full-dot', true);
-        }
+            setDot('dot-fs', false); logV('fullscreen_exit','Exited fullscreen');
+            document.getElementById('vmodal-msg').textContent = 'You exited fullscreen. This has been recorded.';
+            openModal('modal-violation');
+        } else setDot('dot-fs', true);
     });
-
-    // 7. DevTools detection (size heuristic)
     setInterval(() => {
-        const threshold = 160;
-        if ((window.outerWidth - window.innerWidth > threshold) ||
-            (window.outerHeight - window.innerHeight > threshold)) {
-            logViolation('devtools_open', 'DevTools may be open');
-        }
+        if (window.outerWidth - window.innerWidth > 160 || window.outerHeight - window.innerHeight > 160)
+            logV('devtools','DevTools detected');
     }, 3000);
 }
 
-function logViolation(type, details) {
+function logV(type, detail) {
     violationCount++;
-    const v = { type, details, ts: new Date().toISOString() };
-    violations.push(v);
-
-    // Send to server immediately (fire and forget)
+    violations.push({ type, detail, ts: new Date().toISOString() });
     const fd = new FormData();
-    fd.append('assessment_id',   ASSESSMENT_ID);
-    fd.append('student_id',      STUDENT_ID);
-    fd.append('violation_type',  type);
-    fd.append('details',         details);
-    // submission_id not known yet — server will create/find the pending submission
-    fetch('../student/ajax/log_violation.php', { method: 'POST', body: fd }).catch(() => {});
-
-    // Auto-submit if too many violations (CAT/Exam only)
+    fd.append('assessment_id', ASSESSMENT_ID);
+    fd.append('student_id',    STUDENT_ID);
+    fd.append('violation_type', type);
+    fd.append('details', detail);
+    safeFetch('ajax/log_violation.php', { method:'POST', body:fd }).catch(()=>{});
     if (IS_PROCTORED && violationCount >= 10 && !submitting) {
-        toast('Too many violations — auto-submitting', 'error');
+        toast('Too many violations — auto submitting', 'red');
         setTimeout(submitExam, 2500);
     }
 }
 
-function updateSecDot(id, ok) {
-    const dot = document.getElementById(id);
-    if (dot) { dot.className = `sec-dot ${ok ? 'ok' : 'warn'}`; }
+function setDot(id, ok) {
+    const d = document.getElementById(id);
+    if (d) d.className = 'sec-dot ' + (ok ? 'ok' : 'warn');
 }
 
 function showBanner(msg) {
-    const banner = document.getElementById('violation-banner');
-    const msgEl  = document.getElementById('violation-msg');
-    if (msgEl) msgEl.textContent = msg;
-    banner.style.display = 'flex';
-    clearTimeout(banner._timeout);
-    banner._timeout = setTimeout(() => banner.style.display = 'none', 4000);
+    const b = document.getElementById('vbanner');
+    document.getElementById('vbanner-msg').textContent = msg;
+    b.style.display = 'flex';
+    clearTimeout(b._t);
+    b._t = setTimeout(() => b.style.display = 'none', 4000);
 }
 
-function dismissBanner() {
-    document.getElementById('violation-banner').style.display = 'none';
-}
-
-function showViolationModal(msg) {
-    document.getElementById('violation-modal-msg').textContent = msg;
-    openModal('violation-modal');
-}
-
-// ── FULLSCREEN ────────────────────────────────────────────
-function enterFullscreen() {
+/* ── FULLSCREEN ── */
+function goFullscreen() {
     const el = document.documentElement;
-    if (el.requestFullscreen)       el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.mozRequestFullScreen)    el.mozRequestFullScreen();
-    document.getElementById('fs-nudge').style.display = 'none';
-    updateSecDot('full-dot', true);
+    (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen).call(el);
+    setDot('dot-fs', true);
 }
 function exitFullscreen() {
-    if (document.exitFullscreen && document.fullscreenElement) document.exitFullscreen();
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
 }
 
-// ── MODAL HELPERS ─────────────────────────────────────────
+/* ── MODAL ── */
 function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
 function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
 
-// ── TOAST ─────────────────────────────────────────────────
-function toast(msg, type = 'info') {
+/* ── TOAST ── */
+function toast(msg, color = 'accent') {
+    const c = color === 'red' ? 'red' : color === 'green' ? 'green' : 'accent';
     const el = document.createElement('div');
-    el.style.cssText = `position:fixed;bottom:80px;right:24px;z-index:999;
-        background:var(--surf2);border:1px solid var(--border);border-radius:var(--rs);
-        padding:10px 16px;font-size:.82rem;color:var(--text);
-        border-left:3px solid var(--${type==='error'?'red':type==='success'?'green':'accent'});
-        box-shadow:0 4px 20px rgba(0,0,0,.4);animation:toastIn .2s ease;max-width:280px;
-        display:flex;align-items:center;gap:8px`;
+    el.style.cssText = `
+        position:fixed;bottom:76px;right:20px;z-index:999;
+        background:var(--surf2);border:1px solid var(--border);
+        border-left:3px solid var(--${c});
+        border-radius:var(--rs);padding:10px 16px;
+        font-size:.82rem;color:var(--text);
+        box-shadow:0 6px 24px rgba(0,0,0,.5);
+        max-width:280px;animation:fadeUp .2s ease;
+    `;
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 3000);
 }
 
-// Prevent text selection in exam
-document.addEventListener('selectstart', e => {
-    if (IS_PROCTORED) e.preventDefault();
-});
+document.addEventListener('selectstart', e => { if (IS_PROCTORED) e.preventDefault(); });
 </script>
 
-<?php if (isset($_GET['start'])): ?>
 <style>
-@keyframes toastIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
-.spinner{width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
-@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 </style>
-<?php endif; ?>
 
 </body>
 </html>

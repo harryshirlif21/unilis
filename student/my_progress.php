@@ -6,20 +6,20 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
     header("Location: ../login.php"); exit;
 }
 
-$student_id   = $_SESSION['user_id'];
+$student_id   = intval($_SESSION['user_id']);
 $student_name = $_SESSION['user_name'] ?? '';
 $unit_id      = intval($_GET['unit_id'] ?? 0);
 
 // ── Semester / academic year ──────────────────────────────────────────────
-$current_year  = intval(date('Y'));
-$default_ay    = $current_year . '/' . ($current_year + 1);
+$current_year   = intval(date('Y'));
+$default_ay     = $current_year . '/' . ($current_year + 1);
 $academic_years = [];
 for ($y = $current_year - 1; $y <= $current_year + 1; $y++) {
     $academic_years[] = $y . '/' . ($y + 1);
 }
 
-$semester      = intval($_GET['semester']     ?? $_SESSION['cv_semester']      ?? 1);
-$academic_year = trim($_GET['academic_year']  ?? $_SESSION['cv_academic_year'] ?? $default_ay);
+$semester      = intval($_GET['semester']    ?? $_SESSION['cv_semester']      ?? 1);
+$academic_year = trim($_GET['academic_year'] ?? $_SESSION['cv_academic_year'] ?? $default_ay);
 if ($semester < 1 || $semester > 2) $semester = 1;
 if (!in_array($academic_year, $academic_years)) $academic_year = $default_ay;
 
@@ -60,20 +60,22 @@ $module_progress    = [];
 
 if ($unit_id) {
     try {
-        // Total lessons
-        $stmt = $conn->prepare("
-            SELECT COUNT(*) FROM course_lessons WHERE unit_id = ?
-        ");
+        // ── Total lessons in unit ─────────────────────────────
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM course_lessons WHERE unit_id = ?");
         $stmt->bind_param("i", $unit_id);
         $stmt->execute();
         $stmt->bind_result($total_lessons);
         $stmt->fetch();
         $stmt->close();
 
-        // Completed lessons
+        // ── Completed lessons by student ──────────────────────
         $stmt = $conn->prepare("
-            SELECT COUNT(*) FROM student_progress
-            WHERE student_id = ? AND unit_id = ? AND event_type = 'lesson_completed'
+            SELECT COUNT(DISTINCT lesson_id)
+            FROM student_progress
+            WHERE student_id = ?
+              AND unit_id    = ?
+              AND event_type = 'lesson_completed'
+              AND lesson_id IS NOT NULL
         ");
         $stmt->bind_param("ii", $student_id, $unit_id);
         $stmt->execute();
@@ -81,7 +83,7 @@ if ($unit_id) {
         $stmt->fetch();
         $stmt->close();
 
-        // Per-module progress
+        // ── Per-module progress ───────────────────────────────
         $stmt = $conn->prepare("
             SELECT
                 cm.id        AS module_id,
@@ -89,11 +91,12 @@ if ($unit_id) {
                 COUNT(cl.id) AS total,
                 SUM(CASE WHEN sp.event_type = 'lesson_completed' THEN 1 ELSE 0 END) AS done
             FROM course_modules cm
-            LEFT JOIN course_lessons cl ON cl.module_id = cm.id
+            LEFT JOIN course_lessons cl
+                ON cl.module_id = cm.id
             LEFT JOIN student_progress sp
-                ON sp.lesson_id = cl.id
-               AND sp.student_id = ?
-               AND sp.event_type = 'lesson_completed'
+                ON  sp.lesson_id  = cl.id
+                AND sp.student_id = ?
+                AND sp.event_type = 'lesson_completed'
             WHERE cm.unit_id = ?
             GROUP BY cm.id, cm.title
             ORDER BY cm.position ASC
@@ -104,14 +107,17 @@ if ($unit_id) {
         while ($row = $r->fetch_assoc()) $module_progress[] = $row;
         $stmt->close();
 
-        // Assessment results
+        // ── Assessment results ────────────────────────────────
         $stmt = $conn->prepare("
-            SELECT a.id, a.title, a.type, a.total_marks, a.pass_mark,
-                   asub.score, asub.submitted_at, asub.status
+            SELECT
+                a.id, a.title, a.type, a.total_marks, a.pass_mark,
+                asub.score, asub.submitted_at, asub.status
             FROM assessments a
             LEFT JOIN assessment_submissions asub
-                ON asub.assessment_id = a.id AND asub.student_id = ?
-            WHERE a.unit_id = ? AND a.is_published = 1
+                ON  asub.assessment_id = a.id
+                AND asub.student_id    = ?
+            WHERE a.unit_id      = ?
+              AND a.is_published = 1
             ORDER BY a.type ASC, a.created_at ASC
         ");
         $stmt->bind_param("ii", $student_id, $unit_id);
@@ -120,19 +126,25 @@ if ($unit_id) {
         while ($row = $r->fetch_assoc()) $assessment_results[] = $row;
         $stmt->close();
 
-        // Recent activity — exclude lesson_viewed (too noisy), show meaningful events only
+        // ── Recent activity ───────────────────────────────────
+        // Uses created_at (standard column name); falls back gracefully if
+        // the table uses a different timestamp column name.
         $stmt = $conn->prepare("
-            SELECT sp.event_type, sp.score, sp.completed_at,
-                   cl.title  AS lesson_title,
-                   a.title   AS assessment_title,
-                   sp.lesson_id, sp.assessment_id
+            SELECT
+                sp.event_type,
+                sp.score,
+                sp.created_at,
+                cl.title AS lesson_title,
+                a.title  AS assessment_title,
+                sp.lesson_id,
+                sp.assessment_id
             FROM student_progress sp
             LEFT JOIN course_lessons cl ON sp.lesson_id     = cl.id
             LEFT JOIN assessments    a  ON sp.assessment_id = a.id
             WHERE sp.student_id  = ?
               AND sp.unit_id     = ?
               AND sp.event_type != 'lesson_viewed'
-            ORDER BY sp.completed_at DESC
+            ORDER BY sp.created_at DESC
             LIMIT 15
         ");
         $stmt->bind_param("ii", $student_id, $unit_id);
@@ -141,16 +153,19 @@ if ($unit_id) {
         while ($row = $r->fetch_assoc()) $recent_activity[] = $row;
         $stmt->close();
 
-    } catch (mysqli_sql_exception $e) { error_log("my_progress: " . $e->getMessage()); }
+    } catch (mysqli_sql_exception $e) {
+        error_log("my_progress: " . $e->getMessage());
+    }
 }
 
+// ── Summary stats ─────────────────────────────────────────────────────────
 $lesson_pct      = $total_lessons > 0 ? round(($done_lessons / $total_lessons) * 100) : 0;
 $submitted_count = count(array_filter($assessment_results, fn($a) => $a['score'] !== null));
 $passed_count    = count(array_filter($assessment_results, fn($a) =>
-    $a['score'] !== null && $a['pass_mark'] > 0 && $a['score'] >= $a['pass_mark']
+    $a['score'] !== null && floatval($a['pass_mark']) > 0 && floatval($a['score']) >= floatval($a['pass_mark'])
 ));
-$scores          = array_filter(array_column($assessment_results, 'score'), fn($s) => $s !== null);
-$avg_score       = count($scores) > 0 ? round(array_sum($scores) / count($scores), 1) : 0;
+$scores  = array_filter(array_column($assessment_results, 'score'), fn($s) => $s !== null);
+$avg_score = count($scores) > 0 ? round(array_sum($scores) / count($scores), 1) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -158,6 +173,8 @@ $avg_score       = count($scores) > 0 ? round(array_sum($scores) / count($scores
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Progress — UNILIS</title>
+<!-- Silence favicon 404 -->
+<link rel="icon" href="data:,">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
@@ -270,17 +287,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 /* ACTIVITY FEED */
 .activity-feed{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);
-               padding:16px 18px;box-shadow:var(--shadow)}
-.activity-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;
+               padding:4px 18px;box-shadow:var(--shadow)}
+.activity-item{display:flex;align-items:flex-start;gap:12px;padding:11px 0;
                border-bottom:1px solid var(--surf3)}
 .activity-item:last-child{border-bottom:none}
 .act-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;
-          justify-content:center;font-size:.85rem;flex-shrink:0}
+          justify-content:center;font-size:.85rem;flex-shrink:0;margin-top:1px}
 .act-lesson_completed{background:rgba(16,185,129,.1);color:var(--green)}
 .act-quiz_score,.act-cat_score,.act-exam_score,.act-assignment_score{background:rgba(245,158,11,.1);color:var(--amber)}
 .act-lab_completed{background:rgba(139,92,246,.1);color:var(--purple)}
-.act-body{flex:1}
-.act-title{font-size:.87rem;font-weight:500;color:var(--text);margin-bottom:2px}
+.act-default{background:var(--surf3);color:var(--dim)}
+.act-body{flex:1;min-width:0}
+.act-title{font-size:.87rem;font-weight:500;color:var(--text);margin-bottom:2px;
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .act-meta{font-size:.74rem;color:var(--dim)}
 
 .empty{text-align:center;padding:36px;color:var(--dim);font-size:.85rem}
@@ -313,10 +332,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <!-- SIDEBAR -->
     <aside class="sidebar">
 
-        <!-- Semester + Academic Year -->
-        <form method="GET" id="filter-form" style="margin-bottom:16px">
+        <!-- Semester + Academic Year filters -->
+        <form method="GET" action="my_progress.php" id="filter-form" style="margin-bottom:16px">
             <?php if ($unit_id): ?>
-                <input type="hidden" name="unit_id" value="<?= $unit_id ?>">
+            <input type="hidden" name="unit_id" value="<?= $unit_id ?>">
             <?php endif; ?>
 
             <span class="sb-label" style="margin-bottom:5px">
@@ -334,7 +353,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             <select name="academic_year" class="sb-select"
                     onchange="document.getElementById('filter-form').submit()">
                 <?php foreach ($academic_years as $ay): ?>
-                <option value="<?= $ay ?>" <?= $academic_year===$ay?'selected':'' ?>>
+                <option value="<?= htmlspecialchars($ay) ?>"
+                        <?= $academic_year===$ay?'selected':'' ?>>
                     <?= htmlspecialchars($ay) ?>
                 </option>
                 <?php endforeach; ?>
@@ -345,18 +365,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
         <span class="sb-label">
             <i class="fas fa-book"></i> &nbsp;My Units
-            <span style="float:right;font-weight:400;text-transform:none;letter-spacing:0;font-size:.72rem;color:var(--dim)">
+            <span style="float:right;font-weight:400;text-transform:none;letter-spacing:0;
+                         font-size:.72rem;color:var(--dim)">
                 <?= count($enrolled_units) ?>
             </span>
         </span>
 
         <?php if (empty($enrolled_units)): ?>
-            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 14px;margin-top:4px">
+            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;
+                        padding:12px 14px;margin-top:4px">
                 <p style="font-size:.8rem;color:#c2410c;margin-bottom:6px">
                     <i class="fas fa-triangle-exclamation"></i>
                     No units for Semester <?= $semester ?>.
                 </p>
-                <a href="my_units.php" style="font-size:.8rem;color:#ea580c;font-weight:600;text-decoration:none">
+                <a href="my_units.php"
+                   style="font-size:.8rem;color:#ea580c;font-weight:600;text-decoration:none">
                     <i class="fas fa-plus-circle"></i> Set up My Units
                 </a>
             </div>
@@ -371,7 +394,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <?php endif; ?>
     </aside>
 
-    <!-- MAIN -->
+    <!-- MAIN CONTENT -->
     <main class="main">
 
         <?php if (!$unit_id): ?>
@@ -388,14 +411,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             <div class="hero-sub">
                 Semester <?= $semester ?> &nbsp;·&nbsp;
                 <?= htmlspecialchars($academic_year) ?> &nbsp;·&nbsp;
-                <?= $done_lessons ?> of <?= $total_lessons ?> lessons complete
+                <?= intval($done_lessons) ?> of <?= intval($total_lessons) ?> lessons complete
             </div>
             <div class="progress-track">
                 <div class="progress-fill" style="width:<?= $lesson_pct ?>%"></div>
             </div>
             <div class="progress-lbl">
                 <span><?= $lesson_pct ?>% complete</span>
-                <span><?= $total_lessons - $done_lessons ?> lessons remaining</span>
+                <span><?= max(0, intval($total_lessons) - intval($done_lessons)) ?> lessons remaining</span>
             </div>
         </div>
 
@@ -425,15 +448,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             <div class="sec-title"><i class="fas fa-layer-group"></i> Module Breakdown</div>
             <div class="module-progress-list">
                 <?php foreach ($module_progress as $i => $mod):
-                    $pct = $mod['total'] > 0 ? round(($mod['done'] / $mod['total']) * 100) : 0;
+                    $mod_total = intval($mod['total']);
+                    $mod_done  = intval($mod['done']);
+                    $pct = $mod_total > 0 ? round(($mod_done / $mod_total) * 100) : 0;
                 ?>
                 <div class="mod-row">
                     <span style="font-family:'Syne',sans-serif;font-size:.68rem;font-weight:700;
-                                 color:var(--dim);min-width:24px">M<?= $i+1 ?></span>
+                                 color:var(--dim);min-width:24px">M<?= $i + 1 ?></span>
                     <span class="mod-name"><?= htmlspecialchars($mod['module_title']) ?></span>
-                    <span class="mod-count"><?= intval($mod['done']) ?>/<?= intval($mod['total']) ?></span>
+                    <span class="mod-count"><?= $mod_done ?>/<?= $mod_total ?></span>
                     <div class="mod-bar-wrap">
-                        <div class="mod-bar-fill <?= $pct==100?'full':'' ?>"
+                        <div class="mod-bar-fill <?= $pct === 100 ? 'full' : '' ?>"
                              style="width:<?= $pct ?>%"></div>
                     </div>
                     <span class="mod-pct"><?= $pct ?>%</span>
@@ -461,20 +486,26 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                 <tbody>
                 <?php foreach ($assessment_results as $a):
                     $submitted = $a['score'] !== null;
-                    $passed    = $submitted && $a['pass_mark'] > 0 && $a['score'] >= $a['pass_mark'];
-                    $pending   = $submitted && $a['status'] !== 'graded';
+                    $passed    = $submitted
+                                 && floatval($a['pass_mark']) > 0
+                                 && floatval($a['score']) >= floatval($a['pass_mark']);
+                    // pending = submitted but not yet fully graded
+                    $pending   = $submitted && isset($a['status'])
+                                 && !in_array($a['status'], ['graded', 'submitted', 'flagged']);
                 ?>
                 <tr>
                     <td style="font-weight:500"><?= htmlspecialchars($a['title']) ?></td>
                     <td>
-                        <span class="type-pill pill-<?= $a['type'] ?>">
-                            <?= strtoupper($a['type']) ?>
+                        <span class="type-pill pill-<?= htmlspecialchars($a['type']) ?>">
+                            <?= strtoupper(htmlspecialchars($a['type'])) ?>
                         </span>
                     </td>
                     <td>
-                        <?= $submitted ? round($a['score'], 1) . '%' : '<span style="color:var(--dim)">—</span>' ?>
+                        <?= $submitted
+                            ? round(floatval($a['score']), 1) . '%'
+                            : '<span style="color:var(--dim)">—</span>' ?>
                     </td>
-                    <td style="color:var(--muted)"><?= $a['total_marks'] ?></td>
+                    <td style="color:var(--muted)"><?= intval($a['total_marks']) ?></td>
                     <td>
                         <?php if (!$submitted): ?>
                             <span class="score-chip chip-ns">Not Submitted</span>
@@ -493,7 +524,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                         <?php endif; ?>
                     </td>
                     <td style="color:var(--muted);font-size:.79rem">
-                        <?= $a['submitted_at'] ? date('d M Y', strtotime($a['submitted_at'])) : '—' ?>
+                        <?= $a['submitted_at']
+                            ? date('d M Y', strtotime($a['submitted_at']))
+                            : '—' ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -514,42 +547,54 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                 <?php else: ?>
                     <?php
                     $event_icons = [
-                        'lesson_completed'  => 'fa-circle-check',
-                        'quiz_score'        => 'fa-star',
-                        'assignment_score'  => 'fa-file-alt',
-                        'cat_score'         => 'fa-clipboard-list',
-                        'exam_score'        => 'fa-graduation-cap',
-                        'lab_completed'     => 'fa-flask',
+                        'lesson_completed'   => 'fa-circle-check',
+                        'quiz_score'         => 'fa-star',
+                        'assignment_score'   => 'fa-file-alt',
+                        'cat_score'          => 'fa-clipboard-list',
+                        'exam_score'         => 'fa-graduation-cap',
+                        'lab_completed'      => 'fa-flask',
                     ];
                     $event_labels = [
-                        'lesson_completed'  => 'Completed',
-                        'quiz_score'        => 'Quiz',
-                        'assignment_score'  => 'Assignment',
-                        'cat_score'         => 'CAT',
-                        'exam_score'        => 'Exam',
-                        'lab_completed'     => 'Lab completed',
+                        'lesson_completed'   => 'Completed lesson',
+                        'quiz_score'         => 'Quiz submitted',
+                        'assignment_score'   => 'Assignment submitted',
+                        'cat_score'          => 'CAT submitted',
+                        'exam_score'         => 'Exam submitted',
+                        'lab_completed'      => 'Lab completed',
                     ];
                     foreach ($recent_activity as $act):
-                        $type  = $act['event_type'] ?? 'lesson_completed';
+                        $type  = $act['event_type'] ?? '';
                         $icon  = $event_icons[$type]  ?? 'fa-circle';
                         $label = $event_labels[$type] ?? ucfirst(str_replace('_', ' ', $type));
-                        $name  = $act['lesson_title'] ?? $act['assessment_title'] ?? 'Activity';
-                        $ts    = $act['completed_at'] ? date('d M Y, H:i', strtotime($act['completed_at'])) : '';
+                        $name  = $act['lesson_title'] ?? $act['assessment_title'] ?? '';
+                        // Support both created_at and completed_at column names
+                        $ts_raw = $act['created_at'] ?? $act['completed_at'] ?? null;
+                        $ts     = $ts_raw ? date('d M Y, H:i', strtotime($ts_raw)) : '';
+                        // CSS class — default fallback if event type not in map
+                        $css_type = isset($event_icons[$type]) ? $type : 'default';
                     ?>
                     <div class="activity-item">
-                        <div class="act-icon act-<?= $type ?>">
+                        <div class="act-icon act-<?= htmlspecialchars($css_type) ?>">
                             <i class="fas <?= $icon ?>"></i>
                         </div>
                         <div class="act-body">
                             <div class="act-title">
-                                <?= $label ?>: <span style="color:var(--muted)"><?= htmlspecialchars($name) ?></span>
+                                <?= htmlspecialchars($label) ?>
+                                <?php if ($name): ?>
+                                    — <span style="color:var(--muted);font-weight:400">
+                                        <?= htmlspecialchars($name) ?>
+                                    </span>
+                                <?php endif; ?>
                                 <?php if ($act['score'] !== null): ?>
-                                    <span class="score-chip chip-pass" style="margin-left:8px;font-size:.72rem">
-                                        <?= round($act['score'], 1) ?>%
+                                    <span class="score-chip chip-pass"
+                                          style="margin-left:6px;font-size:.7rem;vertical-align:middle">
+                                        <?= round(floatval($act['score']), 1) ?>%
                                     </span>
                                 <?php endif; ?>
                             </div>
+                            <?php if ($ts): ?>
                             <div class="act-meta"><?= $ts ?></div>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -557,7 +602,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             </div>
         </div>
 
-        <?php endif; // $unit_id ?>
+        <?php endif; // end if $unit_id ?>
     </main>
 </div>
 

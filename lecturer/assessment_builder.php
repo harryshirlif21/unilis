@@ -274,6 +274,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);hei
 <header class="topbar">
     <div class="brand">UNILIS <span>Assessment Builder</span></div>
     <div class="nav-links">
+        <a href="submissions.php?unit_id=<?= $unit_id ?>" class="btn-nav">
+    <i class="fas fa-chart-bar"></i> Submissions
+</a>
         <?php if ($unit_id): ?>
         <a href="course_builder.php?unit_id=<?= $unit_id ?>" class="btn-nav"><i class="fas fa-sitemap"></i> Course Builder</a>
         <a href="lesson_editor.php?unit_id=<?= $unit_id ?>"  class="btn-nav"><i class="fas fa-pen-nib"></i> Lesson Editor</a>
