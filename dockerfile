@@ -76,7 +76,12 @@ RUN mkdir -p /var/www/html/assets/uploads \
 # Make PHP errors visible in docker logs
 RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/php.ini \
     && echo "log_errors = On" >> /usr/local/etc/php/php.ini \
-    && echo "display_errors = On" >> /usr/local/etc/php/php.ini
+    && echo "display_errors = On" >> /usr/local/etc/php/php.ini \
+    && echo "upload_max_filesize = 50M" >> /usr/local/etc/php/php.ini \
+    && echo "post_max_size = 50M" >> /usr/local/etc/php/php.ini \
+    && echo "max_execution_time = 300" >> /usr/local/etc/php/php.ini \
+    && echo "max_input_time = 300" >> /usr/local/etc/php/php.ini \
+    && echo "memory_limit = 256M" >> /usr/local/etc/php/php.ini
 
 # Copy startup script
 COPY start.sh /start.sh
