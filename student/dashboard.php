@@ -418,7 +418,7 @@ function logout() {
 
   </div>
 
-  <!-- Student Attendance Modal -->
+  <!-- Enhanced Student Attendance Modal -->
   <div id="studentAttendanceModal" class="modal hidden">
       <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl max-w-md mx-auto" 
            style="max-height: 90vh; overflow-y: auto;">
@@ -427,66 +427,84 @@ function logout() {
                 onclick="hideModal('studentAttendanceModal')">×</span>
 
           <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">
-              Enter Attendance Code
+              <i class="fas fa-qrcode"></i> Mark Your Attendance
           </h3>
 
-          <form id="studentAttendanceForm" class="px-8 pb-10" method="POST" action="attendance_submit.php">
-              
-              <div class="mb-6">
-                  <label class="block text-sm font-medium stat-text-primary mb-3">
-                      Unit <span class="text-red-500">*</span>
-                  </label>
-                  <select name="unit_id" id="studentUnitId" required
-                          class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg 
-                                 focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
-                      <option value="">-- Choose Unit --</option>
-                      <?php
-                      $att_student_id = intval($_SESSION['user_id'] ?? 0);
-                      $att_sem        = intval($_SESSION['semester'] ?? 1);
-                      $att_acad_year  = $_SESSION['academic_year']  ?? (date('Y') . '/' . (date('Y') + 1));
-                      if ($att_student_id > 0) {
-                          $stmt = $conn->prepare("
-                              SELECT u.id, u.name
-                              FROM units u
-                              JOIN student_unit_enrollments sue ON sue.unit_id = u.id
-                              WHERE sue.student_id    = ?
-                                AND sue.semester      = ?
-                                AND sue.academic_year = ?
-                              ORDER BY u.name ASC
-                          ");
-                          $stmt->bind_param("iis", $att_student_id, $att_sem, $att_acad_year);
-                          $stmt->execute();
-                          $result    = $stmt->get_result();
-                          $att_units = [];
-                          while ($unit = $result->fetch_assoc()) $att_units[] = $unit;
-                          $stmt->close();
-                          if (empty($att_units)) {
-                              echo '<option value="" disabled>No units enrolled — <a href="my_units.php">set up My Units</a></option>';
-                          } else {
-                              foreach ($att_units as $unit) {
-                                  echo "<option value='{$unit['id']}'>" . htmlspecialchars($unit['name']) . "</option>";
-                              }
-                          }
-                      }
-                      ?>
-                  </select>
+          <div id="attendanceContent" class="px-8 pb-10">
+              <!-- Loading state -->
+              <div id="attendanceLoading" class="text-center py-10 hidden">
+                  <div class="spinner"></div>
+                  <p class="mt-4 text-gray-600">Loading your attendance information...</p>
               </div>
 
-              <div class="mb-6">
-                  <label class="block text-sm font-medium stat-text-primary mb-3">
-                      Attendance Code <span class="text-red-500">*</span>
-                  </label>
-                  <input type="text" name="attendance_code" required maxlength="8" placeholder="e.g. ABCD1234"
-                         class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-xl text-center 
-                                tracking-widest focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition uppercase">
+              <!-- Attendance form -->
+              <div id="attendanceForm" class="hidden">
+                  <div class="mb-6">
+                      <label class="block text-sm font-medium stat-text-primary mb-3">
+                          <i class="fas fa-clock"></i> Active Sessions
+                      </label>
+                      <div id="activeSessionsList" class="space-y-3">
+                          <!-- Sessions will be loaded here -->
+                      </div>
+                  </div>
+
+                  <div class="mb-6">
+                      <label class="block text-sm font-medium stat-text-primary mb-3">
+                          <i class="fas fa-keyboard"></i> Enter Your Personal Code
+                      </label>
+                      <input type="text" id="attendanceCodeInput" maxlength="6" placeholder="Enter 6-digit code"
+                             class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-xl text-center 
+                                    tracking-widest focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition uppercase font-mono">
+                      <div class="text-center mt-3">
+                          <span id="codeTimer" class="text-sm text-gray-600"></span>
+                      </div>
+                  </div>
+
+                  <div class="text-center space-y-3">
+                      <button type="button" onclick="submitAttendanceCode()" 
+                              class="btn-golden px-12 py-4 text-lg font-semibold rounded-xl shadow-lg">
+                          <i class="fas fa-check-circle"></i> Submit Attendance
+                      </button>
+                      
+                      <button type="button" onclick="requestNewCode()" 
+                              class="btn-secondary px-8 py-3 text-lg rounded-xl">
+                          <i class="fas fa-redo"></i> Request New Code
+                      </button>
+                  </div>
               </div>
 
-              <div class="text-center mt-8">
-                  <button type="submit" class="btn-golden px-12 py-4 text-lg font-semibold rounded-xl shadow-lg">
-                      Submit Attendance
+              <!-- Success state -->
+              <div id="attendanceSuccess" class="text-center py-10 hidden">
+                  <div class="success-icon mb-6">
+                      <i class="fas fa-check-circle text-6xl text-green-500"></i>
+                  </div>
+                  <h3 class="text-2xl font-bold text-green-600 mb-4">Attendance Marked!</h3>
+                  <p class="text-gray-600 mb-6">Your attendance has been successfully recorded.</p>
+                  <button onclick="hideModal('studentAttendanceModal')" 
+                          class="btn-primary px-8 py-3 rounded-xl">
+                      <i class="fas fa-times"></i> Close
                   </button>
               </div>
-          </form>
+
+              <!-- Error state -->
+              <div id="attendanceError" class="text-center py-10 hidden">
+                  <div class="error-icon mb-6">
+                      <i class="fas fa-exclamation-triangle text-6xl text-red-500"></i>
+                  </div>
+                  <h3 class="text-2xl font-bold text-red-600 mb-4">Error</h3>
+                  <p id="errorMessage" class="text-gray-600 mb-6"></p>
+                  <div class="space-x-3">
+                      <button onclick="resetAttendanceForm()" 
+                              class="btn-secondary px-8 py-3 rounded-xl">
+                          <i class="fas fa-arrow-left"></i> Try Again
+                      </button>
+                      <button onclick="requestNewCode()" 
+                              class="btn-primary px-8 py-3 rounded-xl">
+                          <i class="fas fa-redo"></i> Request New Code
+                      </button>
+                  </div>
+              </div>
+          </div>
       </div>
   </div>
 
@@ -629,6 +647,290 @@ document.addEventListener('DOMContentLoaded', () => {
 function logout() {
     window.location.href = "../logout.php";
 }
+
+// Enhanced Attendance System Functions
+window.attendanceData = {
+    sessions: [],
+    currentSession: null
+};
+
+// Load active attendance sessions
+function loadActiveAttendanceSessions() {
+    fetch('includes/get_attendance_sessions.php')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                attendanceData.sessions = data.sessions;
+                updateSessionsList();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading attendance sessions:', error);
+        });
+}
+
+// Update sessions list in modal
+function updateSessionsList() {
+    const sessionsList = document.getElementById('activeSessionsList');
+    if (!sessionsList) return;
+    
+    if (attendanceData.sessions.length === 0) {
+        sessionsList.innerHTML = '<p class="text-gray-500 text-center py-4">No active attendance sessions</p>';
+        return;
+    }
+    
+    sessionsList.innerHTML = attendanceData.sessions.map(session => `
+        <div class="border border-gray-200 rounded-lg p-4 mb-3">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h4 class="font-semibold text-lg">${session.unit_name}</h4>
+                    <p class="text-sm text-gray-600">Session: ${session.main_code}</p>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-gray-500">Expires: ${new Date(session.deadline).toLocaleString()}</span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button onclick="selectSession(${session.session_id})" 
+                        class="btn-primary px-4 py-2 text-sm rounded">
+                    Use This Session
+                </button>
+                ${session.attended ? 
+                    '<span class="text-green-600 text-sm"><i class="fas fa-check-circle"></i> Attended</span>' : 
+                    '<span class="text-orange-600 text-sm"><i class="fas fa-clock"></i> Pending</span>'
+                }
+            </div>
+        </div>
+    `).join('');
+}
+
+// Select attendance session
+function selectSession(sessionId) {
+    const session = attendanceData.sessions.find(s => s.session_id === sessionId);
+    if (!session) return;
+    
+    attendanceData.currentSession = session;
+    document.getElementById('attendanceCodeInput').value = '';
+    document.getElementById('attendanceCodeInput').focus();
+    
+    // Update timer display
+    updateCodeTimer(session.expires_at);
+}
+
+// Update code timer
+function updateCodeTimer(expiresAt) {
+    const timerElement = document.getElementById('codeTimer');
+    if (!timerElement) return;
+    
+    const updateTimer = () => {
+        const now = new Date();
+        const expires = new Date(expiresAt);
+        const diff = expires - now;
+        
+        if (diff <= 0) {
+            timerElement.innerHTML = '<span class="text-red-600"><i class="fas fa-exclamation-triangle"></i> EXPIRED</span>';
+            clearInterval(timerInterval);
+        } else {
+            const minutes = Math.floor(diff / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            timerElement.innerHTML = `<i class="fas fa-clock"></i> ${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
+        }
+    };
+    
+    updateTimer();
+    const timerInterval = setInterval(updateTimer, 1000);
+    
+    // Clear interval after 2 minutes
+    setTimeout(() => {
+        clearInterval(timerInterval);
+        timerElement.innerHTML = '<span class="text-red-600"><i class="fas fa-exclamation-triangle"></i> EXPIRED</span>';
+    }, 120000);
+}
+
+// Submit attendance code
+function submitAttendanceCode() {
+    const code = document.getElementById('attendanceCodeInput').value.trim();
+    if (!code) {
+        showAttendanceError('Please enter your attendance code');
+        return;
+    }
+    
+    if (!attendanceData.currentSession) {
+        showAttendanceError('Please select an attendance session first');
+        return;
+    }
+    
+    showAttendanceLoading();
+    
+    const formData = new FormData();
+    formData.append('action', 'submit_attendance');
+    formData.append('session_id', attendanceData.currentSession.session_id);
+    formData.append('code', code);
+    
+    fetch('attendance_submit.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAttendanceSuccess();
+            // Update session status
+            const sessionIndex = attendanceData.sessions.findIndex(s => s.session_id === attendanceData.currentSession.session_id);
+            if (sessionIndex !== -1) {
+                attendanceData.sessions[sessionIndex].attended = true;
+                attendanceData.sessions[sessionIndex].attended_at = data.attended_at;
+            }
+        } else {
+            showAttendanceError(data.message || 'Invalid code');
+        }
+    })
+    .catch(error => {
+        showAttendanceError('Network error. Please try again.');
+        console.error('Attendance submission error:', error);
+    });
+}
+
+// Request new code
+function requestNewCode() {
+    if (!attendanceData.currentSession) {
+        showAttendanceError('Please select an attendance session first');
+        return;
+    }
+    
+    showAttendanceLoading();
+    
+    const formData = new FormData();
+    formData.append('action', 'request_new_code');
+    formData.append('session_id', attendanceData.currentSession.session_id);
+    
+    fetch('attendance_submit.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAttendanceMessage('New code sent to your email!', 'success');
+            // Update timer with new code expiry
+            if (data.expires_at) {
+                updateCodeTimer(data.expires_at);
+            }
+        } else {
+            showAttendanceError(data.message || 'Failed to request new code');
+        }
+    })
+    .catch(error => {
+        showAttendanceError('Network error. Please try again.');
+        console.error('New code request error:', error);
+    });
+}
+
+// Show loading state
+function showAttendanceLoading() {
+    hideAllAttendanceStates();
+    document.getElementById('attendanceLoading').classList.remove('hidden');
+}
+
+// Show success state
+function showAttendanceSuccess() {
+    hideAllAttendanceStates();
+    document.getElementById('attendanceSuccess').classList.remove('hidden');
+}
+
+// Show error state
+function showAttendanceError(message) {
+    hideAllAttendanceStates();
+    document.getElementById('attendanceError').classList.remove('hidden');
+    document.getElementById('errorMessage').textContent = message;
+}
+
+// Show message state
+function showAttendanceMessage(message, type = 'info') {
+    hideAllAttendanceStates();
+    // You could add a message state div here if needed
+    console.log(message);
+}
+
+// Hide all attendance states
+function hideAllAttendanceStates() {
+    document.getElementById('attendanceLoading').classList.add('hidden');
+    document.getElementById('attendanceForm').classList.add('hidden');
+    document.getElementById('attendanceSuccess').classList.add('hidden');
+    document.getElementById('attendanceError').classList.add('hidden');
+}
+
+// Reset attendance form
+function resetAttendanceForm() {
+    hideAllAttendanceStates();
+    document.getElementById('attendanceForm').classList.remove('hidden');
+    document.getElementById('attendanceCodeInput').value = '';
+    document.getElementById('codeTimer').innerHTML = '';
+}
+
+// Initialize attendance system when modal opens
+const originalShowModal = window.showModal;
+window.showModal = function(id) {
+    if (id === 'studentAttendanceModal') {
+        loadActiveAttendanceSessions();
+    }
+    originalShowModal(id);
+};
+
+// Add CSS styles for attendance system
+const attendanceStyles = `
+<style>
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #f59e0b;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.success-icon, .error-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+.space-y-3 > * + * {
+    margin-top: 0.75rem;
+}
+
+.space-x-2 > * + * {
+    margin-left: 0.5rem;
+}
+
+.space-x-3 > * + * {
+    margin-left: 0.75rem;
+}
+</style>
+`;
+
+document.head.insertAdjacentHTML('beforeend', attendanceStyles);
 
 // Mark notification as read via AJAX
 function quickMarkRead(notificationId) {

@@ -100,11 +100,14 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
 
         if (!$unit) return false;
 
-        // Get all students in this course
+        // Get all students enrolled in this specific unit
         $stmt = $conn->prepare("
-            SELECT id, name, email FROM students WHERE course_id = ?
+            SELECT s.id, s.name, s.email 
+            FROM students s
+            JOIN student_unit_enrollments sue ON s.id = sue.student_id
+            WHERE sue.unit_id = ? AND s.is_verified = 1
         ");
-        $stmt->bind_param("i", $unit['course_id']);
+        $stmt->bind_param("i", $unit_id);
         $stmt->execute();
         $students_result = $stmt->get_result();
         $students = [];
@@ -164,11 +167,14 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
 
         if (!$unit) return false;
 
-        // Get all students in this course
+        // Get all students enrolled in this specific unit
         $stmt = $conn->prepare("
-            SELECT id, name, email FROM students WHERE course_id = ?
+            SELECT s.id, s.name, s.email 
+            FROM students s
+            JOIN student_unit_enrollments sue ON s.id = sue.student_id
+            WHERE sue.unit_id = ? AND s.is_verified = 1
         ");
-        $stmt->bind_param("i", $unit['course_id']);
+        $stmt->bind_param("i", $unit_id);
         $stmt->execute();
         $students_result = $stmt->get_result();
         $students = [];

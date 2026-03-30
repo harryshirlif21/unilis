@@ -2,12 +2,47 @@
 session_start();
 require_once '../config/db.php';
 require_once __DIR__ . '/../includes/mailer.php';
+require_once __DIR__ . '/../includes/student_attendance.php';
 use PHPMailer\PHPMailer\PHPMailer;
 
 header('Content-Type: application/json'); // Ensure JSON response
 
 // ========================
-// SEND ATTENDANCE EMAIL
+// ENHANCED ATTENDANCE SYSTEM
+// ========================
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $action = $_POST['action'];
+    
+    if ($action === 'create_enhanced_attendance') {
+        $unit_id = intval($_POST['unit_id'] ?? 0);
+        $duration = intval($_POST['duration'] ?? 10);
+        $send_email = isset($_POST['send_email']) ? true : false;
+        $lecturer_id = $_SESSION['user_id'] ?? 0;
+        
+        if (!$unit_id || !$lecturer_id) {
+            echo json_encode(['success' => false, 'message' => 'Invalid unit or lecturer']);
+            exit;
+        }
+        
+        try {
+            $result = createEnhancedAttendanceSession($conn, $unit_id, $lecturer_id, $duration, $send_email);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Enhanced attendance session created successfully',
+                'data' => $result
+            ]);
+        } catch (Exception $e) {
+            error_log("Error creating enhanced attendance: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Failed to create attendance session']);
+        }
+        exit;
+    }
+}
+
+// ========================
+// LEGACY ATTENDANCE EMAIL (Keep for backward compatibility)
 // ========================
 function send_attendance_email($email, $name, $code, $unit_name, $deadline, $auto_link) {
     $mail = new PHPMailer(true);
