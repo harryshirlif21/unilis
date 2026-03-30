@@ -3,7 +3,10 @@ session_start();
 require_once '../config/db.php';
 require_once __DIR__ . '/../includes/mailer.php';
 require_once __DIR__ . '/../includes/student_attendance.php';
+
+// Import PHPMailer classes
 use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
 
 header('Content-Type: application/json'); // Ensure JSON response
 

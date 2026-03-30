@@ -8,9 +8,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-use Dompdf\Dompdf;
-    use PHPMailer\PHPMailer\PHPMailer;
-    use PHPMailer\PHPMailer\Exception;
+// Import PHPMailer classes
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 // Add OpenAI API key (should be stored securely in environment variables)
 $openai_key = getenv('OPENAI_API_KEY');
 

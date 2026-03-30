@@ -11,11 +11,16 @@ define('EMAIL_USERNAME', getenv('EMAIL_USERNAME') ?: 'unilis512@gmail.com');
 define('EMAIL_PASSWORD', getenv('EMAIL_PASSWORD') ?: 'sbmxmiafbtfkmkck');
 define('EMAIL_ENCRYPTION', getenv('EMAIL_ENCRYPTION') ?: 'tls');
 
+// Import PHPMailer classes
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;
+
 /**
  * Get configured PHPMailer instance
  */
 function getConfiguredMailer() {
-    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+    $mail = new PHPMailer(true);
     
     try {
         $mail->isSMTP();
@@ -23,7 +28,7 @@ function getConfiguredMailer() {
         $mail->SMTPAuth   = true;
         $mail->Username   = EMAIL_USERNAME;
         $mail->Password   = EMAIL_PASSWORD;
-        $mail->SMTPSecure = EMAIL_ENCRYPTION === 'ssl' ? PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS : PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->SMTPSecure = EMAIL_ENCRYPTION === 'ssl' ? SMTP::ENCRYPTION_SMTPS : SMTP::ENCRYPTION_STARTTLS;
         $mail->Port       = EMAIL_PORT;
         $mail->setFrom(EMAIL_USERNAME, 'UNILIS');
         
