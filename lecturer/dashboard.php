@@ -900,6 +900,77 @@ $stmt->close();
         padding: 15px 20px;
     }
 }
+
+/* Add Unit Modal Styles */
+.modal-body .form-group {
+    margin-bottom: 20px;
+}
+
+.modal-body .form-group label {
+    display: block;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.modal-body .form-group input,
+.modal-body .form-group select {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.modal-body .form-group input:focus,
+.modal-body .form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.modal-body .form-group select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.modal-body .grid {
+    display: grid;
+    gap: 16px;
+}
+
+.modal-body .grid.grid-cols-2 {
+    grid-template-columns: 1fr 1fr;
+}
+
+.modal-body .btn-primary {
+    width: 100%;
+    padding: 14px 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 10px;
+}
+
+.modal-body .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+@media (max-width: 640px) {
+    .modal-body .grid.grid-cols-2 {
+        grid-template-columns: 1fr;
+    }
+}
 </style>
 
 <!-- Assignment Modal -->
@@ -941,25 +1012,45 @@ $stmt->close();
 <div id="addUnitModal" class="modal hidden">
     <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl" style="max-width: 580px; max-height: 92vh; overflow-y: auto;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10" id="addUnitModalClose">×</span>
-        <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">Add Unit</h3>
+        <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">Add Unit to My Units</h3>
         <form action="../actions.php" method="POST">
-            <input type="hidden" name="action" value="add_unit">
+            <input type="hidden" name="action" value="assign_unit">
             <div class="modal-body">
+                <!-- Department Selection -->
                 <div class="form-group">
-                    <label>Unit Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="unit_name" required>
-                </div>
-                <div class="form-group">
-                    <label>Unit Code <span class="text-red-500">*</span></label>
-                    <input type="text" name="unit_code" required>
-                </div>
-                <div class="form-group">
-                    <label>Course</label>
-                    <select name="unit_id" id="unitSelect" required>
-                        <option value="">-- Select Unit --</option>
+                    <label>Department <span class="text-red-500">*</span></label>
+                    <select name="department_id" id="departmentSelect" required>
+                        <option value="">-- Select Department --</option>
+                        <?php
+                        $dept_stmt = $conn->prepare("SELECT id, name FROM departments ORDER BY name");
+                        $dept_stmt->execute();
+                        $dept_result = $dept_stmt->get_result();
+                        while ($dept = $dept_result->fetch_assoc()): ?>
+                            <option value="<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></option>
+                        <?php endwhile;
+                        $dept_stmt->close();
+                        ?>
                     </select>
                 </div>
-                <button type="submit" class="btn-primary">Add Unit</button>
+                
+                <!-- Course Selection -->
+                <div class="form-group">
+                    <label>Course <span class="text-red-500">*</span></label>
+                    <select name="course_id" id="courseSelect" required disabled>
+                        <option value="">-- Select Course --</option>
+                    </select>
+                </div>
+                
+                <!-- Unit Selection -->
+                <div class="form-group">
+                    <label>Unit <span class="text-red-500">*</span></label>
+                    <select name="unit_id" id="unitSelect" required disabled>
+                        <option value="">-- Select Unit --</option>
+                    </select>
+                    <small class="form-help">Select a unit from this course to add to your teaching units</small>
+                </div>
+                
+                <button type="submit" class="btn-primary">Add Unit to My Units</button>
             </div>
         </form>
     </div>
@@ -1351,6 +1442,75 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.style.overflow = '';
         }
     };
+
+    // Department → Course → Units selection for Add Unit modal
+    const departmentSelect = document.getElementById('departmentSelect');
+    const courseSelect = document.getElementById('courseSelect');
+    const unitSelect = document.getElementById('unitSelect');
+    
+    if (departmentSelect && courseSelect && unitSelect) {
+        // Handle department change
+        departmentSelect.addEventListener('change', async function() {
+            const departmentId = this.value;
+            
+            // Reset course and unit selections
+            courseSelect.innerHTML = '<option value="">-- Select Course --</option>';
+            unitSelect.innerHTML = '<option value="">-- Select Unit --</option>';
+            courseSelect.disabled = !departmentId;
+            unitSelect.disabled = true;
+            
+            if (departmentId) {
+                try {
+                    // Fetch courses for selected department
+                    const response = await fetch('../api/get_courses.php?department_id=' + encodeURIComponent(departmentId));
+                    if (response.ok) {
+                        const courses = await response.json();
+                        
+                        courses.forEach(course => {
+                            const option = document.createElement('option');
+                            option.value = course.id;
+                            option.textContent = course.name;
+                            courseSelect.appendChild(option);
+                        });
+                    } else {
+                        console.error('Failed to fetch courses');
+                    }
+                } catch (error) {
+                    console.error('Error fetching courses:', error);
+                }
+            }
+        });
+        
+        // Handle course change
+        courseSelect.addEventListener('change', async function() {
+            const courseId = this.value;
+            
+            // Reset unit selection
+            unitSelect.innerHTML = '<option value="">-- Select Unit --</option>';
+            unitSelect.disabled = !courseId;
+            
+            if (courseId) {
+                try {
+                    // Fetch units for selected course
+                    const response = await fetch('../api/get_units.php?course_id=' + encodeURIComponent(courseId));
+                    if (response.ok) {
+                        const units = await response.json();
+                        
+                        units.forEach(unit => {
+                            const option = document.createElement('option');
+                            option.value = unit.id;
+                            option.textContent = `${unit.code} - ${unit.name} (Year ${unit.year}, Semester ${unit.semester})`;
+                            unitSelect.appendChild(option);
+                        });
+                    } else {
+                        console.error('Failed to fetch units');
+                    }
+                } catch (error) {
+                    console.error('Error fetching units:', error);
+                }
+            }
+        });
+    }
 
     // Close modals on outside click or close button
     document.addEventListener('click', e => {

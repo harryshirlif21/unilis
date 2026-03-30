@@ -454,7 +454,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_u
 		echo '
 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f4f4f4; font-family: Arial, sans-serif; color: #333;">
     <h2 style="margin-bottom: 20px;">Action Completed Successfully!</h2>
-    <a href="admin/dashboard.php" style="padding: 12px 25px; background-color: #3498db; color: white; border-radius: 5px; text-decoration: none; font-size: 16px;">
+    <a href="lecturer/dashboard.php" style="padding: 12px 25px; background-color: #3498db; color: white; border-radius: 5px; text-decoration: none; font-size: 16px;">
         Go Back to Dashboard
     </a>
 </div>';
@@ -465,6 +465,70 @@ exit;
     }
 
     $insert->close();
+    exit;
+}
+
+// === ASSIGN UNIT TO LECTURER ===
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'assign_unit') {
+    $unit_id = intval($_POST['unit_id'] ?? 0);
+    $lecturer_id = intval($_SESSION['user_id'] ?? 0);
+
+    if (!$unit_id || !$lecturer_id) {
+        echo "error: missing unit_id or lecturer_id";
+        exit;
+    }
+
+    // Check if unit exists
+    $unit_check = $conn->prepare("SELECT id, name FROM units WHERE id = ?");
+    $unit_check->bind_param("i", $unit_id);
+    $unit_check->execute();
+    $unit_result = $unit_check->get_result();
+    
+    if ($unit_result->num_rows === 0) {
+        echo "error: unit not found";
+        $unit_check->close();
+        exit;
+    }
+    
+    $unit = $unit_result->fetch_assoc();
+    $unit_check->close();
+
+    // Check if already assigned
+    $check = $conn->prepare("SELECT id FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ?");
+    $check->bind_param("ii", $lecturer_id, $unit_id);
+    $check->execute();
+    $check->store_result();
+
+    if ($check->num_rows > 0) {
+        echo "duplicate";
+        $check->close();
+        exit;
+    }
+    $check->close();
+
+    // Assign unit to lecturer
+    $assign = $conn->prepare("INSERT INTO lecturer_units (lecturer_id, unit_id) VALUES (?, ?)");
+    if (!$assign) {
+        echo "error: prepare failed - " . $conn->error;
+        exit;
+    }
+
+    $assign->bind_param("ii", $lecturer_id, $unit_id);
+    if ($assign->execute()) {
+        echo '
+<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f4f4f4; font-family: Arial, sans-serif; color: #333;">
+    <h2 style="margin-bottom: 20px;">Unit Assigned Successfully!</h2>
+    <p style="margin-bottom: 20px; color: #666;">Unit "' . htmlspecialchars($unit['name']) . '" has been added to your teaching units.</p>
+    <a href="lecturer/dashboard.php" style="padding: 12px 25px; background-color: #3498db; color: white; border-radius: 5px; text-decoration: none; font-size: 16px;">
+        Go Back to Dashboard
+    </a>
+</div>';
+        exit;
+    } else {
+        echo "error: assign failed - " . $assign->error;
+    }
+
+    $assign->close();
     exit;
 }
 
