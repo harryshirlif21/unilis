@@ -1,0 +1,25 @@
+{
+    "name": "unilis/unilis-app",
+    "description": "UNILIS - Learning Management System",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "phpmailer/phpmailer": "^6.8",
+        "dompdf/dompdf": "^2.0"
+    },
+    "require-dev": {
+    },
+    "autoload": {
+        "psr-4": {
+            "Unilis\\": "src/"
+        },
+        "files": [
+            "vendor/autoload.php"
+        ]
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true
+        }
+    }
+}
