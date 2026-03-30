@@ -6,8 +6,8 @@ require_once __DIR__ . '/../includes/email_system.php';
  * Simple Email System Test
  * Tests PHPMailer configuration and basic email sending
  */
-
-echo "<!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html>
 <head>
     <title>Email System Test</title>
@@ -146,5 +146,4 @@ echo "<!DOCTYPE html>
         </ol>
     </div>
 </body>
-</html>";
-?>
+</html>
