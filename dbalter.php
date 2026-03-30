@@ -380,8 +380,18 @@ alter($conn,
 );
 
 if (!column_exists($conn, 'assessment_submissions', 'status')) {
-    alter($conn, "ALTER TABLE `assessment_submissions` ADD COLUMN `status` ENUM('in_progress','submitted','graded','flagged') NOT NULL DEFAULT 'submitted' AFTER `graded`", "Added column status");
-} else { echo "✔ status already exists<br>"; }
+    alter($conn, "ALTER TABLE `assessment_submissions` ADD COLUMN `status` ENUM('submitted','graded','flagged') NOT NULL DEFAULT 'submitted' AFTER `graded`", "Added column status");
+} else { 
+    // Fix enum if it has wrong values
+    $check = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assessment_submissions' AND COLUMN_NAME = 'status'");
+    if ($check && $row = $check->fetch_assoc()) {
+        if (strpos($row['COLUMN_TYPE'], 'in_progress') !== false) {
+            alter($conn, "ALTER TABLE `assessment_submissions` MODIFY COLUMN `status` ENUM('submitted','graded','flagged') NOT NULL DEFAULT 'submitted'", "Fixed status enum values");
+        } else {
+            echo "✔ status already exists<br>";
+        }
+    }
+}
 
 if (!column_exists($conn, 'assessment_submissions', 'violations_json')) {
     alter($conn, "ALTER TABLE `assessment_submissions` ADD COLUMN `violations_json` LONGTEXT DEFAULT NULL AFTER `status`", "Added column violations_json");
@@ -498,7 +508,96 @@ if (!column_exists($conn, 'student_unit_enrollments', 'academic_year')) {
     alter($conn, "ALTER TABLE `student_unit_enrollments` ADD COLUMN `academic_year` VARCHAR(20) DEFAULT NULL AFTER `semester`", "Added column academic_year");
 } else { echo "✔ academic_year already exists<br>"; }
 
-echo "<h3>All fixes applied ✔</h3>";
+// ── notifications ──────────────────────────────────────────────────
+echo "<h3>notifications</h3>";
+
+if (!column_exists($conn, 'notifications', 'notes_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `notes_id` INT DEFAULT NULL AFTER `created_at`", "Added column notes_id");
+} else { echo "✔ notes_id already exists<br>"; }
+
+if (!column_exists($conn, 'notifications', 'assignment_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `assignment_id` INT DEFAULT NULL AFTER `notes_id`", "Added column assignment_id");
+} else { echo "✔ assignment_id already exists<br>"; }
+
+if (!column_exists($conn, 'notifications', 'interactive_assignment_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `interactive_assignment_id` INT DEFAULT NULL AFTER `assignment_id`", "Added column interactive_assignment_id");
+} else { echo "✔ interactive_assignment_id already exists<br>"; }
+
+if (!column_exists($conn, 'notifications', 'meeting_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `meeting_id` INT DEFAULT NULL AFTER `interactive_assignment_id`", "Added column meeting_id");
+} else { echo "✔ meeting_id already exists<br>"; }
+
+if (!column_exists($conn, 'notifications', 'attendance_session_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `attendance_session_id` INT DEFAULT NULL AFTER `meeting_id`", "Added column attendance_session_id");
+} else { echo "✔ attendance_session_id already exists<br>"; }
+
+// Add foreign keys for notifications
+$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'notes_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
+if (!$fk || $fk->num_rows === 0) {
+    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notifications_notes` FOREIGN KEY (`notes_id`) REFERENCES `notes`(`id`)", "Added FK fk_notifications_notes");
+} else { echo "✔ FK fk_notifications_notes already exists<br>"; }
+
+$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'assignment_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
+if (!$fk || $fk->num_rows === 0) {
+    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notifications_assignments` FOREIGN KEY (`assignment_id`) REFERENCES `assignments`(`id`)", "Added FK fk_notifications_assignments");
+} else { echo "✔ FK fk_notifications_assignments already exists<br>"; }
+
+$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'interactive_assignment_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
+if (!$fk || $fk->num_rows === 0) {
+    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notifications_interactive_assignments` FOREIGN KEY (`interactive_assignment_id`) REFERENCES `interactive_assignments`(`id`)", "Added FK fk_notifications_interactive_assignments");
+} else { echo "✔ FK fk_notifications_interactive_assignments already exists<br>"; }
+
+$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'meeting_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
+if (!$fk || $fk->num_rows === 0) {
+    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notifications_meetings` FOREIGN KEY (`meeting_id`) REFERENCES `meetings`(`id`)", "Added FK fk_notifications_meetings");
+} else { echo "✔ FK fk_notifications_meetings already exists<br>"; }
+
+$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'attendance_session_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
+if (!$fk || $fk->num_rows === 0) {
+    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notif_session` FOREIGN KEY (`attendance_session_id`) REFERENCES `attendance_sessions`(`id`)", "Added FK fk_notif_session");
+} else { echo "✔ FK fk_notif_session already exists<br>"; }
+
+// Add indexes
+if (!index_exists($conn, 'notifications', 'idx_notes_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_notes_id` (`notes_id`)", "Added index idx_notes_id");
+} else { echo "✔ idx_notes_id already exists<br>"; }
+
+if (!index_exists($conn, 'notifications', 'idx_assignment_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_assignment_id` (`assignment_id`)", "Added index idx_assignment_id");
+} else { echo "✔ idx_assignment_id already exists<br>"; }
+
+if (!index_exists($conn, 'notifications', 'idx_interactive_assignment_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_interactive_assignment_id` (`interactive_assignment_id`)", "Added index idx_interactive_assignment_id");
+} else { echo "✔ idx_interactive_assignment_id already exists<br>"; }
+
+if (!index_exists($conn, 'notifications', 'idx_meeting_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_meeting_id` (`meeting_id`)", "Added index idx_meeting_id");
+} else { echo "✔ idx_meeting_id already exists<br>"; }
+
+if (!index_exists($conn, 'notifications', 'idx_attendance_session_id')) {
+    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_attendance_session_id` (`attendance_session_id`)", "Added index idx_attendance_session_id");
+} else { echo "✔ idx_attendance_session_id already exists<br>"; }
+
+// ── submissions ────────────────────────────────────────────────────
+echo "<h3>submissions (Optional fixes)</h3>";
+
+if (column_exists($conn, 'submissions', 'answer_audio')) {
+    echo "✔ answer_audio column exists<br>";
+} else {
+    echo "✔ answer_audio not required in submissions<br>";
+}
+
+// ── team_submissions ───────────────────────────────────────────────
+echo "<h3>team_submissions (Status alignment)</h3>";
+
+$check = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'team_submissions' AND COLUMN_NAME = 'lecturer_status'");
+if ($check && $row = $check->fetch_assoc()) {
+    if (strpos($row['COLUMN_TYPE'], 'enum') !== false) {
+        echo "✔ lecturer_status enum exists<br>";
+    }
+}
+
+echo "<h2>All fixes applied ✔</h2>";
 
 /* ================================================================
    SECTION 3 — SHOW ALL TABLES

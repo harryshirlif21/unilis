@@ -128,6 +128,87 @@ unset($_SESSION['verify_error']);
         .btn-bulk-delete:not(:disabled):hover { background: #c82333; }
         #selectAllStudents { cursor: pointer; width: 15px; height: 15px; }
         .loading-students { text-align:center; padding: 30px; color: #888; }
+
+        /* ── Delete Test Data Modal ── */
+        #deleteTestDataModal .modal-content {
+            max-width: 800px;
+            width: 95%;
+        }
+        .test-data-category-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 12px;
+        }
+        .test-data-tab-btn {
+            padding: 8px 16px;
+            border: none;
+            border-bottom: 3px solid transparent;
+            background: #f5f5f5;
+            color: #666;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .test-data-tab-btn.active {
+            background: #fff;
+            color: #2c3e50;
+            border-bottom-color: #3498db;
+        }
+        .test-data-tab-btn:hover {
+            background: #fff;
+        }
+        #testDataTableWrapper {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        #testDataTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+        }
+        #testDataTable thead {
+            position: sticky;
+            top: 0;
+            background: #2c3e50;
+            color: #fff;
+            z-index: 2;
+        }
+        #testDataTable th, #testDataTable td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        #testDataTable tbody tr:hover { background: #f9f9f9; }
+        #testDataTable tbody tr.selected { background: #ffeec9; }
+        #selectAllTestData { cursor: pointer; width: 15px; height: 15px; }
+        .test-data-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        #testDataCount { font-size: 13px; color: #666; }
+        .btn-bulk-delete-test {
+            background: #d63031; color: #fff; border: none;
+            padding: 8px 18px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; font-weight: 500;
+        }
+        .btn-bulk-delete-test:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-bulk-delete-test:not(:disabled):hover { background: #b92b26; }
+        .btn-mark-all {
+            background: #495057; color: #fff; border: none;
+            padding: 8px 16px; border-radius: 6px; cursor: pointer;
+            font-size: 13px; font-weight: 500; transition: all 0.2s;
+        }
+        .btn-mark-all:hover { background: #343a40; }
     </style>
 </head>
 <body>
@@ -155,6 +236,10 @@ unset($_SESSION['verify_error']);
     <!-- NEW: Delete Students -->
     <button class="menu-item" onclick="openDeleteStudentsModal()" style="color:#e74c3c;">
         <i class="fas fa-user-times"></i> Delete Students
+    </button>
+    <!-- NEW: Delete Test Data -->
+    <button class="menu-item" onclick="openDeleteTestDataModal()" style="color:#d63031;">
+        <i class="fas fa-flask"></i> Delete Test Data
     </button>
     <div class="menu-section-title">System</div>
     <button class="menu-item" onclick="alert('System Settings not implemented yet!')"><i class="fas fa-cogs"></i> System Settings</button>
@@ -308,6 +393,12 @@ unset($_SESSION['verify_error']);
             <div class="icon" style="color:#e74c3c;"><i class="fas fa-user-times"></i></div>
             <h3 style="color:#e74c3c;">Delete Students</h3>
             <p>Remove registered students from the system.</p>
+        </div>
+        <!-- NEW action card for test data -->
+        <div class="action-card" onclick="openDeleteTestDataModal()" style="border-color:#d63031;">
+            <div class="icon" style="color:#d63031;"><i class="fas fa-flask"></i></div>
+            <h3 style="color:#d63031;">Delete Test Data</h3>
+            <p>Remove test records from various tables.</p>
         </div>
     </div>
 
@@ -595,6 +686,74 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
+    <!-- ===================== DELETE TEST DATA MODAL ===================== -->
+    <div id="deleteTestDataModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('deleteTestDataModal')">×</span>
+            <h3><i class="fas fa-flask" style="color:#d63031;"></i> Delete Test Data</h3>
+
+            <!-- Category Tabs -->
+            <div class="test-data-category-tabs">
+                <button class="test-data-tab-btn active" onclick="switchTestDataCategory('notes')">
+                    <i class="fas fa-sticky-note"></i> Notes
+                </button>
+                <button class="test-data-tab-btn" onclick="switchTestDataCategory('assignments')">
+                    <i class="fas fa-tasks"></i> Assignments
+                </button>
+                <button class="test-data-tab-btn" onclick="switchTestDataCategory('submissions')">
+                    <i class="fas fa-file-upload"></i> Submissions
+                </button>
+                <button class="test-data-tab-btn" onclick="switchTestDataCategory('attendance')">
+                    <i class="fas fa-clipboard-list"></i> Attendance
+                </button>
+                <button class="test-data-tab-btn" onclick="switchTestDataCategory('meetings')">
+                    <i class="fas fa-video"></i> Meetings
+                </button>
+                <button class="test-data-tab-btn" onclick="switchTestDataCategory('enrollments')">
+                    <i class="fas fa-user-check"></i> Enrollments
+                </button>
+                <button class="test-data-tab-btn" onclick="switchTestDataCategory('notifications')">
+                    <i class="fas fa-bell"></i> Notifications
+                </button>
+            </div>
+
+            <!-- Mark All / Unmark All Buttons -->
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+                <button class="btn-mark-all" onclick="markAllTestData(true)">
+                    <i class="fas fa-check-square"></i> Mark All
+                </button>
+                <button class="btn-mark-all" onclick="markAllTestData(false)" style="background:#6c757d;">
+                    <i class="fas fa-square"></i> Unmark All
+                </button>
+            </div>
+
+            <!-- Table -->
+            <div id="testDataTableWrapper">
+                <table id="testDataTable">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAllTestData" title="Select all"></th>
+                            <th id="testDataCol1">ID</th>
+                            <th id="testDataCol2">Name/Title</th>
+                            <th id="testDataCol3">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="testDataTableBody">
+                        <tr><td colspan="4" class="loading-students"><i class="fas fa-spinner fa-spin"></i> Loading data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer -->
+            <div class="test-data-footer">
+                <span id="testDataCount">0 records</span>
+                <button class="btn-bulk-delete-test" id="bulkDeleteTestBtn" disabled onclick="confirmBulkDeleteTestData()">
+                    <i class="fas fa-trash-alt"></i> Delete Selected
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div><!-- end .content -->
 
 <script>
@@ -858,6 +1017,118 @@ function confirmBulkDelete() {
             showFloatingMessage(data.message || `${ids.length} students deleted.`, 'success');
             document.getElementById('selectAllStudents').checked = false;
             loadStudents();
+        } else {
+            showFloatingMessage(data?.message || 'Bulk delete failed.', 'error');
+        }
+    }).catch(() => showFloatingMessage('Error during bulk delete.', 'error'));
+}
+
+/* ─────────────────────────────────────────
+   DELETE TEST DATA FEATURE
+───────────────────────────────────────── */
+let allTestData = [];
+let currentTestDataCategory = 'notes';
+
+function openDeleteTestDataModal() {
+    openModal('deleteTestDataModal');
+    loadTestData('notes');
+}
+
+function switchTestDataCategory(category) {
+    currentTestDataCategory = category;
+    document.querySelectorAll('.test-data-tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.closest('.test-data-tab-btn').classList.add('active');
+    document.getElementById('selectAllTestData').checked = false;
+    loadTestData(category);
+}
+
+function loadTestData(category) {
+    const tbody = document.getElementById('testDataTableBody');
+    tbody.innerHTML = '<tr><td colspan="4" class="loading-students"><i class="fas fa-spinner fa-spin"></i> Loading data...</td></tr>';
+
+    fetch(`../actions.php?action=get_test_data&category=${encodeURIComponent(category)}`)
+    .then(r => r.text())
+    .then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:red;">Error loading data.</td></tr>'; return;
+        }
+        if (!data || !Array.isArray(data.records)) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;">No records found.</td></tr>'; return;
+        }
+        allTestData = data.records;
+        renderTestDataTable(allTestData, category);
+    })
+    .catch(() => {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:red;">Failed to load records.</td></tr>';
+    });
+}
+
+function renderTestDataTable(records, category) {
+    const tbody = document.getElementById('testDataTableBody');
+    const countEl = document.getElementById('testDataCount');
+    countEl.textContent = `${records.length} record${records.length !== 1 ? 's' : ''}`;
+
+    if (!records.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;padding:20px;">No records found.</td></tr>';
+        updateBulkDeleteTestBtn();
+        return;
+    }
+
+    tbody.innerHTML = '';
+    records.forEach(record => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = record.id;
+        tr.innerHTML = `
+            <td><input type="checkbox" class="test-data-checkbox" value="${record.id}" onchange="updateBulkDeleteTestBtn()"></td>
+            <td>${escapeHtml(String(record.id))}</td>
+            <td>${escapeHtml(record.title || record.name || '—')}</td>
+            <td>${escapeHtml(record.date || record.created_at || '—')}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    updateBulkDeleteTestBtn();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllBtn = document.getElementById('selectAllTestData');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('change', function() {
+            document.querySelectorAll('.test-data-checkbox').forEach(cb => cb.checked = this.checked);
+            updateBulkDeleteTestBtn();
+        });
+    }
+});
+
+function updateBulkDeleteTestBtn() {
+    const checked = document.querySelectorAll('.test-data-checkbox:checked').length;
+    const btn = document.getElementById('bulkDeleteTestBtn');
+    btn.disabled = checked === 0;
+    btn.textContent = checked > 0 ? `Delete Selected (${checked})` : 'Delete Selected';
+}
+
+function markAllTestData(check) {
+    document.querySelectorAll('.test-data-checkbox').forEach(cb => cb.checked = check);
+    document.getElementById('selectAllTestData').checked = check;
+    updateBulkDeleteTestBtn();
+}
+
+function confirmBulkDeleteTestData() {
+    const ids = [...document.querySelectorAll('.test-data-checkbox:checked')].map(cb => cb.value);
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} selected record(s)? This cannot be undone.`)) return;
+
+    fetch('../actions.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=bulk_delete_test_data&category=${encodeURIComponent(currentTestDataCategory)}&ids=${encodeURIComponent(ids.join(','))}`
+    })
+    .then(r => r.text())
+    .then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
+        if (data?.status === 'success') {
+            showFloatingMessage(data.message || `${ids.length} record(s) deleted.`, 'success');
+            document.getElementById('selectAllTestData').checked = false;
+            loadTestData(currentTestDataCategory);
         } else {
             showFloatingMessage(data?.message || 'Bulk delete failed.', 'error');
         }

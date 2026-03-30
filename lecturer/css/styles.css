@@ -178,6 +178,7 @@ body {
 .sidebar-section li.brown  { background-color: #A0522D; }
 .sidebar-section li.teal   { background-color: #0ea5e9; }
 .sidebar-section li.purple { background-color: #8b5cf6; }
+.sidebar-section li.red    { background-color: #dc3545; }
 
 /* ================= Mobile Responsive ================= */
 @media (max-width: 992px) {
@@ -381,18 +382,6 @@ body {
 .modal-header {
     padding: 20px 28px;
     border-bottom: 1px solid #e0e0e0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.close {
-    font-size: 28px;
-    cursor: pointer;
-    color: #777;
-}
-
-.close:hover {
     color: #333;
 }
 

@@ -1,3 +1,79 @@
+<?php
+session_start();
+
+// Generate CSRF token if not exists
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// Check if user is logged in as student
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
+    header('Location: /login.php');
+    exit;
+}
+
+// Get team_id from URL
+$team_id = $_GET['team_id'] ?? null;
+if (!$team_id) {
+    header('Location: /teams/views/workspace.php');
+    exit;
+}
+
+// Load team data and validate student membership
+require_once '../../config/db.php';
+
+$student_id = $_SESSION['user_id'];
+
+// Verify student is a member of this team
+$memberCheck = $conn->prepare("SELECT role FROM team_members WHERE team_id = ? AND student_id = ?");
+$memberCheck->bind_param("ii", $team_id, $student_id);
+$memberCheck->execute();
+$memberResult = $memberCheck->get_result();
+
+if ($memberResult->num_rows === 0) {
+    header('Location: /teams/views/workspace.php');
+    exit;
+}
+
+$memberData = $memberResult->fetch_assoc();
+$student_role = $memberData['role'];
+$memberCheck->close();
+
+// Get team details
+$teamCheck = $conn->prepare("SELECT title FROM teams WHERE id = ?");
+$teamCheck->bind_param("i", $team_id);
+$teamCheck->execute();
+$teamResult = $teamCheck->get_result();
+$team = $teamResult->fetch_assoc();
+$teamCheck->close();
+
+// Get available assessments
+$assessments = [];
+$assessmentCheck = $conn->prepare("SELECT id, title FROM assessments ORDER BY title");
+$assessmentCheck->execute();
+$assessmentResult = $assessmentCheck->get_result();
+while ($row = $assessmentResult->fetch_assoc()) {
+    $assessments[] = $row;
+}
+$assessmentCheck->close();
+
+// Get previous submissions from team_files
+$previousSubmissions = [];
+$submissionsCheck = $conn->prepare("
+    SELECT tf.*, s.name AS student_name 
+    FROM team_files tf
+    LEFT JOIN students s ON tf.uploader_id = s.id
+    WHERE tf.team_id = ? 
+    ORDER BY tf.uploaded_at DESC
+");
+$submissionsCheck->bind_param("i", $team_id);
+$submissionsCheck->execute();
+$submissionResult = $submissionsCheck->get_result();
+while ($row = $submissionResult->fetch_assoc()) {
+    $previousSubmissions[] = $row;
+}
+$submissionsCheck->close();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -129,6 +205,12 @@
     <div id="deadlineInfo" class="info-box deadline-warning" style="display:none;"></div>
 
     <form id="submissionForm" enctype="multipart/form-data">
+        <label for="submissionTitle">Submission Title</label>
+        <input type="text" id="submissionTitle" name="submission_title" placeholder="Enter a title for your submission" required style="width: 100%; padding: 0.8rem; border: 1px solid #ced4da; border-radius: 6px; margin-bottom: 1rem;">
+
+        <label for="submissionDescription">Description</label>
+        <textarea id="submissionDescription" name="submission_description" placeholder="Provide a brief description of your submission (optional)" rows="4" style="width: 100%; padding: 0.8rem; border: 1px solid #ced4da; border-radius: 6px; margin-bottom: 1rem; resize: vertical;"></textarea>
+
         <label for="files">Select Files (multiple allowed)</label>
         <input type="file" id="files" name="files[]" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,.zip">
 
@@ -242,25 +324,44 @@ async function loadTeamAndSubmissions() {
             subData.submissions.forEach(sub => {
                 const item = document.createElement('div');
                 item.className = 'submission-item';
+                
+                // Format the date properly
+                const uploadDate = sub.uploaded_at ? new Date(sub.uploaded_at).toLocaleString() : 'Unknown date';
+                const fileName = sub.original_name || sub.filepath || 'No file';
+                
                 item.innerHTML = `
-                    <strong>${sub.submission_type.toUpperCase()} submission – Version ${sub.version}</strong><br>
+                    <strong>${sub.title || 'Untitled Submission'}</strong><br>
                     <div class="submission-meta">
-                        Uploaded: ${new Date(sub.uploaded_at).toLocaleString()}<br>
-                        ${sub.student_name ? `By: ${sub.student_name}` : 'Team submission'}<br>
-                        Files: ${sub.files.map(f => f.file_name).join(', ')}
+                        <strong>Type:</strong> ${(sub.submission_type || 'individual').toUpperCase()} | 
+                        <strong>Uploaded:</strong> ${uploadDate}<br>
+                        ${sub.student_name ? `<strong>By:</strong> ${sub.student_name}` : '<strong>Team submission</strong>'}
+                        ${sub.description ? `<br><strong>Description:</strong> ${sub.description}` : ''}
+                        <br><strong>File:</strong> ${fileName}
+                        ${sub.file_size ? ` (${(sub.file_size / 1024 / 1024).toFixed(2)} MB)` : ''}
                     </div>
                 `;
                 previousList.appendChild(item);
             });
+        } else if (!subData.success) {
+            // Show error in previous submissions area
+            let errorText = 'Failed to load previous submissions: ' + subData.error;
+            
+            if (subData.debug_info) {
+                errorText += '\n\nDebug Info:';
+                if (subData.debug_info.error_type) {
+                    errorText += '\nError Type: ' + subData.debug_info.error_type;
+                }
+                if (subData.debug_info.error_message) {
+                    errorText += '\nDetails: ' + subData.debug_info.error_message;
+                }
+                if (subData.debug_info.user_id === null) {
+                    errorText += '\n\nAuthentication Issue: Please log in again';
+                }
+            }
+            
+            previousList.innerHTML = `<div class="submission-item" style="background: #f8d7da; color: #721c24; white-space: pre-line;">${errorText}</div>`;
         } else {
             previousList.innerHTML = '<p>No previous submissions yet.</p>';
-        }
-
-        // Deadline check
-        if (data.team.deadline_passed) {
-            document.getElementById('deadlineInfo').textContent = 'Deadline has passed – submissions are now late or blocked.';
-            document.getElementById('deadlineInfo').style.display = 'block';
-            submitBtn.disabled = true;
         }
 
     } catch (err) {
@@ -272,7 +373,7 @@ async function loadTeamAndSubmissions() {
 // Submit form
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
-
+    
     if (selectedFiles.length === 0) {
         messageDiv.className = 'error';
         messageDiv.textContent = 'Please select at least one file.';
@@ -286,6 +387,8 @@ form.addEventListener('submit', async (e) => {
     formData.append('team_id', teamId);
     formData.append('assessment_id', document.getElementById('assessmentId').value);
     formData.append('submission_type', typeSelect.value);
+    formData.append('submission_title', document.getElementById('submissionTitle').value);
+    formData.append('submission_description', document.getElementById('submissionDescription').value);
     formData.append('csrf_token', csrf);
 
     progressContainer.style.display = 'block';
@@ -293,52 +396,56 @@ form.addEventListener('submit', async (e) => {
     messageDiv.textContent = '';
 
     try {
+        // Use XMLHttpRequest for progress tracking
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/teams/api/submit.php');
-
-        xhr.upload.onprogress = (e) => {
+        xhr.open('POST', '/teams/api/submit.php', true);
+        
+        // Track upload progress
+        xhr.upload.addEventListener('progress', (e) => {
             if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
-                progressBar.value = percent;
-                progressText.textContent = `${percent}%`;
+                const percentComplete = Math.round((e.loaded / e.total) * 100);
+                progressBar.value = percentComplete;
+                progressText.textContent = `${percentComplete}%`;
             }
-        };
-
-        xhr.onload = () => {
-            progressContainer.style.display = 'none';
-            submitBtn.disabled = false;
-
-            if (xhr.status === 200) {
-                const response = JSON.parse(xhr.responseText);
-                messageDiv.className = response.success ? 'success' : 'error';
-                messageDiv.textContent = response.message || (response.success ? 'Files uploaded successfully!' : response.error);
-
-                if (response.success) {
+        });
+        
+        xhr.onload = function() {
+            try {
+                const result = JSON.parse(xhr.responseText);
+                
+                if (result.success) {
+                    alert('Files submitted successfully!');
+                    // Reload the page to show new submissions instead of redirecting
+                    loadTeamAndSubmissions();
+                    // Clear form
                     selectedFiles = [];
                     renderFileList();
-                    fileInput.value = '';
-                    loadTeamAndSubmissions(); // refresh previous list
+                    document.getElementById('submissionTitle').value = '';
+                    document.getElementById('submissionDescription').value = '';
+                } else {
+                    alert('Error: ' + result.error);
                 }
-            } else {
-                messageDiv.className = 'error';
-                messageDiv.textContent = 'Server error: ' + xhr.statusText;
+            } catch (parseError) {
+                alert('Server response error: ' + xhr.responseText);
             }
         };
-
-        xhr.onerror = () => {
-            progressContainer.style.display = 'none';
-            submitBtn.disabled = false;
-            messageDiv.className = 'error';
-            messageDiv.textContent = 'Network error. Please check your connection.';
+        
+        xhr.onerror = function() {
+            alert('Network error occurred');
         };
-
+        
+        xhr.onabort = function() {
+            alert('Upload was cancelled');
+        };
+        
         xhr.send(formData);
-
-    } catch (err) {
-        progressContainer.style.display = 'none';
+        
+    } catch (error) {
+        alert('An error occurred: ' + error.message);
+    } finally {
         submitBtn.disabled = false;
-        messageDiv.className = 'error';
-        messageDiv.textContent = 'Unexpected error: ' + err.message;
+        submitBtn.textContent = 'Submit Files';
+        progressContainer.style.display = 'none';
     }
 });
 

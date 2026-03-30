@@ -1,0 +1,479 @@
+<?php
+/**
+ * Notification Management System
+ * Handles creating, sending, and managing notifications and emails
+ */
+
+require_once __DIR__ . '/../vendor/autoload.php';
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+/**
+ * Send notification and email to specific student on assignment submission
+ */
+function notify_student_assignment_submitted($conn, $student_id, $assignment_id, $student_name, $student_email) {
+    try {
+        // Get assignment details
+        $stmt = $conn->prepare("
+            SELECT a.title, a.description, u.name as unit_name 
+            FROM assignments a 
+            JOIN units u ON a.unit_id = u.id 
+            WHERE a.id = ?
+        ");
+        $stmt->bind_param("i", $assignment_id);
+        $stmt->execute();
+        $assignment = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$assignment) return false;
+
+        $title = "Assignment Submitted";
+        $message = "You have successfully submitted the assignment: {$assignment['title']}";
+        $link = "student/dashboard.php?view=assignments";
+
+        // Create notification record
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+        $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+        $notif_stmt->execute();
+        $notif_stmt->close();
+
+        // Send confirmation email
+        send_email_student_submitted($student_email, $student_name, $assignment['title'], $assignment['unit_name']);
+
+        return true;
+    } catch (Exception $e) {
+        error_log("Error notifying student submission: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Send notification and email to lecturer when student submits assignment
+ */
+function notify_lecturer_assignment_submitted($conn, $lecturer_id, $student_name, $student_email, $assignment_id, $assignment_title) {
+    try {
+        // Get lecturer email
+        $stmt = $conn->prepare("SELECT email FROM lecturers WHERE id = ?");
+        $stmt->bind_param("i", $lecturer_id);
+        $stmt->execute();
+        $lecturer = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$lecturer) return false;
+
+        $title = "New Assignment Submission";
+        $message = "{$student_name} has submitted the assignment: {$assignment_title}";
+        $link = "lecturer/review_assignments.php?assignment_id={$assignment_id}";
+
+        // Create notification record for lecturer
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+        $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+        $notif_stmt->execute();
+        $notif_stmt->close();
+
+        // Send email to lecturer
+        send_email_lecturer_submission($lecturer['email'], $student_name, $assignment_title);
+
+        return true;
+    } catch (Exception $e) {
+        error_log("Error notifying lecturer submission: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Send notifications and emails to all students in a course when notes are uploaded
+ */
+function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_title) {
+    try {
+        // Get unit and course info
+        $stmt = $conn->prepare("
+            SELECT name, course_id FROM units WHERE id = ?
+        ");
+        $stmt->bind_param("i", $unit_id);
+        $stmt->execute();
+        $unit = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$unit) return false;
+
+        // Get all students in this course
+        $stmt = $conn->prepare("
+            SELECT id, name, email FROM students WHERE course_id = ?
+        ");
+        $stmt->bind_param("i", $unit['course_id']);
+        $stmt->execute();
+        $students_result = $stmt->get_result();
+        $students = [];
+        while ($row = $students_result->fetch_assoc()) {
+            $students[] = $row;
+        }
+        $stmt->close();
+
+        if (empty($students)) return false;
+
+        $title = "New Notes Uploaded";
+        $message = "New notes have been uploaded for {$unit['name']}: {$notes_title}";
+        $link = "student/dashboard.php?view=notes&unit_id={$unit_id}";
+
+        // Create one notification entry (use notes_id foreign key)
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+        $notif_stmt->bind_param("sssi", $title, $message, $link, $notes_id);
+        $notif_stmt->execute();
+        $notif_stmt->close();
+
+        // Send email to each student
+        foreach ($students as $student) {
+            send_email_notes_uploaded($student['email'], $student['name'], $unit['name'], $notes_title);
+        }
+
+        return true;
+    } catch (Exception $e) {
+        error_log("Error notifying notes uploaded: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Send notifications and emails to all students when assignment is posted
+ */
+function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $assignment_title, $deadline) {
+    try {
+        // Get unit and course info
+        $stmt = $conn->prepare("
+            SELECT name, course_id FROM units WHERE id = ?
+        ");
+        $stmt->bind_param("i", $unit_id);
+        $stmt->execute();
+        $unit = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$unit) return false;
+
+        // Get all students in this course
+        $stmt = $conn->prepare("
+            SELECT id, name, email FROM students WHERE course_id = ?
+        ");
+        $stmt->bind_param("i", $unit['course_id']);
+        $stmt->execute();
+        $students_result = $stmt->get_result();
+        $students = [];
+        while ($row = $students_result->fetch_assoc()) {
+            $students[] = $row;
+        }
+        $stmt->close();
+
+        if (empty($students)) return false;
+
+        $title = "New Assignment Posted";
+        $message = "A new assignment has been posted for {$unit['name']}: {$assignment_title}";
+        $link = "student/dashboard.php?view=assignments";
+
+        // Create one notification entry (use assignment_id foreign key)
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+        $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+        $notif_stmt->execute();
+        $notif_stmt->close();
+
+        // Send email to each student
+        foreach ($students as $student) {
+            send_email_assignment_posted($student['email'], $student['name'], $unit['name'], $assignment_title, $deadline);
+        }
+
+        return true;
+    } catch (Exception $e) {
+        error_log("Error notifying assignment posted: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Mark notification as read
+ */
+function mark_notification_as_read($conn, $notification_id) {
+    try {
+        $stmt = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
+        $stmt->bind_param("i", $notification_id);
+        $result = $stmt->execute();
+        $stmt->close();
+        return $result;
+    } catch (Exception $e) {
+        error_log("Error marking notification as read: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Get unread notification count
+ */
+function get_unread_notification_count($conn) {
+    try {
+        $stmt = $conn->prepare("SELECT COUNT(*) AS count FROM notifications WHERE is_read = 0");
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result['count'] ?? 0;
+    } catch (Exception $e) {
+        error_log("Error getting unread count: " . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Get latest notifications
+ */
+function get_latest_notifications($conn, $limit = 5) {
+    try {
+        $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications ORDER BY created_at DESC LIMIT ?");
+        $stmt->bind_param("i", $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $notifications = [];
+        while ($row = $result->fetch_assoc()) {
+            $notifications[] = $row;
+        }
+        $stmt->close();
+        return $notifications;
+    } catch (Exception $e) {
+        error_log("Error getting latest notifications: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Get all notifications with pagination
+ */
+function get_all_notifications($conn, $page = 1, $per_page = 20) {
+    try {
+        $offset = ($page - 1) * $per_page;
+
+        // Get total count
+        $count_stmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications");
+        $count_stmt->execute();
+        $total = $count_stmt->get_result()->fetch_assoc()['total'];
+        $count_stmt->close();
+
+        // Get notifications
+        $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        $stmt->bind_param("ii", $per_page, $offset);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $notifications = [];
+        while ($row = $result->fetch_assoc()) {
+            $notifications[] = $row;
+        }
+        $stmt->close();
+
+        return [
+            'notifications' => $notifications,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $per_page,
+            'total_pages' => ceil($total / $per_page)
+        ];
+    } catch (Exception $e) {
+        error_log("Error getting all notifications: " . $e->getMessage());
+        return ['notifications' => [], 'total' => 0, 'page' => 1, 'per_page' => 20, 'total_pages' => 0];
+    }
+}
+
+// ========================= EMAIL FUNCTIONS =========================
+
+function send_email_student_submitted($email, $student_name, $assignment_title, $unit_name) {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com';
+        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = "Assignment Submission Confirmation - {$assignment_title}";
+
+        $mail->Body = "
+            <html>
+            <body style='font-family: Arial, sans-serif; line-height: 1.6;'>
+                <div style='max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;'>
+                    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center;'>
+                        <h1 style='margin: 0;'>✓ Submission Received</h1>
+                    </div>
+                    <div style='padding: 30px;'>
+                        <p>Dear <strong>{$student_name}</strong>,</p>
+                        <p>Your assignment has been successfully submitted!</p>
+                        <div style='background: #f5f5f5; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0;'>
+                            <p><strong>Assignment:</strong> {$assignment_title}</p>
+                            <p><strong>Unit:</strong> {$unit_name}</p>
+                            <p><strong>Submitted at:</strong> " . date('F j, Y \a\t g:i A') . "</p>
+                        </div>
+                        <p>You can view your submission and any grades in your dashboard.</p>
+                        <p>If you have any questions, please contact your lecturer.</p>
+                        <hr style='border: none; border-top: 1px solid #ddd; margin: 30px 0;'>
+                        <p style='color: #888; font-size: 12px;'>This is an automated notification from UNILIS. Please do not reply to this email.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+function send_email_lecturer_submission($email, $student_name, $assignment_title) {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com';
+        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = "New Assignment Submission - {$assignment_title}";
+
+        $mail->Body = "
+            <html>
+            <body style='font-family: Arial, sans-serif; line-height: 1.6;'>
+                <div style='max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;'>
+                    <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; text-align: center;'>
+                        <h1 style='margin: 0;'>📝 New Submission</h1>
+                    </div>
+                    <div style='padding: 30px;'>
+                        <p>Dear Lecturer,</p>
+                        <p><strong>{$student_name}</strong> has submitted the assignment:</p>
+                        <div style='background: #f5f5f5; padding: 20px; border-left: 4px solid #f5576c; margin: 20px 0;'>
+                            <p><strong>Assignment:</strong> {$assignment_title}</p>
+                            <p><strong>Submitted by:</strong> {$student_name}</p>
+                            <p><strong>Submitted at:</strong> " . date('F j, Y \a\t g:i A') . "</p>
+                        </div>
+                        <p>Please log in to your dashboard to review and grade this submission.</p>
+                        <hr style='border: none; border-top: 1px solid #ddd; margin: 30px 0;'>
+                        <p style='color: #888; font-size: 12px;'>This is an automated notification from UNILIS.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+function send_email_notes_uploaded($email, $student_name, $unit_name, $notes_title) {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com';
+        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = "New Study Materials - {$unit_name}";
+
+        $mail->Body = "
+            <html>
+            <body style='font-family: Arial, sans-serif; line-height: 1.6;'>
+                <div style='max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;'>
+                    <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 30px; text-align: center;'>
+                        <h1 style='margin: 0;'>📚 New Study Materials</h1>
+                    </div>
+                    <div style='padding: 30px;'>
+                        <p>Dear <strong>{$student_name}</strong>,</p>
+                        <p>New study materials have been uploaded for your unit:</p>
+                        <div style='background: #f5f5f5; padding: 20px; border-left: 4px solid #00f2fe; margin: 20px 0;'>
+                            <p><strong>Unit:</strong> {$unit_name}</p>
+                            <p><strong>Materials:</strong> {$notes_title}</p>
+                            <p><strong>Available since:</strong> " . date('F j, Y \a\t g:i A') . "</p>
+                        </div>
+                        <p>Log in to your dashboard to download and review the materials.</p>
+                        <hr style='border: none; border-top: 1px solid #ddd; margin: 30px 0;'>
+                        <p style='color: #888; font-size: 12px;'>This is an automated notification from UNILIS.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+function send_email_assignment_posted($email, $student_name, $unit_name, $assignment_title, $deadline) {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'unilis512@gmail.com';
+        $mail->Password   = 'sbmxmiafbtfkmkck';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = "New Assignment - {$assignment_title}";
+
+        $mail->Body = "
+            <html>
+            <body style='font-family: Arial, sans-serif; line-height: 1.6;'>
+                <div style='max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;'>
+                    <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 30px; text-align: center;'>
+                        <h1 style='margin: 0;'>✏️ New Assignment</h1>
+                    </div>
+                    <div style='padding: 30px;'>
+                        <p>Dear <strong>{$student_name}</strong>,</p>
+                        <p>A new assignment has been posted for your unit:</p>
+                        <div style='background: #f5f5f5; padding: 20px; border-left: 4px solid #fa709a; margin: 20px 0;'>
+                            <p><strong>Unit:</strong> {$unit_name}</p>
+                            <p><strong>Assignment:</strong> {$assignment_title}</p>
+                            <p><strong>Deadline:</strong> " . date('F j, Y \a\t g:i A', strtotime($deadline)) . "</p>
+                        </div>
+                        <p>Log in to your dashboard to view the assignment details and submit your work.</p>
+                        <p style='color: #d32f2f; font-weight: bold;'>⏰ Make sure to submit before the deadline!</p>
+                        <hr style='border: none; border-top: 1px solid #ddd; margin: 30px 0;'>
+                        <p style='color: #888; font-size: 12px;'>This is an automated notification from UNILIS.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email failed: " . $e->getMessage());
+        return false;
+    }
+}
+?>

@@ -17,6 +17,7 @@ services:
       - ./uploads:/var/www/uploads
       - ./assets/assignments:/var/www/html/assets/assignments
       - ./assets/meetings:/var/www/html/assets/meetings
+      - ./assets/requested_files:/var/www/html/assets/requested_files
 
     depends_on:
       - db
@@ -30,6 +31,8 @@ services:
     image: mysql:8.0.33
     container_name: unilis-db
     restart: always
+    ports:
+      - "3308:3306"
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: unilis
@@ -38,6 +41,7 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/unilis.sql:/docker-entrypoint-initdb.d/unilis.sql:ro
+      - ./create_lecturer_file_requests_table.sql:/docker-entrypoint-initdb.d/02_file_requests.sql:ro
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:5.2.1

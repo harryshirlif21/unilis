@@ -1,5 +1,6 @@
 <?php
 require_once '../config/db.php';
+require_once '../includes/notifications.php';
 session_start();
 
 // Redirect if not logged in or not a student
@@ -35,63 +36,23 @@ try {
     exit;
 }
 
-// Get latest 5 notifications for small popup
-$latest_notif_stmt = $conn->prepare("
-    SELECT n.id, n.title, n.message, n.link, n.is_read, n.created_at
-    FROM notifications n
-    LEFT JOIN notes nt ON n.notes_id = nt.id
-    LEFT JOIN assignments a ON n.assignment_id = a.id
-    LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
-    LEFT JOIN meetings m ON n.meeting_id = m.id
-    LEFT JOIN units u_nt ON u_nt.id = nt.unit_id
-    LEFT JOIN units u_a  ON u_a.id  = a.unit_id
-    LEFT JOIN units u_ia ON u_ia.id = ia.unit_id
-    LEFT JOIN units u_m  ON u_m.id  = m.unit_id
-    WHERE 
-        (u_nt.course_id = ? AND u_nt.year = ?) OR
-        (u_a.course_id  = ? AND u_a.year  = ?) OR
-        (u_ia.course_id = ? AND u_ia.year = ?) OR
-        (u_m.course_id  = ? AND u_m.year  = ?)
-    ORDER BY n.created_at DESC
-    LIMIT 5
-");
-$latest_notif_stmt->bind_param(
-    "iiiiiiii",
-    $course_id, $year_of_study,
-    $course_id, $year_of_study,
-    $course_id, $year_of_study,
-    $course_id, $year_of_study
-);
-$latest_notif_stmt->execute();
-$latest_notifications = $latest_notif_stmt->get_result();
+// Get latest 5 notifications
+$latest_notifications = get_latest_notifications($conn, 5);
 
-// Count unread notifications for badge
-$unread_stmt = $conn->prepare("
-    SELECT COUNT(*) AS unread_count
-    FROM notifications n
-    LEFT JOIN notes nt ON n.notes_id = nt.id
-    LEFT JOIN assignments a ON n.assignment_id = a.id
-    LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
-    LEFT JOIN meetings m ON n.meeting_id = m.id
-    LEFT JOIN units u_nt ON u_nt.id = nt.unit_id
-    LEFT JOIN units u_a  ON u_a.id  = a.unit_id
-    LEFT JOIN units u_ia ON u_ia.id = ia.unit_id
-    LEFT JOIN units u_m  ON u_m.id  = m.unit_id
-    WHERE ((u_nt.course_id = ? AND u_nt.year = ?) OR
-           (u_a.course_id = ? AND u_a.year = ?) OR
-           (u_ia.course_id = ? AND u_ia.year = ?) OR
-           (u_m.course_id = ? AND u_m.year = ?))
-      AND n.is_read = 0
-");
-$unread_stmt->bind_param(
-    "iiiiiiii",
-    $course_id, $year_of_study,
-    $course_id, $year_of_study,
-    $course_id, $year_of_study,
-    $course_id, $year_of_study
-);
-$unread_stmt->execute();
-$unread_count = $unread_stmt->get_result()->fetch_assoc()['unread_count'];
+// Get unread count
+$unread_count = get_unread_notification_count($conn);
+
+// Handle AJAX mark as read
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_notification_read') {
+    header('Content-Type: application/json');
+    $notif_id = intval($_POST['notification_id']);
+    if (mark_notification_as_read($conn, $notif_id)) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false]);
+    }
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -111,24 +72,29 @@ $unread_count = $unread_stmt->get_result()->fetch_assoc()['unread_count'];
 <body>
 <!-- Navbar -->
 <nav class="navbar">
+    <!-- Mobile Sidebar Toggle -->
+    <div class="sidebar-toggle">
+        <i class="fas fa-ellipsis-v"></i>
+    </div>
+    
     <div class="welcome-msg">
         <strong>👋 Welcome back!</strong>
     </div>
 
-    <!-- Notifications -->
-    <div class="nav-icon" id="notifications-icon" style="position:relative; cursor:pointer;">
-        <i class="fas fa-bell"></i>
-        <!-- Red circle indicator for new notifications -->
-        <span id="notificationCount" 
-              style="position:absolute; top:0; right:0; width:12px; height:12px; background:red; border-radius:50%; display:block;">
-        </span>
-    </div>
-    <div class="nav-icon" id="profile-icon">
-        <i class="fas fa-user"></i>
-    </div>
-    <!-- Mobile Sidebar Toggle -->
-    <div class="sidebar-toggle">
-        <i class="fas fa-ellipsis-v"></i>
+    <!-- Navigation Icons Container -->
+    <div class="nav-icons-container">
+        <!-- Notifications -->
+        <div class="nav-icon" id="notifications-icon" style="position:relative; cursor:pointer;">
+            <i class="fas fa-bell"></i>
+            <!-- Red circle indicator for new notifications -->
+            <span id="notificationCount" 
+                  style="position:absolute; top:-5px; right:-5px; width:20px; height:20px; background:#ff6b6b; border-radius:50%; display:<?= $unread_count > 0 ? 'flex' : 'none' ?>; align-items:center; justify-content:center; color:white; font-size:12px; font-weight:bold; border: 2px solid white;">
+                <?= $unread_count > 99 ? '99+' : $unread_count ?>
+            </span>
+        </div>
+        <div class="nav-icon" id="profile-icon" style="cursor: pointer;">
+            <i class="fas fa-user"></i>
+        </div>
     </div>
 </nav>
 
@@ -161,6 +127,11 @@ $unread_count = $unread_stmt->get_result()->fetch_assoc()['unread_count'];
             <!-- Attendance: no <a> tag — JS click handler opens the modal -->
             <li class="purple">
                 <i class="fas fa-check-double"></i><span>Attendance</span>
+            </li>
+            <li class="orange">
+                <a href="file_requests.php">
+                    <i class="fas fa-file-contract"></i><span>📁 File Requests</span>
+                </a>
             </li>
             <li class="brown">
                 <a href="my_progress.php">
@@ -208,80 +179,61 @@ function logout() {
     <p><strong>Course:</strong> <?php echo htmlspecialchars($course_name); ?></p>
     <p><strong>Year:</strong> <?php echo htmlspecialchars($student['year_of_study']); ?></p>
     <p><strong>Joined:</strong> <?php echo htmlspecialchars($student['year_joined']); ?></p>
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; text-align: center;">
+        <a href="my_progress.php" style="background: #667eea; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin-right: 10px; text-decoration: none; display: inline-block;">
+            <i class="fas fa-chart-line"></i> My Progress
+        </a>
+        <a href="../logout.php" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block;">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
 </div>
 
 <!-- Latest notifications popup -->
 <div id="notifications-content" class="popup">
-    <h3>Latest Notifications</h3>
-    <ul>
-        <?php if($latest_notifications->num_rows === 0): ?>
-            <li>No notifications</li>
+    <h3><i class="fas fa-bell"></i> Notifications</h3>
+    <div id="notif-list">
+        <?php if(empty($latest_notifications)): ?>
+            <div style="padding: 20px; text-align: center; color: #999;">
+                <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 10px; display: block;"></i>
+                No notifications yet
+            </div>
         <?php else: ?>
-            <?php while($notif = $latest_notifications->fetch_assoc()): ?>
-                <li style="<?php echo $notif['is_read'] ? '' : 'font-weight:bold;'; ?>">
-                    <?php echo htmlspecialchars($notif['title']); ?>
-                    <br>
-                    <small><?php echo date('d M H:i', strtotime($notif['created_at'])); ?></small>
-                </li>
-            <?php endwhile; ?>
+            <ul style="list-style: none; max-height: 400px; overflow-y: auto;">
+                <?php foreach($latest_notifications as $notif): ?>
+                    <li style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; <?php echo !$notif['is_read'] ? 'font-weight: bold; background: #f9f9f9;' : ''; ?>" id="quick-notif-<?= $notif['id'] ?>" onclick="quickMarkRead(<?= $notif['id'] ?>)">
+                        <div style="display: flex; justify-content: space-between; align-items: start; gap: 10px;">
+                            <div style="flex: 1;">
+                                <strong><?= htmlspecialchars($notif['title']) ?></strong>
+                                <br>
+                                <small style="color: #666;"><?= htmlspecialchars(substr($notif['message'], 0, 60)) ?>...</small>
+                                <br>
+                                <small style="color: #999; font-size: 11px;">
+                                    <?php 
+                                        $time = strtotime($notif['created_at']);
+                                        $now = time();
+                                        $diff = $now - $time;
+                                        if ($diff < 60) echo "Just now";
+                                        elseif ($diff < 3600) echo floor($diff / 60) . "m ago";
+                                        elseif ($diff < 86400) echo floor($diff / 3600) . "h ago";
+                                        else echo date('M d', $time);
+                                    ?>
+                                </small>
+                            </div>
+                            <?php if (!$notif['is_read']): ?>
+                                <span style="width: 8px; height: 8px; background: #ff6b6b; border-radius: 50%; flex-shrink: 0; margin-top: 4px;"></span>
+                            <?php endif; ?>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
         <?php endif; ?>
-    </ul>
-    <button id="viewAllBtn">View All</button>
-</div>
-
-<!-- Modal -->
-<div id="allNotificationsModal" class="modal">
-    <div class="modal-content">
-        <span class="close">&times;</span>
-        <h3>All Notifications</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Message</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                $all_notif_stmt = $conn->prepare("
-                    SELECT n.id, n.title, n.message, n.is_read, n.created_at
-                    FROM notifications n
-                    LEFT JOIN notes nt ON n.notes_id = nt.id
-                    LEFT JOIN assignments a ON n.assignment_id = a.id
-                    LEFT JOIN interactive_assignments ia ON n.interactive_assignment_id = ia.id
-                    LEFT JOIN meetings m ON n.meeting_id = m.id
-                    LEFT JOIN units u_nt ON u_nt.id = nt.unit_id
-                    LEFT JOIN units u_a  ON u_a.id  = a.unit_id
-                    LEFT JOIN units u_ia ON u_ia.id = ia.unit_id
-                    LEFT JOIN units u_m  ON u_m.id  = m.unit_id
-                    WHERE (u_nt.course_id = ? AND u_nt.year = ?) OR
-                          (u_a.course_id  = ? AND u_a.year  = ?) OR
-                          (u_ia.course_id = ? AND u_ia.year = ?) OR
-                          (u_m.course_id  = ? AND u_m.year = ?)
-                    ORDER BY n.created_at DESC
-                ");
-                $all_notif_stmt->bind_param(
-                    "iiiiiiii",
-                    $course_id, $year_of_study,
-                    $course_id, $year_of_study,
-                    $course_id, $year_of_study,
-                    $course_id, $year_of_study
-                );
-                $all_notif_stmt->execute();
-                $all_notifications = $all_notif_stmt->get_result();
-
-                while($notif = $all_notifications->fetch_assoc()):
-                    $row_style = $notif['is_read'] ? '' : 'style="background-color:#fffbea;"';
-                ?>
-                    <tr <?php echo $row_style; ?>>
-                        <td><?php echo htmlspecialchars($notif['title']); ?></td>
-                        <td><?php echo htmlspecialchars($notif['message']); ?></td>
-                        <td><?php echo date('d M Y, H:i', strtotime($notif['created_at'])); ?></td>
-                    </tr>
-                <?php endwhile; ?>
-            </tbody>
-        </table>
+    </div>
+    <div style="padding: 12px; border-top: 1px solid #eee; text-align: center; display: flex; gap: 8px; justify-content: center;">
+        <a href="notifications.php" style="flex: 1; padding: 10px 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px;">
+            <i class="fas fa-arrow-right"></i>
+            More
+        </a>
     </div>
 </div>
 
@@ -551,113 +503,171 @@ function logout() {
 
 
 <script>
-const profileIcon        = document.getElementById('profile-icon');
-const profilePopup       = document.getElementById('profile-popup');
-const notificationsIcon  = document.getElementById('notifications-icon');
-const notificationsContent = document.getElementById('notifications-content');
-const viewAllBtn         = document.getElementById('viewAllBtn');
-const modal              = document.getElementById('allNotificationsModal');
-const closeModal         = modal.querySelector('.close');
-const notificationCount  = document.getElementById('notificationCount');
-
-// Track read notifications
-let readNotifications = new Set();
-const notificationItems = notificationsContent.querySelectorAll('.notification-item');
-
-function updateNotificationIndicator() {
-    let unreadExists = false;
-    notificationItems.forEach(item => {
-        if (!readNotifications.has(item.dataset.id)) unreadExists = true;
+// Single tab switching logic (adapted from lecturer dashboard)
+document.addEventListener('DOMContentLoaded', () => {
+    // Mobile sidebar toggle
+    document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+        document.getElementById('sidebar')?.classList.toggle('show');
     });
-    notificationCount.style.display = unreadExists ? 'block' : 'none';
-}
 
-function showModal(modalId) {
-    const m = document.getElementById(modalId);
-    if (m) { m.classList.remove('hidden'); m.style.display = 'block'; }
-}
+    document.addEventListener('click', e => {
+        const sidebar = document.getElementById('sidebar');
+        const toggle = document.getElementById('sidebarToggle');
+        if (sidebar && toggle && !sidebar.contains(e.target) && !toggle.contains(e.target)) {
+            sidebar.classList.remove('show');
+        }
+    });
 
-function hideModal(modalId) {
-    const m = document.getElementById(modalId);
-    if (m) { m.classList.add('hidden'); m.style.display = 'none'; }
-}
+    // Profile popup functionality
+    const profileIcon = document.getElementById('profile-icon');
+    const profilePopup = document.getElementById('profile-popup');
+    
+    if (profileIcon && profilePopup) {
+        profileIcon.addEventListener('click', () => {
+            const isVisible = profilePopup.style.display === 'block';
+            profilePopup.style.display = isVisible ? 'none' : 'block';
+            
+            // Position profile popup
+            if (profilePopup.style.display === 'block') {
+                const iconRect = profileIcon.getBoundingClientRect();
+                profilePopup.style.top = iconRect.bottom + 10 + 'px';
+                profilePopup.style.right = '20px';
+            }
+        });
+    }
+
+    // Notifications functionality
+    const notificationsIcon = document.getElementById('notifications-icon');
+    const notificationsContent = document.getElementById('notifications-content');
+    
+    if (notificationsIcon && notificationsContent) {
+        notificationsIcon.addEventListener('click', () => {
+            const isVisible = notificationsContent.style.display === 'block';
+            notificationsContent.style.display = isVisible ? 'none' : 'block';
+            
+            // Hide profile popup
+            if (profilePopup) {
+                profilePopup.style.display = 'none';
+            }
+            
+            // Position notifications popup
+            if (notificationsContent.style.display === 'block') {
+                const iconRect = notificationsIcon.getBoundingClientRect();
+                notificationsContent.style.top = iconRect.bottom + 10 + 'px';
+                notificationsContent.style.right = '20px';
+            }
+        });
+    }
+
+    // Sidebar click handler for items without links (e.g., Attendance)
+    document.querySelectorAll('.sidebar-section li').forEach(item => {
+        item.addEventListener('click', (e) => {
+            // If the click target is inside an <a> tag, let normal navigation happen
+            if (e.target.closest('a')) return;
+
+            const text = item.querySelector('span')?.textContent.trim();
+            if (text === 'Attendance') {
+                showModal('studentAttendanceModal');
+                // Remove active class from all sidebar items
+                document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
+                // Add active class to clicked item
+                item.classList.add('active');
+            }
+        });
+    });
+
+    // Generic modal helpers (from lecturer dashboard)
+    window.showModal = function(id) {
+        const modal = document.getElementById(id);
+        if (modal) {
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+    };
+
+    window.hideModal = function(id) {
+        const modal = document.getElementById(id);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    };
+
+    // Close modals on outside click or close button
+    document.addEventListener('click', e => {
+        // Close profile popup if clicking outside
+        if (profilePopup && !profilePopup.contains(e.target) && !profileIcon?.contains(e.target)) {
+            profilePopup.style.display = 'none';
+        }
+        
+        // Close notifications popup if clicking outside
+        if (notificationsContent && !notificationsContent.contains(e.target) && !notificationsIcon?.contains(e.target)) {
+            notificationsContent.style.display = 'none';
+        }
+        
+        // Close modal if clicking on backdrop
+        if (modal && e.target === modal) {
+            modal.style.display = 'none';
+        }
+        
+        // Generic modal close
+        if (e.target.classList.contains('modal') || e.target.classList.contains('close')) {
+            const modal = e.target.closest('.modal');
+            if (modal) hideModal(modal.id);
+        }
+    });
+
+    // ESC key to close modals
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            const openModal = document.querySelector('.modal:not(.hidden)');
+            if (openModal) hideModal(openModal.id);
+        }
+    });
+});
 
 function logout() {
     window.location.href = "../logout.php";
 }
 
-// Sidebar click handler — only fires for items WITHOUT an <a> tag inside
-// (i.e. Attendance). Items with <a> tags navigate naturally.
-document.querySelectorAll('.sidebar-section li').forEach(item => {
-    item.addEventListener('click', (e) => {
-        // If the click originated from an <a> tag, let normal navigation happen
-        if (e.target.closest('a')) return;
+// Mark notification as read via AJAX
+function quickMarkRead(notificationId) {
+    const formData = new FormData();
+    formData.append('action', 'mark_notification_read');
+    formData.append('notification_id', notificationId);
 
-        const text = item.querySelector('span')?.textContent.trim();
-        if (text === 'Attendance') {
-            showModal('studentAttendanceModal');
-            document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
-            item.classList.add('active');
+    fetch('dashboard.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const item = document.getElementById('quick-notif-' + notificationId);
+            if (item) {
+                // Remove bold styling and background
+                item.style.fontWeight = 'normal';
+                item.style.background = 'white';
+                
+                // Remove red dot if present
+                const badge = item.querySelector('[style*="background: #ff6b6b"]');
+                if (badge) badge.remove();
+                
+                // Update badge count
+                const badgeEl = document.getElementById('notificationCount');
+                if (badgeEl) {
+                    const count = parseInt(badgeEl.textContent) || 0;
+                    if (count > 1) {
+                        badgeEl.textContent = count - 1;
+                    } else {
+                        badgeEl.style.display = 'none';
+                    }
+                }
+            }
         }
-    });
-});
-
-// Initialize: bold unread notifications
-notificationItems.forEach(item => {
-    item.style.fontWeight = readNotifications.has(item.dataset.id) ? 'normal' : 'bold';
-    item.addEventListener('click', () => {
-        readNotifications.add(item.dataset.id);
-        item.style.fontWeight = 'normal';
-        updateNotificationIndicator();
-    });
-});
-
-// Toggle profile popup
-profileIcon.addEventListener('click', () => {
-    profilePopup.style.display = profilePopup.style.display === 'block' ? 'none' : 'block';
-    notificationsContent.style.display = 'none';
-});
-
-// Toggle notifications popup
-notificationsIcon.addEventListener('click', () => {
-    notificationsContent.style.display = notificationsContent.style.display === 'block' ? 'none' : 'block';
-    profilePopup.style.display = 'none';
-});
-
-// View all notifications modal
-viewAllBtn.addEventListener('click', () => {
-    modal.style.display = 'block';
-    notificationsContent.style.display = 'none';
-    notificationItems.forEach(item => {
-        readNotifications.add(item.dataset.id);
-        item.style.fontWeight = 'normal';
-    });
-    updateNotificationIndicator();
-});
-
-// Close modal
-closeModal.addEventListener('click', () => { modal.style.display = 'none'; });
-
-// Close popups & modal on outside click
-document.addEventListener('click', e => {
-    if (profilePopup && !profilePopup.contains(e.target) && !profileIcon.contains(e.target))
-        profilePopup.style.display = 'none';
-    if (notificationsContent && !notificationsContent.contains(e.target) && !notificationsIcon.contains(e.target))
-        notificationsContent.style.display = 'none';
-    if (modal && e.target === modal)
-        modal.style.display = 'none';
-});
-
-// Sidebar mobile toggle
-const sidebar      = document.querySelector('.sidebar');
-const sidebarToggle = document.querySelector('.sidebar-toggle');
-sidebarToggle?.addEventListener('click', () => sidebar.classList.toggle('show'));
-document.addEventListener('click', (e) => {
-    if (sidebar && !sidebar.contains(e.target) && !sidebarToggle?.contains(e.target))
-        sidebar.classList.remove('show');
-});
-
-updateNotificationIndicator();
+    })
+    .catch(error => console.error('Error:', error));
+}
 </script>
 
 </body>

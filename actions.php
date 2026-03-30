@@ -3,6 +3,7 @@ require_once 'config/db.php';
 //require_once 'vendor/autoload.php';
 require_once 'vendor/autoload.php';
 require_once 'includes/mailer.php';
+require_once 'includes/notifications.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -657,13 +658,9 @@ if ($action === 'upload_notes') {
                     $success_count++;
                     $notes_id = $conn->insert_id;
 
-                    // Notification details
-                    $title = "New Notes Uploaded";
-                    $message = "Your lecturer has uploaded new notes for your unit.";
-                    $link = "https://unilis.jhubafrica.com/student/dashboard.php";
-
                     // === SEND NOTIFICATIONS & EMAILS TO STUDENTS ===
-                    send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $notes_id, $title, $message, $link);
+                    $notes_title = pathinfo($filename, PATHINFO_FILENAME);
+                    notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_id, $notes_title);
 
                 } else {
                     $error_count++;
@@ -817,20 +814,7 @@ if ($action === 'create_assignment') {
         $_SESSION['assignment_success'] = "Assignment created.";
 
         // === SEND NOTIFICATIONS & EMAILS TO STUDENTS ===
-        $title_email = "New Assignment Posted";
-        $message_email = "Your lecturer has uploaded a new assignment for your unit.";
-        $link = "https://unilis.jhubafrica.com/student/assignments.php";
-
-        send_assignment_email_to_course_students(
-            $conn,
-            $unit_id,
-            $lecturer_id,
-            $assignment_id,
-            $title_email,
-            $message_email,
-            $link,
-            $due_date // for bold deadline in email
-        );
+        notify_students_assignment_posted($conn, $unit_id, $assignment_id, $title, $due_date);
 
     } else {
         $_SESSION['assignment_error'] = "Failed to create assignment.";
@@ -1576,6 +1560,204 @@ if ($action === 'bulk_delete_students') {
         echo json_encode(['status' => 'error', 'message' => 'Bulk delete failed: ' . $conn->error]);
     }
     $stmt->close();
+    exit;
+}
+
+// === GET TEST DATA BY CATEGORY ===
+if ($action === 'get_test_data') {
+    header('Content-Type: application/json');
+    
+    $category = $_GET['category'] ?? 'notes';
+    $records = [];
+    
+    switch ($category) {
+        case 'notes':
+            $result = $conn->query("
+                SELECT id, CONCAT('File: ', file_path) as title, uploaded_at as date
+                FROM notes
+                ORDER BY uploaded_at DESC LIMIT 500
+            ");
+            while ($row = $result->fetch_assoc()) {
+                $records[] = $row;
+            }
+            break;
+            
+        case 'assignments':
+            $result = $conn->query("
+                SELECT id, title, created_at as date
+                FROM assignments
+                ORDER BY created_at DESC LIMIT 500
+            ");
+            while ($row = $result->fetch_assoc()) {
+                $records[] = $row;
+            }
+            break;
+            
+        case 'submissions':
+            $result = $conn->query("
+                SELECT sub.id, CONCAT(s.name, ' - ', a.title) as title, sub.submitted_at as date
+                FROM submissions sub
+                JOIN students s ON sub.student_id = s.id
+                JOIN assignments a ON sub.assignment_id = a.id
+                ORDER BY sub.submitted_at DESC LIMIT 500
+            ");
+            while ($row = $result->fetch_assoc()) {
+                $records[] = $row;
+            }
+            break;
+            
+        case 'attendance':
+            $result = $conn->query("
+                SELECT ma.id, CONCAT(m.title, ' - ', s.name) as title, ma.join_time as date
+                FROM meeting_attendance ma
+                JOIN meetings m ON ma.meeting_id = m.id
+                JOIN students s ON ma.student_id = s.id
+                ORDER BY ma.join_time DESC LIMIT 500
+            ");
+            while ($row = $result->fetch_assoc()) {
+                $records[] = $row;
+            }
+            break;
+            
+        case 'meetings':
+            $result = $conn->query("
+                SELECT id, title, scheduled_time as date
+                FROM meetings
+                ORDER BY scheduled_time DESC LIMIT 500
+            ");
+            while ($row = $result->fetch_assoc()) {
+                $records[] = $row;
+            }
+            break;
+            
+        case 'enrollments':
+            $result = $conn->query("
+                SELECT se.id, CONCAT(s.name, ' - ', c.name) as title, se.enrolled_at as date
+                FROM student_enrollments se
+                JOIN students s ON se.student_id = s.id
+                JOIN courses c ON se.course_id = c.id
+                ORDER BY se.enrolled_at DESC LIMIT 500
+            ");
+            while ($row = $result->fetch_assoc()) {
+                $records[] = $row;
+            }
+            break;
+            
+        case 'notifications':
+            $result = $conn->query("
+                SELECT id, title, created_at as date
+                FROM notifications
+                ORDER BY created_at DESC LIMIT 500
+            ");
+            while ($row = $result->fetch_assoc()) {
+                $records[] = $row;
+            }
+            break;
+    }
+
+    echo json_encode(['status' => 'success', 'category' => $category, 'records' => $records]);
+    exit;
+}
+
+// === BULK DELETE TEST DATA ===
+if ($action === 'bulk_delete_test_data') {
+    header('Content-Type: application/json');
+    
+    $category = $_POST['category'] ?? '';
+    $raw_ids = $_POST['ids'] ?? '';
+    $ids = array_filter(array_map('intval', explode(',', $raw_ids)));
+    
+    if (empty($ids)) {
+        echo json_encode(['status' => 'error', 'message' => 'No valid IDs provided.']);
+        exit;
+    }
+    
+    $deleted_count = 0;
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $types = str_repeat('i', count($ids));
+    
+    try {
+        $conn->begin_transaction();
+        
+        switch ($category) {
+            case 'notes':
+                $stmt = $conn->prepare("DELETE FROM notes WHERE id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $deleted_count = $stmt->affected_rows;
+                $stmt->close();
+                break;
+                
+            case 'assignments':
+                // Delete associated submissions first
+                $stmt = $conn->prepare("DELETE FROM submissions WHERE assignment_id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $stmt->close();
+                
+                // Then delete assignments
+                $stmt = $conn->prepare("DELETE FROM assignments WHERE id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $deleted_count = $stmt->affected_rows;
+                $stmt->close();
+                break;
+                
+            case 'submissions':
+                $stmt = $conn->prepare("DELETE FROM submissions WHERE id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $deleted_count = $stmt->affected_rows;
+                $stmt->close();
+                break;
+                
+            case 'attendance':
+                $stmt = $conn->prepare("DELETE FROM meeting_attendance WHERE id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $deleted_count = $stmt->affected_rows;
+                $stmt->close();
+                break;
+                
+            case 'meetings':
+                // Delete attendance records first
+                $stmt = $conn->prepare("DELETE FROM meeting_attendance WHERE meeting_id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $stmt->close();
+                
+                // Then delete meetings
+                $stmt = $conn->prepare("DELETE FROM meetings WHERE id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $deleted_count = $stmt->affected_rows;
+                $stmt->close();
+                break;
+                
+            case 'enrollments':
+                $stmt = $conn->prepare("DELETE FROM student_enrollments WHERE id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $deleted_count = $stmt->affected_rows;
+                $stmt->close();
+                break;
+                
+            case 'notifications':
+                $stmt = $conn->prepare("DELETE FROM notifications WHERE id IN ($placeholders)");
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $deleted_count = $stmt->affected_rows;
+                $stmt->close();
+                break;
+        }
+        
+        $conn->commit();
+        echo json_encode(['status' => 'success', 'message' => "$deleted_count record(s) deleted successfully."]);
+    } catch (Exception $e) {
+        $conn->rollback();
+        echo json_encode(['status' => 'error', 'message' => 'Deletion failed: ' . $e->getMessage()]);
+    }
+    
     exit;
 }
 

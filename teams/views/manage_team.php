@@ -298,7 +298,7 @@ async function removeMember(studentId) {
 // Event listeners
 document.getElementById('addMemberBtn').addEventListener('click', addMember);
 document.getElementById('submitBtn').addEventListener('click', () => {
-    window.location.href = `/teams/views/submit.php?team_id=${teamId}`;
+    window.location.href = `submit.php?team_id=${teamId}`;
 });
 
 // Load on page ready

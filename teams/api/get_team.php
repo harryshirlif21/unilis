@@ -1,6 +1,8 @@
 <?php
 header('Content-Type: application/json');
-error_reporting(E_ERROR | E_PARSE);
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Don't display errors in JSON response
+
 session_start();
 
 // Make sure path to db.php is correct
@@ -12,8 +14,16 @@ try {
     $team_id = $_GET['team_id'] ?? null;
     if (!$team_id) throw new Exception("Team ID missing");
 
+    // Check database connection
+    if (!isset($conn) || $conn->connect_error) {
+        throw new Exception("Database connection failed");
+    }
+
     // Get team details
     $stmt = $conn->prepare("SELECT * FROM teams WHERE id = ?");
+    if (!$stmt) {
+        throw new Exception("Query preparation failed: " . $conn->error);
+    }
     $stmt->bind_param("i", $team_id);
     $stmt->execute();
     $team = $stmt->get_result()->fetch_assoc();
@@ -27,6 +37,9 @@ try {
         JOIN students s ON tm.student_id = s.id
         WHERE tm.team_id = ?
     ");
+    if (!$stmt) {
+        throw new Exception("Members query preparation failed: " . $conn->error);
+    }
     $stmt->bind_param("i", $team_id);
     $stmt->execute();
     $members = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -47,10 +60,16 @@ try {
     ];
 
 } catch (Exception $e) {
+    http_response_code(400);
     $response = [
         'success' => false,
-        'error' => $e->getMessage()
+        'error' => $e->getMessage(),
+        'debug_info' => [
+            'team_id' => $team_id,
+            'session_user_id' => $_SESSION['user_id'] ?? null,
+            'session_user_role' => $_SESSION['user_role'] ?? null
+        ]
     ];
 }
 
-echo json_encode($response); 
+echo json_encode($response);
