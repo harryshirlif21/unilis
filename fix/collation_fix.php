@@ -5,8 +5,8 @@ require_once __DIR__ . '/../config/db.php';
  * Fix Notifications Table Collation
  * Fixes collation mismatch in notifications table
  */
-
-echo "<!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html>
 <head>
     <title>Fix Notifications Collation</title>
