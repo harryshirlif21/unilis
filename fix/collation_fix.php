@@ -40,13 +40,8 @@ require_once __DIR__ . '/../config/db.php';
                 echo "<p>Analyzing current table structure...</p>";
                 echo "<pre class='code'>" . htmlspecialchars($create_table) . "</pre>";
                 
-                // Fix collation in CREATE TABLE statement
-                $fixed_create_table = str_replace('utf8mb4_general_ci', 'utf8mb4_general_ci', $create_table);
-                $fixed_create_table = str_replace('utf8mb4_0900_ai_ci', 'utf8mb4_general_ci', $fixed_create_table);
-                
-                // Create backup table
-                $backup_sql = "CREATE TABLE notifications_backup AS $fixed_create_table";
-                if ($conn->query($backup_sql)) {
+                // Create backup table using LIKE to copy structure
+                if ($conn->query("CREATE TABLE notifications_backup LIKE notifications")) {
                     echo "<div class='success'>✅ Created backup table</div>";
                 } else {
                     echo "<div class='error'>❌ Failed to create backup: " . $conn->error . "</div>";
@@ -72,6 +67,13 @@ require_once __DIR__ . '/../config/db.php';
                     echo "<div class='success'>✅ Recreated notifications table with fixed collation</div>";
                 } else {
                     echo "<div class='error'>❌ Failed to rename table: " . $conn->error . "</div>";
+                }
+                
+                // Now fix the collation of the recreated table
+                if ($conn->query("ALTER TABLE notifications CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci")) {
+                    echo "<div class='success'>✅ Fixed table collation to utf8mb4_general_ci</div>";
+                } else {
+                    echo "<div class='error'>❌ Failed to fix collation: " . $conn->error . "</div>";
                 }
                 
                 echo "<div class='success'><h3>✅ Collation fix completed successfully!</h3></div>";
