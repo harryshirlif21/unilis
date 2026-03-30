@@ -50,6 +50,16 @@ unset($_SESSION['verify_error']);
         .floating-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #eee; }
         .units-grid { padding:12px 16px; display:grid; gap:8px; }
         .unit-card { display:flex; justify-content:space-between; align-items:center; padding:10px; border-radius:6px; background:#fafafa; border:1px solid #eee; }
+        .unit-actions { display:flex; gap:8px; }
+        .edit-btn { background:#3498db; color:white; border:none; padding:6px 8px; border-radius:4px; cursor:pointer; font-size:12px; }
+        .edit-btn:hover { background:#2980b9; }
+        .delete-btn { background:#e74c3c; color:white; border:none; padding:6px 8px; border-radius:4px; cursor:pointer; font-size:12px; }
+        .delete-btn:hover { background:#c0392b; }
+        .year-block { margin-bottom:20px; border:1px solid #ddd; border-radius:8px; overflow:hidden; }
+        .year-header { background:#34495e; color:white; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; }
+        .year-header h4 { margin:0; font-size:16px; }
+        .unit-count { background:rgba(255,255,255,0.2); padding:4px 8px; border-radius:12px; font-size:12px; }
+        .year-units { padding:12px; display:grid; gap:8px; }
         .delete-modal .modal-content { max-width:400px; }
 
         /* ── Students Modal ── */
@@ -578,6 +588,59 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
+    <!-- Edit Unit Modal -->
+    <div id="editUnitModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editUnitModal')">×</span>
+            <h3>Edit Unit</h3>
+            <form id="editUnitForm" method="POST" action="../actions.php">
+                <input type="hidden" name="action" value="edit_unit">
+                <input type="hidden" id="editUnitId" name="unit_id">
+                
+                <label>Unit Name:</label>
+                <input type="text" id="editUnitName" name="unit_name" required>
+                
+                <label>Unit Code:</label>
+                <input type="text" id="editUnitCode" name="unit_code" required>
+                
+                <label>Year:</label>
+                <select id="editUnitYear" name="year" required>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                </select>
+                
+                <label>Semester:</label>
+                <select id="editUnitSemester" name="semester" required>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                </select>
+                
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="button" onclick="closeModal('editUnitModal')" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Unit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Unit Modal -->
+    <div id="deleteUnitModal" class="modal delete-modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('deleteUnitModal')">×</span>
+            <h3>Delete Unit</h3>
+            <p>Are you sure you want to delete this unit?</p>
+            <input type="hidden" id="deleteUnitId">
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button onclick="closeModal('deleteUnitModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="confirmDeleteUnit()" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <div id="lecturerModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeModal('lecturerModal')">×</span>
@@ -848,15 +911,65 @@ function viewCourseUnits() {
         const h = fd?.querySelector('.floating-header h3');
         if (h) h.textContent = `${data.course.department_name||''} - ${data.course.course_name||''}`;
         if (!data.units || !data.units.length) { ug.innerHTML = '<div class="empty-message">No units found.</div>'; return; }
-        ug.innerHTML = '';
-        data.units.sort((a,b) => a.year !== b.year ? a.year - b.year : (a.semester||0)-(b.semester||0)).forEach(unit => {
-            const card = document.createElement('div'); card.className = 'unit-card';
-            card.innerHTML = `<div class="unit-info"><h4>${escapeHtml(unit.name)}</h4><div class="unit-code">${escapeHtml(unit.code)}</div><div class="unit-meta">Year ${escapeHtml(unit.year)}${unit.semester?', Semester '+escapeHtml(unit.semester):''}</div></div><button class="delete-btn" onclick="showDeleteUnitModal(${Number(unit.id)},'${escapeJs(unit.code)}')" title="Delete Unit"><i class="fas fa-trash-alt"></i></button>`;
-            ug.appendChild(card);
+        
+        // Group units by year
+        const unitsByYear = {};
+        data.units.forEach(unit => {
+            const year = unit.year || 1;
+            if (!unitsByYear[year]) unitsByYear[year] = [];
+            unitsByYear[year].push(unit);
         });
+        
+        ug.innerHTML = '';
+        // Display units in year blocks (1-6)
+        for (let year = 1; year <= 6; year++) {
+            if (unitsByYear[year] && unitsByYear[year].length > 0) {
+                const yearBlock = document.createElement('div');
+                yearBlock.className = 'year-block';
+                yearBlock.innerHTML = `
+                    <div class="year-header">
+                        <h4>Year ${year}</h4>
+                        <span class="unit-count">${unitsByYear[year].length} unit${unitsByYear[year].length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div class="year-units"></div>
+                `;
+                
+                const yearUnitsContainer = yearBlock.querySelector('.year-units');
+                unitsByYear[year].sort((a,b) => (a.semester||0)-(b.semester||0)).forEach(unit => {
+                    const card = document.createElement('div');
+                    card.className = 'unit-card';
+                    card.innerHTML = `
+                        <div class="unit-info">
+                            <h4>${escapeHtml(unit.name)}</h4>
+                            <div class="unit-code">${escapeHtml(unit.code)}</div>
+                            <div class="unit-meta">Semester ${unit.semester||1}</div>
+                        </div>
+                        <div class="unit-actions">
+                            <button class="edit-btn" onclick="showEditUnitModal(${Number(unit.id)}, '${escapeJs(unit.name)}', '${escapeJs(unit.code)}', ${unit.year}, ${unit.semester||1})" title="Edit Unit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="delete-btn" onclick="showDeleteUnitModal(${Number(unit.id)},'${escapeJs(unit.code)}')" title="Delete Unit">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    `;
+                    yearUnitsContainer.appendChild(card);
+                });
+                
+                ug.appendChild(yearBlock);
+            }
+        }
     }).catch(() => { if(ug) ug.innerHTML = '<div class="error-message">Error loading units.</div>'; });
 }
 function closeFloatingDisplay() { document.getElementById('floatingUnitsDisplay')?.classList.remove('active'); }
+function showEditUnitModal(unitId, unitName, unitCode, year, semester) {
+    document.getElementById('editUnitId').value = unitId;
+    document.getElementById('editUnitName').value = unitName;
+    document.getElementById('editUnitCode').value = unitCode;
+    document.getElementById('editUnitYear').value = year;
+    document.getElementById('editUnitSemester').value = semester;
+    openModal('editUnitModal');
+}
 function showDeleteUnitModal(unitId, unitCode) {
     document.getElementById('deleteUnitId').value = unitId;
     document.querySelector('#deleteUnitModal p').textContent = `Delete ${unitCode}?`;
@@ -872,6 +985,22 @@ function confirmDeleteUnit() {
         else showFloatingMessage(data?.message||'Failed to delete unit', 'error');
     }).catch(() => showFloatingMessage('Error deleting unit', 'error'));
 }
+
+// Handle edit unit form submission
+document.getElementById('editUnitForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    fetch('../actions.php', { method:'POST', body:formData })
+    .then(r => r.text()).then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
+        if (data?.status === 'success') { 
+            closeModal('editUnitModal'); 
+            viewCourseUnits(); 
+            showFloatingMessage(data.message||'Unit updated', 'success'); 
+        }
+        else showFloatingMessage(data?.message||'Failed to update unit', 'error');
+    }).catch(() => showFloatingMessage('Error updating unit', 'error'));
+});
 function exportUnitsPDF() {
     const courseId = document.getElementById('courseSelect')?.value;
     if (!courseId) { alert('Please select a course first'); return; }

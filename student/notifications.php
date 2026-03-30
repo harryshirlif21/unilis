@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 $per_page = 15;
 
-$notifications_data = get_all_notifications($conn, $page, $per_page);
+$notifications_data = get_all_notifications($conn, $page, $per_page, $student_id, 'student');
 $notifications = $notifications_data['notifications'];
 $total_pages = $notifications_data['total_pages'];
 $total = $notifications_data['total'];

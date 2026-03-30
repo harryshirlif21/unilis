@@ -60,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
         $session_id  = $result['session_id'];
         $code        = $result['code'];
         $deadline    = $result['deadline'];
+        $email_status = $result['email_status'] ?? '';
     }
 }
 ?>
@@ -71,11 +72,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Attendance • UNILIS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         body { background: linear-gradient(135deg, #f59e0b, #f97316); min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', sans-serif; }
         .card { background: rgba(255,255,255,0.95); border-radius: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.3); max-width: 500px; }
         .code-display { font-size: 5.5rem; font-weight: 900; letter-spacing: 0.3em; color: #f59e0b; text-shadow: 0 4px 10px rgba(245,158,11,0.4); }
         @media (max-width: 576px) { .code-display { font-size: 4rem; } }
+        
+        /* Loading states for mobile */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease;
+        }
+        
+        .loading-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .loading-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 320px;
+            margin: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #f59e0b;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .email-status {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .btn-loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        
+        .btn-loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            margin: -8px 0 0 -8px;
+            border: 2px solid transparent;
+            border-top: 2px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
     </style>
 </head>
 <body>
@@ -95,6 +178,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
             <p class="fs-4 text-white">
                 Valid until <strong><?= date('h:i A', strtotime($deadline)) ?></strong>
             </p>
+
+            <?php if (!empty($_POST['send_email'])): ?>
+                <div class="success-message">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Email notifications sent to all students!</strong>
+                    <div class="small mt-1">Students have received the attendance code via email</div>
+                </div>
+            <?php endif; ?>
 
             <div class="mt-5">
                 <a href="lecturer_attendance_report.php?unit=<?= $unit_id ?>" 
@@ -139,6 +230,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
 
     </div>
 </div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-content">
+        <div class="spinner"></div>
+        <h5 id="loadingTitle">Creating Attendance Session...</h5>
+        <p id="loadingMessage" class="text-muted">Please wait while we set up your attendance session</p>
+        <div id="emailStatus" class="email-status" style="display: none;">
+            <i class="fas fa-envelope"></i> Sending emails to students...
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form[method="POST"]');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingTitle = document.getElementById('loadingTitle');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const emailStatus = document.getElementById('emailStatus');
+    
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const sendEmail = formData.get('send_email') === 'on';
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            // Show loading overlay
+            loadingOverlay.classList.add('show');
+            
+            // Update loading message based on email option
+            if (sendEmail) {
+                loadingTitle.textContent = 'Creating Session & Sending Emails...';
+                loadingMessage.textContent = 'Please wait while we create the session and notify all students';
+                emailStatus.style.display = 'block';
+            } else {
+                loadingTitle.textContent = 'Creating Attendance Session...';
+                loadingMessage.textContent = 'Please wait while we set up your attendance session';
+                emailStatus.style.display = 'none';
+            }
+            
+            // Disable submit button and show loading state
+            submitBtn.classList.add('btn-loading');
+            submitBtn.disabled = true;
+            
+            // Simulate progress for better UX
+            setTimeout(() => {
+                if (sendEmail) {
+                    emailStatus.innerHTML = '<i class="fas fa-check-circle text-success"></i> Emails sent successfully!';
+                }
+            }, 2000);
+            
+            // Submit the form
+            setTimeout(() => {
+                form.submit();
+            }, 2500);
+        });
+    }
+    
+    // Hide loading overlay if page loads with success
+    if (document.querySelector('.code-display')) {
+        loadingOverlay.classList.remove('show');
+    }
+});
+</script>
 
 </body>
 </html>

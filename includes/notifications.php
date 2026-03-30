@@ -6,6 +6,8 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../config/email.php';
+require_once __DIR__ . '/email_system.php';
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -66,9 +68,9 @@ function notify_lecturer_assignment_submitted($conn, $lecturer_id, $student_name
         $message = "{$student_name} has submitted the assignment: {$assignment_title}";
         $link = "lecturer/review_assignments.php?assignment_id={$assignment_id}";
 
-        // Create notification record for lecturer
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
-        $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+        // Create notification record for specific lecturer
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'lecturer', ?, ?, ?, ?, 0, NOW())");
+        $notif_stmt->bind_param("isssi", $lecturer_id, $title, $message, $link, $assignment_id);
         $notif_stmt->execute();
         $notif_stmt->close();
 
@@ -117,16 +119,27 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
         $message = "New notes have been uploaded for {$unit['name']}: {$notes_title}";
         $link = "student/dashboard.php?view=notes&unit_id={$unit_id}";
 
-        // Create one notification entry (use notes_id foreign key)
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
-        $notif_stmt->bind_param("sssi", $title, $message, $link, $notes_id);
-        $notif_stmt->execute();
-        $notif_stmt->close();
-
-        // Send email to each student
+        // Create individual notification for each student
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, notes_id, is_read, created_at) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())");
+        
+        // Prepare recipients for bulk email
+        $recipients = [];
+        
         foreach ($students as $student) {
-            send_email_notes_uploaded($student['email'], $student['name'], $unit['name'], $notes_title);
+            $notif_stmt->bind_param("isssi", $student['id'], $title, $message, $link, $notes_id);
+            $notif_stmt->execute();
+            
+            // Add to recipients list for email
+            $recipients[] = [
+                'email' => $student['email'],
+                'name' => $student['name']
+            ];
         }
+        $notif_stmt->close();
+        
+        // Send bulk email notifications
+        $email_subject = "📚 New Notes Uploaded: {$notes_title}";
+        send_bulk_notification_emails($recipients, $email_subject, $title, $message, $link, 'notes');
 
         return true;
     } catch (Exception $e) {
@@ -170,16 +183,27 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
         $message = "A new assignment has been posted for {$unit['name']}: {$assignment_title}";
         $link = "student/dashboard.php?view=assignments";
 
-        // Create one notification entry (use assignment_id foreign key)
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
-        $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
-        $notif_stmt->execute();
-        $notif_stmt->close();
-
-        // Send email to each student
+        // Create individual notification for each student
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())");
+        
+        // Prepare recipients for bulk email
+        $recipients = [];
+        
         foreach ($students as $student) {
-            send_email_assignment_posted($student['email'], $student['name'], $unit['name'], $assignment_title, $deadline);
+            $notif_stmt->bind_param("isssi", $student['id'], $title, $message, $link, $assignment_id);
+            $notif_stmt->execute();
+            
+            // Add to recipients list for email
+            $recipients[] = [
+                'email' => $student['email'],
+                'name' => $student['name']
+            ];
         }
+        $notif_stmt->close();
+        
+        // Send bulk email notifications
+        $email_subject = "✏️ New Assignment Posted: {$assignment_title}";
+        send_bulk_notification_emails($recipients, $email_subject, $title, $message, $link, 'assignment');
 
         return true;
     } catch (Exception $e) {
@@ -207,9 +231,16 @@ function mark_notification_as_read($conn, $notification_id) {
 /**
  * Get unread notification count
  */
-function get_unread_notification_count($conn) {
+function get_unread_notification_count($conn, $user_id = null, $user_role = null) {
     try {
-        $stmt = $conn->prepare("SELECT COUNT(*) AS count FROM notifications WHERE is_read = 0");
+        // If user_id and user_role are provided, filter notifications for that user
+        if ($user_id && $user_role) {
+            $stmt = $conn->prepare("SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND user_role = ? AND is_read = 0");
+            $stmt->bind_param("is", $user_id, $user_role);
+        } else {
+            // Fallback to original behavior (should not be used in production)
+            $stmt = $conn->prepare("SELECT COUNT(*) AS count FROM notifications WHERE is_read = 0");
+        }
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -223,10 +254,17 @@ function get_unread_notification_count($conn) {
 /**
  * Get latest notifications
  */
-function get_latest_notifications($conn, $limit = 5) {
+function get_latest_notifications($conn, $limit = 5, $user_id = null, $user_role = null) {
     try {
-        $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications ORDER BY created_at DESC LIMIT ?");
-        $stmt->bind_param("i", $limit);
+        // If user_id and user_role are provided, filter notifications for that user
+        if ($user_id && $user_role) {
+            $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications WHERE user_id = ? AND user_role = ? ORDER BY created_at DESC LIMIT ?");
+            $stmt->bind_param("isi", $user_id, $user_role, $limit);
+        } else {
+            // Fallback to original behavior (should not be used in production)
+            $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications ORDER BY created_at DESC LIMIT ?");
+            $stmt->bind_param("i", $limit);
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         $notifications = [];
@@ -244,19 +282,29 @@ function get_latest_notifications($conn, $limit = 5) {
 /**
  * Get all notifications with pagination
  */
-function get_all_notifications($conn, $page = 1, $per_page = 20) {
+function get_all_notifications($conn, $page = 1, $per_page = 20, $user_id = null, $user_role = null) {
     try {
         $offset = ($page - 1) * $per_page;
 
         // Get total count
-        $count_stmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications");
+        if ($user_id && $user_role) {
+            $count_stmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications WHERE user_id = ? AND user_role = ?");
+            $count_stmt->bind_param("is", $user_id, $user_role);
+        } else {
+            $count_stmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications");
+        }
         $count_stmt->execute();
         $total = $count_stmt->get_result()->fetch_assoc()['total'];
         $count_stmt->close();
 
         // Get notifications
-        $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications ORDER BY created_at DESC LIMIT ? OFFSET ?");
-        $stmt->bind_param("ii", $per_page, $offset);
+        if ($user_id && $user_role) {
+            $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications WHERE user_id = ? AND user_role = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
+            $stmt->bind_param("isii", $user_id, $user_role, $per_page, $offset);
+        } else {
+            $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications ORDER BY created_at DESC LIMIT ? OFFSET ?");
+            $stmt->bind_param("ii", $per_page, $offset);
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         $notifications = [];
@@ -274,7 +322,13 @@ function get_all_notifications($conn, $page = 1, $per_page = 20) {
         ];
     } catch (Exception $e) {
         error_log("Error getting all notifications: " . $e->getMessage());
-        return ['notifications' => [], 'total' => 0, 'page' => 1, 'per_page' => 20, 'total_pages' => 0];
+        return [
+            'notifications' => [],
+            'total' => 0,
+            'page' => $page,
+            'per_page' => $per_page,
+            'total_pages' => 0
+        ];
     }
 }
 

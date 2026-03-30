@@ -203,7 +203,7 @@ body {
     .sidebar-section ul {
         padding-bottom: 20px; /* small breathing room at bottom */
     }
-}
+    
     .navbar {
         padding: 0 20px;
         gap: 14px;
@@ -221,6 +221,85 @@ body {
         overflow: hidden;
         text-overflow: ellipsis;
     }
+}
+
+/* Additional mobile responsive fixes */
+@media (max-width: 768px) {
+    .main-content {
+        margin-left: 0;
+        margin-top: 70px;
+        padding: 20px 16px;
+    }
+    
+    .dashboard-card {
+        padding: 16px;
+        border-radius: 8px;
+    }
+    
+    .modal-content {
+        width: 95%;
+        max-height: 90vh;
+    }
+    
+    .modal-header {
+        padding: 16px 20px;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .card-navbar ul {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .card-navbar li {
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .navbar {
+        padding: 0 15px;
+    }
+    
+    .nav-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+    
+    .welcome-msg {
+        font-size: 14px;
+        max-width: 50%;
+    }
+    
+    .main-content {
+        padding: 16px 12px;
+    }
+    
+    .dashboard-card {
+        padding: 12px;
+    }
+    
+    .modal-content {
+        width: 98%;
+        margin: 0 10px;
+    }
+    
+    .unit-tile {
+        min-width: 140px;
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+    
+    th, td {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+}
 
 /* ────────────────────────────────────────────────
    MAIN CONTENT AREA

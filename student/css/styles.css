@@ -634,6 +634,7 @@ body {
     
     .navbar {
         padding: 0 15px;
+        height: 60px;
     }
     
     .nav-icon {
@@ -642,9 +643,13 @@ body {
         font-size: 18px;
     }
     
+    .welcome-msg {
+        font-size: 16px;
+    }
+    
     .popup, #notifications-content {
         position: fixed;
-        top: 70px;
+        top: 60px;
         right: 5%;
         width: 90vw;
         max-width: 350px;
@@ -653,7 +658,7 @@ body {
     }
     
     .hero-section {
-        margin: 90px 10px 30px;
+        margin: 80px 10px 30px;
         width: calc(100% - 20px);
         height: 40vh;
         flex-direction: column !important;
@@ -667,41 +672,74 @@ body {
     }
     
     .hero-avatar {
-        width: 80px;
-        height: 80px;
-        position: relative;
-        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        font-size: 48px;
+        margin-bottom: 20px;
     }
     
     .features-section {
+        margin: 20px 10px;
+        padding: 30px 20px;
+    }
+    
+    .features-grid {
         grid-template-columns: 1fr;
-        margin: 30px 10px;
         gap: 20px;
     }
     
     .feature-card {
         padding: 20px;
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .feature-avatar {
+        width: 60px;
+        height: 60px;
+        font-size: 28px;
+        margin-bottom: 15px;
     }
     
     .footer {
-        margin: 30px 10px 0;
-        padding: 30px 15px;
+        margin: 40px 10px 20px;
+        padding: 30px 20px;
     }
     
-    .footer-container {
+    .footer-content {
         grid-template-columns: 1fr;
         gap: 30px;
         text-align: center;
     }
     
+    .footer-column h3 {
+        font-size: 18px;
+        margin-bottom: 15px;
+    }
+    
+    .footer-column ul {
+        gap: 10px;
+    }
+    
+    .footer-column li {
+        font-size: 14px;
+    }
+    
     .social-links {
-        flex-direction: column !important; align-items: center;
+        justify-content: center;
+        gap: 15px;
+    }
+    
+    .social {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
     }
 }
 
 @media (max-width: 480px) {
     .welcome-msg {
-        font-size: 16px;
+        font-size: 14px;
     }
     
     .hero-content h2 {
@@ -720,6 +758,31 @@ body {
         width: 40px;
         height: 40px;
         font-size: 20px;
+    }
+    
+    .navbar {
+        height: 55px;
+    }
+    
+    .nav-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 16px;
+    }
+    
+    .hero-section {
+        margin: 75px 8px 25px;
+        padding: 15px;
+    }
+    
+    .features-section {
+        margin: 15px 8px;
+        padding: 20px 15px;
+    }
+    
+    .footer {
+        margin: 30px 8px 15px;
+        padding: 20px 15px;
     }
 }
 

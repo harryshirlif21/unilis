@@ -36,11 +36,11 @@ try {
     exit;
 }
 
-// Get latest 5 notifications
-$latest_notifications = get_latest_notifications($conn, 5);
+// Get latest 5 notifications for current student
+$latest_notifications = get_latest_notifications($conn, 5, $student_id, 'student');
 
-// Get unread count
-$unread_count = get_unread_notification_count($conn);
+// Get unread count for current student
+$unread_count = get_unread_notification_count($conn, $student_id, 'student');
 
 // Handle AJAX mark as read
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_notification_read') {
@@ -397,7 +397,7 @@ function logout() {
     <div class="footer-column footer-contact">
       <h3>Get in Touch</h3>
       <p><strong>WhatsApp:</strong> <a href="https://wa.me/254792451666">+254 792 451 666</a></p>
-      <p><strong>Email:</strong> <a href="mailto:hello@yourcompany.com">hello@yourcompany.com</a></p>
+      <p><strong>Email:</strong> <a href="mailto:mwendihillary@gmail.com">mwendihillary@gmail.com</a></p>
       <div class="social-links">
         <a href="https://wa.me/254792451666" class="social whatsapp" target="_blank" aria-label="WhatsApp"><span>WhatsApp</span></a>
         <a href="https://facebook.com/yourpage" class="social facebook" target="_blank" aria-label="Facebook"><span>Facebook</span></a>
@@ -492,7 +492,7 @@ function logout() {
 
   <!-- Bottom Bar -->
   <div class="footer-bottom">
-    <p>&copy; 2026 Your Company Name. All rights reserved.</p>
+    <p>&copy; 2026 UNILIS. All rights reserved.</p>
     <div class="legal-links">
       <a href="#">Privacy Policy</a>
       <a href="#">Terms of Service</a>

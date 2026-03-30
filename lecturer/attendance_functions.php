@@ -98,14 +98,14 @@ function createAttendanceSession($conn, $unit_id, $lecturer_id, $duration_minute
         $base_url = "https://unilis.jhubafrica.com";
         $auto_link = "$base_url/student/student_auto_mark.php?code=$code&student_id=$student_id";
 
-        // Insert notifications
+        // Insert notifications for each student
         $title = "Attendance: $unit_name";
         $message = "Code: <strong style='color:#f59e0b;font-size:1.5em;'>$code</strong><br>Valid until " . date('h:i A', strtotime($deadline));
         $notif_stmt = $conn->prepare("
-            INSERT INTO notifications (title, message, link, attendance_session_id, created_at) 
-            VALUES (?, ?, ?, ?, NOW())
+            INSERT INTO notifications (user_id, user_role, title, message, link, attendance_session_id, created_at) 
+            VALUES (?, 'student', ?, ?, ?, ?, NOW())
         ");
-        $notif_stmt->bind_param("sssi", $title, $message, $auto_link, $session_id);
+        $notif_stmt->bind_param("isssi", $student_id, $title, $message, $auto_link, $session_id);
         $notif_stmt->execute();
         $notif_stmt->close();
 

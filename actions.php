@@ -532,6 +532,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'assig
     exit;
 }
 
+// === EDIT UNIT ===
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_unit') {
+    $unit_id = intval($_POST['unit_id'] ?? 0);
+    $unit_name = trim($_POST['unit_name'] ?? '');
+    $unit_code = trim($_POST['unit_code'] ?? '');
+    $year = intval($_POST['year'] ?? 0);
+    $semester = intval($_POST['semester'] ?? 0);
+
+    if (!$unit_id || !$unit_name || !$unit_code || !$year || !$semester) {
+        echo json_encode(['status' => 'error', 'message' => 'Missing required fields']);
+        exit;
+    }
+
+    // Check if unit exists
+    $check = $conn->prepare("SELECT id FROM units WHERE id = ?");
+    $check->bind_param("i", $unit_id);
+    $check->execute();
+    $check->store_result();
+
+    if ($check->num_rows === 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Unit not found']);
+        $check->close();
+        exit;
+    }
+    $check->close();
+
+    // Check for duplicate code (excluding current unit)
+    $duplicate_check = $conn->prepare("SELECT id FROM units WHERE code = ? AND course_id = (SELECT course_id FROM units WHERE id = ?) AND year = ? AND semester = ? AND id != ?");
+    $duplicate_check->bind_param("siiii", $unit_code, $unit_id, $year, $semester, $unit_id);
+    $duplicate_check->execute();
+    $duplicate_check->store_result();
+
+    if ($duplicate_check->num_rows > 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Unit with this code already exists in the same year/semester']);
+        $duplicate_check->close();
+        exit;
+    }
+    $duplicate_check->close();
+
+    // Update unit
+    $update = $conn->prepare("UPDATE units SET name = ?, code = ?, year = ?, semester = ? WHERE id = ?");
+    $update->bind_param("ssiii", $unit_name, $unit_code, $year, $semester, $unit_id);
+    
+    if ($update->execute()) {
+        echo json_encode(['status' => 'success', 'message' => 'Unit updated successfully']);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'Failed to update unit: ' . $update->error]);
+    }
+
+    $update->close();
+    exit;
+}
+
 // === ADD MULTIPLE UNITS ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_multiple_units') {
     $course_id = intval($_POST['course_id'] ?? 0);
