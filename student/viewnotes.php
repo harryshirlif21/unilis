@@ -10,8 +10,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
 
 $student_id = (int) $_SESSION['user_id'];
 
-// Get student course/year
-$stmt = $conn->prepare("SELECT course_id, year_of_study FROM students WHERE id = ?");
+// Get student course/year and details
+$stmt = $conn->prepare("SELECT s.course_id, s.year_of_study, s.name, s.email, s.reg_no, s.year_joined, c.name as course_name FROM students s JOIN courses c ON s.course_id = c.id WHERE s.id = ?");
 $stmt->bind_param("i", $student_id);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
@@ -21,6 +21,11 @@ if (!$student) die("Student record not found.");
 
 $course_id = $student['course_id'];
 $year_of_study = $student['year_of_study'];
+$course_name = $student['course_name'];
+
+// Get latest notifications
+require_once '../includes/notifications.php';
+$latest_notifications = get_latest_notifications($conn, 5);
 
 // Fetch units that have notes
 $units_stmt = $conn->prepare("
@@ -364,16 +369,16 @@ $units_result = $units_stmt->get_result();
     <div id="notifications-content" class="popup">
         <h3>Latest Notifications</h3>
         <ul>
-            <?php if($latest_notifications->num_rows === 0): ?>
+            <?php if(empty($latest_notifications)): ?>
                 <li>No notifications</li>
             <?php else: ?>
-                <?php while($notif = $latest_notifications->fetch_assoc()): ?>
+                <?php foreach($latest_notifications as $notif): ?>
                     <li>
                         <strong><?= htmlspecialchars($notif['title']) ?></strong>
                         <p><?= htmlspecialchars($notif['message']) ?></p>
                         <small><?= date('d M Y, h:i A', strtotime($notif['created_at'])) ?></small>
                     </li>
-                <?php endwhile; ?>
+                <?php endforeach; ?>
             <?php endif; ?>
         </ul>
         <div style="margin-top: 15px; text-align: center;">

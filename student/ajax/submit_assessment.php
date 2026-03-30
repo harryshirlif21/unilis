@@ -34,17 +34,22 @@ try {
         echo json_encode(['success' => false, 'message' => 'Assessment not found']); exit;
     }
 
-    // ── Prevent duplicate submission ──────────────────────
-    $stmt = $conn->prepare("SELECT id FROM assessment_submissions WHERE assessment_id = ? AND student_id = ? LIMIT 1");
+    // ── Prevent duplicate submission using atomic transaction ──
+    $conn->begin_transaction();
+    
+    // Lock the assessment_submissions table to prevent race conditions
+    $stmt = $conn->prepare("SELECT id FROM assessment_submissions WHERE assessment_id = ? AND student_id = ? FOR UPDATE");
     $stmt->bind_param("ii", $assessment_id, $student_id);
     $stmt->execute();
     $dup = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+    
     if ($dup) {
+        $conn->rollback();
         echo json_encode(['success' => false, 'message' => 'Already submitted']); exit;
     }
 
-    // ── Fetch questions ordered by position ───────────────
+        // ── Fetch questions ordered by position ───────────────
     $stmt = $conn->prepare("SELECT id, question_type, marks, auto_grade FROM assessment_questions WHERE assessment_id = ? ORDER BY position ASC, id ASC");
     $stmt->bind_param("i", $assessment_id);
     $stmt->execute();
@@ -146,9 +151,6 @@ try {
 
     $violations_json = !empty($violations) ? json_encode($violations) : null;
     $status          = (!empty($violations) && count($violations) >= 5) ? 'flagged' : 'submitted';
-
-    // ── Begin transaction ──────────────────────────────────
-    $conn->begin_transaction();
 
     // Insert submission
     $stmt = $conn->prepare("

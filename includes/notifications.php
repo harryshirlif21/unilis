@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/email.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -84,7 +85,7 @@ function notify_lecturer_assignment_submitted($conn, $lecturer_id, $student_name
 /**
  * Send notifications and emails to all students in a course when notes are uploaded
  */
-function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_title) {
+function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_title, $notes_id) {
     try {
         // Get unit and course info
         $stmt = $conn->prepare("
@@ -280,17 +281,8 @@ function get_all_notifications($conn, $page = 1, $per_page = 20) {
 // ========================= EMAIL FUNCTIONS =========================
 
 function send_email_student_submitted($email, $student_name, $assignment_title, $unit_name) {
-    $mail = new PHPMailer(true);
     try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail = getConfiguredMailer();
         $mail->addAddress($email);
 
         $mail->isHTML(true);
@@ -330,17 +322,8 @@ function send_email_student_submitted($email, $student_name, $assignment_title, 
 }
 
 function send_email_lecturer_submission($email, $student_name, $assignment_title) {
-    $mail = new PHPMailer(true);
     try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail = getConfiguredMailer();
         $mail->addAddress($email);
 
         $mail->isHTML(true);
@@ -379,17 +362,8 @@ function send_email_lecturer_submission($email, $student_name, $assignment_title
 }
 
 function send_email_notes_uploaded($email, $student_name, $unit_name, $notes_title) {
-    $mail = new PHPMailer(true);
     try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail = getConfiguredMailer();
         $mail->addAddress($email);
 
         $mail->isHTML(true);
@@ -428,17 +402,8 @@ function send_email_notes_uploaded($email, $student_name, $unit_name, $notes_tit
 }
 
 function send_email_assignment_posted($email, $student_name, $unit_name, $assignment_title, $deadline) {
-    $mail = new PHPMailer(true);
     try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
+        $mail = getConfiguredMailer();
         $mail->addAddress($email);
 
         $mail->isHTML(true);

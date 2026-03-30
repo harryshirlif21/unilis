@@ -1,18 +1,42 @@
 <?php
 session_start();
 require_once '../../config/db.php';
+require_once '../../includes/validation.php';
 header('Content-Type: application/json');
+
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     echo json_encode(['success'=>false,'message'=>'Unauthorised']); exit;
 }
+
 $lecturer_id   = intval($_SESSION['user_id']);
-$submission_id = intval($_POST['submission_id'] ?? 0);
-$question_id   = intval($_POST['question_id']   ?? 0);
-$marks_awarded = $_POST['marks_awarded'] ?? '';
-if (!$submission_id || !$question_id || $marks_awarded === '') {
-    echo json_encode(['success'=>false,'message'=>'Missing fields']); exit;
+
+// Validate and sanitize inputs
+$validation_rules = [
+    'submission_id' => ['type' => 'int', 'min' => 1],
+    'question_id' => ['type' => 'int', 'min' => 1],
+    'marks_awarded' => ['type' => 'string', 'max_length' => 10]
+];
+
+$sanitized = sanitize_array($_POST, $validation_rules);
+
+if (!$sanitized || !isset($sanitized['submission_id']) || !isset($sanitized['question_id']) || !isset($sanitized['marks_awarded'])) {
+    echo json_encode(['success'=>false,'message'=>'Invalid or missing fields']); exit;
 }
-$marks_awarded = floatval($marks_awarded);
+
+$submission_id = $sanitized['submission_id'];
+$question_id   = $sanitized['question_id'];
+$marks_awarded_input = $sanitized['marks_awarded'];
+
+// Validate marks awarded is a valid number
+if (!is_numeric($marks_awarded_input)) {
+    echo json_encode(['success'=>false,'message'=>'Invalid marks value']); exit;
+}
+
+$marks_awarded = floatval($marks_awarded_input);
+if ($marks_awarded < 0) {
+    echo json_encode(['success'=>false,'message'=>'Marks cannot be negative']); exit;
+}
+
 try {
     $stmt = $conn->prepare("SELECT aq.marks FROM assessment_submissions asub JOIN assessments a ON a.id=asub.assessment_id JOIN assessment_questions aq ON aq.id=? AND aq.assessment_id=a.id WHERE asub.id=? AND a.lecturer_id=? LIMIT 1");
     if (!$stmt) { echo json_encode(['success'=>false,'message'=>'Prepare failed: '.$conn->error]); exit; }
