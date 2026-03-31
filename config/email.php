@@ -31,7 +31,7 @@ function getConfiguredMailer() {
         $mail->SMTPAuth   = true;
         $mail->Username   = EMAIL_USERNAME;
         $mail->Password   = EMAIL_PASSWORD;
-        $mail->SMTPSecure = EMAIL_ENCRYPTION === 'ssl' ? SMTP::ENCRYPTION_SMTPS : SMTP::ENCRYPTION_STARTTLS;
+        $mail->SMTPSecure = EMAIL_ENCRYPTION === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = EMAIL_PORT;
         $mail->setFrom(EMAIL_USERNAME, 'UNILIS');
         
