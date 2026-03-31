@@ -4,6 +4,9 @@
  * Move email credentials to environment variables for security
  */
 
+// Load Composer autoloader
+require_once __DIR__ . '/../vendor/autoload.php';
+
 // Email configuration - use environment variables
 define('EMAIL_HOST', getenv('EMAIL_HOST') ?: 'smtp.gmail.com');
 define('EMAIL_PORT', getenv('EMAIL_PORT') ?: 587);
