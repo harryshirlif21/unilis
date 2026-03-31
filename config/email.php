@@ -33,6 +33,20 @@ function getConfiguredMailer() {
         $mail->Password   = EMAIL_PASSWORD;
         $mail->SMTPSecure = EMAIL_ENCRYPTION === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = EMAIL_PORT;
+
+        // Optional SMTP debug output for debugging environments
+        $mail->SMTPDebug  = 0; // Set to 2 for detailed debug output in development
+        $mail->Debugoutput = 'error_log';
+
+        // Workaround for local self-signed cert / restrictive environments
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+            ],
+        ];
+
         $mail->setFrom(EMAIL_USERNAME, 'UNILIS');
         
         return $mail;

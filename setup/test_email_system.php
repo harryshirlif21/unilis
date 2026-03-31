@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (isset($_POST['test_basic'])) {
             echo "<h3>Testing Basic Email...</h3>";
+            $error_msg = '';
             $success = send_notification_email(
                 $test_email,
                 'Test User',
@@ -54,16 +55,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'System Test',
                 'This is a test email to verify the email system is working correctly.',
                 'https://unilis.jhubafrica.com',
-                'general'
+                'general',
+                $error_msg
             );
             
             if ($success) {
                 echo "<div class='success'>✅ Basic email sent successfully to $test_email</div>";
             } else {
                 echo "<div class='error'>❌ Failed to send basic email to $test_email</div>";
+                echo "<div class='error'>Error: " . htmlspecialchars($error_msg) . "</div>";
             }
         }
-        
+
         if (isset($_POST['test_deadline'])) {
             echo "<h3>Testing Deadline Reminder...</h3>";
             $future_deadline = date('Y-m-d H:i:s', strtotime('+2 hours'));
@@ -86,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (isset($_POST['test_notification'])) {
             echo "<h3>Testing Notification Email...</h3>";
+            $error_msg = '';
             $success = send_notification_email(
                 $test_email,
                 'Test Student',
@@ -93,13 +97,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'System Test Notification',
                 'This is a test notification to verify the email template system is working correctly.',
                 'https://unilis.jhubafrica.com/student/dashboard.php',
-                'notes'
+                'notes',
+                $error_msg
             );
             
             if ($success) {
                 echo "<div class='success'>✅ Notification email sent successfully to $test_email</div>";
             } else {
                 echo "<div class='error'>❌ Failed to send notification email to $test_email</div>";
+                echo "<div class='error'>Error: " . htmlspecialchars($error_msg) . "</div>";
             }
         }
         

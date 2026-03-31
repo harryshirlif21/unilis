@@ -21,7 +21,7 @@ use PHPMailer\PHPMailer\Exception;
  * @param string $type Type of notification (notes, assignment, attendance, etc.)
  * @return bool Success status
  */
-function send_notification_email($email, $user_name, $subject, $title, $message, $link = '', $type = 'general') {
+function send_notification_email($email, $user_name, $subject, $title, $message, $link = '', $type = 'general', &$errorMessage = null) {
     try {
         $mail = getConfiguredMailer();
         $mail->addAddress($email);
@@ -37,7 +37,8 @@ function send_notification_email($email, $user_name, $subject, $title, $message,
         error_log("Notification email sent successfully to: $email");
         return true;
     } catch (Exception $e) {
-        error_log("Notification email failed to: $email - " . $e->getMessage());
+        $errorMessage = $e->getMessage();
+        error_log("Notification email failed to: $email - " . $errorMessage);
         return false;
     }
 }

@@ -56,6 +56,7 @@ require_once __DIR__ . '/../includes/email_system.php';
                 echo "<h3>Testing email to: $test_email</h3>";
                 
                 try {
+                    $error_msg = '';
                     $success = send_notification_email(
                         $test_email,
                         'Test User',
@@ -63,13 +64,14 @@ require_once __DIR__ . '/../includes/email_system.php';
                         'Test Notification',
                         'This is a test email to verify the email system is working correctly.',
                         'https://unilis.jhubafrica.com',
-                        'general'
+                        'general',
+                        $error_msg
                     );
                     
                     if ($success) {
                         echo "<div class='success'>✅ Email sent successfully! Check your inbox.</div>";
                     } else {
-                        echo "<div class='error'>❌ Failed to send email. Check error logs.</div>";
+                        echo "<div class='error'>❌ Failed to send email. Error: " . htmlspecialchars($error_msg) . "</div>";
                     }
                 } catch (Exception $e) {
                     echo "<div class='error'>❌ Exception: " . $e->getMessage() . "</div>";
@@ -101,6 +103,7 @@ require_once __DIR__ . '/../includes/email_system.php';
                 echo "<h3>Testing notification email template to: $test_email</h3>";
                 
                 try {
+                    $error_msg = '';
                     $success = send_notification_email(
                         $test_email,
                         'Test Student',
@@ -108,13 +111,14 @@ require_once __DIR__ . '/../includes/email_system.php';
                         'Test Notification Message',
                         'This is a test notification to verify the email template system is working correctly.',
                         'https://unilis.jhubafrica.com/student/dashboard.php?view=notes',
-                        'notes'
+                        'notes',
+                        $error_msg
                     );
                     
                     if ($success) {
                         echo "<div class='success'>✅ Notification email sent successfully! Check your inbox.</div>";
                     } else {
-                        echo "<div class='error'>❌ Failed to send notification email. Check error logs.</div>";
+                        echo "<div class='error'>❌ Failed to send notification email. Error: " . htmlspecialchars($error_msg) . "</div>";
                     }
                 } catch (Exception $e) {
                     echo "<div class='error'>❌ Exception: " . $e->getMessage() . "</div>";
