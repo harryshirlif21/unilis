@@ -75,6 +75,149 @@ $courseDefs = [
     'B.Sc. Business Computing'              => 4,
 ];
 
+function normalizeSearchName(string $name): string {
+    $clean = preg_replace('/[^a-z0-9 ]+/i', ' ', $name);
+    $clean = preg_replace('/\s+/', ' ', trim($clean));
+    return '%' . strtolower($clean) . '%';
+}
+
+function fetchCourseById(mysqli $conn, int $courseId): ?array {
+    $stmt = $conn->prepare('SELECT id, name, department_id FROM courses WHERE id = ? LIMIT 1');
+    $stmt->bind_param('i', $courseId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $course = $result->fetch_assoc() ?: null;
+    $stmt->close();
+    return $course;
+}
+
+function findDuplicateCourses(mysqli $conn, string $searchTerm, int $departmentId, int $excludeId): array {
+    $like = normalizeSearchName($searchTerm);
+    $stmt = $conn->prepare(
+        'SELECT c.id, c.name, (SELECT COUNT(*) FROM units u WHERE u.course_id = c.id) AS units_count
+         FROM courses c
+         WHERE c.department_id = ? AND LOWER(c.name) LIKE ? AND c.id != ?
+         ORDER BY units_count DESC, c.id ASC'
+    );
+    $stmt->bind_param('isi', $departmentId, $like, $excludeId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $courses = [];
+    while ($row = $result->fetch_assoc()) {
+        $courses[] = $row;
+    }
+    $stmt->close();
+    return $courses;
+}
+
+function reassignUnits(mysqli $conn, int $targetCourseId, array $sourceCourseIds): int {
+    if (empty($sourceCourseIds)) {
+        return 0;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($sourceCourseIds), '?'));
+    $types = str_repeat('i', count($sourceCourseIds) + 1);
+    $sql = "UPDATE units SET course_id = ? WHERE course_id IN ($placeholders)";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Prepare failed: ' . $conn->error);
+    }
+
+    $params = array_merge([$targetCourseId], $sourceCourseIds);
+    $bindNames = [];
+    $bindNames[] = &$types;
+    foreach ($params as $key => $value) {
+        $bindNames[] = &$params[$key];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $bindNames);
+    $stmt->execute();
+    $moved = $stmt->affected_rows;
+    $stmt->close();
+    return $moved;
+}
+
+function cleanupEmptyDuplicateCourses(mysqli $conn, array $courseIds): array {
+    if (empty($courseIds)) {
+        return ['deleted' => 0, 'kept' => 0];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($courseIds), '?'));
+    $types = str_repeat('i', count($courseIds));
+    $sql = "DELETE FROM courses WHERE id IN ($placeholders)
+            AND NOT EXISTS (SELECT 1 FROM units u WHERE u.course_id = courses.id)
+            AND NOT EXISTS (SELECT 1 FROM students s WHERE s.course_id = courses.id)";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Prepare failed: ' . $conn->error);
+    }
+
+    $bindNames = [];
+    $bindNames[] = &$types;
+    foreach ($courseIds as $key => $value) {
+        $bindNames[] = &$courseIds[$key];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $bindNames);
+    $stmt->execute();
+    $deleted = $stmt->affected_rows;
+    $stmt->close();
+    return ['deleted' => $deleted, 'kept' => count($courseIds) - $deleted];
+}
+
+$requestedAction = $_REQUEST['action'] ?? null;
+if ($requestedAction === 'reassign_units') {
+    $targetCourseId = intval($_REQUEST['target_course_id'] ?? 0);
+    $searchTerm = trim((string)($_REQUEST['search_term'] ?? ''));
+
+    if ($targetCourseId <= 0) {
+        exit('Error: target_course_id is required.');
+    }
+
+    $targetCourse = fetchCourseById($conn, $targetCourseId);
+    if (!$targetCourse) {
+        exit('Error: target course not found.');
+    }
+
+    if ($searchTerm === '') {
+        $searchTerm = $targetCourse['name'];
+    }
+
+    $duplicates = findDuplicateCourses($conn, $searchTerm, (int)$targetCourse['department_id'], $targetCourseId);
+    if (empty($duplicates)) {
+        exit('No duplicate courses found matching "' . htmlspecialchars($searchTerm) . '" excluding target course.');
+    }
+
+    $duplicateIds = array_column($duplicates, 'id');
+    $coursesAffected = array_map(fn($row) => sprintf('[id=%d] %s (%d units)', $row['id'], $row['name'], $row['units_count']), $duplicates);
+
+    $conn->begin_transaction();
+    try {
+        $movedCount = reassignUnits($conn, $targetCourseId, $duplicateIds);
+        $cleanup = cleanupEmptyDuplicateCourses($conn, $duplicateIds);
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        exit('Transaction failed: ' . $e->getMessage());
+    }
+
+    $output = "Reassign Units Report:\n";
+    $output .= "Target course: {$targetCourse['name']} (id={$targetCourseId})\n";
+    $output .= "Search term: {$searchTerm}\n";
+    $output .= "Duplicate courses affected:\n" . implode("\n", $coursesAffected) . "\n";
+    $output .= "Units moved: {$movedCount}\n";
+    $output .= "Duplicate courses deleted: {$cleanup['deleted']}\n";
+    $output .= "Duplicate courses kept (non-empty / student-linked): {$cleanup['kept']}\n";
+    $output .= "\nMigration complete.\n";
+
+    if (php_sapi_name() !== 'cli') {
+        echo '<pre>' . htmlspecialchars($output) . '</pre>';
+    } else {
+        echo $output;
+    }
+    exit;
+}
+
 // ─── Curriculum data ─────────────────────────────────────────────────────────
 // [ course_name => [ [code, name, year, semester], ... ] ]
 
