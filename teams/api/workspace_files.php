@@ -26,16 +26,19 @@ try {
 
     $sql = "
         SELECT 
-            id,
+            tf.id,
             team_id,
             original_name AS file_name,
             filepath      AS file_path,
             version,
             uploader_id   AS uploaded_by,
-            uploaded_at
-        FROM team_files
+            tf.mime_type,
+            tf.uploaded_at,
+            s.name AS uploader_name
+        FROM team_files tf
+        LEFT JOIN students s ON s.id = tf.uploader_id
         WHERE team_id = ?
-        ORDER BY uploaded_at DESC, id DESC
+        ORDER BY tf.uploaded_at DESC, tf.id DESC
         LIMIT 50
     ";
 

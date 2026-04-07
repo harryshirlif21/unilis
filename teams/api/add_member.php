@@ -69,6 +69,7 @@ debugLog("CSRF validation passed.");
 require_once __DIR__ . '/../../config/db.php'; // $conn is mysqli
 require_once __DIR__ . '/../controllers/MemberController.php';
 require_once __DIR__ . '/../models/ActivityLog.php';
+require_once __DIR__ . '/../../config/email.php';
 
 $controller = new MemberController($conn);
 $activityLog = new ActivityLog($conn);
@@ -87,7 +88,17 @@ try {
 
     $studentId = (int)$member['id']; // <-- FIX: use 'id', not 'student_id'
 
-    // 2. Check if already in team
+    // 2. Only team leader can invite members
+    $stmt = $conn->prepare("SELECT role FROM team_members WHERE team_id = ? AND student_id = ? LIMIT 1");
+    $stmt->bind_param("ii", $teamId, $userId);
+    $stmt->execute();
+    $actorRoleRow = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$actorRoleRow || $actorRoleRow['role'] !== 'leader') {
+        throw new Exception("Only team leader can invite members");
+    }
+
+    // 3. Check if already in team
     $stmt = $conn->prepare("SELECT * FROM team_members WHERE team_id = ? AND student_id = ?");
     $stmt->bind_param("ii", $teamId, $studentId);
     $stmt->execute();
@@ -95,17 +106,81 @@ try {
         throw new Exception("Member already in team");
     }
 
-    // 3. Insert member
-    $role = 'member';
-    $stmt = $conn->prepare("INSERT INTO team_members (team_id, student_id, role, joined_at) VALUES (?, ?, ?, NOW())");
-    $stmt->bind_param("iis", $teamId, $studentId, $role);
+    // 4. Ensure invitation helper table exists (code storage)
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS team_invitation_codes (
+            invitation_id INT NOT NULL PRIMARY KEY,
+            code_hash VARCHAR(255) NOT NULL,
+            code_expires_at DATETIME NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_tic_invitation FOREIGN KEY (invitation_id) REFERENCES team_invitations(id) ON DELETE CASCADE
+        )
+    ");
+
+    // 5. Create or reuse pending invitation
+    $stmt = $conn->prepare("SELECT id, status FROM team_invitations WHERE team_id = ? AND invited_student_id = ? LIMIT 1");
+    $stmt->bind_param("ii", $teamId, $studentId);
     $stmt->execute();
+    $existingInvite = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
 
-    debugLog("Member added successfully: $studentId to team $teamId");
+    if ($existingInvite) {
+        $inviteId = (int)$existingInvite['id'];
+        $stmt = $conn->prepare("UPDATE team_invitations SET invited_by = ?, status = 'pending', invited_at = NOW() WHERE id = ?");
+        $stmt->bind_param("ii", $userId, $inviteId);
+        $stmt->execute();
+        $stmt->close();
+    } else {
+        $stmt = $conn->prepare("
+            INSERT INTO team_invitations (team_id, invited_student_id, invited_by, status, invited_at)
+            VALUES (?, ?, ?, 'pending', NOW())
+        ");
+        $stmt->bind_param("iii", $teamId, $studentId, $userId);
+        $stmt->execute();
+        $inviteId = (int)$stmt->insert_id;
+        $stmt->close();
+    }
 
-    // 4. Log activity (best-effort; failure should not break main flow)
+    // 6. Generate confirmation code and store hash
+    $plainCode = (string)random_int(100000, 999999);
+    $codeHash = password_hash($plainCode, PASSWORD_DEFAULT);
+    $stmt = $conn->prepare("
+        INSERT INTO team_invitation_codes (invitation_id, code_hash, code_expires_at, created_at)
+        VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), NOW())
+        ON DUPLICATE KEY UPDATE
+            code_hash = VALUES(code_hash),
+            code_expires_at = VALUES(code_expires_at),
+            created_at = NOW()
+    ");
+    $stmt->bind_param("is", $inviteId, $codeHash);
+    $stmt->execute();
+    $stmt->close();
+
+    // 7. Send invitation email (best effort)
+    try {
+        $mail = getConfiguredMailer();
+        $mail->addAddress($member['email'], $member['name'] ?? ('Student #' . $studentId));
+        $mail->isHTML(true);
+        $mail->Subject = "Team Invitation Confirmation Code";
+        $mail->Body = "
+            <p>Hello " . htmlspecialchars($member['name'] ?? 'Student') . ",</p>
+            <p>You have been invited to join team <strong>#{$teamId}</strong> on UniLIS.</p>
+            <p>Your confirmation code is:</p>
+            <p style='font-size:24px;font-weight:bold;letter-spacing:2px;'>" . htmlspecialchars($plainCode) . "</p>
+            <p>This code expires in 24 hours.</p>
+            <p>You can accept from your dashboard, or share this code with your team leader for manual confirmation.</p>
+        ";
+        $mail->AltBody = "You were invited to team #{$teamId}. Confirmation code: {$plainCode}. Expires in 24 hours.";
+        $mail->send();
+    } catch (Exception $mailEx) {
+        debugLog("Email send failed: " . $mailEx->getMessage());
+    }
+
+    debugLog("Invitation created: invite_id $inviteId for student $studentId team $teamId");
+
+    // 8. Log activity (best-effort; failure should not break main flow)
     $detail = sprintf(
-        'Added member %d (%s, %s) to team %d by user %d',
+        'Invitation sent to member %d (%s, %s) for team %d by leader %d',
         $studentId,
         $member['reg_no'] ?? '',
         $member['email'] ?? '',
@@ -115,12 +190,16 @@ try {
     $logged = $activityLog->log(
         (int)$teamId,
         (int)$userId,
-        'member_add',
+        'member_invite',
         $detail
     );
     debugLog('Activity log write: ' . ($logged ? 'ok' : 'failed'));
 
-    echo json_encode(['success' => true, 'message' => 'Member added successfully']);
+    echo json_encode([
+        'success' => true,
+        'message' => 'Invitation sent. Confirmation code has been emailed to the member.',
+        'invitation_id' => $inviteId
+    ]);
 
 } catch (Exception $e) {
     debugLog("Exception: " . $e->getMessage());

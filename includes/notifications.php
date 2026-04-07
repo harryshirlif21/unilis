@@ -12,6 +12,46 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 /**
+ * Detect whether notifications table supports per-user scoping columns.
+ * Some deployments still use the legacy notifications schema without
+ * user_id/user_role, so queries must gracefully fall back.
+ */
+function notifications_support_user_scope($conn) {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    try {
+        $hasUserId = false;
+        $hasUserRole = false;
+
+        $res = $conn->query("SHOW COLUMNS FROM notifications LIKE 'user_id'");
+        if ($res && $res->num_rows > 0) {
+            $hasUserId = true;
+        }
+        if ($res) {
+            $res->close();
+        }
+
+        $res = $conn->query("SHOW COLUMNS FROM notifications LIKE 'user_role'");
+        if ($res && $res->num_rows > 0) {
+            $hasUserRole = true;
+        }
+        if ($res) {
+            $res->close();
+        }
+
+        $cached = ($hasUserId && $hasUserRole);
+    } catch (Exception $e) {
+        error_log("notifications_support_user_scope check failed: " . $e->getMessage());
+        $cached = false;
+    }
+
+    return $cached;
+}
+
+/**
  * Send notification and email to specific student on assignment submission
  */
 function notify_student_assignment_submitted($conn, $student_id, $assignment_id, $student_name, $student_email) {
@@ -68,9 +108,14 @@ function notify_lecturer_assignment_submitted($conn, $lecturer_id, $student_name
         $message = "{$student_name} has submitted the assignment: {$assignment_title}";
         $link = "lecturer/review_assignments.php?assignment_id={$assignment_id}";
 
-        // Create notification record for specific lecturer
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'lecturer', ?, ?, ?, ?, 0, NOW())");
-        $notif_stmt->bind_param("isssi", $lecturer_id, $title, $message, $link, $assignment_id);
+        // Create notification record (scoped if columns exist, otherwise legacy global row)
+        if (notifications_support_user_scope($conn)) {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'lecturer', ?, ?, ?, ?, 0, NOW())");
+            $notif_stmt->bind_param("isssi", $lecturer_id, $title, $message, $link, $assignment_id);
+        } else {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+            $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+        }
         $notif_stmt->execute();
         $notif_stmt->close();
 
@@ -122,14 +167,22 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
         $message = "New notes have been uploaded for {$unit['name']}: {$notes_title}";
         $link = "student/dashboard.php?view=notes&unit_id={$unit_id}";
 
-        // Create individual notification for each student
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, notes_id, is_read, created_at) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())");
+        // Create individual notification rows (scoped if supported)
+        if (notifications_support_user_scope($conn)) {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, notes_id, is_read, created_at) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())");
+        } else {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+        }
         
         // Prepare recipients for bulk email
         $recipients = [];
         
         foreach ($students as $student) {
-            $notif_stmt->bind_param("isssi", $student['id'], $title, $message, $link, $notes_id);
+            if (notifications_support_user_scope($conn)) {
+                $notif_stmt->bind_param("isssi", $student['id'], $title, $message, $link, $notes_id);
+            } else {
+                $notif_stmt->bind_param("sssi", $title, $message, $link, $notes_id);
+            }
             $notif_stmt->execute();
             
             // Add to recipients list for email
@@ -189,14 +242,22 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
         $message = "A new assignment has been posted for {$unit['name']}: {$assignment_title}";
         $link = "student/dashboard.php?view=assignments";
 
-        // Create individual notification for each student
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())");
+        // Create individual notification rows (scoped if supported)
+        if (notifications_support_user_scope($conn)) {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())");
+        } else {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+        }
         
         // Prepare recipients for bulk email
         $recipients = [];
         
         foreach ($students as $student) {
-            $notif_stmt->bind_param("isssi", $student['id'], $title, $message, $link, $assignment_id);
+            if (notifications_support_user_scope($conn)) {
+                $notif_stmt->bind_param("isssi", $student['id'], $title, $message, $link, $assignment_id);
+            } else {
+                $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+            }
             $notif_stmt->execute();
             
             // Add to recipients list for email
@@ -239,8 +300,8 @@ function mark_notification_as_read($conn, $notification_id) {
  */
 function get_unread_notification_count($conn, $user_id = null, $user_role = null) {
     try {
-        // If user_id and user_role are provided, filter notifications for that user
-        if ($user_id && $user_role) {
+        // If user scope columns exist, filter by current user
+        if ($user_id && $user_role && notifications_support_user_scope($conn)) {
             $stmt = $conn->prepare("SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND user_role = ? AND is_read = 0");
             $stmt->bind_param("is", $user_id, $user_role);
         } else {
@@ -262,8 +323,8 @@ function get_unread_notification_count($conn, $user_id = null, $user_role = null
  */
 function get_latest_notifications($conn, $limit = 5, $user_id = null, $user_role = null) {
     try {
-        // If user_id and user_role are provided, filter notifications for that user
-        if ($user_id && $user_role) {
+        // If user scope columns exist, filter by current user
+        if ($user_id && $user_role && notifications_support_user_scope($conn)) {
             $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications WHERE user_id = ? AND user_role = ? ORDER BY created_at DESC LIMIT ?");
             $stmt->bind_param("isi", $user_id, $user_role, $limit);
         } else {
@@ -293,7 +354,7 @@ function get_all_notifications($conn, $page = 1, $per_page = 20, $user_id = null
         $offset = ($page - 1) * $per_page;
 
         // Get total count
-        if ($user_id && $user_role) {
+        if ($user_id && $user_role && notifications_support_user_scope($conn)) {
             $count_stmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications WHERE user_id = ? AND user_role = ?");
             $count_stmt->bind_param("is", $user_id, $user_role);
         } else {
@@ -304,7 +365,7 @@ function get_all_notifications($conn, $page = 1, $per_page = 20, $user_id = null
         $count_stmt->close();
 
         // Get notifications
-        if ($user_id && $user_role) {
+        if ($user_id && $user_role && notifications_support_user_scope($conn)) {
             $stmt = $conn->prepare("SELECT id, title, message, link, is_read, created_at FROM notifications WHERE user_id = ? AND user_role = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
             $stmt->bind_param("isii", $user_id, $user_role, $per_page, $offset);
         } else {

@@ -114,11 +114,23 @@ if (empty($_SESSION['csrf_token'])) {
 <div class="actions">
     <input type="text" id="identifier" placeholder="Enter reg number or email">
     <button id="addMemberBtn">Add Member</button>
+    <button id="resendCodeBtn" style="background:#fd7e14;">Resend Code</button>
     <button id="submitBtn">Submit Files</button>
+</div>
+<div class="actions">
+    <input type="text" id="confirmIdentifier" placeholder="Confirm member reg/email">
+    <input type="text" id="confirmCode" placeholder="Enter 6-digit code">
+    <button id="confirmMemberBtn" style="background:#6f42c1;">Confirm Member</button>
 </div>
 
 <h3>Members (<span id="size">0</span>/5)</h3>
 <div id="members-grid" class="members-grid"></div>
+
+<h3 style="margin-top:1.25rem;">Invitations</h3>
+<div style="margin-bottom:0.5rem;">
+    <button id="refreshInvitesBtn" style="background:#17a2b8;">Refresh Invitations</button>
+</div>
+<div id="invites-grid" class="members-grid"></div>
 
 <div id="message"></div>
 
@@ -211,10 +223,102 @@ async function loadTeam() {
             btn.addEventListener('click', () => removeMember(btn.dataset.sid));
         });
 
+        // Refresh invite list alongside members
+        loadInvitations();
+
     } catch (err) {
         header.innerHTML = '<p style="color:#dc3545">Error loading team</p>';
         showMessage("Error loading team: " + err.message);
         console.error("loadTeam error:", err);
+    }
+}
+
+// Load team invitations for leader
+async function loadInvitations() {
+    const grid = document.getElementById('invites-grid');
+    if (!grid) return;
+    grid.innerHTML = '<div class="loading">Loading invitations...</div>';
+
+    try {
+        const cleanupRes = await fetch('/teams/api/cleanup_expired_invitations.php', {
+            credentials: 'same-origin'
+        });
+        await cleanupRes.json().catch(() => null); // best effort
+
+        const res = await fetch(`/teams/api/get_team_invitations.php?team_id=${encodeURIComponent(teamId)}`, {
+            credentials: 'same-origin'
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`HTTP ${res.status}: ${text}`);
+        }
+        const data = await res.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load invitations');
+        }
+
+        const invites = data.invitations || [];
+        grid.innerHTML = '';
+
+        if (invites.length === 0) {
+            grid.innerHTML = '<div class="member-card">No invitations yet.</div>';
+            return;
+        }
+
+        invites.forEach(inv => {
+            const card = document.createElement('div');
+            card.className = 'member-card';
+
+            const status = inv.status || 'pending';
+            const invitedAt = inv.invited_at ? new Date(inv.invited_at).toLocaleString() : '—';
+            const expiresAt = inv.code_expires_at ? new Date(inv.code_expires_at).toLocaleString() : '—';
+            const respondedAt = inv.responded_at ? new Date(inv.responded_at).toLocaleString() : '—';
+
+            card.innerHTML = `
+                <strong>${inv.invited_name || 'Unknown'}</strong><br>
+                ${inv.invited_reg_no || inv.invited_email || '—'}<br>
+                <em>Status: ${status}</em><br>
+                <small>Invited: ${invitedAt}</small><br>
+                <small>Code expires: ${expiresAt}</small><br>
+                ${status !== 'pending' ? `<small>Responded: ${respondedAt}</small>` : ''}
+                ${status === 'pending' ? `
+                    <div style="margin-top:0.45rem;">
+                        <button class="resendInviteBtn" data-invite-id="${inv.id}" style="background:#fd7e14;">Resend</button>
+                    </div>
+                ` : ''}
+            `;
+            grid.appendChild(card);
+        });
+
+        document.querySelectorAll('.resendInviteBtn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const inviteId = btn.dataset.inviteId;
+                btn.disabled = true;
+                try {
+                    const res = await fetch('/teams/api/resend_invitation_code.php', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            team_id: teamId,
+                            invitation_id: inviteId,
+                            csrf_token: csrf
+                        })
+                    });
+                    const data = await res.json().catch(() => null);
+                    if (!res.ok || !data || !data.success) {
+                        throw new Error(data?.error || ('HTTP ' + res.status));
+                    }
+                    showMessage(data.message || 'Code resent', 'success');
+                    loadInvitations();
+                } catch (err) {
+                    btn.disabled = false;
+                    showMessage('Resend code error: ' + err.message);
+                }
+            });
+        });
+    } catch (err) {
+        grid.innerHTML = `<div class="member-card" style="color:#b91c1c;">Failed to load invitations: ${err.message}</div>`;
     }
 }
 
@@ -297,9 +401,67 @@ async function removeMember(studentId) {
 
 // Event listeners
 document.getElementById('addMemberBtn').addEventListener('click', addMember);
+document.getElementById('resendCodeBtn').addEventListener('click', async () => {
+    const identifier = document.getElementById('identifier').value.trim();
+    if (!identifier) {
+        showMessage('Enter reg number or email first');
+        return;
+    }
+    try {
+        const res = await fetch('/teams/api/resend_invitation_code.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                identifier,
+                csrf_token: csrf
+            })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) {
+            throw new Error(data?.error || ('HTTP ' + res.status));
+        }
+        showMessage(data.message || 'Code resent', 'success');
+    } catch (err) {
+        showMessage('Resend code error: ' + err.message);
+    }
+});
+document.getElementById('confirmMemberBtn').addEventListener('click', async () => {
+    const identifier = document.getElementById('confirmIdentifier').value.trim();
+    const code = document.getElementById('confirmCode').value.trim();
+    if (!identifier || !code) {
+        showMessage('Provide identifier and confirmation code');
+        return;
+    }
+    try {
+        const res = await fetch('/teams/api/confirm_member.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                identifier,
+                code,
+                csrf_token: csrf
+            })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) {
+            throw new Error(data?.error || ('HTTP ' + res.status));
+        }
+        showMessage(data.message || 'Member confirmed', 'success');
+        document.getElementById('confirmIdentifier').value = '';
+        document.getElementById('confirmCode').value = '';
+        loadTeam();
+    } catch (err) {
+        showMessage('Confirm member error: ' + err.message);
+    }
+});
 document.getElementById('submitBtn').addEventListener('click', () => {
     window.location.href = `submit.php?team_id=${teamId}`;
 });
+document.getElementById('refreshInvitesBtn').addEventListener('click', loadInvitations);
 
 // Load on page ready
 loadTeam();

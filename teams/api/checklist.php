@@ -47,9 +47,30 @@ try {
     }
     $stmt->close();
 
+    // Also include current sign-offs (optional helper for the UI)
+    $stmt = $conn->prepare("
+        SELECT ss.id, ss.team_id, ss.user_id, ss.signed_at, s.name AS user_name
+        FROM submission_signoffs ss
+        LEFT JOIN students s ON ss.user_id = s.id
+        WHERE ss.team_id = ?
+        ORDER BY ss.signed_at DESC
+    ");
+    if (!$stmt) {
+        throw new Exception('Failed to prepare signoffs query: ' . $conn->error);
+    }
+    $stmt->bind_param('i', $teamId);
+    $stmt->execute();
+    $signoffsRes = $stmt->get_result();
+    $signoffs = [];
+    while ($row = $signoffsRes->fetch_assoc()) {
+        $signoffs[] = $row;
+    }
+    $stmt->close();
+
     echo json_encode([
         'success'   => true,
-        'checklist' => $items
+        'checklist' => $items,
+        'signoffs'  => $signoffs
     ]);
 } catch (Exception $e) {
     http_response_code(500);

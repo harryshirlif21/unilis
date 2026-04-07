@@ -535,6 +535,33 @@ $stmt->close();
     </div>
 </div>
 
+<!-- Peer Evaluation Insights -->
+<div class="team-card" style="margin-top:0;">
+    <div class="team-header">
+        <div>
+            <strong>Peer Evaluation Insights</strong><br>
+            <small style="color:#666;">View team-level peer evaluation performance summary.</small>
+        </div>
+    </div>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
+        <div>
+            <label style="display:block;font-size:0.8rem;color:#555;margin-bottom:0.25rem;">Team</label>
+            <select id="peerEvalTeamSelect" style="padding:0.5rem;border:1px solid #d1d5db;border-radius:6px;min-width:260px;">
+                <option value="">-- Select Team --</option>
+                <?php foreach ($teams as $team): ?>
+                    <option value="<?= (int)$team['team_id']; ?>">
+                        <?= htmlspecialchars($team['team_title']); ?> (<?= htmlspecialchars($team['unit_name']); ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <button type="button" class="submit-btn" id="loadPeerEvalInsightsBtn" style="padding:0.6rem 1rem;">Load Insights</button>
+        <button type="button" class="global-export-btn export-all-excel" id="exportPeerCsvBtn" style="padding:0.6rem 1rem;">Export CSV</button>
+    </div>
+    <p id="peerEvalInsightsStatus" style="margin:0.75rem 0 0.5rem 0;color:#666;">Select a team to load peer evaluation summary.</p>
+    <div id="peerEvalInsightsBody"></div>
+</div>
+
 <?php if (empty($teams)): ?>
     <div class="empty">No teams found for your assigned units.</div>
 <?php else: ?>
@@ -673,6 +700,8 @@ $stmt->close();
                         <div id="menu-<?= $team['team_id']; ?>" class="ellipsis-content">
                             <a href="#" onclick="generatePDF(<?= $team['team_id']; ?>); return false;">📄 Export PDF</a>
                             <a href="#" onclick="generateExcel(<?= $team['team_id']; ?>); return false;">📊 Export Excel</a>
+                            <a href="../../teams/api/peer_evaluation_report.php?team_id=<?= $team['team_id']; ?>&format=json" target="_blank">🧾 Peer Eval (JSON)</a>
+                            <a href="../../teams/api/peer_evaluation_report.php?team_id=<?= $team['team_id']; ?>&format=csv" target="_blank">📥 Peer Eval (CSV)</a>
                         </div>
                     </div>
                 </div>
@@ -1270,6 +1299,99 @@ function generatePDF(teamId) {
 function generateExcel(teamId) {
     window.open('../../teams/api/export_excel.php?team_id=' + teamId, '_blank');
 }
+
+async function loadPeerEvalInsights(teamId) {
+    const statusEl = document.getElementById('peerEvalInsightsStatus');
+    const bodyEl = document.getElementById('peerEvalInsightsBody');
+    if (!statusEl || !bodyEl) return;
+
+    statusEl.textContent = 'Loading peer evaluation summary...';
+    bodyEl.innerHTML = '';
+
+    try {
+        const res = await fetch(`../../teams/api/peer_evaluation_report.php?team_id=${encodeURIComponent(teamId)}&format=json`, {
+            credentials: 'same-origin'
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) {
+            throw new Error(data?.error || ('HTTP ' + res.status));
+        }
+
+        const rows = data.summary || [];
+        if (rows.length === 0) {
+            statusEl.textContent = 'No peer evaluations yet for this team.';
+            return;
+        }
+        statusEl.textContent = '';
+
+        const sorted = [...rows].sort((a, b) => Number(b.avg_overall || 0) - Number(a.avg_overall || 0));
+        const top = sorted[0];
+        const low = sorted[sorted.length - 1];
+
+        let html = `
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                <div style="flex:1;min-width:220px;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:10px;">
+                    <div style="font-weight:700;color:#166534;">Top performer</div>
+                    <div>${top.evaluatee_name} — ${Number(top.avg_overall).toFixed(2)} / 5</div>
+                </div>
+                <div style="flex:1;min-width:220px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px;">
+                    <div style="font-weight:700;color:#9a3412;">Needs support</div>
+                    <div>${low.evaluatee_name} — ${Number(low.avg_overall).toFixed(2)} / 5</div>
+                </div>
+            </div>
+            <table class="marks-table">
+                <thead>
+                    <tr>
+                        <th>Member</th>
+                        <th>Responses</th>
+                        <th>Contribution</th>
+                        <th>Communication</th>
+                        <th>Quality</th>
+                        <th>Reliability</th>
+                        <th>Overall</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        rows.forEach(r => {
+            html += `
+                <tr>
+                    <td>${r.evaluatee_name}</td>
+                    <td>${r.responses}</td>
+                    <td>${r.avg_contribution}</td>
+                    <td>${r.avg_communication}</td>
+                    <td>${r.avg_quality}</td>
+                    <td>${r.avg_reliability}</td>
+                    <td><strong>${r.avg_overall}</strong></td>
+                </tr>
+            `;
+        });
+        html += '</tbody></table>';
+        bodyEl.innerHTML = html;
+    } catch (err) {
+        statusEl.textContent = 'Failed to load peer evaluation insights: ' + err.message;
+    }
+}
+
+document.getElementById('loadPeerEvalInsightsBtn')?.addEventListener('click', () => {
+    const teamId = document.getElementById('peerEvalTeamSelect')?.value;
+    if (!teamId) {
+        const statusEl = document.getElementById('peerEvalInsightsStatus');
+        if (statusEl) statusEl.textContent = 'Please select a team first.';
+        return;
+    }
+    loadPeerEvalInsights(teamId);
+});
+
+document.getElementById('exportPeerCsvBtn')?.addEventListener('click', () => {
+    const teamId = document.getElementById('peerEvalTeamSelect')?.value;
+    if (!teamId) {
+        const statusEl = document.getElementById('peerEvalInsightsStatus');
+        if (statusEl) statusEl.textContent = 'Please select a team first.';
+        return;
+    }
+    window.open(`../../teams/api/peer_evaluation_report.php?team_id=${encodeURIComponent(teamId)}&format=csv`, '_blank');
+});
 </script>
 
 <!-- File Viewer Overlay -->

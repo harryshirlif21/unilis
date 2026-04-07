@@ -30,6 +30,7 @@ try {
             team_id,
             title,
             description,
+            status AS original_status,
             -- Normalize status into simple buckets for the frontend Kanban
             CASE 
                 WHEN status = 'Backlog'      THEN 'todo'
@@ -40,6 +41,7 @@ try {
             END AS status,
             assigned_to AS assignee_id,
             due_date,
+            priority,
             created_at,
             updated_at
         FROM team_tasks

@@ -60,6 +60,22 @@ unset($_SESSION['verify_error']);
         .year-header h4 { margin:0; font-size:16px; }
         .unit-count { background:rgba(255,255,255,0.2); padding:4px 8px; border-radius:12px; font-size:12px; }
         .year-units { padding:12px; display:grid; gap:8px; }
+        .registration-stats-section { margin-top: 30px; padding: 22px; background: #fff; border: 1px solid #ececec; border-radius: 12px; }
+        .registration-stats-section h3 { margin-bottom: 18px; }
+        .registration-controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 18px; }
+        .registration-controls .select-group { display: flex; flex-direction: column; min-width: 220px; }
+        .registration-controls label { margin-bottom: 8px; font-weight: 600; color: #333; }
+        .registration-controls select, .registration-controls button { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; }
+        .registration-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 18px; }
+        .registration-card { background: #f8f9fa; border: 1px solid #e3e6ea; border-radius: 10px; padding: 16px; min-height: 108px; }
+        .registration-card h4 { margin: 0 0 10px; font-size: 14px; color: #555; }
+        .registration-card .count { font-size: 28px; font-weight: 700; color: #2c3e50; }
+        .registration-students-view { margin-top: 14px; }
+        .students-table-wrapper { overflow-x: auto; border: 1px solid #e0e0e0; border-radius: 10px; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { padding: 10px 12px; border-bottom: 1px solid #eee; text-align: left; }
+        .student-count-text { margin-top: 10px; color: #555; }
+        .empty-state { color: #777; font-size: 14px; padding: 16px; background: #fafafa; border-radius: 10px; border: 1px dashed #ddd; }
         .delete-modal .modal-content { max-width:400px; }
 
         /* ── Students Modal ── */
@@ -314,11 +330,61 @@ unset($_SESSION['verify_error']);
         </div>
     </div>
 
+    <div class="registration-stats-section">
+        <h3>Student Registration by Course / Year</h3>
+        <div class="registration-controls">
+            <div class="select-group">
+                <label for="registrationCourseSelect">Course</label>
+                <select id="registrationCourseSelect" onchange="loadRegistrationStats(this.value)">
+                    <option value="">-- Select a Course --</option>
+                    <?php
+                    $registration_courses = $conn->query("SELECT c.id, c.name AS course_name, d.name AS department_name FROM courses c JOIN departments d ON c.department_id = d.id ORDER BY d.name, c.name");
+                    while ($course = $registration_courses->fetch_assoc()) {
+                        $label = htmlspecialchars($course['department_name']) . ' - ' . htmlspecialchars($course['course_name']);
+                        echo "<option value='" . $course['id'] . "'>" . $label . "</option>";
+                    }
+                    ?>
+                </select>
+            </div>
+            <div class="select-group">
+                <label for="registrationYearSelect">Year</label>
+                <select id="registrationYearSelect" onchange="loadStudentsForSelectedYear()" disabled>
+                    <option value="">Select year after course</option>
+                </select>
+            </div>
+            <button type="button" id="downloadRegistrationPdf" class="btn btn-success" onclick="downloadRegistrationPDF()" disabled>
+                <i class="fas fa-file-pdf"></i> Download PDF
+            </button>
+        </div>
+        <div class="registration-summary-cards" id="registrationYearCards">
+            <div class="empty-state">Select a course to see registration counts by year.</div>
+        </div>
+        <div class="registration-students-view" id="registrationStudentsView" style="display:none;">
+            <h4 id="selectedCourseTitle"></h4>
+            <div class="students-table-wrapper">
+                <table class="table" id="registrationStudentsTable">
+                    <thead>
+                        <tr>
+                            <th>Reg No</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Year</th>
+                            <th>Joined</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registrationStudentsBody"></tbody>
+                </table>
+            </div>
+            <div id="registrationStudentCount" class="student-count-text"></div>
+        </div>
+    </div>
+
     <div class="recent-activity-section">
         <h3>Course Units Management</h3>
         <div class="course-units-header">
             <div class="select-container">
-                <select name="course_id" id="courseSelect" required>
+                <select name="course_id" id="courseSelect" required onchange="onCourseChanged()">
                     <option value="">-- Select a Course --</option>
                     <?php
                     $courses_query = $conn->query("
@@ -331,15 +397,21 @@ unset($_SESSION['verify_error']);
                     ");
                     while ($course = $courses_query->fetch_assoc()) {
                         $label = htmlspecialchars($course['department_name']) . " - " . htmlspecialchars($course['course_name']) . " (" . $course['unit_count'] . " units)";
-                        echo "<option value='{$course['id']}'>$label</option>";
+                        echo "<option value='" . $course['id'] . "'>$label</option>";
                     }
                     ?>
                 </select>
-                <div class="button-group">
-                    <button type="button" onclick="viewCourseUnits()" class="btn btn-primary">
+                <div class="button-group" style="display:grid; gap:8px; grid-template-columns: repeat(4, minmax(0, 1fr));">
+                    <button type="button" onclick="viewCourseUnits()" class="btn btn-primary" id="viewUnitsBtn" disabled>
                         <i class="fas fa-eye"></i> View Units
                     </button>
-                    <button type="button" onclick="exportUnitsPDF()" class="btn btn-success">
+                    <button type="button" onclick="openEditCourseModal()" class="btn btn-secondary" id="editCourseBtn" disabled>
+                        <i class="fas fa-edit"></i> Edit Course
+                    </button>
+                    <button type="button" onclick="confirmDeleteCourse()" class="btn btn-danger" id="deleteCourseBtn" disabled>
+                        <i class="fas fa-trash-alt"></i> Delete Course
+                    </button>
+                    <button type="button" onclick="exportUnitsPDF()" class="btn btn-success" id="exportPdfBtn" disabled>
                         <i class="fas fa-file-pdf"></i> Export PDF
                     </button>
                 </div>
@@ -493,6 +565,42 @@ unset($_SESSION['verify_error']);
                     <option value="Certificate">Certificate</option>
                 </select>
                 <button type="submit">Save</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="editCourseModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editCourseModal')">×</span>
+            <h3>Edit Course</h3>
+            <form id="editCourseForm" method="POST" action="../actions.php">
+                <input type="hidden" name="action" value="edit_course">
+                <input type="hidden" name="course_id" id="editCourseId">
+                <label>Course Name:</label>
+                <input type="text" name="course_name" id="editCourseName" required>
+                <label>Department:</label>
+                <select name="department_id" id="editCourseDepartment" required>
+                    <option value="">-- Select Department --</option>
+                    <?php
+                    $departments = $conn->query("SELECT * FROM departments ORDER BY name ASC");
+                    while ($d = $departments->fetch_assoc()) {
+                        echo "<option value='" . $d['id'] . "'>" . htmlspecialchars($d['name']) . "</option>";
+                    }
+                    ?>
+                </select>
+                <label>Duration (Years):</label>
+                <input type="number" name="duration" id="editCourseDuration" min="1" required>
+                <label>Course Type:</label>
+                <select name="course_type" id="editCourseType" required>
+                    <option value="">-- Select Type --</option>
+                    <option value="Degree">Degree</option>
+                    <option value="Diploma">Diploma</option>
+                    <option value="Certificate">Certificate</option>
+                </select>
+                <div style="display:flex; gap:10px; margin-top:18px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('editCourseModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
             </form>
         </div>
     </div>
@@ -1006,6 +1114,240 @@ function exportUnitsPDF() {
     if (!courseId) { alert('Please select a course first'); return; }
     window.open(`../actions.php?action=generate_unit_pdf&course_id=${encodeURIComponent(courseId)}`, '_blank');
 }
+
+function onCourseChanged() {
+    const courseId = document.getElementById('courseSelect')?.value;
+    const viewBtn = document.getElementById('viewUnitsBtn');
+    const editBtn = document.getElementById('editCourseBtn');
+    const deleteBtn = document.getElementById('deleteCourseBtn');
+    const pdfBtn = document.getElementById('exportPdfBtn');
+
+    if (viewBtn) viewBtn.disabled = !courseId;
+    if (editBtn) editBtn.disabled = !courseId;
+    if (deleteBtn) deleteBtn.disabled = !courseId;
+    if (pdfBtn) pdfBtn.disabled = !courseId;
+}
+
+function openEditCourseModal() {
+    const courseId = document.getElementById('courseSelect')?.value;
+    if (!courseId) {
+        alert('Please select a course first.');
+        return;
+    }
+
+    fetch(`../actions.php?action=get_course_details&course_id=${encodeURIComponent(courseId)}`)
+        .then(r => r.text())
+        .then(text => {
+            const data = parseJSONSafe(text);
+            if (!data || data.status !== 'success') {
+                showFloatingMessage(data?.message || 'Unable to load course details.', 'error');
+                return;
+            }
+
+            document.getElementById('editCourseId').value = data.course.id;
+            document.getElementById('editCourseName').value = data.course.name;
+            document.getElementById('editCourseDepartment').value = data.course.department_id;
+            document.getElementById('editCourseDuration').value = data.course.duration;
+            document.getElementById('editCourseType').value = data.course.course_type;
+            openModal('editCourseModal');
+        })
+        .catch(() => showFloatingMessage('Failed to load course details.', 'error'));
+}
+
+function confirmDeleteCourse() {
+    const courseId = document.getElementById('courseSelect')?.value;
+    if (!courseId) {
+        alert('Please select a course first.');
+        return;
+    }
+
+    if (!confirm('Delete this course and all of its units? This cannot be undone.')) {
+        return;
+    }
+
+    fetch('../actions.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=delete_course&course_id=${encodeURIComponent(courseId)}`
+    })
+    .then(r => r.text())
+    .then(text => {
+        const data = parseJSONSafe(text);
+        if (data?.status === 'success') {
+            showFloatingMessage(data.message || 'Course deleted successfully.', 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showFloatingMessage(data?.message || 'Course deletion failed.', 'error');
+        }
+    })
+    .catch(() => showFloatingMessage('Error deleting course.', 'error'));
+}
+
+let selectedRegistrationCourseId = null;
+let selectedRegistrationYear = null;
+
+function clearRegistrationSection() {
+    const summaryCards = document.getElementById('registrationYearCards');
+    const yearSelect = document.getElementById('registrationYearSelect');
+    const studentsView = document.getElementById('registrationStudentsView');
+    const courseTitle = document.getElementById('selectedCourseTitle');
+    const pdfBtn = document.getElementById('downloadRegistrationPdf');
+
+    if (summaryCards) summaryCards.innerHTML = '<div class="empty-state">Select a course to see registration counts by year.</div>';
+    if (yearSelect) {
+        yearSelect.innerHTML = '<option value="">Select year after course</option>';
+        yearSelect.disabled = true;
+    }
+    if (studentsView) studentsView.style.display = 'none';
+    if (courseTitle) courseTitle.textContent = '';
+    if (pdfBtn) pdfBtn.disabled = true;
+    selectedRegistrationCourseId = null;
+    selectedRegistrationYear = null;
+}
+
+function loadRegistrationStats(courseId) {
+    selectedRegistrationCourseId = courseId;
+    const summaryCards = document.getElementById('registrationYearCards');
+    const yearSelect = document.getElementById('registrationYearSelect');
+    const studentsView = document.getElementById('registrationStudentsView');
+    const courseTitle = document.getElementById('selectedCourseTitle');
+    const pdfBtn = document.getElementById('downloadRegistrationPdf');
+
+    if (!courseId) {
+        clearRegistrationSection();
+        return;
+    }
+
+    if (summaryCards) summaryCards.innerHTML = '<div class="empty-state">Loading registration counts...</div>';
+    if (studentsView) studentsView.style.display = 'none';
+    if (courseTitle) courseTitle.textContent = '';
+    if (pdfBtn) pdfBtn.disabled = true;
+
+    fetch(`../actions.php?action=get_course_registration_stats&course_id=${encodeURIComponent(courseId)}`)
+        .then(r => r.text())
+        .then(text => {
+            const data = parseJSONSafe(text);
+            if (!data || data.status !== 'success') {
+                if (summaryCards) summaryCards.innerHTML = `<div class="empty-state">${escapeHtml(data?.message || 'No registration data available.')}</div>`;
+                return;
+            }
+            renderRegistrationStats(data);
+        })
+        .catch(() => {
+            if (summaryCards) summaryCards.innerHTML = '<div class="empty-state">Error loading registration data.</div>';
+        });
+}
+
+function renderRegistrationStats(data) {
+    const summaryCards = document.getElementById('registrationYearCards');
+    const yearSelect = document.getElementById('registrationYearSelect');
+    const courseTitle = document.getElementById('selectedCourseTitle');
+    const pdfBtn = document.getElementById('downloadRegistrationPdf');
+
+    if (!summaryCards || !yearSelect) return;
+    courseTitle.textContent = `${data.course.department_name} - ${data.course.course_name}`;
+
+    if (!data.year_counts || !data.year_counts.length) {
+        summaryCards.innerHTML = '<div class="empty-state">No students registered for this course yet.</div>';
+        yearSelect.innerHTML = '<option value="">No year data available</option>';
+        yearSelect.disabled = true;
+        if (pdfBtn) pdfBtn.disabled = true;
+        return;
+    }
+
+    summaryCards.innerHTML = '';
+    const options = ['<option value="">Select Year</option>'];
+    data.year_counts.forEach(item => {
+        const year = Number(item.year);
+        const count = Number(item.count);
+        const card = document.createElement('div');
+        card.className = 'registration-card';
+        card.innerHTML = `<h4>Year ${escapeHtml(year)}</h4><div class="count">${escapeHtml(count)}</div><div>${count === 1 ? 'student' : 'students'}</div>`;
+        summaryCards.appendChild(card);
+        options.push(`<option value="${year}">Year ${year} (${count})</option>`);
+    });
+
+    yearSelect.innerHTML = options.join('');
+    yearSelect.disabled = false;
+    if (pdfBtn) pdfBtn.disabled = true;
+    selectedRegistrationYear = null;
+    document.getElementById('registrationStudentsView').style.display = 'none';
+}
+
+function loadStudentsForSelectedYear() {
+    const year = document.getElementById('registrationYearSelect')?.value;
+    selectedRegistrationYear = year;
+    const tbody = document.getElementById('registrationStudentsBody');
+    const countText = document.getElementById('registrationStudentCount');
+    const view = document.getElementById('registrationStudentsView');
+    const pdfBtn = document.getElementById('downloadRegistrationPdf');
+
+    if (!selectedRegistrationCourseId || !year) {
+        if (view) view.style.display = 'none';
+        if (pdfBtn) pdfBtn.disabled = true;
+        return;
+    }
+
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="loading-students"><i class="fas fa-spinner fa-spin"></i> Loading students...</td></tr>';
+    if (countText) countText.textContent = '';
+
+    fetch(`../actions.php?action=get_course_year_students&course_id=${encodeURIComponent(selectedRegistrationCourseId)}&year=${encodeURIComponent(year)}`)
+        .then(r => r.text())
+        .then(text => {
+            const data = parseJSONSafe(text);
+            if (!data || data.status !== 'success') {
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6">${escapeHtml(data?.message || 'Unable to load students.')}</td></tr>`;
+                return;
+            }
+            renderRegistrationStudents(data.students, year);
+            if (pdfBtn) {
+                pdfBtn.disabled = false;
+            }
+        })
+        .catch(() => {
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6">Error loading students.</td></tr>';
+        });
+}
+
+function renderRegistrationStudents(students, year) {
+    const tbody = document.getElementById('registrationStudentsBody');
+    const countText = document.getElementById('registrationStudentCount');
+    const view = document.getElementById('registrationStudentsView');
+
+    if (!tbody || !countText || !view) return;
+    if (!students || !students.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:18px;text-align:center;color:#666;">No students registered for this year.</td></tr>';
+        countText.textContent = '0 students found';
+        view.style.display = 'block';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    students.forEach(s => {
+        const verified = Number(s.is_verified) === 1 ? 'Verified' : 'Unverified';
+        tbody.innerHTML += `
+            <tr>
+                <td>${escapeHtml(s.reg_no || '')}</td>
+                <td>${escapeHtml(s.name || '')}</td>
+                <td>${escapeHtml(s.email || '')}</td>
+                <td>Year ${escapeHtml(s.year_of_study || '')}</td>
+                <td>${escapeHtml(s.year_joined || '')}</td>
+                <td>${escapeHtml(verified)}</td>
+            </tr>`;
+    });
+
+    countText.textContent = `${students.length} student${students.length !== 1 ? 's' : ''} found`;
+    view.style.display = 'block';
+}
+
+function downloadRegistrationPDF() {
+    if (!selectedRegistrationCourseId || !selectedRegistrationYear) {
+        showFloatingMessage('Select a course and year first', 'error');
+        return;
+    }
+    window.open(`../actions.php?action=download_registration_pdf&course_id=${encodeURIComponent(selectedRegistrationCourseId)}&year=${encodeURIComponent(selectedRegistrationYear)}`, '_blank');
+}
+
 function submitDepartmentForm(event) {
     event.preventDefault();
     fetch('../actions.php', { method:'POST', body: new FormData(event.target) })

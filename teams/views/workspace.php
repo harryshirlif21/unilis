@@ -210,6 +210,95 @@ $csrfToken     = $_SESSION['csrf_token'];
             color: var(--text-muted);
         }
 
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .file-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.6rem;
+            background: #fff;
+        }
+
+        .file-thumb {
+            height: 120px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f9fafb;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+            font-size: 0.85rem;
+            color: #6b7280;
+            text-align: center;
+            padding: 0.5rem;
+        }
+
+        .file-thumb img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .read-btn {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.35rem 0.65rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .file-viewer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.65);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .file-viewer-overlay.active { display: flex; }
+
+        .file-viewer {
+            width: min(96vw, 1100px);
+            height: min(92vh, 820px);
+            background: #fff;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .file-viewer-header {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-viewer-content {
+            flex: 1;
+            background: #fff;
+        }
+
+        .file-viewer-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
         @media (max-width: 768px) {
             header.workspace-header {
                 flex-direction: column;
@@ -244,6 +333,7 @@ $csrfToken     = $_SESSION['csrf_token'];
             <button class="tab-button active" data-tab="files">Files</button>
             <button class="tab-button" data-tab="tasks">Tasks / Kanban</button>
             <button class="tab-button" data-tab="checklist">Submission Checklist</button>
+            <button class="tab-button" data-tab="peer">Peer Evaluation</button>
             <button class="tab-button" data-tab="activity">Activity Log</button>
             <button class="tab-button" data-tab="health">Health Score</button>
             <button class="tab-button" data-tab="standups">Stand-ups</button>
@@ -263,6 +353,32 @@ $csrfToken     = $_SESSION['csrf_token'];
                     Kanban board for team tasks (To Do / In Progress / Done),
                     backed by <span class="pill">team_tasks</span>.
                 </p>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin:0.5rem 0;">
+                    <div style="flex:1;min-width:220px;">
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Task title</label>
+                        <input id="newTaskTitle" type="text" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Description (optional)</label>
+                        <input id="newTaskDesc" type="text" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div>
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Due</label>
+                        <input id="newTaskDue" type="date" style="padding:0.5rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div>
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Priority</label>
+                        <select id="newTaskPriority" style="padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                            <option>Low</option>
+                            <option selected>Medium</option>
+                            <option>High</option>
+                        </select>
+                    </div>
+                    <button id="createTaskBtn" type="button" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:0.6rem 0.9rem;cursor:pointer;">
+                        Add task
+                    </button>
+                    <span id="createTaskStatus" class="muted"></span>
+                </div>
                 <p id="tasksStatus" class="muted">Loading tasks...</p>
                 <div id="tasksBoard" style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.5rem;">
                     <!-- Columns will be injected here -->
@@ -275,8 +391,50 @@ $csrfToken     = $_SESSION['csrf_token'];
                     <span class="pill">submission_checklist</span> and
                     <span class="pill">submission_signoffs</span>.
                 </p>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin:0.5rem 0;">
+                    <button id="signoffBtn" type="button" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:0.5rem 0.8rem;cursor:pointer;">
+                        Sign off checklist
+                    </button>
+                    <span id="signoffStatus" class="muted"></span>
+                </div>
                 <p id="checklistStatus" class="muted">Loading checklist...</p>
                 <ul id="checklistList" class="activity-list"></ul>
+                <div style="margin-top:0.75rem;">
+                    <div class="muted" style="font-weight:600;margin-bottom:0.25rem;">Sign-offs</div>
+                    <ul id="signoffsList" class="activity-list"></ul>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="tab-peer">
+                <p class="muted">Submit peer evaluation and review team averages.</p>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin:0.5rem 0;">
+                    <div>
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Member</label>
+                        <select id="peerMember" style="padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;min-width:180px;"></select>
+                    </div>
+                    <div>
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Contribution</label>
+                        <input id="peerContribution" type="number" min="1" max="5" value="4" style="width:72px;padding:0.5rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div>
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Communication</label>
+                        <input id="peerCommunication" type="number" min="1" max="5" value="4" style="width:72px;padding:0.5rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div>
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Quality</label>
+                        <input id="peerQuality" type="number" min="1" max="5" value="4" style="width:72px;padding:0.5rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div>
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Reliability</label>
+                        <input id="peerReliability" type="number" min="1" max="5" value="4" style="width:72px;padding:0.5rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <button id="peerSubmitBtn" type="button" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:0.6rem 0.9rem;cursor:pointer;">
+                        Submit evaluation
+                    </button>
+                    <span id="peerStatus" class="muted"></span>
+                </div>
+                <p id="peerSummaryStatus" class="muted">Loading peer evaluation summary...</p>
+                <div id="peerSummaryTable" class="muted" style="font-size:0.9rem;"></div>
             </div>
 
             <div class="tab-panel" id="tab-activity">
@@ -292,6 +450,11 @@ $csrfToken     = $_SESSION['csrf_token'];
                 </p>
                 <p id="healthStatus" class="muted">Loading health score...</p>
                 <div id="healthBody" class="muted" style="font-size:0.9rem;"></div>
+                <div style="margin-top:0.75rem;">
+                    <div class="muted" style="font-weight:600;margin-bottom:0.25rem;">Ghost detection</div>
+                    <p id="ghostStatus" class="muted">Loading inactive members...</p>
+                    <ul id="ghostList" class="activity-list"></ul>
+                </div>
             </div>
 
             <div class="tab-panel" id="tab-standups">
@@ -300,6 +463,24 @@ $csrfToken     = $_SESSION['csrf_token'];
                     <span class="pill">standup_entries</span>.
                 </p>
                 <p id="standupsStatus" class="muted">Loading recent stand-ups...</p>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin:0.5rem 0;">
+                    <div style="flex:1;min-width:220px;">
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">What did you do today?</label>
+                        <input id="didTodayInput" type="text" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">What will you do next?</label>
+                        <input id="willDoNextInput" type="text" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Blockers (optional)</label>
+                        <input id="blockersInput" type="text" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <button id="submitStandupBtn" type="button" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:0.6rem 0.9rem;cursor:pointer;">
+                        Submit stand-up
+                    </button>
+                    <span id="submitStandupStatus" class="muted"></span>
+                </div>
                 <ul id="standupsList" class="activity-list"></ul>
             </div>
         </div>
@@ -323,6 +504,7 @@ const panels = {
     files: document.getElementById('tab-files'),
     tasks: document.getElementById('tab-tasks'),
     checklist: document.getElementById('tab-checklist'),
+    peer: document.getElementById('tab-peer'),
     activity: document.getElementById('tab-activity'),
     health: document.getElementById('tab-health'),
     standups: document.getElementById('tab-standups')
@@ -349,6 +531,8 @@ tabButtons.forEach(btn => {
             loadTasks();
         } else if (target === 'checklist' && !panels.checklist.dataset.loaded) {
             loadChecklist();
+        } else if (target === 'peer' && !panels.peer.dataset.loaded) {
+            loadPeerSummary();
         } else if (target === 'health' && !panels.health.dataset.loaded) {
             loadHealth();
         } else if (target === 'standups' && !panels.standups.dataset.loaded) {
@@ -390,6 +574,107 @@ async function loadTeamHeader() {
     }
 }
 
+// --- Peer evaluations ---
+async function loadPeerSummary() {
+    const statusEl = document.getElementById('peerSummaryStatus');
+    const tableEl = document.getElementById('peerSummaryTable');
+    const memberSel = document.getElementById('peerMember');
+
+    statusEl.textContent = 'Loading peer evaluation summary...';
+    tableEl.innerHTML = '';
+    if (memberSel) memberSel.innerHTML = '';
+
+    try {
+        const res = await fetch(`/teams/api/peer_evaluation_summary.php?team_id=${encodeURIComponent(teamId)}`, {
+            credentials: 'same-origin'
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Could not load peer evaluations');
+
+        const members = data.members || [];
+        const summary = data.summary || [];
+
+        if (memberSel) {
+            const options = members
+                .filter(m => Number(m.student_id) !== Number(currentUserId))
+                .map(m => `<option value="${m.student_id}">${m.name}</option>`)
+                .join('');
+            memberSel.innerHTML = options || '<option value="">No teammates available</option>';
+        }
+
+        if (summary.length === 0) {
+            statusEl.textContent = 'No evaluations yet.';
+            panels.peer.dataset.loaded = '1';
+            return;
+        }
+
+        statusEl.textContent = '';
+        let html = '<table style="width:100%;border-collapse:collapse;">';
+        html += '<tr><th style="text-align:left;border-bottom:1px solid #ddd;padding:6px;">Member</th><th style="text-align:left;border-bottom:1px solid #ddd;padding:6px;">Responses</th><th style="text-align:left;border-bottom:1px solid #ddd;padding:6px;">Overall</th></tr>';
+        summary.forEach(r => {
+            html += `<tr>
+                <td style="padding:6px;border-bottom:1px solid #f1f1f1;">${r.evaluatee_name || ('User #' + r.evaluatee_id)}</td>
+                <td style="padding:6px;border-bottom:1px solid #f1f1f1;">${r.responses}</td>
+                <td style="padding:6px;border-bottom:1px solid #f1f1f1;">${Number(r.avg_overall || 0).toFixed(2)} / 5</td>
+            </tr>`;
+        });
+        html += '</table>';
+        tableEl.innerHTML = html;
+
+        panels.peer.dataset.loaded = '1';
+    } catch (err) {
+        statusEl.textContent = 'Error loading peer evaluations: ' + err.message;
+        statusEl.classList.add('error');
+    }
+}
+
+const peerSubmitBtn = document.getElementById('peerSubmitBtn');
+if (peerSubmitBtn) {
+    peerSubmitBtn.addEventListener('click', async () => {
+        const statusEl = document.getElementById('peerStatus');
+        const evaluatee_id = Number(document.getElementById('peerMember')?.value || 0);
+        const contribution = Number(document.getElementById('peerContribution')?.value || 0);
+        const communication = Number(document.getElementById('peerCommunication')?.value || 0);
+        const quality = Number(document.getElementById('peerQuality')?.value || 0);
+        const reliability = Number(document.getElementById('peerReliability')?.value || 0);
+
+        if (!evaluatee_id) {
+            if (statusEl) statusEl.textContent = 'Select a teammate first';
+            return;
+        }
+        if (statusEl) statusEl.textContent = 'Submitting...';
+
+        try {
+            const res = await fetch('/teams/api/peer_evaluation_submit.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    team_id: teamId,
+                    evaluatee_id,
+                    contribution,
+                    communication,
+                    quality,
+                    reliability,
+                    csrf_token: csrfToken
+                })
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data || !data.success) {
+                throw new Error(data?.error || ('HTTP ' + res.status));
+            }
+            if (statusEl) statusEl.textContent = data.message || 'Submitted';
+            loadPeerSummary();
+            if (panels.activity && panels.activity.dataset.loaded) {
+                loadActivity();
+            }
+        } catch (err) {
+            if (statusEl) statusEl.textContent = 'Submit failed: ' + err.message;
+        }
+    });
+}
+
 // --- Files tab: read-only list via workspace_files.php ---
 async function loadFiles() {
     const statusEl = document.getElementById('filesStatus');
@@ -421,19 +706,48 @@ async function loadFiles() {
         const rows = files.map(f => {
             const when = f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '';
             const v = f.version ? `v${f.version}` : '';
-            return `<div>
+            const mime = (f.mime_type || '').toLowerCase();
+            const isImage = mime.startsWith('image/');
+            const isPdf = mime.includes('pdf');
+            const thumb = isImage
+                ? `<img src="/teams/api/view_team_file.php?file_id=${encodeURIComponent(f.id)}" alt="thumbnail">`
+                : (isPdf ? `<span>PDF preview available</span>` : `<span>No preview</span>`);
+            return `<div class="file-card">
+                <div class="file-thumb">${thumb}</div>
                 <strong>${f.file_name || 'File'}</strong>
                 ${v ? `<span class="pill">${v}</span>` : ''}
                 <div class="activity-meta">Uploaded ${when}</div>
+                <div class="activity-meta">By: ${f.uploader_name || ('User #' + (f.uploaded_by || ''))}</div>
+                <div style="margin-top:0.4rem;">
+                    <button class="read-btn" onclick="openTeamFileViewer(${Number(f.id) || 0}, '${String((f.file_name || 'File').replace(/'/g, "\\'"))}')">Read</button>
+                </div>
             </div>`;
         });
 
-        listEl.innerHTML = rows.join('');
+        listEl.innerHTML = `<div class="files-grid">${rows.join('')}</div>`;
         panels.files.dataset.loaded = '1';
     } catch (err) {
         statusEl.textContent = 'Error loading files: ' + err.message;
         statusEl.classList.add('error');
     }
+}
+
+function openTeamFileViewer(fileId, fileName) {
+    const overlay = document.getElementById('fileViewerOverlay');
+    const title = document.getElementById('fileViewerTitle');
+    const content = document.getElementById('fileViewerContent');
+    if (!overlay || !title || !content) return;
+
+    title.textContent = fileName || 'File Viewer';
+    content.innerHTML = `<iframe src="/teams/api/view_team_file.php?file_id=${encodeURIComponent(fileId)}"></iframe>`;
+    overlay.classList.add('active');
+}
+
+function closeTeamFileViewer() {
+    const overlay = document.getElementById('fileViewerOverlay');
+    const content = document.getElementById('fileViewerContent');
+    if (overlay) overlay.classList.remove('active');
+    if (content) content.innerHTML = '';
 }
 
 // --- Activity log ---
@@ -537,6 +851,12 @@ async function loadTasks() {
             { key: 'done', label: 'Done' }
         ];
 
+        const statusMap = {
+            todo: 'Backlog',
+            in_progress: 'In Progress',
+            done: 'Done'
+        };
+
         order.forEach(col => {
             const colTasks = columns[col.key] || [];
             const colDiv = document.createElement('div');
@@ -595,6 +915,68 @@ async function loadTasks() {
                     meta.textContent = bits.join(' • ');
                     card.appendChild(meta);
 
+                    // Simple status changer
+                    const controls = document.createElement('div');
+                    controls.style.marginTop = '0.35rem';
+                    const sel = document.createElement('select');
+                    sel.style.width = '100%';
+                    sel.style.padding = '0.35rem';
+                    sel.style.border = '1px solid #e5e7eb';
+                    sel.style.borderRadius = '6px';
+                    ['Backlog', 'In Progress', 'In Review', 'Done'].forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s;
+                        opt.textContent = s;
+                        if ((t.raw_status || t.status_raw || '') === s || (t.status_full || '') === s || false) {
+                            // no-op; older payloads
+                        }
+                        controls.appendChild(document.createTextNode(''));
+                    });
+                    // Build options and select current based on original_status if provided
+                    sel.innerHTML = `
+                        <option value="Backlog">Backlog</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="In Review">In Review</option>
+                        <option value="Done">Done</option>
+                    `;
+                    const currentFull = t.status_full || t.original_status || null;
+                    if (currentFull) {
+                        sel.value = currentFull;
+                    } else {
+                        sel.value = statusMap[col.key] || 'Backlog';
+                    }
+
+                    sel.addEventListener('change', async (e) => {
+                        const newStatus = e.target.value;
+                        try {
+                            const res2 = await fetch('/teams/api/task_update_status.php', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    team_id: teamId,
+                                    task_id: t.id,
+                                    status: newStatus,
+                                    csrf_token: csrfToken
+                                })
+                            });
+                            const payload = await res2.json().catch(() => null);
+                            if (!res2.ok || !payload || !payload.success) {
+                                throw new Error(payload?.error || ('HTTP ' + res2.status));
+                            }
+                            loadTasks();
+                            if (panels.activity && panels.activity.dataset.loaded) {
+                                loadActivity();
+                            }
+                        } catch (err) {
+                            alert('Failed to update task: ' + err.message);
+                            loadTasks();
+                        }
+                    });
+
+                    controls.appendChild(sel);
+                    card.appendChild(controls);
+
                     colDiv.appendChild(card);
                 });
             }
@@ -609,13 +991,75 @@ async function loadTasks() {
     }
 }
 
+// Create task handler
+const createTaskBtn = document.getElementById('createTaskBtn');
+if (createTaskBtn) {
+    createTaskBtn.addEventListener('click', async () => {
+        const statusEl = document.getElementById('createTaskStatus');
+        const titleEl = document.getElementById('newTaskTitle');
+        const descEl = document.getElementById('newTaskDesc');
+        const dueEl = document.getElementById('newTaskDue');
+        const priEl = document.getElementById('newTaskPriority');
+
+        const title = (titleEl?.value || '').trim();
+        const description = (descEl?.value || '').trim();
+        const due_date = dueEl?.value || '';
+        const priority = priEl?.value || 'Medium';
+
+        if (!title) {
+            if (statusEl) statusEl.textContent = 'Title is required';
+            return;
+        }
+
+        if (statusEl) statusEl.textContent = 'Creating...';
+
+        try {
+            const res = await fetch('/teams/api/task_create.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    team_id: teamId,
+                    title,
+                    description,
+                    due_date,
+                    priority,
+                    csrf_token: csrfToken
+                })
+            });
+
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data || !data.success) {
+                throw new Error(data?.error || ('HTTP ' + res.status));
+            }
+
+            if (titleEl) titleEl.value = '';
+            if (descEl) descEl.value = '';
+            if (dueEl) dueEl.value = '';
+            if (priEl) priEl.value = 'Medium';
+            if (statusEl) statusEl.textContent = data.message || 'Task created';
+
+            loadTasks();
+            if (panels.activity && panels.activity.dataset.loaded) {
+                loadActivity();
+            }
+        } catch (err) {
+            if (statusEl) statusEl.textContent = 'Create failed: ' + err.message;
+        }
+    });
+}
+
 // --- Checklist: read-only from checklist.php ---
 async function loadChecklist() {
     const statusEl = document.getElementById('checklistStatus');
     const listEl = document.getElementById('checklistList');
+    const signoffsEl = document.getElementById('signoffsList');
+    const signoffStatusEl = document.getElementById('signoffStatus');
 
     statusEl.textContent = 'Loading checklist...';
     listEl.innerHTML = '';
+    if (signoffsEl) signoffsEl.innerHTML = '';
+    if (signoffStatusEl) signoffStatusEl.textContent = '';
 
     try {
         const res = await fetch(`/teams/api/checklist.php?team_id=${encodeURIComponent(teamId)}`, {
@@ -643,11 +1087,11 @@ async function loadChecklist() {
 
             const label = it.item_label || it.label || 'Checklist item';
             const checked = String(it.is_checked) === '1' || it.is_checked === true;
-            const updated = it.updated_at ? new Date(it.updated_at).toLocaleString() : '';
+            const updated = it.checked_at ? new Date(it.checked_at).toLocaleString() : '';
 
             li.innerHTML = `
                 <div>
-                    <input type="checkbox" disabled ${checked ? 'checked' : ''}>
+                    <input type="checkbox" class="checklistBox" data-id="${it.id}" ${checked ? 'checked' : ''}>
                     <span>${label}</span>
                 </div>
                 <div class="activity-meta">
@@ -658,6 +1102,66 @@ async function loadChecklist() {
             listEl.appendChild(li);
         });
 
+        // Wire toggle handlers (POST checklist_toggle.php)
+        document.querySelectorAll('.checklistBox').forEach(box => {
+            box.addEventListener('change', async (e) => {
+                const id = e.target.dataset.id;
+                const newVal = e.target.checked ? 1 : 0;
+
+                try {
+                    const resp = await fetch('/teams/api/checklist_toggle.php', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            team_id: teamId,
+                            checklist_id: id,
+                            is_checked: newVal,
+                            csrf_token: csrfToken
+                        })
+                    });
+
+                    const payload = await resp.json().catch(() => null);
+                    if (!resp.ok || !payload || !payload.success) {
+                        const msg = payload?.error || ('HTTP ' + resp.status);
+                        throw new Error(msg);
+                    }
+
+                    // Refresh checklist + signoffs + activity (so UI stays consistent)
+                    loadChecklist();
+                    if (panels.activity && panels.activity.dataset.loaded) {
+                        loadActivity();
+                    }
+                } catch (err) {
+                    // Revert UI state on failure
+                    e.target.checked = !e.target.checked;
+                    alert('Failed to update checklist: ' + err.message);
+                }
+            });
+        });
+
+        // Render sign-offs (if provided)
+        const signoffs = data.signoffs || [];
+        if (signoffsEl) {
+            if (signoffs.length === 0) {
+                const li = document.createElement('li');
+                li.className = 'activity-item';
+                li.innerHTML = `<div class="muted">No sign-offs yet.</div>`;
+                signoffsEl.appendChild(li);
+            } else {
+                signoffs.forEach(s => {
+                    const li = document.createElement('li');
+                    li.className = 'activity-item';
+                    const when = s.signed_at ? new Date(s.signed_at).toLocaleString() : '';
+                    li.innerHTML = `
+                        <div><strong>${s.user_name || ('User #' + s.user_id)}</strong></div>
+                        <div class="activity-meta">${when}</div>
+                    `;
+                    signoffsEl.appendChild(li);
+                });
+            }
+        }
+
         panels.checklist.dataset.loaded = '1';
     } catch (err) {
         statusEl.textContent = 'Error loading checklist: ' + err.message;
@@ -665,10 +1169,51 @@ async function loadChecklist() {
     }
 }
 
+// Sign-off button handler
+const signoffBtn = document.getElementById('signoffBtn');
+if (signoffBtn) {
+    signoffBtn.addEventListener('click', async () => {
+        const statusEl = document.getElementById('signoffStatus');
+        if (statusEl) statusEl.textContent = 'Signing off...';
+
+        try {
+            const res = await fetch('/teams/api/checklist_signoff.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    team_id: teamId,
+                    csrf_token: csrfToken
+                })
+            });
+
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data || !data.success) {
+                const msg = data?.error || ('HTTP ' + res.status);
+                throw new Error(msg);
+            }
+
+            if (statusEl) statusEl.textContent = data.message || 'Signed off';
+
+            // Refresh sign-offs and activity
+            if (panels.checklist && panels.checklist.dataset.loaded) {
+                loadChecklist();
+            }
+            if (panels.activity && panels.activity.dataset.loaded) {
+                loadActivity();
+            }
+        } catch (err) {
+            if (statusEl) statusEl.textContent = 'Sign-off failed: ' + err.message;
+        }
+    });
+}
+
 // --- Health: aggregate from tasks + activity via health.php ---
 async function loadHealth() {
     const statusEl = document.getElementById('healthStatus');
     const bodyEl = document.getElementById('healthBody');
+    const ghostStatusEl = document.getElementById('ghostStatus');
+    const ghostListEl = document.getElementById('ghostList');
 
     statusEl.textContent = 'Calculating health score...';
     bodyEl.innerHTML = '';
@@ -688,10 +1233,27 @@ async function loadHealth() {
         statusEl.textContent = '';
         const score = data.score ?? 0;
         const c = data.components || {};
+        const heatmap = data.heatmap || {};
+
+        const heatItems = Object.entries(heatmap);
+        const maxCount = heatItems.reduce((m, [,v]) => Math.max(m, Number(v) || 0), 0) || 1;
+
+        const heatCells = heatItems.map(([d, v]) => {
+            const n = Number(v) || 0;
+            const intensity = Math.round((n / maxCount) * 4); // 0..4
+            const shades = ['#f3f4f6', '#ffedd5', '#fdba74', '#fb923c', '#f97316'];
+            const bg = shades[intensity] || shades[0];
+            return `<div title="${d}: ${n} activities"
+                style="width:14px;height:14px;border-radius:3px;background:${bg};border:1px solid #e5e7eb;"></div>`;
+        }).join('');
 
         bodyEl.innerHTML = `
             <div style="margin-bottom:0.5rem;">
                 <strong>Overall health:</strong> ${score}/100
+            </div>
+            <div style="margin:0.5rem 0;">
+                <div class="muted" style="font-weight:600;margin-bottom:0.25rem;">Activity heatmap (last 14 days)</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;max-width:320px;">${heatCells}</div>
             </div>
             <div class="activity-meta">
                 Tasks done score: ${(c.tasks_done?.score ?? 0)} (raw: ${(c.tasks_done?.raw ?? 0)})
@@ -701,6 +1263,72 @@ async function loadHealth() {
                 Deadline factor: ${(c.deadline?.score ?? 0)}
             </div>
         `;
+
+        // Load ghost status in parallel section
+        if (ghostStatusEl && ghostListEl) {
+            ghostStatusEl.textContent = 'Loading inactive members...';
+            ghostListEl.innerHTML = '';
+            try {
+                const gRes = await fetch(`/teams/api/ghost_status.php?team_id=${encodeURIComponent(teamId)}`, {
+                    credentials: 'same-origin'
+                });
+                const gData = await gRes.json().catch(() => null);
+                if (!gRes.ok || !gData || !gData.success) {
+                    throw new Error(gData?.error || ('HTTP ' + gRes.status));
+                }
+                const ghosts = gData.ghosts || [];
+                const threshold = gData.threshold_days || 3;
+                if (ghosts.length === 0) {
+                    ghostStatusEl.textContent = `No ghost members (threshold: ${threshold} days).`;
+                } else {
+                    ghostStatusEl.textContent = `Flagged inactive members (>= ${threshold} days):`;
+                    ghosts.forEach(g => {
+                        const li = document.createElement('li');
+                        li.className = 'activity-item';
+                        li.innerHTML = `
+                            <div><strong>${g.user_name || ('User #' + g.user_id)}</strong> — ${g.inactive_days} inactive day(s)</div>
+                            <div class="activity-meta">
+                                Last activity: ${g.last_activity_at ? new Date(g.last_activity_at).toLocaleString() : 'none'}
+                                <button class="nudgeBtn" data-user="${g.user_id}" style="margin-left:8px;background:#f97316;color:#fff;border:none;border-radius:6px;padding:0.2rem 0.5rem;cursor:pointer;">Nudge</button>
+                            </div>
+                        `;
+                        ghostListEl.appendChild(li);
+                    });
+
+                    document.querySelectorAll('.nudgeBtn').forEach(btn => {
+                        btn.addEventListener('click', async () => {
+                            const targetUserId = btn.dataset.user;
+                            btn.disabled = true;
+                            try {
+                                const nRes = await fetch('/teams/api/ghost_nudge.php', {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        team_id: teamId,
+                                        target_user_id: targetUserId,
+                                        csrf_token: csrfToken
+                                    })
+                                });
+                                const nData = await nRes.json().catch(() => null);
+                                if (!nRes.ok || !nData || !nData.success) {
+                                    throw new Error(nData?.error || ('HTTP ' + nRes.status));
+                                }
+                                btn.textContent = 'Nudged';
+                                if (panels.activity && panels.activity.dataset.loaded) {
+                                    loadActivity();
+                                }
+                            } catch (err) {
+                                btn.disabled = false;
+                                alert('Nudge failed: ' + err.message);
+                            }
+                        });
+                    });
+                }
+            } catch (err) {
+                ghostStatusEl.textContent = 'Ghost detection error: ' + err.message;
+            }
+        }
 
         panels.health.dataset.loaded = '1';
     } catch (err) {
@@ -760,10 +1388,71 @@ async function loadStandups() {
         statusEl.classList.add('error');
     }
 }
+
+// Stand-up submit handler
+const submitStandupBtn = document.getElementById('submitStandupBtn');
+if (submitStandupBtn) {
+    submitStandupBtn.addEventListener('click', async () => {
+        const statusEl = document.getElementById('submitStandupStatus');
+        const didEl = document.getElementById('didTodayInput');
+        const nextEl = document.getElementById('willDoNextInput');
+        const blockEl = document.getElementById('blockersInput');
+
+        const did_today = (didEl?.value || '').trim();
+        const will_do_next = (nextEl?.value || '').trim();
+        const blockers = (blockEl?.value || '').trim();
+
+        if (!did_today || !will_do_next) {
+            if (statusEl) statusEl.textContent = 'Please fill today and next fields';
+            return;
+        }
+
+        if (statusEl) statusEl.textContent = 'Submitting...';
+
+        try {
+            const res = await fetch('/teams/api/standup_create.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    team_id: teamId,
+                    did_today,
+                    will_do_next,
+                    blockers,
+                    csrf_token: csrfToken
+                })
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data || !data.success) {
+                throw new Error(data?.error || ('HTTP ' + res.status));
+            }
+            if (didEl) didEl.value = '';
+            if (nextEl) nextEl.value = '';
+            if (blockEl) blockEl.value = '';
+            if (statusEl) statusEl.textContent = data.message || 'Stand-up submitted';
+            loadStandups();
+            if (panels.activity && panels.activity.dataset.loaded) {
+                loadActivity();
+            }
+        } catch (err) {
+            if (statusEl) statusEl.textContent = 'Submit failed: ' + err.message;
+        }
+    });
+}
 // Initial load
 loadTeamHeader();
 loadFiles(); // files tab is the default visible tab
 </script>
+
+<div id="fileViewerOverlay" class="file-viewer-overlay" onclick="if(event.target===this) closeTeamFileViewer();">
+    <div class="file-viewer">
+        <div class="file-viewer-header">
+            <div id="fileViewerTitle">File Viewer</div>
+            <button type="button" class="read-btn" style="background:#dc2626;" onclick="closeTeamFileViewer()">Close</button>
+        </div>
+        <div id="fileViewerContent" class="file-viewer-content"></div>
+    </div>
+</div>
 
 </body>
 </html>

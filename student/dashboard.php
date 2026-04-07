@@ -9,6 +9,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
     exit;
 }
 
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $student_id = $_SESSION['user_id'];
 try {
     $student_stmt = $conn->prepare("SELECT id, name, email, reg_no, course_id, year_of_study, year_joined FROM students WHERE id = ?");
@@ -245,6 +249,13 @@ function logout() {
         <button class="explore-btn">Explore</button>
     </div>
     <img src="images/lady.jpg" alt="Medical Lady Avatar" class="hero-avatar">
+</div>
+
+<!-- Team Invitations -->
+<div style="max-width:1100px;margin:1rem auto 0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:1rem;">
+  <h3 style="margin:0 0 0.5rem 0;color:#1f2937;">Team Invitations</h3>
+  <p id="teamInviteStatus" style="margin:0 0 0.5rem 0;color:#6b7280;">Loading invitations...</p>
+  <div id="teamInviteList"></div>
 </div>
 
 <div class="features-section">
@@ -931,6 +942,76 @@ const attendanceStyles = `
 `;
 
 document.head.insertAdjacentHTML('beforeend', attendanceStyles);
+
+// Team invitation acceptance
+async function loadTeamInvitations() {
+    const statusEl = document.getElementById('teamInviteStatus');
+    const listEl = document.getElementById('teamInviteList');
+    if (!statusEl || !listEl) return;
+    statusEl.textContent = 'Loading invitations...';
+    listEl.innerHTML = '';
+    try {
+        const res = await fetch('../teams/api/get_invitations.php', { credentials: 'same-origin' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) throw new Error(data?.error || ('HTTP ' + res.status));
+        const invites = data.invitations || [];
+        if (invites.length === 0) {
+            statusEl.textContent = 'No pending team invitations.';
+            return;
+        }
+        statusEl.textContent = '';
+        // cleanup any expired pending invites first (best effort)
+        fetch('../teams/api/cleanup_expired_invitations.php', { credentials: 'same-origin' }).catch(() => {});
+
+        invites.forEach(inv => {
+            const row = document.createElement('div');
+            row.style.border = '1px solid #e5e7eb';
+            row.style.borderRadius = '8px';
+            row.style.padding = '0.75rem';
+            row.style.marginBottom = '0.5rem';
+            row.innerHTML = `
+                <div style="font-weight:600;">${inv.team_title || ('Team #' + inv.team_id)}</div>
+                <div style="font-size:12px;color:#666;">Invited by: ${inv.inviter_name || ('User #' + inv.invited_by)}</div>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-top:0.5rem;">
+                    <input type="text" id="inviteCode_${inv.id}" placeholder="Enter confirmation code" style="padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;">
+                    <button type="button" onclick="acceptTeamInvitation(${inv.id})" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:0.45rem 0.7rem;cursor:pointer;">Accept</button>
+                </div>
+            `;
+            listEl.appendChild(row);
+        });
+    } catch (err) {
+        statusEl.textContent = 'Failed to load invitations: ' + err.message;
+    }
+}
+
+async function acceptTeamInvitation(invitationId) {
+    const codeEl = document.getElementById('inviteCode_' + invitationId);
+    const code = (codeEl?.value || '').trim();
+    if (!code) {
+        alert('Enter the confirmation code from your email.');
+        return;
+    }
+    try {
+        const res = await fetch('../teams/api/accept_invitation.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                invitation_id: invitationId,
+                code: code,
+                csrf_token: <?= json_encode($_SESSION['csrf_token'] ?? '') ?>
+            })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) throw new Error(data?.error || ('HTTP ' + res.status));
+        alert(data.message || 'Invitation accepted');
+        loadTeamInvitations();
+    } catch (err) {
+        alert('Accept invitation failed: ' + err.message);
+    }
+}
+
+loadTeamInvitations();
 
 // Mark notification as read via AJAX
 function quickMarkRead(notificationId) {

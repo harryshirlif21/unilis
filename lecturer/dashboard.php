@@ -44,6 +44,7 @@ while ($note = $res->fetch_assoc()) {
     $notesByUnit[$note['unit_id']][] = $note;
 }
 $stmt->close();
+
 ?>
 
 <!DOCTYPE html>
@@ -262,6 +263,7 @@ $stmt->close();
                     <p class="no-units">No units assigned yet.</p>
                 <?php endif; ?>
             </div>
+
         </div>
 
         <!-- MEETINGS SECTION -->

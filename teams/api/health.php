@@ -56,6 +56,37 @@ try {
     $activityCount = (int) ($res['c'] ?? 0);
     $stmt->close();
 
+    // 2b) Activity heatmap: counts by day for last 14 days (including today)
+    $sqlHeat = "
+        SELECT DATE(created_at) AS d, COUNT(*) AS c
+        FROM team_activity_log
+        WHERE team_id = ?
+          AND created_at >= (CURDATE() - INTERVAL 13 DAY)
+        GROUP BY DATE(created_at)
+        ORDER BY d ASC
+    ";
+    $stmt = $conn->prepare($sqlHeat);
+    if (!$stmt) {
+        throw new Exception('Failed to prepare heatmap query: ' . $conn->error);
+    }
+    $stmt->bind_param('i', $teamId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $heatMap = [];
+    // Initialize days with 0 so frontend can draw a consistent grid
+    for ($i = 13; $i >= 0; $i--) {
+        $day = date('Y-m-d', strtotime("-{$i} days"));
+        $heatMap[$day] = 0;
+    }
+    while ($row = $result->fetch_assoc()) {
+        $dayKey = $row['d'];
+        if ($dayKey) {
+            $heatMap[$dayKey] = (int) $row['c'];
+        }
+    }
+    $stmt->close();
+
     // 3) Deadline proximity: basic stub (0.5 by default).
     // Later we can read real deadlines from an assessments table.
     $deadlineFactor = 0.5;
@@ -89,6 +120,7 @@ try {
     echo json_encode([
         'success' => true,
         'score'   => round($score),
+        'heatmap' => $heatMap,
         'components' => [
             'tasks_done' => [
                 'raw'   => $tasksDone,

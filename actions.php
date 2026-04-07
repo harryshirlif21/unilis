@@ -41,6 +41,7 @@ function convertSpeechToText($audioFile, $openai_key) {
     $result = json_decode($response, true);
     return $result['text'] ?? null;
 }
+use Dompdf\Dompdf;
 use Dompdf\Options;
 
 // Helper: Safe action fetch
@@ -395,6 +396,109 @@ if ($action === 'add_course') {
     header("Location: admin/dashboard.php");
     exit;
 }
+
+// === GET COURSE DETAILS ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_course_details') {
+    header('Content-Type: application/json');
+    $course_id = intval($_GET['course_id'] ?? 0);
+
+    if ($course_id <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid course ID.']);
+        exit;
+    }
+
+    $stmt = $conn->prepare("SELECT id, name, department_id, duration, course_type FROM courses WHERE id = ?");
+    $stmt->bind_param('i', $course_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $course = $result->fetch_assoc();
+    $stmt->close();
+
+    if (!$course) {
+        echo json_encode(['status' => 'error', 'message' => 'Course not found.']);
+        exit;
+    }
+
+    echo json_encode(['status' => 'success', 'course' => $course]);
+    exit;
+}
+
+// === EDIT COURSE ===
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_course') {
+    $course_id = intval($_POST['course_id'] ?? 0);
+    $name = trim($_POST['course_name'] ?? '');
+    $department_id = intval($_POST['department_id'] ?? 0);
+    $duration = intval($_POST['duration'] ?? 0);
+    $course_type = trim($_POST['course_type'] ?? '');
+
+    if (!$course_id || !$name || !$department_id || !$duration || !$course_type) {
+        $_SESSION['course_error'] = 'All course fields are required.';
+        header('Location: admin/dashboard.php');
+        exit;
+    }
+
+    $stmt = $conn->prepare("SELECT id FROM courses WHERE name = ? AND department_id = ? AND id != ?");
+    $stmt->bind_param('sii', $name, $department_id, $course_id);
+    $stmt->execute();
+    $stmt->store_result();
+
+    if ($stmt->num_rows > 0) {
+        $stmt->close();
+        $_SESSION['course_error'] = 'Another course with the same name already exists in that department.';
+        header('Location: admin/dashboard.php');
+        exit;
+    }
+    $stmt->close();
+
+    $update = $conn->prepare("UPDATE courses SET name = ?, department_id = ?, duration = ?, course_type = ? WHERE id = ?");
+    $update->bind_param('siisi', $name, $department_id, $duration, $course_type, $course_id);
+    if ($update->execute()) {
+        $_SESSION['course_success'] = 'Course updated successfully.';
+    } else {
+        $_SESSION['course_error'] = 'Failed to update course: ' . $update->error;
+    }
+    $update->close();
+    header('Location: admin/dashboard.php');
+    exit;
+}
+
+// === DELETE COURSE ===
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_course') {
+    header('Content-Type: application/json');
+    $course_id = intval($_POST['course_id'] ?? 0);
+
+    if ($course_id <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid course ID.']);
+        exit;
+    }
+
+    $student_check = $conn->prepare("SELECT id FROM students WHERE course_id = ? LIMIT 1");
+    $student_check->bind_param('i', $course_id);
+    $student_check->execute();
+    $student_check->store_result();
+    if ($student_check->num_rows > 0) {
+        $student_check->close();
+        echo json_encode(['status' => 'error', 'message' => 'Cannot delete this course because students are enrolled in it.']);
+        exit;
+    }
+    $student_check->close();
+
+    $delete_units = $conn->prepare("DELETE FROM units WHERE course_id = ?");
+    $delete_units->bind_param('i', $course_id);
+    $delete_units->execute();
+    $delete_units->close();
+
+    $delete_course = $conn->prepare("DELETE FROM courses WHERE id = ?");
+    $delete_course->bind_param('i', $course_id);
+    if ($delete_course->execute()) {
+        echo json_encode(['status' => 'success', 'message' => 'Course and its units deleted successfully.']);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'Failed to delete course: ' . $delete_course->error]);
+    }
+    $delete_course->close();
+    exit;
+}
+
 // === ADD LECTURER ===
 if ($action === 'add_lecturer') {
     $name = $_POST['lecturer_name'];
@@ -1609,6 +1713,162 @@ if ($action === 'get_all_students') {
     }
 
     echo json_encode(['status' => 'success', 'students' => $students]);
+    exit;
+}
+
+// === GET COURSE REGISTRATION STATS ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_course_registration_stats') {
+    header('Content-Type: application/json');
+    $course_id = intval($_GET['course_id'] ?? 0);
+
+    if ($course_id <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Course ID is required.']);
+        exit;
+    }
+
+    $course_stmt = $conn->prepare(
+        "SELECT c.name AS course_name, d.name AS department_name
+         FROM courses c
+         JOIN departments d ON c.department_id = d.id
+         WHERE c.id = ?"
+    );
+    $course_stmt->bind_param('i', $course_id);
+    $course_stmt->execute();
+    $course_result = $course_stmt->get_result();
+    $course = $course_result->fetch_assoc();
+    $course_stmt->close();
+
+    if (!$course) {
+        echo json_encode(['status' => 'error', 'message' => 'Course not found.']);
+        exit;
+    }
+
+    $stats_stmt = $conn->prepare(
+        "SELECT year_of_study AS year, COUNT(*) AS count
+         FROM students
+         WHERE course_id = ?
+         GROUP BY year_of_study
+         ORDER BY year_of_study ASC"
+    );
+    $stats_stmt->bind_param('i', $course_id);
+    $stats_stmt->execute();
+    $stats_result = $stats_stmt->get_result();
+
+    $year_counts = [];
+    while ($row = $stats_result->fetch_assoc()) {
+        $year_counts[] = $row;
+    }
+    $stats_stmt->close();
+
+    echo json_encode(['status' => 'success', 'course' => $course, 'year_counts' => $year_counts]);
+    exit;
+}
+
+// === GET COURSE YEAR STUDENTS ===
+if (isset($_GET['action']) && $_GET['action'] === 'get_course_year_students') {
+    header('Content-Type: application/json');
+    $course_id = intval($_GET['course_id'] ?? 0);
+    $year = intval($_GET['year'] ?? 0);
+
+    if ($course_id <= 0 || $year <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Course and year are required.']);
+        exit;
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT id, reg_no, name, email, year_of_study, year_joined, is_verified
+         FROM students
+         WHERE course_id = ? AND year_of_study = ?
+         ORDER BY name ASC"
+    );
+    $stmt->bind_param('ii', $course_id, $year);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $students = [];
+    while ($row = $result->fetch_assoc()) {
+        $students[] = $row;
+    }
+    $stmt->close();
+
+    echo json_encode(['status' => 'success', 'students' => $students]);
+    exit;
+}
+
+// === DOWNLOAD REGISTRATION PDF ===
+if (isset($_GET['action']) && $_GET['action'] === 'download_registration_pdf') {
+    $course_id = intval($_GET['course_id'] ?? 0);
+    $year = intval($_GET['year'] ?? 0);
+
+    if ($course_id <= 0 || $year <= 0) {
+        header('Content-Type: text/plain');
+        echo 'Course and year are required.';
+        exit;
+    }
+
+    $course_stmt = $conn->prepare(
+        "SELECT c.name AS course_name, d.name AS department_name
+         FROM courses c
+         JOIN departments d ON c.department_id = d.id
+         WHERE c.id = ?"
+    );
+    $course_stmt->bind_param('i', $course_id);
+    $course_stmt->execute();
+    $course = $course_stmt->get_result()->fetch_assoc() ?? null;
+    $course_stmt->close();
+
+    if (!$course) {
+        header('Content-Type: text/plain');
+        echo 'Course not found.';
+        exit;
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT reg_no, name, email, year_of_study, year_joined, is_verified
+         FROM students
+         WHERE course_id = ? AND year_of_study = ?
+         ORDER BY name ASC"
+    );
+    $stmt->bind_param('ii', $course_id, $year);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $students = [];
+    while ($row = $result->fetch_assoc()) {
+        $students[] = $row;
+    }
+    $stmt->close();
+
+    $safe_course_name = preg_replace('/[^a-zA-Z0-9-_ ]/', '_', $course['course_name']);
+    $fileName = "Registration_{$safe_course_name}_Year_{$year}.pdf";
+
+    $html = '<h1 style="font-family: Arial, sans-serif;">Student Registration</h1>';
+    $html .= '<p style="font-family: Arial, sans-serif;">Course: <strong>' . htmlspecialchars($course['course_name']) . '</strong></p>';
+    $html .= '<p style="font-family: Arial, sans-serif;">Department: <strong>' . htmlspecialchars($course['department_name']) . '</strong></p>';
+    $html .= '<p style="font-family: Arial, sans-serif;">Year: <strong>' . htmlspecialchars($year) . '</strong></p>';
+    $html .= '<p style="font-family: Arial, sans-serif;">Total Students: <strong>' . count($students) . '</strong></p>';
+    $html .= '<table style="width:100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-top: 18px;">'
+           . '<thead><tr style="background:#f2f2f2;"><th style="border:1px solid #ddd; padding:8px;">Reg No</th><th style="border:1px solid #ddd; padding:8px;">Name</th><th style="border:1px solid #ddd; padding:8px;">Email</th><th style="border:1px solid #ddd; padding:8px;">Year</th><th style="border:1px solid #ddd; padding:8px;">Joined</th><th style="border:1px solid #ddd; padding:8px;">Status</th></tr></thead><tbody>';
+
+    foreach ($students as $student) {
+        $status = intval($student['is_verified']) === 1 ? 'Verified' : 'Unverified';
+        $html .= '<tr>' .
+                 '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['reg_no']) . '</td>' .
+                 '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['name']) . '</td>' .
+                 '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['email']) . '</td>' .
+                 '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['year_of_study']) . '</td>' .
+                 '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['year_joined']) . '</td>' .
+                 '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($status) . '</td>' .
+                 '</tr>';
+    }
+
+    $html .= '</tbody></table>';
+
+    $dompdf = new Dompdf();
+    $dompdf->loadHtml($html);
+    $dompdf->setPaper('A4', 'portrait');
+    $dompdf->render();
+    $dompdf->stream($fileName, ['Attachment' => true]);
     exit;
 }
 

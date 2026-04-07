@@ -1,644 +1,360 @@
 <?php
-require_once 'config/db.php';
+/**
+ * dbalter.php  —  v2 (fixed after DB audit)
+ * ==========================================
+ * Inserts the 4 JKUAT IT-school courses + their 181 units.
+ *
+ * FIXES vs v1
+ * -----------
+ * 1. The 4 courses did NOT exist in the DB at all — this script inserts them
+ *    first (into `courses`, linked to department_id=2 "information technology"
+ *    at JKUAT, university_id=7).  Already-present courses are skipped.
+ * 2. Course lookup now uses the exact names inserted here, so name-mismatch
+ *    "Course NOT FOUND" errors can no longer happen.
+ * 3. Schema confirmed: units(id, name, code, course_id, year, semester) — matches.
+ *    Longest unit name is 57 chars — safe inside VARCHAR(100).
+ *
+ * HOW TO USE
+ * ----------
+ * 1. Place this file in your project root (same level as config/).
+ * 2. Open in browser  OR  run:  php dbalter.php
+ * 3. Safe to re-run — existing courses/units are skipped, nothing duplicated.
+ * 4. DELETE this file from the server when done.
+ */
 
-echo "<h1>Database Structure Viewer</h1>";
+require_once __DIR__ . '/config/db.php';   // provides $conn (mysqli)
 
-/* ================================================================
-   SECTION 1 — CREATE MISSING TABLES
-   ================================================================ */
+// ─── Config ──────────────────────────────────────────────────────────────────
+// Department id=2 = "information technology" at JKUAT (university_id=7) in your DB
+const DEPT_ID = 2;
 
-$queries = [];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-$queries[] = "CREATE TABLE IF NOT EXISTS assessments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    unit_id INT NOT NULL,
-    lecturer_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    total_marks INT DEFAULT 0,
-    due_date DATETIME,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX(unit_id), INDEX(lecturer_id),
-    FOREIGN KEY (unit_id) REFERENCES units(id),
-    FOREIGN KEY (lecturer_id) REFERENCES lecturers(id)
-) ENGINE=InnoDB";
+function getOrCreateCourse(mysqli $conn, string $name, int $deptId, int $duration): array {
+    $stmt = $conn->prepare("SELECT id FROM courses WHERE name = ? AND department_id = ? LIMIT 1");
+    $stmt->bind_param('si', $name, $deptId);
+    $stmt->execute();
+    $stmt->bind_result($id);
+    $found = $stmt->fetch();
+    $stmt->close();
 
-$queries[] = "CREATE TABLE IF NOT EXISTS assessment_questions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    assessment_id INT NOT NULL,
-    question_text TEXT NOT NULL,
-    question_type ENUM('mcq','true_false','matching','short_answer','essay','file_upload') NOT NULL DEFAULT 'short_answer',
-    marks INT DEFAULT 1,
-    position INT NOT NULL DEFAULT 0,
-    auto_grade TINYINT(1) NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX(assessment_id),
-    FOREIGN KEY (assessment_id) REFERENCES assessments(id)
-) ENGINE=InnoDB";
+    if ($found) {
+        return ['id' => (int)$id, 'status' => 'exists'];
+    }
 
-$queries[] = "CREATE TABLE IF NOT EXISTS question_options (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    question_id INT NOT NULL,
-    option_text TEXT NOT NULL,
-    is_correct TINYINT(1) DEFAULT 0,
-    match_pair VARCHAR(255) DEFAULT NULL,
-    position INT NOT NULL DEFAULT 0,
-    INDEX(question_id),
-    FOREIGN KEY (question_id) REFERENCES assessment_questions(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS assessment_submissions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    assessment_id INT NOT NULL,
-    student_id INT NOT NULL,
-    submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    score DECIMAL(8,2) DEFAULT NULL,
-    graded TINYINT(1) DEFAULT 0,
-    status ENUM('in_progress','submitted','graded','flagged') NOT NULL DEFAULT 'submitted',
-    violations_json LONGTEXT DEFAULT NULL,
-    graded_by INT DEFAULT NULL,
-    graded_at DATETIME DEFAULT NULL,
-    INDEX(assessment_id), INDEX(student_id),
-    FOREIGN KEY (assessment_id) REFERENCES assessments(id),
-    FOREIGN KEY (student_id) REFERENCES students(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS submission_answers (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    submission_id INT NOT NULL,
-    question_id INT NOT NULL,
-    selected_option INT DEFAULT NULL,
-    answer_text LONGTEXT,
-    file_path VARCHAR(500) DEFAULT NULL,
-    marks_awarded DECIMAL(8,2) DEFAULT NULL,
-    is_correct TINYINT(1) DEFAULT NULL,
-    INDEX(submission_id), INDEX(question_id),
-    FOREIGN KEY (submission_id) REFERENCES assessment_submissions(id),
-    FOREIGN KEY (question_id) REFERENCES assessment_questions(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS course_modules (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    unit_id INT NOT NULL,
-    lecturer_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    position INT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_cm_unit (unit_id),
-    INDEX idx_cm_lecturer (lecturer_id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS course_lessons (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    module_id INT NOT NULL,
-    unit_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    lesson_number INT NOT NULL DEFAULT 1,
-    position INT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX(module_id), INDEX idx_cl_unit (unit_id),
-    FOREIGN KEY (module_id) REFERENCES course_modules(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS lesson_content_blocks (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    lesson_id INT NOT NULL,
-    block_type ENUM('text','image','video','audio','diagram','pdf') NOT NULL DEFAULT 'text',
-    content LONGTEXT,
-    position INT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX(lesson_id),
-    FOREIGN KEY (lesson_id) REFERENCES course_lessons(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS labs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    unit_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    instructions TEXT,
-    due_date DATETIME,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX(unit_id),
-    FOREIGN KEY (unit_id) REFERENCES units(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS lab_submissions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    lab_id INT NOT NULL,
-    student_id INT NOT NULL,
-    file_path VARCHAR(255),
-    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    score DECIMAL(5,2),
-    INDEX(lab_id), INDEX(student_id),
-    FOREIGN KEY (lab_id) REFERENCES labs(id),
-    FOREIGN KEY (student_id) REFERENCES students(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS student_progress (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id INT NOT NULL,
-    unit_id INT NOT NULL,
-    event_type ENUM('lesson_viewed','lesson_completed','quiz_score','assignment_score','cat_score','exam_score','lab_completed') NOT NULL,
-    lesson_id INT DEFAULT NULL,
-    assessment_id INT DEFAULT NULL,
-    lab_id INT DEFAULT NULL,
-    score DECIMAL(8,2) DEFAULT NULL,
-    completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    progress_percent DECIMAL(5,2) DEFAULT 0,
-    last_accessed DATETIME,
-    INDEX(student_id), INDEX(unit_id),
-    FOREIGN KEY (student_id) REFERENCES students(id),
-    FOREIGN KEY (unit_id) REFERENCES units(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS student_unit_enrollments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id INT NOT NULL,
-    unit_id INT NOT NULL,
-    semester INT DEFAULT 1,
-    academic_year VARCHAR(20) DEFAULT NULL,
-    enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX(student_id), INDEX(unit_id),
-    FOREIGN KEY (student_id) REFERENCES students(id),
-    FOREIGN KEY (unit_id) REFERENCES units(id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS course_outlines (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    unit_id INT NOT NULL,
-    lecturer_id INT NOT NULL,
-    description TEXT,
-    outline LONGTEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_unit_lecturer (unit_id, lecturer_id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS exam_violations (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    submission_id INT NOT NULL,
-    student_id INT NOT NULL,
-    violation_type VARCHAR(100) NOT NULL,
-    details TEXT,
-    occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX(submission_id),
-    INDEX(student_id)
-) ENGINE=InnoDB";
-
-$queries[] = "CREATE TABLE IF NOT EXISTS assessment_weights (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    unit_id INT NOT NULL,
-    lecturer_id INT NOT NULL,
-    assessment_type VARCHAR(32) NOT NULL,
-    weight_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_unit_lec_type (unit_id, lecturer_id, assessment_type)
-) ENGINE=InnoDB";
-
-echo "<h2>Checking / Creating Missing Tables</h2>";
-foreach ($queries as $sql) {
-    echo $conn->query($sql)
-        ? "Table OK / Created successfully<br>"
-        : "Error: " . $conn->error . "<br>";
+    $ins = $conn->prepare("INSERT INTO courses (name, department_id, duration) VALUES (?, ?, ?)");
+    $ins->bind_param('sii', $name, $deptId, $duration);
+    $ins->execute();
+    $newId = (int)$conn->insert_id;
+    $ins->close();
+    return ['id' => $newId, 'status' => 'inserted'];
 }
 
-/* ================================================================
-   SECTION 2 — FIX EXISTING TABLES
-   ================================================================ */
+function insertUnit(mysqli $conn, int $courseId, string $code, string $name, int $year, int $semester): string {
+    $chk = $conn->prepare("SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1");
+    $chk->bind_param('is', $courseId, $code);
+    $chk->execute();
+    $chk->store_result();
+    if ($chk->num_rows > 0) { $chk->close(); return 'skipped'; }
+    $chk->close();
 
-echo "<h2>Checking / Fixing Table Schemas</h2>";
-
-// ── Helpers ───────────────────────────────────────────────────────
-
-function column_exists($conn, $table, $column) {
-    $r = $conn->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME   = '$table'
-          AND COLUMN_NAME  = '$column' LIMIT 1");
-    return $r && $r->num_rows > 0;
+    $ins = $conn->prepare("INSERT INTO units (name, code, course_id, year, semester) VALUES (?, ?, ?, ?, ?)");
+    $ins->bind_param('ssiii', $name, $code, $courseId, $year, $semester);
+    $ins->execute();
+    $ok = $ins->affected_rows > 0;
+    $ins->close();
+    return $ok ? 'inserted' : 'failed';
 }
 
-function index_exists($conn, $table, $index) {
-    $r = $conn->query("SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = '$table'
-          AND INDEX_NAME = '$index' LIMIT 1");
-    return $r && $r->num_rows > 0;
-}
+// ─── Course definitions ───────────────────────────────────────────────────────
+// [ display_name => duration_years ]
+$courseDefs = [
+    'Certificate in Information Technology' => 1,
+    'Diploma in Information Technology'     => 2,
+    'B.Sc. Information Technology'          => 4,
+    'B.Sc. Business Computing'              => 4,
+];
 
-function alter($conn, $sql, $label) {
-    if ($conn->query($sql)) {
-        echo "✔ $label<br>";
+// ─── Curriculum data ─────────────────────────────────────────────────────────
+// [ course_name => [ [code, name, year, semester], ... ] ]
+
+$curriculum = [
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Certificate in Information Technology  (SCT021)
+    // ═══════════════════════════════════════════════════════════════════════
+    'Certificate in Information Technology' => [
+        // Year 1 – Semester 1
+        ['CIT 0101', 'Introduction to Computer Systems',              1, 1],
+        ['CIT 0102', 'Elementary Computer Mathematics',               1, 1],
+        ['CIT 0104', 'Computer Applications',                         1, 1],
+        ['CIT 0105', 'Introduction to Databases and Data Gathering',  1, 1],
+        ['CIT 0106', 'Introduction to Internet Applications',         1, 1],
+        ['CIT 0107', 'Principles of Electronics',                     1, 1],
+        ['CIT 0110', 'Introduction to Computer Operating Systems',    1, 1],
+        ['TDH 1100', 'Introduction to HIV/AIDS',                      1, 1],
+        // Year 1 – Semester 2
+        ['CIT 0103', 'Principles of Programming Languages',           1, 2],
+        ['CIT 0108', 'Elementary Computer Support and Maintenance',   1, 2],
+        ['CIT 0109', 'Networking Skills and Technologies',            1, 2],
+        ['CIT 0111', 'Entrepreneurship and Life Skills',              1, 2],
+        ['CIT 0112', 'Introduction to Application Programming',       1, 2],
+        ['CIT 0113', 'Trade Project',                                 1, 2],
+        ['HRD 0101', 'Communication Skills',                          1, 2],
+    ],
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Diploma in Information Technology  (SCT121)
+    // ═══════════════════════════════════════════════════════════════════════
+    'Diploma in Information Technology' => [
+        // Year 1 – Semester 1
+        ['DIT 0106', 'Basic Mathematics for IT',                       1, 1],
+        ['HRD 0101', 'Communication Skills',                           1, 1],
+        ['DIT 0103', 'Computer Operating Systems',                     1, 1],
+        ['DIT 0102', 'Introduction to Computer Applications',          1, 1],
+        ['DIT 0101', 'Introduction to Computers',                      1, 1],
+        ['DIT 0108', 'Introduction to Database Management Systems',    1, 1],
+        ['TDH 1100', 'Introduction to HIV/AIDS',                       1, 1],
+        // Year 1 – Semester 2
+        ['DIT 0206', 'Analogue Electronics',                           1, 2],
+        ['CED 0217', 'Entrepreneurship Skills',                        1, 2],
+        ['DIT 0207', 'Introduction to Programming and Algorithms',     1, 2],
+        ['DIT 0204', 'Network Essentials',                             1, 2],
+        ['DIT 0205', 'Principles of Computer Support and Maintenance', 1, 2],
+        ['DIT 0208', 'Programming Desktop Applications',               1, 2],
+        ['DIT 0209', 'Web Design and Development I',                   1, 2],
+        // Year 2 – Semester 1
+        ['DIT 0313', 'Advanced Computer Operating Systems',            2, 1],
+        ['DIT 0311', 'Cloud Computing',                                2, 1],
+        ['DIT 0309', 'Desktop Publishing',                             2, 1],
+        ['DIT 0306', 'ICT Project I',                                  2, 1],
+        ['DIT 0308', 'Industrial Attachment',                          2, 1],
+        ['DIT 0312', 'Introduction to Cybersecurity',                  2, 1],
+        ['DIT 0301', 'Object-Oriented Programming I',                  2, 1],
+        ['DIT 0310', 'System Analysis and Design',                     2, 1],
+        // Year 2 – Semester 2  (core)
+        ['DIT 0421', 'ICT Project II',                                 2, 2],
+        ['DIT 0419', 'Object-Oriented Analysis and Design',            2, 2],
+        ['DIT 0422', 'Professional Issues in Information Technology',  2, 2],
+        ['DIT 0420', 'Software Engineering',                           2, 2],
+        // Year 2 – Semester 2  (electives)
+        ['DIT 0425', 'Advanced Computer Support and Upgrading',        2, 2],
+        ['DIT 0424', 'Advanced Event-Driven Programming',              2, 2],
+        ['DIT 0423', 'Advanced Object-Oriented Programming',           2, 2],
+        ['DIT 0417', 'Computer Animation',                             2, 2],
+        ['DIT 0429', 'Computer Graphics',                              2, 2],
+        ['DIT 0407', 'Database Management Systems',                    2, 2],
+        ['DIT 0427', 'Digital Photography and Video Editing',          2, 2],
+        ['DIT 0426', 'Mobile Computing',                               2, 2],
+        ['DIT 0428', 'Multi-Media Applications',                       2, 2],
+        ['DIT 0408', 'Network Design and Administration',              2, 2],
+    ],
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // B.Sc. Information Technology  (SCT221)
+    // ═══════════════════════════════════════════════════════════════════════
+    'B.Sc. Information Technology' => [
+        // Year 1 – Semester 1
+        ['CILS 2101', 'Communication and Information Literacy Skills', 1, 1],
+        ['ICS 2109',  'Computer Operating Systems',                    1, 1],
+        ['BBC 2105',  'Essentials of Economics',                       1, 1],
+        ['BBC 2104',  'Hardware Systems Support and Maintenance',      1, 1],
+        ['SZL 2111',  'HIV/AIDS',                                      1, 1],
+        ['HBC 2128',  'Introduction to Accounting 1',                  1, 1],
+        ['BIT 2103',  'Introduction to Computer Applications',         1, 1],
+        ['BIT 2104',  'Introduction to Programming',                   1, 1],
+        ['SMA 2104',  'Mathematics for Sciences',                      1, 1],
+        // Year 1 – Semester 2
+        ['SDS 2107',  'Algebra for Data Science',                      1, 2],
+        ['ICS 2200',  'Analogue Electronics',                          1, 2],
+        ['BIT 2212',  'Business Systems Modelling',                    1, 2],
+        ['BIT 2225',  'Cloud Computing',                               1, 2],
+        ['BIT 2123',  'Computer Network, Design and Management',       1, 2],
+        ['HRD 2102',  'Development Studies and Social Ethics',         1, 2],
+        ['SMA 2100',  'Discrete Mathematics',                          1, 2],
+        ['BIT 2112',  'Systems Analysis and Design',                   1, 2],
+        // Year 2 – Semester 1
+        ['SMA 2101',  'Calculus I',                                    2, 1],
+        ['BIT 2324',  'Geographical Information Systems',              2, 1],
+        ['ICS 2206',  'Introduction to Database Management Systems',   2, 1],
+        ['BIT 2223',  'Mobile and Wireless Computing',                 2, 1],
+        ['ICS 2104',  'Object Oriented Programming I',                 2, 1],
+        ['BIT 2214',  'Object-Oriented Analysis and Design',           2, 1],
+        ['ICS 2302',  'Software Engineering I',                        2, 1],
+        ['ICS 2203',  'Web Application Development I',                 2, 1],
+        // Year 2 – Semester 2
+        ['BIT 2118',  'Application Programming I',                     2, 2],
+        ['SMA 2102',  'Calculus II',                                   2, 2],
+        ['ICS 2105',  'Data Structures and Algorithms',                2, 2],
+        ['ICS 2205',  'Digital Logic',                                 2, 2],
+        ['BIT 2122',  'Industrial Attachment',                         2, 2],
+        ['BIT 2204',  'Network Systems Administration',                2, 2],
+        ['ICS 2201',  'Object Oriented Programming II',                2, 2],
+        ['STA 2100',  'Probability and Statistics I',                  2, 2],
+        ['BIT 2207',  'Web Design and Development II',                 2, 2],
+        // Year 3 – Semester 1
+        ['ICS 2404',  'Advanced Database Management System',           3, 1],
+        ['BIT 2203',  'Advanced Programming',                          3, 1],
+        ['BIT 2323',  'Application Programming II',                    3, 1],
+        ['BIT 2111',  'Computer Aided Design',                         3, 1],
+        ['ICS 2301',  'Design and Analysis of Algorithms',             3, 1],
+        ['BIT 2320',  'Mobile Application Development',                3, 1],
+        ['BIT 2321',  'Software Engineering II',                       3, 1],
+        // Year 3 – Semester 2
+        ['BIT 2319',  'Artificial Intelligence',                       3, 2],
+        ['BIT 2328',  'Cryptography and Blockchain Applications',      3, 2],
+        ['BIT 2326',  'Internet of Things (IoT) and Embedded Systems', 3, 2],
+        ['BIT 2327',  'Introduction to Cyber Security',                3, 2],
+        ['STA 2200',  'Probability and Statistics II',                 3, 2],
+        ['BIT 2301',  'Research Methodology',                          3, 2],
+        ['BIT 2215',  'Software Project Management',                   3, 2],
+        ['ICS 2305',  'Systems Programming',                           3, 2],
+        // Year 4 – Semester 1
+        ['BIT 2317',  'Computer Systems Security',                     4, 1],
+        ['ICS 2403',  'Distributed Systems',                           4, 1],
+        ['BIT 2210',  'Fundamentals of Business Intelligence',         4, 1],
+        ['BIT 2305',  'Human Computer Interactions',                   4, 1],
+        ['HSC 2408',  'Innovation and Technology Transfer',            4, 1],
+        ['BIT 2400',  'Introduction to Functional Programming',        4, 1],
+        ['ICS 2405',  'Knowledge Based Systems',                       4, 1],
+        ['BIT 2303',  'Research Project',                              4, 1],
+        // Year 4 – Semester 2
+        ['BIT 2401',  'Advanced Business Intelligence',                4, 2],
+        ['BIT 2402',  'Enterprise Systems Applications and Architecture', 4, 2],
+        ['HRD 2401',  'Entrepreneurship Skills',                       4, 2],
+        ['BIT 2318',  'Information System Audit',                      4, 2],
+        ['ICS 2303',  'Multimedia Systems and Applications',           4, 2],
+        ['HBC 2112',  'Principles of Marketing',                       4, 2],
+        ['BIT 2313',  'Professional Issues in ICT',                    4, 2],
+    ],
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // B.Sc. Business Computing  (SCT222)
+    // ═══════════════════════════════════════════════════════════════════════
+    'B.Sc. Business Computing' => [
+        // Year 1 – Semester 1
+        ['BBC 2101',  'Business Studies for I.T.',                     1, 1],
+        ['BIT 2103',  'Introduction to Computer Applications',         1, 1],
+        ['BIT 2104',  'Introduction to Programming',                   1, 1],
+        ['CILS 2101', 'Communication and Information Literacy Skills', 1, 1],
+        ['HBC 2128',  'Introduction to Accounting 1',                  1, 1],
+        ['HBC 2215',  'Essentials of Economics',                       1, 1],
+        ['ICS 2109',  'Computer Operating Systems',                    1, 1],
+        ['SMA 2104',  'Mathematics for Sciences',                      1, 1],
+        ['SZL 2111',  'HIV/AIDS',                                      1, 1],
+        // Year 1 – Semester 2
+        ['BBC 2102',  'Computer Networks, Design and Management',      1, 2],
+        ['BBC 2103',  'Hardware Systems Support and Maintenance',      1, 2],
+        ['BIT 2112',  'Systems Analysis and Design',                   1, 2],
+        ['HBC 2107',  'Introduction to Accounting II',                 1, 2],
+        ['HRD 2102',  'Development Studies and Social Ethics',         1, 2],
+        ['ICS 2206',  'Introduction to Database Management Systems',   1, 2],
+        ['SDS 2107',  'Algebra for Data Science',                      1, 2],
+        ['STA 2100',  'Probability and Statistics I',                  1, 2],
+        // Year 2 – Semester 1
+        ['BBC 2201',  'Enterprise Network Systems Administration and Management', 2, 1],
+        ['BBC 2202',  'Web Development Fundamentals',                  2, 1],
+        ['BIT 2214',  'Object-Oriented Analysis and Design',           2, 1],
+        ['BIT 2223',  'Mobile and Wireless Computing',                 2, 1],
+        ['HPS 2301',  'Operations Management',                         2, 1],
+        ['HSC 2408',  'Innovation and Technology Transfer',            2, 1],
+        ['ICS 2105',  'Data Structures and Algorithms',                2, 1],
+        ['SMA 2101',  'Calculus I',                                    2, 1],
+        // Year 2 – Semester 2
+        ['BBC 2203',  'Software Engineering',                          2, 2],
+        ['BBC 2204',  'Object-Oriented Programming',                   2, 2],
+        ['BBC 2205',  'Cloud and Edge Computing',                      2, 2],
+        ['BBC 2206',  'Introduction to Data Science',                  2, 2],
+        ['BBC 2207',  'Design Thinking',                               2, 2],
+        ['BBC 2208',  'Business Computing Project in Industry',        2, 2],
+        ['HBC 2202',  'Introduction to Financial Management',          2, 2],
+        ['SMA 2100',  'Discrete Mathematics',                          2, 2],
+        ['SMA 2102',  'Calculus II',                                   2, 2],
+        // Year 3 – Semester 1
+        ['BBC 2301',  'Enterprise Web Application Development',        3, 1],
+        ['BBC 2302',  'Principles of Data Analytics',                  3, 1],
+        ['BBC 2303',  'Enterprise Resource Planning Systems',          3, 1],
+        ['BBC 2304',  'Computer Graphics and Multimedia',              3, 1],
+        ['BIT 2319',  'Artificial Intelligence',                       3, 1],
+        ['ICS 2301',  'Design and Analysis of Algorithms',             3, 1],
+        ['ICS 2404',  'Advanced Database Management System',           3, 1],
+        ['STA 2200',  'Probability and Statistics II',                 3, 1],
+        // Year 3 – Semester 2
+        ['BBC 2305',  'Machine Learning',                              3, 2],
+        ['BBC 2306',  'Information Analysis and Visualization',        3, 2],
+        ['BBC 2307',  'Statistical Computing',                         3, 2],
+        ['BIT 2122',  'Industrial Attachment',                         3, 2],
+        ['BIT 2215',  'Software Project Management',                   3, 2],
+        ['BIT 2301',  'Research Methodology',                          3, 2],
+        ['BIT 2305',  'Human Computer Interactions',                   3, 2],
+        ['BIT 2317',  'Fundamentals of Computer Security',             3, 2],
+        ['BIT 2320',  'Mobile Application Development',                3, 2],
+        // Year 4 – Semester 1
+        ['BBC 2401',  'Software Architectures',                        4, 1],
+        ['BBC 2402',  'Embedded Systems and Internet of Things (IoT)', 4, 1],
+        ['BBC 2403',  'Digital Marketing Communication',               4, 1],
+        ['BBC 2404',  'Deep Learning',                                 4, 1],
+        ['BBC 2405',  'Business Data Mining and Warehousing',          4, 1],
+        ['BBC 2406',  'Software Development Project',                  4, 1],
+        ['BBC 2407',  'Animation and Augmented Reality',               4, 1],
+        ['BIT 2318',  'Information System Audit',                      4, 1],
+        // Year 4 – Semester 2
+        ['BBC 2408',  'Business Decision Support Systems',             4, 2],
+        ['BBC 2409',  'Text Mining and Web Analytics',                 4, 2],
+        ['BBC 2410',  'Business Analysis and Process Modeling',        4, 2],
+        ['BIT 2313',  'Professional Issues in ICT',                    4, 2],
+        ['BIT 2403',  'Business Development and Entrepreneurship',     4, 2],
+        ['HBC 2209',  'Organizational Behaviour',                      4, 2],
+        ['HBC 2401',  'Management Accounting',                         4, 2],
+    ],
+
+]; // end $curriculum
+
+// ─── Run ─────────────────────────────────────────────────────────────────────
+
+$totals = ['courses_inserted' => 0, 'courses_existed' => 0,
+           'units_inserted'   => 0, 'units_skipped'   => 0, 'units_failed' => 0];
+$log = [];
+
+foreach ($curriculum as $courseName => $units) {
+    $duration = $courseDefs[$courseName];
+    $result   = getOrCreateCourse($conn, $courseName, DEPT_ID, $duration);
+    $courseId = $result['id'];
+
+    if ($result['status'] === 'inserted') {
+        $totals['courses_inserted']++;
+        $log[] = "📗 Course CREATED (id=$courseId): \"$courseName\"";
     } else {
-        // Ignore "duplicate" errors — already applied
-        $errno = $conn->errno;
-        if (in_array($errno, [1060, 1061, 1062, 1091])) {
-            echo "✔ $label (already applied)<br>";
-        } else {
-            echo "✘ $label — " . $conn->error . "<br>";
-        }
+        $totals['courses_existed']++;
+        $log[] = "📘 Course exists  (id=$courseId): \"$courseName\"";
+    }
+
+    foreach ($units as [$code, $name, $year, $semester]) {
+        $r = insertUnit($conn, $courseId, $code, $name, $year, $semester);
+        $totals["units_{$r}"]++;
+        $icon  = match($r) { 'inserted' => '  ✅', 'skipped' => '  ⚠️ ', default => '  ❌' };
+        $log[] = "$icon [$r] Y{$year}S{$semester} | $code | $name";
     }
 }
 
-// ── course_modules ────────────────────────────────────────────────
-echo "<h3>course_modules</h3>";
-
-$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_modules'
-    AND COLUMN_NAME = 'course_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
-if ($fk && $fk->num_rows > 0) {
-    $fk_name = $fk->fetch_assoc()['CONSTRAINT_NAME'];
-    alter($conn, "ALTER TABLE `course_modules` DROP FOREIGN KEY `$fk_name`", "Dropped FK $fk_name on course_id");
-}
-
-if (column_exists($conn, 'course_modules', 'course_id')) {
-    alter($conn, "ALTER TABLE `course_modules` DROP COLUMN `course_id`", "Dropped column course_id");
-} else { echo "✔ course_id already absent<br>"; }
-
-if (column_exists($conn, 'course_modules', 'description')) {
-    alter($conn, "ALTER TABLE `course_modules` DROP COLUMN `description`", "Dropped column description");
-} else { echo "✔ description already absent<br>"; }
-
-if (!column_exists($conn, 'course_modules', 'unit_id')) {
-    alter($conn, "ALTER TABLE `course_modules` ADD COLUMN `unit_id` INT NOT NULL DEFAULT 0 AFTER `id`", "Added column unit_id");
-} else { echo "✔ unit_id already exists<br>"; }
-
-if (!column_exists($conn, 'course_modules', 'lecturer_id')) {
-    alter($conn, "ALTER TABLE `course_modules` ADD COLUMN `lecturer_id` INT NOT NULL DEFAULT 0 AFTER `unit_id`", "Added column lecturer_id");
-} else { echo "✔ lecturer_id already exists<br>"; }
-
-if (!index_exists($conn, 'course_modules', 'idx_cm_unit')) {
-    alter($conn, "ALTER TABLE `course_modules` ADD INDEX `idx_cm_unit` (`unit_id`)", "Added index idx_cm_unit");
-} else { echo "✔ idx_cm_unit already exists<br>"; }
-
-if (!index_exists($conn, 'course_modules', 'idx_cm_lecturer')) {
-    alter($conn, "ALTER TABLE `course_modules` ADD INDEX `idx_cm_lecturer` (`lecturer_id`)", "Added index idx_cm_lecturer");
-} else { echo "✔ idx_cm_lecturer already exists<br>"; }
-
-alter($conn,
-    "UPDATE `course_modules` cm
-     JOIN `lecturer_units` lu ON lu.unit_id = cm.unit_id
-     SET cm.lecturer_id = lu.lecturer_id
-     WHERE cm.lecturer_id = 0",
-    "Backfilled course_modules.lecturer_id from lecturer_units for rows with 0"
-);
-
-// ── course_lessons ────────────────────────────────────────────────
-echo "<h3>course_lessons</h3>";
-
-if (column_exists($conn, 'course_lessons', 'content')) {
-    alter($conn, "ALTER TABLE `course_lessons` DROP COLUMN `content`", "Dropped column content");
-} else { echo "✔ content already absent<br>"; }
-
-if (!column_exists($conn, 'course_lessons', 'unit_id')) {
-    alter($conn, "ALTER TABLE `course_lessons` ADD COLUMN `unit_id` INT NOT NULL DEFAULT 0 AFTER `module_id`", "Added column unit_id");
-} else { echo "✔ unit_id already exists<br>"; }
-
-if (!column_exists($conn, 'course_lessons', 'lesson_number')) {
-    alter($conn, "ALTER TABLE `course_lessons` ADD COLUMN `lesson_number` INT NOT NULL DEFAULT 1 AFTER `title`", "Added column lesson_number");
-} else { echo "✔ lesson_number already exists<br>"; }
-
-if (!index_exists($conn, 'course_lessons', 'idx_cl_unit')) {
-    alter($conn, "ALTER TABLE `course_lessons` ADD INDEX `idx_cl_unit` (`unit_id`)", "Added index idx_cl_unit");
-} else { echo "✔ idx_cl_unit already exists<br>"; }
-
-// ── lesson_content_blocks ─────────────────────────────────────────
-echo "<h3>lesson_content_blocks</h3>";
-
-alter($conn,
-    "ALTER TABLE `lesson_content_blocks`
-        MODIFY COLUMN `block_type` ENUM('text','image','video','audio','diagram','pdf') NOT NULL DEFAULT 'text',
-        MODIFY COLUMN `content` LONGTEXT",
-    "Fixed block_type enum (audio/diagram) and content to LONGTEXT"
-);
-
-if (!column_exists($conn, 'lesson_content_blocks', 'created_at')) {
-    alter($conn, "ALTER TABLE `lesson_content_blocks` ADD COLUMN `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP", "Added column created_at");
-} else { echo "✔ created_at already exists<br>"; }
-
-// ── assessments ───────────────────────────────────────────────────
-echo "<h3>assessments</h3>";
-
-if (!column_exists($conn, 'assessments', 'type')) {
-    alter($conn, "ALTER TABLE `assessments` ADD COLUMN `type` ENUM('quiz','assignment','cat','exam') NOT NULL DEFAULT 'quiz' AFTER `lecturer_id`", "Added column type");
-} else { echo "✔ type already exists<br>"; }
-
-if (!column_exists($conn, 'assessments', 'is_published')) {
-    alter($conn, "ALTER TABLE `assessments` ADD COLUMN `is_published` TINYINT(1) NOT NULL DEFAULT 0 AFTER `due_date`", "Added column is_published");
-} else { echo "✔ is_published already exists<br>"; }
-
-if (!column_exists($conn, 'assessments', 'pass_mark')) {
-    alter($conn, "ALTER TABLE `assessments` ADD COLUMN `pass_mark` DECIMAL(5,2) DEFAULT 50.00 AFTER `total_marks`", "Added column pass_mark");
-} else { echo "✔ pass_mark already exists<br>"; }
-
-if (!column_exists($conn, 'assessments', 'time_limit_mins')) {
-    alter($conn, "ALTER TABLE `assessments` ADD COLUMN `time_limit_mins` INT DEFAULT NULL AFTER `pass_mark`", "Added column time_limit_mins");
-} else { echo "✔ time_limit_mins already exists<br>"; }
-
-if (!column_exists($conn, 'assessments', 'instructions')) {
-    alter($conn, "ALTER TABLE `assessments` ADD COLUMN `instructions` TEXT DEFAULT NULL AFTER `description`", "Added column instructions");
-} else { echo "✔ instructions already exists<br>"; }
-
-if (!column_exists($conn, 'assessments', 'module_id')) {
-    alter($conn, "ALTER TABLE `assessments` ADD COLUMN `module_id` INT DEFAULT NULL AFTER `unit_id`", "Added column module_id");
-} else { echo "✔ module_id already exists<br>"; }
-
-if (!column_exists($conn, 'assessments', 'lesson_id')) {
-    alter($conn, "ALTER TABLE `assessments` ADD COLUMN `lesson_id` INT DEFAULT NULL AFTER `module_id`", "Added column lesson_id");
-} else { echo "✔ lesson_id already exists<br>"; }
-
-// ── assessment_questions ──────────────────────────────────────────
-echo "<h3>assessment_questions</h3>";
-
-alter($conn,
-    "ALTER TABLE `assessment_questions`
-        MODIFY COLUMN `question_type`
-            ENUM('mcq','true_false','matching','short_answer','essay','file_upload')
-            NOT NULL DEFAULT 'short_answer',
-        MODIFY COLUMN `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-    "Fixed question_type enum + created_at to DATETIME"
-);
-
-if (!column_exists($conn, 'assessment_questions', 'position')) {
-    alter($conn, "ALTER TABLE `assessment_questions` ADD COLUMN `position` INT NOT NULL DEFAULT 0 AFTER `marks`", "Added column position");
-} else { echo "✔ position already exists<br>"; }
-
-if (!column_exists($conn, 'assessment_questions', 'auto_grade')) {
-    alter($conn, "ALTER TABLE `assessment_questions` ADD COLUMN `auto_grade` TINYINT(1) NOT NULL DEFAULT 1 AFTER `position`", "Added column auto_grade");
-} else { echo "✔ auto_grade already exists<br>"; }
-
-// ── assessment_submissions ────────────────────────────────────────
-echo "<h3>assessment_submissions</h3>";
-
-alter($conn,
-    "ALTER TABLE `assessment_submissions`
-        MODIFY COLUMN `score` DECIMAL(8,2) DEFAULT NULL,
-        MODIFY COLUMN `submitted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-    "Fixed score precision to DECIMAL(8,2) + submitted_at to DATETIME"
-);
-
-if (!column_exists($conn, 'assessment_submissions', 'status')) {
-    alter($conn, "ALTER TABLE `assessment_submissions` ADD COLUMN `status` ENUM('submitted','graded','flagged') NOT NULL DEFAULT 'submitted' AFTER `graded`", "Added column status");
-} else { 
-    // Fix enum if it has wrong values
-    $check = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assessment_submissions' AND COLUMN_NAME = 'status'");
-    if ($check && $row = $check->fetch_assoc()) {
-        if (strpos($row['COLUMN_TYPE'], 'in_progress') !== false) {
-            alter($conn, "ALTER TABLE `assessment_submissions` MODIFY COLUMN `status` ENUM('submitted','graded','flagged') NOT NULL DEFAULT 'submitted'", "Fixed status enum values");
-        } else {
-            echo "✔ status already exists<br>";
-        }
-    }
-}
-
-if (!column_exists($conn, 'assessment_submissions', 'violations_json')) {
-    alter($conn, "ALTER TABLE `assessment_submissions` ADD COLUMN `violations_json` LONGTEXT DEFAULT NULL AFTER `status`", "Added column violations_json");
-} else { echo "✔ violations_json already exists<br>"; }
-
-if (!column_exists($conn, 'assessment_submissions', 'graded_by')) {
-    alter($conn, "ALTER TABLE `assessment_submissions` ADD COLUMN `graded_by` INT DEFAULT NULL AFTER `violations_json`", "Added column graded_by");
-} else { echo "✔ graded_by already exists<br>"; }
-
-if (!column_exists($conn, 'assessment_submissions', 'graded_at')) {
-    alter($conn, "ALTER TABLE `assessment_submissions` ADD COLUMN `graded_at` DATETIME DEFAULT NULL AFTER `graded_by`", "Added column graded_at");
-} else { echo "✔ graded_at already exists<br>"; }
-
-// ── question_options ──────────────────────────────────────────────
-echo "<h3>question_options</h3>";
-
-alter($conn,
-    "ALTER TABLE `question_options` MODIFY COLUMN `option_text` TEXT NOT NULL",
-    "Fixed option_text to TEXT"
-);
-
-if (!column_exists($conn, 'question_options', 'match_pair')) {
-    alter($conn, "ALTER TABLE `question_options` ADD COLUMN `match_pair` VARCHAR(255) DEFAULT NULL AFTER `is_correct`", "Added column match_pair");
-} else { echo "✔ match_pair already exists<br>"; }
-
-if (!column_exists($conn, 'question_options', 'position')) {
-    alter($conn, "ALTER TABLE `question_options` ADD COLUMN `position` INT NOT NULL DEFAULT 0 AFTER `match_pair`", "Added column position");
-} else { echo "✔ position already exists<br>"; }
-
-// ── submission_answers ────────────────────────────────────────────
-echo "<h3>submission_answers</h3>";
-
-if (!column_exists($conn, 'submission_answers', 'selected_option') &&
-     column_exists($conn, 'submission_answers', 'selected_option_id')) {
-    alter($conn, "ALTER TABLE `submission_answers` CHANGE `selected_option_id` `selected_option` INT DEFAULT NULL", "Renamed selected_option_id → selected_option");
-} else { echo "✔ selected_option column OK<br>"; }
-
-alter($conn,
-    "ALTER TABLE `submission_answers` MODIFY COLUMN `answer_text` LONGTEXT",
-    "Fixed answer_text to LONGTEXT"
-);
-
-if (!column_exists($conn, 'submission_answers', 'file_path')) {
-    alter($conn, "ALTER TABLE `submission_answers` ADD COLUMN `file_path` VARCHAR(500) DEFAULT NULL AFTER `answer_text`", "Added column file_path");
-} else { echo "✔ file_path already exists<br>"; }
-
-if (!column_exists($conn, 'submission_answers', 'is_correct')) {
-    alter($conn, "ALTER TABLE `submission_answers` ADD COLUMN `is_correct` TINYINT(1) DEFAULT NULL AFTER `marks_awarded`", "Added column is_correct");
-} else { echo "✔ is_correct already exists<br>"; }
-
-// ── student_progress ──────────────────────────────────────────────
-echo "<h3>student_progress</h3>";
-
-if (!column_exists($conn, 'student_progress', 'event_type')) {
-    alter($conn,
-        "ALTER TABLE `student_progress` ADD COLUMN `event_type`
-            ENUM('lesson_viewed','lesson_completed','quiz_score','assignment_score','cat_score','exam_score','lab_completed')
-            NOT NULL DEFAULT 'lesson_viewed' AFTER `unit_id`",
-        "Added column event_type"
-    );
-} else { echo "✔ event_type already exists<br>"; }
-
-if (!column_exists($conn, 'student_progress', 'lesson_id')) {
-    alter($conn, "ALTER TABLE `student_progress` ADD COLUMN `lesson_id` INT DEFAULT NULL AFTER `event_type`", "Added column lesson_id");
-} else { echo "✔ lesson_id already exists<br>"; }
-
-if (!column_exists($conn, 'student_progress', 'assessment_id')) {
-    alter($conn, "ALTER TABLE `student_progress` ADD COLUMN `assessment_id` INT DEFAULT NULL AFTER `lesson_id`", "Added column assessment_id");
-} else { echo "✔ assessment_id already exists<br>"; }
-
-if (!column_exists($conn, 'student_progress', 'lab_id')) {
-    alter($conn, "ALTER TABLE `student_progress` ADD COLUMN `lab_id` INT DEFAULT NULL AFTER `assessment_id`", "Added column lab_id");
-} else { echo "✔ lab_id already exists<br>"; }
-
-if (!column_exists($conn, 'student_progress', 'score')) {
-    alter($conn, "ALTER TABLE `student_progress` ADD COLUMN `score` DECIMAL(8,2) DEFAULT NULL AFTER `lab_id`", "Added column score");
-} else { echo "✔ score already exists<br>"; }
-
-if (!column_exists($conn, 'student_progress', 'completed_at')) {
-    alter($conn, "ALTER TABLE `student_progress` ADD COLUMN `completed_at` DATETIME DEFAULT CURRENT_TIMESTAMP AFTER `score`", "Added column completed_at");
-} else { echo "✔ completed_at already exists<br>"; }
-
-if (!column_exists($conn, 'student_progress', 'created_at')) {
-    alter($conn, "ALTER TABLE `student_progress` ADD COLUMN `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP AFTER `completed_at`", "Added column created_at");
-} else { echo "✔ created_at already exists<br>"; }
-
-// ── THE FIX: add unique key only if it does NOT already exist ─────
-if (!index_exists($conn, 'student_progress', 'uq_progress_event')) {
-    alter($conn,
-        "ALTER TABLE `student_progress`
-            ADD UNIQUE KEY `uq_progress_event` (`student_id`, `unit_id`, `lesson_id`, `event_type`)",
-        "Added unique key uq_progress_event"
-    );
-} else {
-    echo "✔ uq_progress_event already exists<br>";
-}
-
-// ── students ─────────────────────────────────────────────────────
-// students table uses reg_no (not registration_number)
-echo "<h3>students</h3>";
-
-if (!column_exists($conn, 'students', 'reg_no')) {
-    alter($conn, "ALTER TABLE `students` ADD COLUMN `reg_no` VARCHAR(50) DEFAULT NULL AFTER `id`", "Added column reg_no");
-} else { echo "✔ reg_no already exists<br>"; }
-
-// ── student_unit_enrollments ──────────────────────────────────────
-echo "<h3>student_unit_enrollments</h3>";
-
-if (!column_exists($conn, 'student_unit_enrollments', 'semester')) {
-    alter($conn, "ALTER TABLE `student_unit_enrollments` ADD COLUMN `semester` INT NOT NULL DEFAULT 1 AFTER `unit_id`", "Added column semester");
-} else { echo "✔ semester already exists<br>"; }
-
-if (!column_exists($conn, 'student_unit_enrollments', 'academic_year')) {
-    alter($conn, "ALTER TABLE `student_unit_enrollments` ADD COLUMN `academic_year` VARCHAR(20) DEFAULT NULL AFTER `semester`", "Added column academic_year");
-} else { echo "✔ academic_year already exists<br>"; }
-
-// ── notifications ──────────────────────────────────────────────────
-echo "<h3>notifications</h3>";
-
-if (!column_exists($conn, 'notifications', 'notes_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `notes_id` INT DEFAULT NULL AFTER `created_at`", "Added column notes_id");
-} else { echo "✔ notes_id already exists<br>"; }
-
-if (!column_exists($conn, 'notifications', 'assignment_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `assignment_id` INT DEFAULT NULL AFTER `notes_id`", "Added column assignment_id");
-} else { echo "✔ assignment_id already exists<br>"; }
-
-if (!column_exists($conn, 'notifications', 'interactive_assignment_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `interactive_assignment_id` INT DEFAULT NULL AFTER `assignment_id`", "Added column interactive_assignment_id");
-} else { echo "✔ interactive_assignment_id already exists<br>"; }
-
-if (!column_exists($conn, 'notifications', 'meeting_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `meeting_id` INT DEFAULT NULL AFTER `interactive_assignment_id`", "Added column meeting_id");
-} else { echo "✔ meeting_id already exists<br>"; }
-
-if (!column_exists($conn, 'notifications', 'attendance_session_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD COLUMN `attendance_session_id` INT DEFAULT NULL AFTER `meeting_id`", "Added column attendance_session_id");
-} else { echo "✔ attendance_session_id already exists<br>"; }
-
-// Add foreign keys for notifications
-$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'notes_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
-if (!$fk || $fk->num_rows === 0) {
-    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notifications_notes` FOREIGN KEY (`notes_id`) REFERENCES `notes`(`id`)", "Added FK fk_notifications_notes");
-} else { echo "✔ FK fk_notifications_notes already exists<br>"; }
-
-$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'assignment_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
-if (!$fk || $fk->num_rows === 0) {
-    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notifications_assignments` FOREIGN KEY (`assignment_id`) REFERENCES `assignments`(`id`)", "Added FK fk_notifications_assignments");
-} else { echo "✔ FK fk_notifications_assignments already exists<br>"; }
-
-$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'interactive_assignment_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
-if (!$fk || $fk->num_rows === 0) {
-    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notifications_interactive_assignments` FOREIGN KEY (`interactive_assignment_id`) REFERENCES `interactive_assignments`(`id`)", "Added FK fk_notifications_interactive_assignments");
-} else { echo "✔ FK fk_notifications_interactive_assignments already exists<br>"; }
-
-$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'meeting_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
-if (!$fk || $fk->num_rows === 0) {
-    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notifications_meetings` FOREIGN KEY (`meeting_id`) REFERENCES `meetings`(`id`)", "Added FK fk_notifications_meetings");
-} else { echo "✔ FK fk_notifications_meetings already exists<br>"; }
-
-$fk = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'attendance_session_id' AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1");
-if (!$fk || $fk->num_rows === 0) {
-    alter($conn, "ALTER TABLE `notifications` ADD CONSTRAINT `fk_notif_session` FOREIGN KEY (`attendance_session_id`) REFERENCES `attendance_sessions`(`id`)", "Added FK fk_notif_session");
-} else { echo "✔ FK fk_notif_session already exists<br>"; }
-
-// Add indexes
-if (!index_exists($conn, 'notifications', 'idx_notes_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_notes_id` (`notes_id`)", "Added index idx_notes_id");
-} else { echo "✔ idx_notes_id already exists<br>"; }
-
-if (!index_exists($conn, 'notifications', 'idx_assignment_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_assignment_id` (`assignment_id`)", "Added index idx_assignment_id");
-} else { echo "✔ idx_assignment_id already exists<br>"; }
-
-if (!index_exists($conn, 'notifications', 'idx_interactive_assignment_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_interactive_assignment_id` (`interactive_assignment_id`)", "Added index idx_interactive_assignment_id");
-} else { echo "✔ idx_interactive_assignment_id already exists<br>"; }
-
-if (!index_exists($conn, 'notifications', 'idx_meeting_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_meeting_id` (`meeting_id`)", "Added index idx_meeting_id");
-} else { echo "✔ idx_meeting_id already exists<br>"; }
-
-if (!index_exists($conn, 'notifications', 'idx_attendance_session_id')) {
-    alter($conn, "ALTER TABLE `notifications` ADD INDEX `idx_attendance_session_id` (`attendance_session_id`)", "Added index idx_attendance_session_id");
-} else { echo "✔ idx_attendance_session_id already exists<br>"; }
-
-// ── submissions ────────────────────────────────────────────────────
-echo "<h3>submissions (Optional fixes)</h3>";
-
-if (column_exists($conn, 'submissions', 'answer_audio')) {
-    echo "✔ answer_audio column exists<br>";
-} else {
-    echo "✔ answer_audio not required in submissions<br>";
-}
-
-// ── team_submissions ───────────────────────────────────────────────
-echo "<h3>team_submissions (Status alignment)</h3>";
-
-$check = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'team_submissions' AND COLUMN_NAME = 'lecturer_status'");
-if ($check && $row = $check->fetch_assoc()) {
-    if (strpos($row['COLUMN_TYPE'], 'enum') !== false) {
-        echo "✔ lecturer_status enum exists<br>";
-    }
-}
-
-echo "<h2>All fixes applied ✔</h2>";
-
-/* ================================================================
-   SECTION 3 — SHOW ALL TABLES
-   ================================================================ */
-
-$tables_result = $conn->query("SHOW TABLES");
-while ($table_row = $tables_result->fetch_array()) {
-    $table = $table_row[0];
-    echo "<hr><h2>Table: $table</h2>";
-
-    echo "<h3>Fields</h3>";
-    $columns = $conn->query("SHOW COLUMNS FROM `$table`");
-    echo "<table border='1' cellpadding='6' cellspacing='0'>
-        <tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th></tr>";
-    while ($col = $columns->fetch_assoc()) {
-        echo "<tr>
-            <td>{$col['Field']}</td><td>{$col['Type']}</td><td>{$col['Null']}</td>
-            <td>{$col['Key']}</td><td>{$col['Default']}</td><td>{$col['Extra']}</td>
-        </tr>";
-    }
-    echo "</table>";
-
-    echo "<h3>Foreign Keys</h3>";
-    $fk_result = $conn->query("
-        SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, CONSTRAINT_NAME
-        FROM information_schema.KEY_COLUMN_USAGE
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = '$table'
-          AND REFERENCED_TABLE_NAME IS NOT NULL
-    ");
-    if ($fk_result->num_rows > 0) {
-        echo "<table border='1' cellpadding='6'>
-            <tr><th>Constraint</th><th>Column</th><th>References Table</th><th>References Column</th></tr>";
-        while ($fk = $fk_result->fetch_assoc()) {
-            echo "<tr>
-                <td>{$fk['CONSTRAINT_NAME']}</td><td>{$fk['COLUMN_NAME']}</td>
-                <td>{$fk['REFERENCED_TABLE_NAME']}</td><td>{$fk['REFERENCED_COLUMN_NAME']}</td>
-            </tr>";
-        }
-        echo "</table>";
-    } else {
-        echo "No Foreign Keys";
-    }
-}
+// ─── Output ──────────────────────────────────────────────────────────────────
+
+$isCli = php_sapi_name() === 'cli';
+if (!$isCli) { echo '<pre style="font-family:monospace;font-size:13px;background:#1e1e1e;color:#d4d4d4;padding:20px;border-radius:8px;">'; }
+
+echo "╔══════════════════════════════════════════════════╗\n";
+echo "║       UNILIS – Course + Unit Insertion v2        ║\n";
+echo "╚══════════════════════════════════════════════════╝\n\n";
+
+foreach ($log as $line) { echo $line . "\n"; }
+
+echo "\n═══════════════════════ SUMMARY ═══════════════════\n";
+echo "  Courses created : {$totals['courses_inserted']}\n";
+echo "  Courses existed : {$totals['courses_existed']}\n";
+echo "  ✅ Units inserted: {$totals['units_inserted']}\n";
+echo "  ⚠️  Units skipped : {$totals['units_skipped']} (already existed)\n";
+echo "  ❌ Units failed  : {$totals['units_failed']}\n";
+echo "═══════════════════════════════════════════════════\n";
+echo "\n⚠️  DELETE this file from the server when done!\n";
+
+if (!$isCli) { echo '</pre>'; }
