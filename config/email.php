@@ -1,18 +1,28 @@
 <?php
 /**
  * Email Configuration
- * Move email credentials to environment variables for security
+ * Use environment variables for SMTP settings, with safe defaults for local delivery.
  */
 
 // Load Composer autoloader
 require_once __DIR__ . '/../vendor/autoload.php';
 
 // Email configuration - use environment variables
-define('EMAIL_HOST', getenv('EMAIL_HOST') ?: 'smtp.gmail.com');
-define('EMAIL_PORT', getenv('EMAIL_PORT') ?: 587);
-define('EMAIL_USERNAME', getenv('EMAIL_USERNAME') ?: 'unilis512@gmail.com');
-define('EMAIL_PASSWORD', getenv('EMAIL_PASSWORD') ?: 'sbmxmiafbtfkmkck');
-define('EMAIL_ENCRYPTION', getenv('EMAIL_ENCRYPTION') ?: 'tls');
+define('EMAIL_HOST', getenv('EMAIL_HOST') !== false ? getenv('EMAIL_HOST') : 'localhost');
+define('EMAIL_PORT', getenv('EMAIL_PORT') !== false ? getenv('EMAIL_PORT') : 25);
+
+define('EMAIL_USERNAME', getenv('EMAIL_USERNAME') !== false ? getenv('EMAIL_USERNAME') : '');
+define('EMAIL_PASSWORD', getenv('EMAIL_PASSWORD') !== false ? getenv('EMAIL_PASSWORD') : '');
+
+$envEmailAuth = getenv('EMAIL_AUTH');
+define('EMAIL_AUTH', $envEmailAuth !== false ? filter_var($envEmailAuth, FILTER_VALIDATE_BOOLEAN) : false);
+
+define('EMAIL_ENCRYPTION', getenv('EMAIL_ENCRYPTION') !== false ? strtolower(getenv('EMAIL_ENCRYPTION')) : '');
+
+define('EMAIL_FROM_ADDRESS', getenv('EMAIL_FROM_ADDRESS') !== false ? getenv('EMAIL_FROM_ADDRESS') : 'noreply@unilis.jhubafrica.com');
+define('EMAIL_FROM_NAME', getenv('EMAIL_FROM_NAME') !== false ? getenv('EMAIL_FROM_NAME') : 'UNILIS');
+
+define('EMAIL_DEBUG', getenv('EMAIL_DEBUG') !== false ? (int)getenv('EMAIL_DEBUG') : 0);
 
 // Import PHPMailer classes
 use PHPMailer\PHPMailer\PHPMailer;
@@ -24,35 +34,39 @@ use PHPMailer\PHPMailer\SMTP;
  */
 function getConfiguredMailer() {
     $mail = new PHPMailer(true);
-    
-    try {
-        $mail->isSMTP();
-        $mail->Host       = EMAIL_HOST;
-        $mail->SMTPAuth   = true;
-        $mail->Username   = EMAIL_USERNAME;
-        $mail->Password   = EMAIL_PASSWORD;
-        $mail->SMTPSecure = EMAIL_ENCRYPTION === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = EMAIL_PORT;
 
-        // Optional SMTP debug output for debugging environments
-        $mail->SMTPDebug  = 0; // Set to 2 for detailed debug output in development
-        $mail->Debugoutput = 'error_log';
+    $mail->isSMTP();
+    $mail->Host       = EMAIL_HOST;
+    $mail->SMTPAuth   = EMAIL_AUTH;
+    $mail->Port       = EMAIL_PORT;
 
-        // Workaround for local self-signed cert / restrictive environments
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true,
-            ],
-        ];
-
-        $mail->setFrom(EMAIL_USERNAME, 'UNILIS');
-        
-        return $mail;
-    } catch (Exception $e) {
-        error_log("Mailer configuration failed: " . $e->getMessage());
-        throw $e;
+    if (EMAIL_AUTH) {
+        $mail->Username = EMAIL_USERNAME;
+        $mail->Password = EMAIL_PASSWORD;
     }
+
+    if (EMAIL_ENCRYPTION === 'ssl') {
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+    } elseif (EMAIL_ENCRYPTION === 'tls') {
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+    } else {
+        $mail->SMTPSecure = '';
+    }
+
+    $mail->setFrom(EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME);
+    $mail->addReplyTo(EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME);
+
+    $mail->SMTPDebug  = EMAIL_DEBUG;
+    $mail->Debugoutput = 'error_log';
+
+    $mail->SMTPOptions = [
+        'ssl' => [
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+            'allow_self_signed' => true,
+        ],
+    ];
+
+    return $mail;
 }
 ?>

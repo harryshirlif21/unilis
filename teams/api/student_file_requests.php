@@ -1,5 +1,6 @@
 <?php
 require_once '../../config/db.php';
+require_once '../../config/email.php';
 session_start();
 
 // Check if user is logged in and is a student
@@ -132,20 +133,10 @@ if ($action === 'upload_requested_file') {
 }
 
 function send_file_completed_email($lecturer_email, $title, $message, $student_name, $team_title, $request_title) {
-    $mail = new PHPMailer(true);
-    
+    $mail = getConfiguredMailer();
+    $mail->addAddress($lecturer_email);
+
     try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-        
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS File Request System');
-        $mail->addAddress($lecturer_email);
-        
         $mail->isHTML(true);
         $mail->Subject = "File Request Completed: $title";
         
@@ -169,7 +160,7 @@ function send_file_completed_email($lecturer_email, $title, $message, $student_n
         
         $mail->send();
     } catch (Exception $e) {
-        error_log("File completion email failed: " . $mail->ErrorInfo);
+        error_log("File completion email failed: " . $mail->ErrorInfo . " | Exception: " . $e->getMessage());
     }
 }
 

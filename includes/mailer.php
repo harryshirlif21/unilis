@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/email.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -7,30 +7,9 @@ use PHPMailer\PHPMailer\Exception;
 function send_verification_email($email, $token, $name = '') {
     error_log("=== MAILER CALLED → To: $email | Name: $name ===");
 
-    $mail = new PHPMailer(true);
-
-    try {
-        $mail->isSMTP();
-        $mail->Host       = 'localhost';
-        $mail->SMTPAuth   = false;
-        $mail->SMTPSecure = false;
-        $mail->Port       = 25;
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer'       => false,
-                'verify_peer_name'  => false,
-                'allow_self_signed' => true,
-            ]
-        ];
-
-        $mail->SMTPDebug   = 2;
-        $mail->Debugoutput = function ($str, $level) {
-            error_log("SMTP DEBUG [$level]: $str");
-        };
-
-        $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
-        $mail->addReplyTo('noreply@unilis.jhubafrica.com', 'UNILIS');
-        $mail->addAddress($email);
+    $mail = getConfiguredMailer();
+    $mail->addAddress($email);
+    $mail->addReplyTo(EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME);
 
         $verify_link = "https://unilis.jhubafrica.com/verify.php?token=$token";
 
@@ -72,7 +51,7 @@ function send_verification_email($email, $token, $name = '') {
         return true;
 
     } catch (Exception $e) {
-        error_log("=== VERIFICATION EMAIL FAILED → " . $mail->ErrorInfo . " ===");
+        error_log("=== VERIFICATION EMAIL FAILED → " . $mail->ErrorInfo . " | Exception: " . $e->getMessage() . " ===");
         return false;
     }
 }
@@ -81,30 +60,9 @@ function send_verification_email($email, $token, $name = '') {
 function send_password_reset_email($email, $token, $name = '') {
     error_log("=== RESET EMAIL CALLED → To: $email | Name: $name ===");
 
-    $mail = new PHPMailer(true);
-
-    try {
-        $mail->isSMTP();
-        $mail->Host       = 'localhost';
-        $mail->SMTPAuth   = false;
-        $mail->SMTPSecure = false;
-        $mail->Port       = 25;
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer'       => false,
-                'verify_peer_name'  => false,
-                'allow_self_signed' => true,
-            ]
-        ];
-
-        $mail->SMTPDebug   = 2;
-        $mail->Debugoutput = function ($str, $level) {
-            error_log("SMTP DEBUG [$level]: $str");
-        };
-
-        $mail->setFrom('noreply@unilis.jhubafrica.com', 'UNILIS');
-        $mail->addReplyTo('noreply@unilis.jhubafrica.com', 'UNILIS');
-        $mail->addAddress($email);
+    $mail = getConfiguredMailer();
+    $mail->addAddress($email);
+    $mail->addReplyTo(EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME);
 
         $reset_link = "https://unilis.jhubafrica.com/reset_password.php?token=$token";
 
@@ -146,7 +104,7 @@ function send_password_reset_email($email, $token, $name = '') {
         return true;
 
     } catch (Exception $e) {
-        error_log("=== RESET EMAIL FAILED → " . $mail->ErrorInfo . " ===");
+        error_log("=== RESET EMAIL FAILED → " . $mail->ErrorInfo . " | Exception: " . $e->getMessage() . " ===");
         return false;
     }
 }

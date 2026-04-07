@@ -48,18 +48,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // LEGACY ATTENDANCE EMAIL (Keep for backward compatibility)
 // ========================
 function send_attendance_email($email, $name, $code, $unit_name, $deadline, $auto_link) {
-    $mail = new PHPMailer(true);
-    try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+    $mail = getConfiguredMailer();
+    $mail->addAddress($email, $name);
 
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS');
-        $mail->addAddress($email, $name);
+    try {
         $mail->isHTML(true);
         $mail->Subject = "Attendance: $unit_name - Code $code";
 
@@ -82,7 +74,7 @@ function send_attendance_email($email, $name, $code, $unit_name, $deadline, $aut
         ";
         $mail->send();
     } catch (Exception $e) {
-        error_log("Email failed for $email: " . $mail->ErrorInfo);
+        error_log("Email failed for $email: " . $mail->ErrorInfo . " | Exception: " . $e->getMessage());
     }
 }
 

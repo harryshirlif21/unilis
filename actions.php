@@ -690,20 +690,10 @@ function send_notes_email_to_course_students($conn, $unit_id, $lecturer_id, $not
 
 
 function send_notes_email($email, $title, $message, $link, $name = '') {
-    $mail = new PHPMailer(true);
+    $mail = getConfiguredMailer();
+    $mail->addAddress($email);
 
     try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS Notifications');
-        $mail->addAddress($email);
-
         $mail->isHTML(true);
         $mail->Subject = $title;
 
@@ -721,7 +711,7 @@ function send_notes_email($email, $title, $message, $link, $name = '') {
 
         $mail->send();
     } catch (Exception $e) {
-        error_log("Notes email failed: " . $mail->ErrorInfo);
+        error_log("Notes email failed: " . $mail->ErrorInfo . " | Exception: " . $e->getMessage());
     }
 }
 
@@ -856,19 +846,10 @@ function send_assignment_email_to_course_students($conn, $unit_id, $lecturer_id,
 }
 
 function send_assignment_email($email, $title, $message, $link, $name = '') {
-    $mail = new PHPMailer(true);
+    $mail = getConfiguredMailer();
+    $mail->addAddress($email);
+
     try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'unilis512@gmail.com';
-        $mail->Password   = 'sbmxmiafbtfkmkck';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->setFrom('unilis512@gmail.com', 'UNILIS Notifications');
-        $mail->addAddress($email);
-
         $mail->isHTML(true);
         $mail->Subject = $title;
 
@@ -886,7 +867,7 @@ function send_assignment_email($email, $title, $message, $link, $name = '') {
 
         $mail->send();
     } catch (Exception $e) {
-        error_log("Notes email failed: " . $mail->ErrorInfo);
+        error_log("Notes email failed: " . $mail->ErrorInfo . " | Exception: " . $e->getMessage());
     }
 }
 
