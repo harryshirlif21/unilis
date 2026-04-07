@@ -11,6 +11,7 @@ function send_verification_email($email, $token, $name = '') {
     $mail->addAddress($email);
     $mail->addReplyTo(EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME);
 
+    try {
         $verify_link = "https://unilis.jhubafrica.com/verify.php?token=$token";
 
         $mail->isHTML(true);
@@ -64,6 +65,7 @@ function send_password_reset_email($email, $token, $name = '') {
     $mail->addAddress($email);
     $mail->addReplyTo(EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME);
 
+    try {
         $reset_link = "https://unilis.jhubafrica.com/reset_password.php?token=$token";
 
         $mail->isHTML(true);
