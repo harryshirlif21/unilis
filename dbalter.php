@@ -2,7 +2,7 @@
 /**
  * dbalter.php
  *
- * Display units table for course ID 6 (B.Sc. Business Computing) and the units to be added.
+ * Display units table for course ID 7 (B.Sc. Business Computing) and the units to be added.
  * Safe to run repeatedly; it does not modify data unless insert action is triggered.
  */
 
@@ -162,6 +162,70 @@ function insertBscBusinessComputingUnits(mysqli $conn, int $courseId): array
     return $summary;
 }
 
+function getBscBusinessComputingUnitCodes(): array
+{
+    return array_column(getBscBusinessComputingUnits(), 0);
+}
+
+function moveUnitToCourse(mysqli $conn, int $sourceCourseId, int $targetCourseId, string $code): string
+{
+    $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
+    $stmt->bind_param('is', $sourceCourseId, $code);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $sourceUnit = $result->fetch_assoc();
+    $stmt->close();
+
+    if (!$sourceUnit) {
+        return 'missing';
+    }
+
+    $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
+    $stmt->bind_param('is', $targetCourseId, $code);
+    $stmt->execute();
+    $stmt->store_result();
+    if ($stmt->num_rows > 0) {
+        $stmt->close();
+        return 'duplicate';
+    }
+    $stmt->close();
+
+    $update = $conn->prepare('UPDATE units SET course_id = ? WHERE course_id = ? AND code = ?');
+    $update->bind_param('iis', $targetCourseId, $sourceCourseId, $code);
+    $update->execute();
+    $moved = $update->affected_rows > 0;
+    $update->close();
+
+    return $moved ? 'moved' : 'failed';
+}
+
+function moveBscBusinessComputingUnitsToCourse(mysqli $conn, int $sourceCourseId, int $targetCourseId): array
+{
+    $sourceName = getCourseNameById($conn, $sourceCourseId);
+    $targetName = getCourseNameById($conn, $targetCourseId);
+    if ($sourceName === null || $targetName === null) {
+        return ['error' => 'Source or target course id not found.'];
+    }
+
+    $summary = [
+        'source_course_id' => $sourceCourseId,
+        'source_course_name' => $sourceName,
+        'target_course_id' => $targetCourseId,
+        'target_course_name' => $targetName,
+        'moved' => 0,
+        'duplicate' => 0,
+        'missing' => 0,
+        'failed' => 0,
+    ];
+
+    foreach (getBscBusinessComputingUnitCodes() as $code) {
+        $result = moveUnitToCourse($conn, $sourceCourseId, $targetCourseId, $code);
+        $summary[$result]++;
+    }
+
+    return $summary;
+}
+
 function isInsertAction(): bool
 {
     if (isCli()) {
@@ -248,6 +312,11 @@ function renderUnitsInfoHtml(mysqli $conn, int $courseId): string
     }
     $html .= '</tbody></table></section>';
 
+    $html .= '<section><h2>Move Units to Correct Course</h2>' .
+        '<p>This will move units with the B.Sc. Business Computing codes from course ID 6 to course ID 7.</p>' .
+        '<form method="post"><button type="submit" name="action" value="move_units">Move units to course ID 7</button></form>' .
+        '</section>';
+
     return $html;
 }
 
@@ -279,6 +348,36 @@ function renderActionResultHtml(array $summary): string
         '<strong>Failed units:</strong> ' . escape((string)$summary['failed']) . '</p>';
 }
 
+function renderMoveResultText(array $summary): void
+{
+    if (isset($summary['error'])) {
+        echo "ERROR: " . $summary['error'] . "\n";
+        return;
+    }
+
+    echo "Source course: {$summary['source_course_name']} (ID: {$summary['source_course_id']})\n";
+    echo "Target course: {$summary['target_course_name']} (ID: {$summary['target_course_id']})\n";
+    echo "Moved units: {$summary['moved']}\n";
+    echo "Duplicates skipped: {$summary['duplicate']}\n";
+    echo "Missing from source: {$summary['missing']}\n";
+    echo "Failed moves: {$summary['failed']}\n";
+}
+
+function renderMoveResultHtml(array $summary): string
+{
+    if (isset($summary['error'])) {
+        return '<h1>Move Units Failed</h1><p>' . escape($summary['error']) . '</p>';
+    }
+
+    return '<h1>Move Units Result</h1>' .
+        '<p><strong>Source course:</strong> ' . escape($summary['source_course_name']) . ' (ID: ' . escape((string)$summary['source_course_id']) . ')<br>' .
+        '<strong>Target course:</strong> ' . escape($summary['target_course_name']) . ' (ID: ' . escape((string)$summary['target_course_id']) . ')<br>' .
+        '<strong>Moved units:</strong> ' . escape((string)$summary['moved']) . '<br>' .
+        '<strong>Duplicates skipped:</strong> ' . escape((string)$summary['duplicate']) . '<br>' .
+        '<strong>Missing from source:</strong> ' . escape((string)$summary['missing']) . '<br>' .
+        '<strong>Failed moves:</strong> ' . escape((string)$summary['failed']) . '</p>';
+}
+
 function outputHtml(string $html): void
 {
     echo '<!doctype html>';
@@ -302,7 +401,29 @@ function outputHtml(string $html): void
     echo '</html>';
 }
 
-$courseId = 6;
+$courseId = 7;
+$sourceCourseId = 6;
+$targetCourseId = 7;
+
+function isMoveAction(): bool
+{
+    if (isCli()) {
+        global $argv;
+        return in_array('--move-bsc-business-computing', $argv, true) || in_array('-m', $argv, true);
+    }
+
+    return ($_REQUEST['action'] ?? '') === 'move_units';
+}
+
+if (isMoveAction()) {
+    $result = moveBscBusinessComputingUnitsToCourse($conn, $sourceCourseId, $targetCourseId);
+    if (isCli()) {
+        renderMoveResultText($result);
+    } else {
+        outputHtml(renderMoveResultHtml($result));
+    }
+    exit;
+}
 
 if (isInsertAction()) {
     $result = insertBscBusinessComputingUnits($conn, $courseId);
