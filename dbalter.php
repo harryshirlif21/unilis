@@ -2,9 +2,8 @@
 /**
  * dbalter.php
  *
- * Display database tables and schema information.
- * Starts output with the `courses` table, then shows all other tables.
- * Safe to run repeatedly; it does not modify data.
+ * Display units table for course ID 6 (B.Sc. Business Computing) and the units to be added.
+ * Safe to run repeatedly; it does not modify data unless insert action is triggered.
  */
 
 require_once __DIR__ . '/config/db.php';
@@ -23,241 +22,6 @@ function escape(string $value): string
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function fetchTables(mysqli $conn): array
-{
-    $tables = [];
-    $result = $conn->query('SHOW TABLES');
-    if ($result instanceof mysqli_result) {
-        while ($row = $result->fetch_array(MYSQLI_NUM)) {
-            $tables[] = $row[0];
-        }
-        $result->free();
-    }
-    return $tables;
-}
-
-function getRowCount(mysqli $conn, string $table): int
-{
-    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM `{$table}`");
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $count = 0;
-    if ($row = $result->fetch_assoc()) {
-        $count = (int)$row['total'];
-    }
-    $stmt->close();
-    return $count;
-}
-
-function getTableColumns(mysqli $conn, string $table): array
-{
-    $columns = [];
-    $stmt = $conn->prepare("DESCRIBE `{$table}`");
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $columns[] = $row;
-    }
-    $stmt->close();
-    return $columns;
-}
-
-function getSampleRows(mysqli $conn, string $table, int $limit = 10): array
-{
-    $rows = [];
-    $stmt = $conn->prepare("SELECT * FROM `{$table}` LIMIT ?");
-    $stmt->bind_param('i', $limit);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $rows[] = $row;
-    }
-    $stmt->close();
-    return $rows;
-}
-
-function formatValue($value): string
-{
-    if ($value === null) {
-        return 'NULL';
-    }
-    if (is_bool($value)) {
-        return $value ? 'TRUE' : 'FALSE';
-    }
-    return (string)$value;
-}
-
-function renderDatabaseInfoText(mysqli $conn): void
-{
-    $databaseName = $conn->query('SELECT DATABASE()')->fetch_row()[0] ?? 'unknown';
-    echo "Database: {$databaseName}\n";
-    echo "Generated: " . date('Y-m-d H:i:s') . "\n\n";
-
-    $tables = fetchTables($conn);
-    if (empty($tables)) {
-        echo "No tables found in database.\n";
-        return;
-    }
-
-    $priority = 'courses';
-    if (in_array($priority, $tables, true)) {
-        $tables = array_merge([$priority], array_values(array_diff($tables, [$priority])));
-    }
-
-    echo "Tables found: " . count($tables) . "\n";
-    echo "  " . implode(', ', $tables) . "\n\n";
-
-    foreach ($tables as $table) {
-        try {
-            $rowCount = getRowCount($conn, $table);
-        } catch (Throwable $e) {
-            echo "Failed to count rows for {$table}: " . $e->getMessage() . "\n\n";
-            continue;
-        }
-
-        echo "════════════════════════════════════════════════════════════════════════\n";
-        echo "Table: {$table}\n";
-        echo "Rows : {$rowCount}\n";
-        echo "════════════════════════════════════════════════════════════════════════\n";
-
-        $columns = getTableColumns($conn, $table);
-        if (empty($columns)) {
-            echo "(No column metadata available)\n\n";
-        } else {
-            $format = "%-22s | %-20s | %-6s | %-3s | %-10s | %-10s\n";
-            printf($format, 'Field', 'Type', 'Null', 'Key', 'Default', 'Extra');
-            echo str_repeat('-', 82) . "\n";
-            foreach ($columns as $column) {
-                printf(
-                    $format,
-                    $column['Field'],
-                    $column['Type'],
-                    $column['Null'],
-                    $column['Key'],
-                    $column['Default'] === null ? 'NULL' : $column['Default'],
-                    $column['Extra']
-                );
-            }
-            echo "\n";
-        }
-
-        if ($rowCount > 0) {
-            $rows = getSampleRows($conn, $table, 10);
-            if (empty($rows)) {
-                echo "(No sample rows to display)\n\n";
-            } else {
-                echo implode(' | ', array_keys($rows[0])) . "\n";
-                echo str_repeat('-', max(80, strlen(implode(' | ', array_keys($rows[0]))))) . "\n";
-                foreach ($rows as $row) {
-                    echo implode(' | ', array_map(fn($value) => formatValue($value), $row)) . "\n";
-                }
-                echo "\n";
-            }
-        } else {
-            echo "(Table contains no rows)\n\n";
-        }
-    }
-}
-
-function renderDatabaseInfoHtml(mysqli $conn): string
-{
-    $databaseName = escape($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? 'unknown');
-    $html = '';
-    $html .= "<h1>Database Inspector</h1>";
-    $html .= "<p><strong>Database:</strong> {$databaseName}<br><strong>Generated:</strong> " . date('Y-m-d H:i:s') . "</p>";
-
-    $tables = fetchTables($conn);
-    if (empty($tables)) {
-        return $html . '<p>No tables found in database.</p>';
-    }
-
-    $priority = 'courses';
-    if (in_array($priority, $tables, true)) {
-        $tables = array_merge([$priority], array_values(array_diff($tables, [$priority])));
-    }
-
-    $html .= "<p><strong>Tables found:</strong> " . count($tables) . "</p>";
-    $html .= "<p>" . implode(', ', array_map('escape', $tables)) . "</p>";
-
-    foreach ($tables as $table) {
-        try {
-            $rowCount = getRowCount($conn, $table);
-        } catch (Throwable $e) {
-            $html .= "<section><h2>Table: " . escape($table) . "</h2><p>Failed to count rows: " . escape($e->getMessage()) . "</p></section>";
-            continue;
-        }
-
-        $html .= "<section>";
-        $html .= "<h2>Table: " . escape($table) . "</h2>";
-        $html .= "<p><strong>Rows:</strong> " . $rowCount . "</p>";
-
-        $columns = getTableColumns($conn, $table);
-        if (empty($columns)) {
-            $html .= '<p>(No column metadata available)</p>';
-        } else {
-            $html .= '<table><thead><tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th></tr></thead><tbody>';
-            foreach ($columns as $column) {
-                $html .= '<tr>' .
-                    '<td>' . escape($column['Field']) . '</td>' .
-                    '<td>' . escape($column['Type']) . '</td>' .
-                    '<td>' . escape($column['Null']) . '</td>' .
-                    '<td>' . escape($column['Key']) . '</td>' .
-                    '<td>' . escape($column['Default'] === null ? 'NULL' : $column['Default']) . '</td>' .
-                    '<td>' . escape($column['Extra']) . '</td>' .
-                '</tr>';
-            }
-            $html .= '</tbody></table>';
-        }
-
-        if ($rowCount > 0) {
-            $rows = getSampleRows($conn, $table, 10);
-            if (empty($rows)) {
-                $html .= '<p>(No sample rows to display)</p>';
-            } else {
-                $html .= '<table><thead><tr>';
-                foreach (array_keys($rows[0]) as $header) {
-                    $html .= '<th>' . escape($header) . '</th>';
-                }
-                $html .= '</tr></thead><tbody>';
-                foreach ($rows as $row) {
-                    $html .= '<tr>';
-                    foreach ($row as $value) {
-                        $html .= '<td>' . escape(formatValue($value)) . '</td>';
-                    }
-                    $html .= '</tr>';
-                }
-                $html .= '</tbody></table>';
-            }
-        } else {
-            $html .= '<p>(Table contains no rows)</p>';
-        }
-
-        $html .= '</section>';
-    }
-
-    return $html;
-}
-
-function insertUnit(mysqli $conn, int $courseId, string $code, string $name, int $year, int $semester): string
-{
-    $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
-    $stmt->bind_param('is', $courseId, $code);
-    $stmt->execute();
-    $stmt->store_result();
-    if ($stmt->num_rows > 0) {
-        $stmt->close();
-        return 'skipped';
-    }
-    $stmt->close();
-
-    $ins = $conn->prepare('INSERT INTO units (name, code, course_id, year, semester) VALUES (?, ?, ?, ?, ?)');
-    $ins->bind_param('ssiii', $name, $code, $courseId, $year, $semester);
-    $ins->execute();
-    $ok = $ins->affected_rows > 0;
-    $ins->close();
-    return $ok ? 'inserted' : 'failed';
-}
-
 function getCourseNameById(mysqli $conn, int $courseId): ?string
 {
     $stmt = $conn->prepare('SELECT name FROM courses WHERE id = ? LIMIT 1');
@@ -267,6 +31,20 @@ function getCourseNameById(mysqli $conn, int $courseId): ?string
     $row = $result->fetch_assoc() ?: null;
     $stmt->close();
     return $row['name'] ?? null;
+}
+
+function getExistingUnits(mysqli $conn, int $courseId): array
+{
+    $units = [];
+    $stmt = $conn->prepare('SELECT id, name, code, year, semester FROM units WHERE course_id = ? ORDER BY year, semester, code');
+    $stmt->bind_param('i', $courseId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $units[] = $row;
+    }
+    $stmt->close();
+    return $units;
 }
 
 function getBscBusinessComputingUnits(): array
@@ -341,6 +119,26 @@ function getBscBusinessComputingUnits(): array
     ];
 }
 
+function insertUnit(mysqli $conn, int $courseId, string $code, string $name, int $year, int $semester): string
+{
+    $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
+    $stmt->bind_param('is', $courseId, $code);
+    $stmt->execute();
+    $stmt->store_result();
+    if ($stmt->num_rows > 0) {
+        $stmt->close();
+        return 'skipped';
+    }
+    $stmt->close();
+
+    $ins = $conn->prepare('INSERT INTO units (name, code, course_id, year, semester) VALUES (?, ?, ?, ?, ?)');
+    $ins->bind_param('ssiii', $name, $code, $courseId, $year, $semester);
+    $ins->execute();
+    $ok = $ins->affected_rows > 0;
+    $ins->close();
+    return $ok ? 'inserted' : 'failed';
+}
+
 function insertBscBusinessComputingUnits(mysqli $conn, int $courseId): array
 {
     $courseName = getCourseNameById($conn, $courseId);
@@ -372,6 +170,85 @@ function isInsertAction(): bool
     }
 
     return ($_REQUEST['action'] ?? '') === 'insert_bsc_business_computing';
+}
+
+function renderUnitsInfoText(mysqli $conn, int $courseId): void
+{
+    $courseName = getCourseNameById($conn, $courseId);
+    if ($courseName === null) {
+        echo "Course ID {$courseId} not found.\n";
+        return;
+    }
+
+    echo "Course: {$courseName} (ID: {$courseId})\n";
+    echo "Generated: " . date('Y-m-d H:i:s') . "\n\n";
+
+    $existingUnits = getExistingUnits($conn, $courseId);
+    echo "Existing Units in Database:\n";
+    if (empty($existingUnits)) {
+        echo "(No units found for this course)\n";
+    } else {
+        echo "ID | Code     | Year | Sem | Name\n";
+        echo str_repeat('-', 80) . "\n";
+        foreach ($existingUnits as $unit) {
+            printf("%-2s | %-8s | %-4s | %-3s | %s\n", $unit['id'], $unit['code'], $unit['year'], $unit['semester'], $unit['name']);
+        }
+    }
+    echo "\n";
+
+    $unitsToAdd = getBscBusinessComputingUnits();
+    echo "Units to be Added:\n";
+    echo "Code     | Year | Sem | Name\n";
+    echo str_repeat('-', 80) . "\n";
+    foreach ($unitsToAdd as [$code, $name, $year, $semester]) {
+        printf("%-8s | %-4s | %-3s | %s\n", $code, $year, $semester, $name);
+    }
+    echo "\n";
+}
+
+function renderUnitsInfoHtml(mysqli $conn, int $courseId): string
+{
+    $courseName = getCourseNameById($conn, $courseId);
+    if ($courseName === null) {
+        return '<h1>Course Not Found</h1><p>Course ID ' . escape((string)$courseId) . ' was not found.</p>';
+    }
+
+    $html = '<h1>Units for ' . escape($courseName) . ' (ID: ' . escape((string)$courseId) . ')</h1>';
+    $html .= '<p><strong>Generated:</strong> ' . date('Y-m-d H:i:s') . '</p>';
+
+    $existingUnits = getExistingUnits($conn, $courseId);
+    $html .= '<section><h2>Existing Units in Database</h2>';
+    if (empty($existingUnits)) {
+        $html .= '<p>(No units found for this course)</p>';
+    } else {
+        $html .= '<table><thead><tr><th>ID</th><th>Code</th><th>Year</th><th>Semester</th><th>Name</th></tr></thead><tbody>';
+        foreach ($existingUnits as $unit) {
+            $html .= '<tr>' .
+                '<td>' . escape((string)$unit['id']) . '</td>' .
+                '<td>' . escape($unit['code']) . '</td>' .
+                '<td>' . escape((string)$unit['year']) . '</td>' .
+                '<td>' . escape((string)$unit['semester']) . '</td>' .
+                '<td>' . escape($unit['name']) . '</td>' .
+            '</tr>';
+        }
+        $html .= '</tbody></table>';
+    }
+    $html .= '</section>';
+
+    $unitsToAdd = getBscBusinessComputingUnits();
+    $html .= '<section><h2>Units to be Added</h2>';
+    $html .= '<table><thead><tr><th>Code</th><th>Year</th><th>Semester</th><th>Name</th></tr></thead><tbody>';
+    foreach ($unitsToAdd as [$code, $name, $year, $semester]) {
+        $html .= '<tr>' .
+            '<td>' . escape($code) . '</td>' .
+            '<td>' . escape((string)$year) . '</td>' .
+            '<td>' . escape((string)$semester) . '</td>' .
+            '<td>' . escape($name) . '</td>' .
+        '</tr>';
+    }
+    $html .= '</tbody></table></section>';
+
+    return $html;
 }
 
 function renderActionResultText(array $summary): void
@@ -408,7 +285,7 @@ function outputHtml(string $html): void
     echo '<html lang="en">';
     echo '<head>';
     echo '<meta charset="utf-8">';
-    echo '<title>DB Inspector</title>';
+    echo '<title>Units Inspector</title>';
     echo '<style>';
     echo 'body{font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;color:#111;margin:0;padding:24px;}';
     echo 'h1,h2{margin:0 0 12px;}';
@@ -425,8 +302,10 @@ function outputHtml(string $html): void
     echo '</html>';
 }
 
+$courseId = 6;
+
 if (isInsertAction()) {
-    $result = insertBscBusinessComputingUnits($conn, 6);
+    $result = insertBscBusinessComputingUnits($conn, $courseId);
     if (isCli()) {
         renderActionResultText($result);
     } else {
@@ -436,7 +315,7 @@ if (isInsertAction()) {
 }
 
 if (isCli()) {
-    renderDatabaseInfoText($conn);
+    renderUnitsInfoText($conn, $courseId);
 } else {
-    outputHtml(renderDatabaseInfoHtml($conn));
+    outputHtml(renderUnitsInfoHtml($conn, $courseId));
 }
