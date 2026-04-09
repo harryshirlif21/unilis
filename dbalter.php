@@ -236,6 +236,16 @@ function isInsertAction(): bool
     return ($_REQUEST['action'] ?? '') === 'insert_bsc_business_computing';
 }
 
+function isMoveAction(): bool
+{
+    if (isCli()) {
+        global $argv;
+        return in_array('--move-bsc-business-computing', $argv, true) || in_array('-m', $argv, true);
+    }
+
+    return ($_REQUEST['action'] ?? '') === 'move_units';
+}
+
 function renderUnitsInfoText(mysqli $conn, int $courseId): void
 {
     $courseName = getCourseNameById($conn, $courseId);
@@ -312,10 +322,25 @@ function renderUnitsInfoHtml(mysqli $conn, int $courseId): string
     }
     $html .= '</tbody></table></section>';
 
-    $html .= '<section><h2>Move Units to Correct Course</h2>' .
-        '<p>This will move units with the B.Sc. Business Computing codes from course ID 6 to course ID 7.</p>' .
-        '<form method="post"><button type="submit" name="action" value="move_units">Move units to course ID 7</button></form>' .
-        '</section>';
+    $html .= '<section><h2>Actions</h2>';
+
+    $html .= '<div style="margin-bottom:16px;">' .
+        '<h3 style="margin:0 0 6px;">Insert Units into Course ID 7</h3>' .
+        '<p style="margin:0 0 10px;">Inserts all B.Sc. Business Computing units directly into course ID 7. Safe to run repeatedly — existing units are skipped.</p>' .
+        '<form method="post">' .
+        '<button type="submit" name="action" value="insert_bsc_business_computing" style="background:#2563eb;color:#fff;padding:10px 24px;border:none;border-radius:6px;font-size:15px;cursor:pointer;">&#10003; Insert Units into Course ID 7</button>' .
+        '</form>' .
+        '</div>';
+
+    $html .= '<div>' .
+        '<h3 style="margin:0 0 6px;">Move Units from Course ID 6 → 7</h3>' .
+        '<p style="margin:0 0 10px;">Moves units with B.Sc. Business Computing codes from course ID 6 to course ID 7. Only use if units are mistakenly assigned to course 6.</p>' .
+        '<form method="post">' .
+        '<button type="submit" name="action" value="move_units" style="background:#dc2626;color:#fff;padding:10px 24px;border:none;border-radius:6px;font-size:15px;cursor:pointer;">&#8594; Move Units to Course ID 7</button>' .
+        '</form>' .
+        '</div>';
+
+    $html .= '</section>';
 
     return $html;
 }
@@ -337,15 +362,23 @@ function renderActionResultText(array $summary): void
 function renderActionResultHtml(array $summary): string
 {
     if (isset($summary['error'])) {
-        return '<h1>Insert Units Failed</h1><p>' . escape($summary['error']) . '</p>';
+        return '<h1>Insert Units Failed</h1><p>' . escape($summary['error']) . '</p>' .
+            '<p><a href="dbalter.php" style="color:#2563eb;">&#8592; Back</a></p>';
     }
 
+    $allSkipped = $summary['inserted'] === 0 && $summary['skipped'] > 0;
+    $status = $allSkipped
+        ? '<p style="color:#b45309;background:#fef9c3;padding:10px;border-radius:6px;">&#9888; All units already exist — nothing new was inserted.</p>'
+        : '<p style="color:#166534;background:#dcfce7;padding:10px;border-radius:6px;">&#10003; Units inserted successfully.</p>';
+
     return '<h1>Insert Units Result</h1>' .
+        $status .
         '<p><strong>Course ID:</strong> ' . escape((string)$summary['course_id']) . '<br>' .
         '<strong>Course name:</strong> ' . escape($summary['course_name']) . '<br>' .
-        '<strong>Inserted units:</strong> ' . escape((string)$summary['inserted']) . '<br>' .
-        '<strong>Skipped units:</strong> ' . escape((string)$summary['skipped']) . '<br>' .
-        '<strong>Failed units:</strong> ' . escape((string)$summary['failed']) . '</p>';
+        '<strong>Inserted:</strong> ' . escape((string)$summary['inserted']) . '<br>' .
+        '<strong>Skipped (already exist):</strong> ' . escape((string)$summary['skipped']) . '<br>' .
+        '<strong>Failed:</strong> ' . escape((string)$summary['failed']) . '</p>' .
+        '<p><a href="dbalter.php" style="color:#2563eb;">&#8592; Back</a></p>';
 }
 
 function renderMoveResultText(array $summary): void
@@ -366,16 +399,18 @@ function renderMoveResultText(array $summary): void
 function renderMoveResultHtml(array $summary): string
 {
     if (isset($summary['error'])) {
-        return '<h1>Move Units Failed</h1><p>' . escape($summary['error']) . '</p>';
+        return '<h1>Move Units Failed</h1><p>' . escape($summary['error']) . '</p>' .
+            '<p><a href="dbalter.php" style="color:#2563eb;">&#8592; Back</a></p>';
     }
 
     return '<h1>Move Units Result</h1>' .
         '<p><strong>Source course:</strong> ' . escape($summary['source_course_name']) . ' (ID: ' . escape((string)$summary['source_course_id']) . ')<br>' .
         '<strong>Target course:</strong> ' . escape($summary['target_course_name']) . ' (ID: ' . escape((string)$summary['target_course_id']) . ')<br>' .
-        '<strong>Moved units:</strong> ' . escape((string)$summary['moved']) . '<br>' .
+        '<strong>Moved:</strong> ' . escape((string)$summary['moved']) . '<br>' .
         '<strong>Duplicates skipped:</strong> ' . escape((string)$summary['duplicate']) . '<br>' .
         '<strong>Missing from source:</strong> ' . escape((string)$summary['missing']) . '<br>' .
-        '<strong>Failed moves:</strong> ' . escape((string)$summary['failed']) . '</p>';
+        '<strong>Failed:</strong> ' . escape((string)$summary['failed']) . '</p>' .
+        '<p><a href="dbalter.php" style="color:#2563eb;">&#8592; Back</a></p>';
 }
 
 function outputHtml(string $html): void
@@ -387,12 +422,13 @@ function outputHtml(string $html): void
     echo '<title>Units Inspector</title>';
     echo '<style>';
     echo 'body{font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;color:#111;margin:0;padding:24px;}';
-    echo 'h1,h2{margin:0 0 12px;}';
+    echo 'h1,h2,h3{margin:0 0 12px;}';
     echo 'section{margin-bottom:32px;padding:16px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.05);}';
     echo 'table{width:100%;border-collapse:collapse;margin-top:12px;}';
     echo 'th,td{border:1px solid #d6d8db;padding:8px;text-align:left;vertical-align:top;}';
     echo 'th{background:#f0f2f5;font-weight:600;}';
     echo 'p{margin:.5em 0;}';
+    echo 'a{color:#2563eb;}';
     echo '</style>';
     echo '</head>';
     echo '<body>';
@@ -404,16 +440,6 @@ function outputHtml(string $html): void
 $courseId = 7;
 $sourceCourseId = 6;
 $targetCourseId = 7;
-
-function isMoveAction(): bool
-{
-    if (isCli()) {
-        global $argv;
-        return in_array('--move-bsc-business-computing', $argv, true) || in_array('-m', $argv, true);
-    }
-
-    return ($_REQUEST['action'] ?? '') === 'move_units';
-}
 
 if (isMoveAction()) {
     $result = moveBscBusinessComputingUnitsToCourse($conn, $sourceCourseId, $targetCourseId);
