@@ -2,9 +2,8 @@
 /**
  * dbalter.php
  *
- * Manage units for B.Sc. Business Computing (course ID 7).
- * Displays the courses table, existing units, and provides action buttons.
- * Safe to view repeatedly; data is only modified when an action button is clicked.
+ * Displays raw courses and units tables exactly as stored in the DB.
+ * Also provides actions: add single unit, bulk insert, undo, move.
  */
 
 require_once __DIR__ . '/config/db.php';
@@ -13,66 +12,69 @@ if (!isset($conn) || !($conn instanceof mysqli)) {
     die('Database connection not available.');
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function isCli(): bool
+function isCli(): bool { return php_sapi_name() === 'cli'; }
+
+function escape(string $v): string
 {
-    return php_sapi_name() === 'cli';
+    return htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function escape(string $value): string
-{
-    return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
+// ─── Raw DB fetchers ──────────────────────────────────────────────────────────
 
-// ─── Data fetchers ───────────────────────────────────────────────────────────
-
+/** Every row from the courses table, ordered by id. */
 function getAllCourses(mysqli $conn): array
 {
-    $courses = [];
-    $result = $conn->query('SELECT id, name, department_id, duration FROM courses ORDER BY id');
-    while ($row = $result->fetch_assoc()) {
-        $courses[] = $row;
-    }
-    return $courses;
+    $rows = [];
+    $res  = $conn->query('SELECT id, name, department_id, duration FROM courses ORDER BY id');
+    while ($r = $res->fetch_assoc()) $rows[] = $r;
+    return $rows;
 }
 
-function getUnitCountByCourse(mysqli $conn): array
+/** Every row from the units table, ordered by id. */
+function getAllUnits(mysqli $conn): array
+{
+    $rows = [];
+    $res  = $conn->query('SELECT id, name, code, course_id, year, semester FROM units ORDER BY id');
+    while ($r = $res->fetch_assoc()) $rows[] = $r;
+    return $rows;
+}
+
+/** Units for a specific course, ordered by id. */
+function getUnitsByCourse(mysqli $conn, int $courseId): array
+{
+    $rows = [];
+    $stmt = $conn->prepare('SELECT id, name, code, course_id, year, semester FROM units WHERE course_id = ? ORDER BY id');
+    $stmt->bind_param('i', $courseId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) $rows[] = $r;
+    $stmt->close();
+    return $rows;
+}
+
+/** Unit count per course. */
+function getUnitCounts(mysqli $conn): array
 {
     $counts = [];
-    $result = $conn->query('SELECT course_id, COUNT(*) as total FROM units GROUP BY course_id');
-    while ($row = $result->fetch_assoc()) {
-        $counts[(int)$row['course_id']] = (int)$row['total'];
-    }
+    $res = $conn->query('SELECT course_id, COUNT(*) as total FROM units GROUP BY course_id');
+    while ($r = $res->fetch_assoc()) $counts[(int)$r['course_id']] = (int)$r['total'];
     return $counts;
 }
 
-function getCourseNameById(mysqli $conn, int $courseId): ?string
+/** Get course name by id, or null if not found. */
+function getCourseNameById(mysqli $conn, int $id): ?string
 {
     $stmt = $conn->prepare('SELECT name FROM courses WHERE id = ? LIMIT 1');
-    $stmt->bind_param('i', $courseId);
+    $stmt->bind_param('i', $id);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $row = $result->fetch_assoc() ?: null;
+    $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     return $row['name'] ?? null;
 }
 
-function getExistingUnits(mysqli $conn, int $courseId): array
-{
-    $units = [];
-    $stmt = $conn->prepare('SELECT id, name, code, year, semester FROM units WHERE course_id = ? ORDER BY year, semester, code');
-    $stmt->bind_param('i', $courseId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $units[] = $row;
-    }
-    $stmt->close();
-    return $units;
-}
-
-// ─── B.Sc. Business Computing unit list ─────────────────────────────────────
+// ─── B.Sc. Business Computing unit definitions ───────────────────────────────
 
 function getBscBusinessComputingUnits(): array
 {
@@ -146,96 +148,81 @@ function getBscBusinessComputingUnits(): array
     ];
 }
 
-function getBscBusinessComputingUnitCodes(): array
-{
-    return array_column(getBscBusinessComputingUnits(), 0);
-}
+// ─── Actions ──────────────────────────────────────────────────────────────────
 
-// ─── Actions ─────────────────────────────────────────────────────────────────
-
-/**
- * Undo: delete any units in course $courseId whose id > $maxLegitId.
- * Those rows were inserted by mistake and don't belong to this course.
- */
-function removeWronglyInsertedUnits(mysqli $conn, int $courseId, int $maxLegitId): array
+function addSingleUnit(mysqli $conn, int $courseId, string $code, string $name, int $year, int $semester): array
 {
     $courseName = getCourseNameById($conn, $courseId);
     if ($courseName === null) {
-        return ['error' => "Course ID {$courseId} not found."];
+        return ['status' => 'error', 'message' => "Course ID {$courseId} does not exist."];
     }
-
-    $stmt = $conn->prepare('DELETE FROM units WHERE course_id = ? AND id > ?');
-    $stmt->bind_param('ii', $courseId, $maxLegitId);
-    $stmt->execute();
-    $deleted = $stmt->affected_rows;
-    $stmt->close();
-
-    return [
-        'course_id'   => $courseId,
-        'course_name' => $courseName,
-        'deleted'     => $deleted,
-        'message'     => $deleted > 0
-            ? "{$deleted} wrongly inserted unit(s) removed from \"{$courseName}\"."
-            : "Nothing to undo — no units with ID > {$maxLegitId} found in \"{$courseName}\".",
-    ];
-}
-
-function insertUnit(mysqli $conn, int $courseId, string $code, string $name, int $year, int $semester): string
-{
+    $code = trim($code);
+    $name = trim($name);
+    if ($code === '' || $name === '') {
+        return ['status' => 'error', 'message' => 'Unit code and name cannot be empty.'];
+    }
+    // Check duplicate
     $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
     $stmt->bind_param('is', $courseId, $code);
     $stmt->execute();
     $stmt->store_result();
-    if ($stmt->num_rows > 0) {
-        $stmt->close();
-        return 'skipped';
-    }
+    $exists = $stmt->num_rows > 0;
     $stmt->close();
-
+    if ($exists) {
+        return ['status' => 'skipped', 'message' => "Unit \"{$code}\" already exists in \"{$courseName}\".",
+                'course_id' => $courseId, 'course_name' => $courseName,
+                'code' => $code, 'name' => $name, 'year' => $year, 'semester' => $semester];
+    }
+    // Insert
     $ins = $conn->prepare('INSERT INTO units (name, code, course_id, year, semester) VALUES (?, ?, ?, ?, ?)');
     $ins->bind_param('ssiii', $name, $code, $courseId, $year, $semester);
     $ins->execute();
-    $ok = $ins->affected_rows > 0;
+    $ok    = $ins->affected_rows > 0;
+    $newId = $conn->insert_id;
     $ins->close();
-    return $ok ? 'inserted' : 'failed';
+    if (!$ok) {
+        return ['status' => 'error', 'message' => "Insert failed for unit \"{$code}\"."];
+    }
+    return ['status' => 'inserted', 'message' => "Unit \"{$code} — {$name}\" added to \"{$courseName}\".",
+            'course_id' => $courseId, 'course_name' => $courseName, 'unit_id' => $newId,
+            'code' => $code, 'name' => $name, 'year' => $year, 'semester' => $semester];
 }
 
 function insertBscBusinessComputingUnits(mysqli $conn, int $courseId): array
 {
     $courseName = getCourseNameById($conn, $courseId);
-    if ($courseName === null) {
-        return ['error' => "Course ID {$courseId} not found."];
-    }
+    if ($courseName === null) return ['error' => "Course ID {$courseId} not found."];
     $summary = ['course_id' => $courseId, 'course_name' => $courseName, 'inserted' => 0, 'skipped' => 0, 'failed' => 0];
     foreach (getBscBusinessComputingUnits() as [$code, $name, $year, $semester]) {
-        $summary[insertUnit($conn, $courseId, $code, $name, $year, $semester)]++;
+        $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
+        $stmt->bind_param('is', $courseId, $code);
+        $stmt->execute();
+        $stmt->store_result();
+        $exists = $stmt->num_rows > 0;
+        $stmt->close();
+        if ($exists) { $summary['skipped']++; continue; }
+        $ins = $conn->prepare('INSERT INTO units (name, code, course_id, year, semester) VALUES (?, ?, ?, ?, ?)');
+        $ins->bind_param('ssiii', $name, $code, $courseId, $year, $semester);
+        $ins->execute();
+        $summary[$ins->affected_rows > 0 ? 'inserted' : 'failed']++;
+        $ins->close();
     }
     return $summary;
 }
 
-function moveUnitToCourse(mysqli $conn, int $from, int $to, string $code): string
+function removeWronglyInsertedUnits(mysqli $conn, int $courseId, int $maxLegitId): array
 {
-    $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
-    $stmt->bind_param('is', $from, $code);
+    $courseName = getCourseNameById($conn, $courseId);
+    if ($courseName === null) return ['error' => "Course ID {$courseId} not found."];
+    $stmt = $conn->prepare('DELETE FROM units WHERE course_id = ? AND id > ?');
+    $stmt->bind_param('ii', $courseId, $maxLegitId);
     $stmt->execute();
-    $sourceUnit = $stmt->get_result()->fetch_assoc();
+    $deleted = $stmt->affected_rows;
     $stmt->close();
-    if (!$sourceUnit) return 'missing';
-
-    $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
-    $stmt->bind_param('is', $to, $code);
-    $stmt->execute();
-    $stmt->store_result();
-    $exists = $stmt->num_rows > 0;
-    $stmt->close();
-    if ($exists) return 'duplicate';
-
-    $upd = $conn->prepare('UPDATE units SET course_id = ? WHERE course_id = ? AND code = ?');
-    $upd->bind_param('iis', $to, $from, $code);
-    $upd->execute();
-    $moved = $upd->affected_rows > 0;
-    $upd->close();
-    return $moved ? 'moved' : 'failed';
+    return ['course_id' => $courseId, 'course_name' => $courseName, 'deleted' => $deleted,
+            'message' => $deleted > 0
+                ? "{$deleted} wrongly inserted unit(s) removed from \"{$courseName}\"."
+                : "Nothing to undo — no units with ID > {$maxLegitId} in \"{$courseName}\"."];
 }
 
 function moveBscBusinessComputingUnitsToCourse(mysqli $conn, int $from, int $to): array
@@ -243,272 +230,288 @@ function moveBscBusinessComputingUnitsToCourse(mysqli $conn, int $from, int $to)
     $fromName = getCourseNameById($conn, $from);
     $toName   = getCourseNameById($conn, $to);
     if (!$fromName || !$toName) return ['error' => 'Source or target course not found.'];
+    $summary = ['source_course_id' => $from, 'source_course_name' => $fromName,
+                'target_course_id' => $to,   'target_course_name' => $toName,
+                'moved' => 0, 'duplicate' => 0, 'missing' => 0, 'failed' => 0];
+    foreach (array_column(getBscBusinessComputingUnits(), 0) as $code) {
+        $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
+        $stmt->bind_param('is', $from, $code);
+        $stmt->execute();
+        $src = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$src) { $summary['missing']++; continue; }
 
-    $summary = [
-        'source_course_id' => $from, 'source_course_name' => $fromName,
-        'target_course_id' => $to,   'target_course_name' => $toName,
-        'moved' => 0, 'duplicate' => 0, 'missing' => 0, 'failed' => 0,
-    ];
-    foreach (getBscBusinessComputingUnitCodes() as $code) {
-        $summary[moveUnitToCourse($conn, $from, $to, $code)]++;
+        $stmt = $conn->prepare('SELECT id FROM units WHERE course_id = ? AND code = ? LIMIT 1');
+        $stmt->bind_param('is', $to, $code);
+        $stmt->execute();
+        $stmt->store_result();
+        $dup = $stmt->num_rows > 0;
+        $stmt->close();
+        if ($dup) { $summary['duplicate']++; continue; }
+
+        $upd = $conn->prepare('UPDATE units SET course_id = ? WHERE course_id = ? AND code = ?');
+        $upd->bind_param('iis', $to, $from, $code);
+        $upd->execute();
+        $summary[$upd->affected_rows > 0 ? 'moved' : 'failed']++;
+        $upd->close();
     }
     return $summary;
 }
 
-// ─── Action detection ────────────────────────────────────────────────────────
+// ─── Action detection ─────────────────────────────────────────────────────────
 
 function currentAction(): string
 {
     if (isCli()) {
         global $argv;
-        if (in_array('--undo-course6',                  $argv, true)) return 'undo_course6';
+        if (in_array('--add-single-unit',               $argv, true)) return 'add_single_unit';
         if (in_array('--insert-bsc-business-computing', $argv, true)) return 'insert_bsc_business_computing';
+        if (in_array('--undo-course6',                  $argv, true)) return 'undo_course6';
         if (in_array('--move-bsc-business-computing',   $argv, true)) return 'move_units';
         return '';
     }
     return $_REQUEST['action'] ?? '';
 }
 
-// ─── HTML renderers ──────────────────────────────────────────────────────────
+// ─── HTML output ──────────────────────────────────────────────────────────────
 
-function renderCoursesTableHtml(mysqli $conn): string
+function outputHtml(string $body): void
+{
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        . '<title>DB Inspector</title><style>'
+        . 'body{font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;color:#111;margin:0;padding:24px;max-width:1200px;}'
+        . 'h1{margin:0 0 4px;}h2{margin:20px 0 8px;font-size:16px;color:#374151;}'
+        . 'section{margin-bottom:28px;padding:16px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.05);}'
+        . 'table{width:100%;border-collapse:collapse;font-size:13px;}'
+        . 'th{background:#1e3a5f;color:#fff;padding:8px 10px;text-align:left;position:sticky;top:0;}'
+        . 'td{border-bottom:1px solid #e5e7eb;padding:7px 10px;vertical-align:top;}'
+        . 'tr:nth-child(even) td{background:#f9fafb;}'
+        . 'tr:hover td{background:#eff6ff;}'
+        . '.badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;}'
+        . '.badge-blue{background:#dbeafe;color:#1d4ed8;}'
+        . '.badge-green{background:#dcfce7;color:#15803d;}'
+        . '.badge-yellow{background:#fef9c3;color:#92400e;}'
+        . '.badge-red{background:#fee2e2;color:#dc2626;}'
+        . '.action-box{margin-bottom:16px;padding:14px;border-radius:8px;}'
+        . '.act-green{background:#f0fdf4;border:1px solid #86efac;}'
+        . '.act-red{background:#fef2f2;border:1px solid #fca5a5;}'
+        . '.act-blue{background:#eff6ff;border:1px solid #93c5fd;}'
+        . '.act-gray{background:#f9fafb;border:1px solid #d1d5db;}'
+        . 'input,select{width:100%;padding:7px;border:1px solid #d1d5db;border-radius:5px;font-size:13px;box-sizing:border-box;}'
+        . 'label{font-weight:600;font-size:13px;}'
+        . 'button{padding:9px 20px;border:none;border-radius:6px;font-size:14px;cursor:pointer;color:#fff;}'
+        . '.btn-green{background:#16a34a;} .btn-blue{background:#2563eb;} .btn-red{background:#dc2626;} .btn-gray{background:#6b7280;}'
+        . 'a{color:#2563eb;}'
+        . '.highlight td{background:#fef9c3 !important;font-weight:600;}'
+        . '.new-row td{background:#dcfce7 !important;font-weight:700;}'
+        . '.meta{font-size:12px;color:#6b7280;margin-bottom:16px;}'
+        . '</style></head><body>' . $body . '</body></html>';
+}
+
+function renderCoursesTable(mysqli $conn, array $highlightIds = []): string
 {
     $courses = getAllCourses($conn);
-    $counts  = getUnitCountByCourse($conn);
+    $counts  = getUnitCounts($conn);
 
-    $html = '<section><h2>Courses Table</h2>';
-    $html .= '<table><thead><tr><th>ID</th><th>Name</th><th>Department ID</th><th>Duration (yrs)</th><th>Unit Count</th></tr></thead><tbody>';
+    $html = '<section><h2>&#128218; courses table <span class="meta" style="font-weight:normal;">(' . count($courses) . ' rows)</span></h2>'
+          . '<table><thead><tr><th>id</th><th>name</th><th>department_id</th><th>duration</th><th>unit_count</th></tr></thead><tbody>';
     foreach ($courses as $c) {
-        $id        = (int)$c['id'];
-        $units     = $counts[$id] ?? 0;
-        $highlight = ($id === 6 || $id === 7) ? ' style="background:#fffbeb;"' : '';
-        $html .= '<tr' . $highlight . '>' .
-            '<td><strong>' . escape((string)$id) . '</strong></td>' .
-            '<td>' . escape($c['name']) . '</td>' .
-            '<td>' . escape((string)$c['department_id']) . '</td>' .
-            '<td>' . escape((string)$c['duration']) . '</td>' .
-            '<td><strong>' . $units . '</strong></td>' .
-            '</tr>';
+        $id  = (int)$c['id'];
+        $cls = in_array($id, $highlightIds) ? ' class="highlight"' : '';
+        $html .= '<tr' . $cls . '>'
+            . '<td>' . escape((string)$id) . '</td>'
+            . '<td>' . escape($c['name']) . '</td>'
+            . '<td>' . escape((string)$c['department_id']) . '</td>'
+            . '<td>' . escape((string)$c['duration']) . '</td>'
+            . '<td><span class="badge badge-blue">' . ($counts[$id] ?? 0) . '</span></td>'
+            . '</tr>';
     }
-    $html .= '</tbody></table></section>';
-    return $html;
+    return $html . '</tbody></table></section>';
 }
 
-function renderUnitsInfoHtml(mysqli $conn, int $courseId): string
+function renderUnitsTable(mysqli $conn, ?int $filterCourseId = null, int $highlightUnitId = 0): string
 {
-    $courseName = getCourseNameById($conn, $courseId);
-    if ($courseName === null) {
-        return '<h1>Course Not Found</h1><p>Course ID ' . escape((string)$courseId) . ' not found.</p>';
+    $units  = $filterCourseId !== null ? getUnitsByCourse($conn, $filterCourseId) : getAllUnits($conn);
+    $title  = $filterCourseId !== null
+        ? "&#128218; units table &mdash; course_id = {$filterCourseId} <span class=\"meta\" style=\"font-weight:normal;\">(" . count($units) . " rows)</span>"
+        : "&#128218; units table <span class=\"meta\" style=\"font-weight:normal;\">(" . count($units) . " rows)</span>";
+
+    $html = '<section><h2>' . $title . '</h2>'
+          . '<table><thead><tr><th>id</th><th>code</th><th>name</th><th>course_id</th><th>year</th><th>semester</th></tr></thead><tbody>';
+    foreach ($units as $u) {
+        $cls = (int)$u['id'] === $highlightUnitId ? ' class="new-row"' : '';
+        $html .= '<tr' . $cls . '>'
+            . '<td>' . escape((string)$u['id']) . '</td>'
+            . '<td>' . escape($u['code']) . '</td>'
+            . '<td>' . escape($u['name']) . '</td>'
+            . '<td>' . escape((string)$u['course_id']) . '</td>'
+            . '<td>' . escape((string)$u['year']) . '</td>'
+            . '<td>' . escape((string)$u['semester']) . '</td>'
+            . '</tr>';
     }
+    return $html . '</tbody></table></section>';
+}
 
-    $html  = '<h1>Units Manager &mdash; ' . escape($courseName) . ' (ID&nbsp;' . escape((string)$courseId) . ')</h1>';
-    $html .= '<p><strong>Generated:</strong> ' . date('Y-m-d H:i:s') . '</p>';
+function renderMainPage(mysqli $conn): string
+{
+    $html  = '<h1>DB Inspector</h1>';
+    $html .= '<p class="meta">Generated: ' . date('Y-m-d H:i:s') . ' &nbsp;|&nbsp; Showing live data from the database.</p>';
 
-    // Courses table
-    $html .= renderCoursesTableHtml($conn);
+    // Courses table — raw
+    $html .= renderCoursesTable($conn, [6, 7]);
 
-    // Existing units for course 7
-    $existingUnits = getExistingUnits($conn, $courseId);
-    $html .= '<section><h2>Current Units in Course ID ' . escape((string)$courseId) . ' (' . count($existingUnits) . ' total)</h2>';
-    if (empty($existingUnits)) {
-        $html .= '<p style="color:#b45309;">(No units found for this course)</p>';
-    } else {
-        $html .= '<table><thead><tr><th>ID</th><th>Code</th><th>Year</th><th>Semester</th><th>Name</th></tr></thead><tbody>';
-        foreach ($existingUnits as $unit) {
-            $html .= '<tr>' .
-                '<td>' . escape((string)$unit['id']) . '</td>' .
-                '<td>' . escape($unit['code']) . '</td>' .
-                '<td>' . escape((string)$unit['year']) . '</td>' .
-                '<td>' . escape((string)$unit['semester']) . '</td>' .
-                '<td>' . escape($unit['name']) . '</td>' .
-            '</tr>';
-        }
-        $html .= '</tbody></table>';
-    }
-    $html .= '</section>';
+    // Units table — course 7 only
+    $html .= renderUnitsTable($conn, 7);
 
-    // Units to be added preview
-    $unitsToAdd = getBscBusinessComputingUnits();
-    $html .= '<section><h2>Units to be Inserted (preview &mdash; ' . count($unitsToAdd) . ' total)</h2>';
-    $html .= '<table><thead><tr><th>Code</th><th>Year</th><th>Semester</th><th>Name</th></tr></thead><tbody>';
-    foreach ($unitsToAdd as [$code, $name, $year, $semester]) {
-        $html .= '<tr>' .
-            '<td>' . escape($code) . '</td>' .
-            '<td>' . escape((string)$year) . '</td>' .
-            '<td>' . escape((string)$semester) . '</td>' .
-            '<td>' . escape($name) . '</td>' .
-        '</tr>';
-    }
-    $html .= '</tbody></table></section>';
-
-    // Actions
+    // ── Actions ──
     $html .= '<section><h2>Actions</h2>';
 
-    // Undo
-    $html .= '<div style="margin-bottom:20px;padding:14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;">'
-        . '<h3 style="margin:0 0 6px;color:#dc2626;">&#8617; Undo &mdash; Remove Wrongly Inserted Units from Course ID 6</h3>'
-        . '<p style="margin:0 0 10px;">Deletes units added to <strong>B.Sc. Information Technology (course 6)</strong> by mistake — '
-        . 'specifically any unit with ID &gt; 215. The original 65 units (IDs 152&ndash;215) are <strong>not touched</strong>.</p>'
-        . '<form method="post">'
-        . '<button type="submit" name="action" value="undo_course6" '
-        . 'style="background:#dc2626;color:#fff;padding:10px 24px;border:none;border-radius:6px;font-size:15px;cursor:pointer;">'
-        . '&#8617; Undo Wrong Inserts on Course ID 6</button>'
+    // Add single unit
+    $html .= '<div class="action-box act-green">'
+        . '<h3 style="margin:0 0 10px;color:#15803d;">&#43; Add a Single Unit to Course ID 7</h3>'
+        . '<form method="post" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:680px;">'
+        . '<input type="hidden" name="action" value="add_single_unit">'
+        . '<label style="grid-column:1/3;">Unit Code<br><input type="text" name="unit_code" value="BBC 2101" required></label>'
+        . '<label style="grid-column:1/3;">Unit Name<br><input type="text" name="unit_name" value="Business Studies for I.T." required></label>'
+        . '<label>Year<br><select name="unit_year">'
+        . '<option value="1" selected>Year 1</option><option value="2">Year 2</option><option value="3">Year 3</option><option value="4">Year 4</option>'
+        . '</select></label>'
+        . '<label>Semester<br><select name="unit_semester">'
+        . '<option value="1" selected>Semester 1</option><option value="2">Semester 2</option>'
+        . '</select></label>'
+        . '<div style="grid-column:1/3;margin-top:4px;"><button type="submit" class="btn-green">&#43; Add Unit</button></div>'
         . '</form></div>';
 
-    // Insert
-    $html .= '<div style="margin-bottom:20px;padding:14px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;">'
-        . '<h3 style="margin:0 0 6px;color:#1d4ed8;">&#10003; Insert Units into Course ID 7</h3>'
-        . '<p style="margin:0 0 10px;">Inserts all B.Sc. Business Computing units into course ID 7. Safe to run repeatedly — existing units are skipped.</p>'
-        . '<form method="post">'
-        . '<button type="submit" name="action" value="insert_bsc_business_computing" '
-        . 'style="background:#2563eb;color:#fff;padding:10px 24px;border:none;border-radius:6px;font-size:15px;cursor:pointer;">'
-        . '&#10003; Insert Units into Course ID 7</button>'
-        . '</form></div>';
+    // Bulk insert
+    $html .= '<div class="action-box act-blue">'
+        . '<h3 style="margin:0 0 6px;color:#1d4ed8;">&#10003; Bulk Insert All B.Sc. Business Computing Units into Course ID 7</h3>'
+        . '<p style="margin:0 0 10px;font-size:13px;">Inserts all 66 defined units. Skips any that already exist.</p>'
+        . '<form method="post"><button type="submit" name="action" value="insert_bsc_business_computing" class="btn-blue">&#10003; Bulk Insert into Course ID 7</button></form>'
+        . '</div>';
+
+    // Undo
+    $html .= '<div class="action-box act-red">'
+        . '<h3 style="margin:0 0 6px;color:#dc2626;">&#8617; Undo &mdash; Remove Wrongly Inserted Units from Course ID 6</h3>'
+        . '<p style="margin:0 0 10px;font-size:13px;">Deletes units in course 6 with ID &gt; 215. Original units (IDs 152&ndash;215) are untouched.</p>'
+        . '<form method="post"><button type="submit" name="action" value="undo_course6" class="btn-red">&#8617; Undo Wrong Inserts on Course 6</button></form>'
+        . '</div>';
 
     // Move
-    $html .= '<div style="padding:14px;background:#f9fafb;border:1px solid #d1d5db;border-radius:8px;">'
-        . '<h3 style="margin:0 0 6px;">&#8594; Move Units from Course ID 6 &rarr; 7</h3>'
-        . '<p style="margin:0 0 10px;">Moves units with B.Sc. Business Computing codes from course 6 to course 7. Only use if units are mistakenly in course 6.</p>'
-        . '<form method="post">'
-        . '<button type="submit" name="action" value="move_units" '
-        . 'style="background:#6b7280;color:#fff;padding:10px 24px;border:none;border-radius:6px;font-size:15px;cursor:pointer;">'
-        . '&#8594; Move Units to Course ID 7</button>'
-        . '</form></div>';
+    $html .= '<div class="action-box act-gray">'
+        . '<h3 style="margin:0 0 6px;">&#8594; Move B.Sc. Business Computing Units from Course 6 &rarr; 7</h3>'
+        . '<p style="margin:0 0 10px;font-size:13px;">Only use if units are mistakenly assigned to course 6.</p>'
+        . '<form method="post"><button type="submit" name="action" value="move_units" class="btn-gray">&#8594; Move Units to Course 7</button></form>'
+        . '</div>';
 
     $html .= '</section>';
     return $html;
 }
 
-function renderUndoResultHtml(array $summary): string
+// ─── Result pages ─────────────────────────────────────────────────────────────
+
+function resultPage(mysqli $conn, string $title, string $banner, string $details, int $highlightUnitId = 0): string
 {
-    if (isset($summary['error'])) {
-        return '<h1>Undo Failed</h1><p style="color:#dc2626;">' . escape($summary['error']) . '</p>'
-            . '<p><a href="dbalter.php">&#8592; Back</a></p>';
-    }
-    $color = $summary['deleted'] > 0 ? '#166534' : '#92400e';
-    $bg    = $summary['deleted'] > 0 ? '#dcfce7'  : '#fef9c3';
-    $icon  = $summary['deleted'] > 0 ? '&#10003;' : '&#9888;';
-    return '<h1>Undo Result</h1>'
-        . '<p style="color:' . $color . ';background:' . $bg . ';padding:10px;border-radius:6px;">' . $icon . ' ' . escape($summary['message']) . '</p>'
-        . '<p><strong>Course ID:</strong> ' . escape((string)$summary['course_id']) . '<br>'
-        . '<strong>Course:</strong> ' . escape($summary['course_name']) . '<br>'
-        . '<strong>Units deleted:</strong> ' . escape((string)$summary['deleted']) . '</p>'
+    return '<h1>' . $title . '</h1>'
+        . $banner . $details
+        . renderCoursesTable($conn, [6, 7])
+        . renderUnitsTable($conn, 7, $highlightUnitId)
         . '<p><a href="dbalter.php">&#8592; Back</a></p>';
 }
 
-function renderInsertResultHtml(array $summary): string
+function banner(string $msg, string $type): string
 {
-    if (isset($summary['error'])) {
-        return '<h1>Insert Failed</h1><p style="color:#dc2626;">' . escape($summary['error']) . '</p>'
-            . '<p><a href="dbalter.php">&#8592; Back</a></p>';
-    }
-    $allSkipped = $summary['inserted'] === 0 && $summary['skipped'] > 0;
-    $status = $allSkipped
-        ? '<p style="color:#92400e;background:#fef9c3;padding:10px;border-radius:6px;">&#9888; All units already exist — nothing new inserted.</p>'
-        : '<p style="color:#166534;background:#dcfce7;padding:10px;border-radius:6px;">&#10003; Units inserted successfully.</p>';
-    return '<h1>Insert Units Result</h1>' . $status
-        . '<p><strong>Course ID:</strong> ' . escape((string)$summary['course_id']) . '<br>'
-        . '<strong>Course:</strong> ' . escape($summary['course_name']) . '<br>'
-        . '<strong>Inserted:</strong> ' . escape((string)$summary['inserted']) . '<br>'
-        . '<strong>Skipped (already exist):</strong> ' . escape((string)$summary['skipped']) . '<br>'
-        . '<strong>Failed:</strong> ' . escape((string)$summary['failed']) . '</p>'
-        . '<p><a href="dbalter.php">&#8592; Back</a></p>';
+    $map = ['success' => ['#166534','#dcfce7','&#10003;'],
+            'warning' => ['#92400e','#fef9c3','&#9888;'],
+            'error'   => ['#dc2626','#fee2e2','&#10007;']];
+    [$c, $bg, $icon] = $map[$type] ?? $map['error'];
+    return '<p style="color:' . $c . ';background:' . $bg . ';padding:10px;border-radius:6px;margin-bottom:12px;">'
+        . $icon . ' ' . escape($msg) . '</p>';
 }
 
-function renderMoveResultHtml(array $summary): string
-{
-    if (isset($summary['error'])) {
-        return '<h1>Move Failed</h1><p style="color:#dc2626;">' . escape($summary['error']) . '</p>'
-            . '<p><a href="dbalter.php">&#8592; Back</a></p>';
-    }
-    return '<h1>Move Units Result</h1>'
-        . '<p><strong>From:</strong> ' . escape($summary['source_course_name']) . ' (ID ' . escape((string)$summary['source_course_id']) . ')<br>'
-        . '<strong>To:</strong> ' . escape($summary['target_course_name']) . ' (ID ' . escape((string)$summary['target_course_id']) . ')<br>'
-        . '<strong>Moved:</strong> ' . escape((string)$summary['moved']) . '<br>'
-        . '<strong>Duplicates skipped:</strong> ' . escape((string)$summary['duplicate']) . '<br>'
-        . '<strong>Missing from source:</strong> ' . escape((string)$summary['missing']) . '<br>'
-        . '<strong>Failed:</strong> ' . escape((string)$summary['failed']) . '</p>'
-        . '<p><a href="dbalter.php">&#8592; Back</a></p>';
-}
-
-function outputHtml(string $html): void
-{
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Units Manager</title><style>';
-    echo 'body{font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;color:#111;margin:0;padding:24px;max-width:1100px;}';
-    echo 'h1,h2,h3{margin:0 0 12px;}';
-    echo 'section{margin-bottom:28px;padding:16px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.05);}';
-    echo 'table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px;}';
-    echo 'th,td{border:1px solid #d6d8db;padding:7px 10px;text-align:left;vertical-align:top;}';
-    echo 'th{background:#f0f2f5;font-weight:600;}';
-    echo 'tr:hover td{background:#f8fafc;}';
-    echo 'p{margin:.5em 0;}a{color:#2563eb;}';
-    echo '</style></head><body>';
-    echo $html;
-    echo '</body></html>';
-}
-
-// ─── Main ────────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 $courseId          = 7;
 $sourceCourseId    = 6;
 $targetCourseId    = 7;
-$course6MaxLegitId = 215; // original B.Sc. IT units are IDs 152–215
+$course6MaxLegitId = 215;
 
 switch (currentAction()) {
 
-    case 'undo_course6':
-        $result = removeWronglyInsertedUnits($conn, $sourceCourseId, $course6MaxLegitId);
-        if (isCli()) {
-            echo isset($result['error'])
-                ? "ERROR: {$result['error']}\n"
-                : "{$result['message']}\nDeleted: {$result['deleted']}\n";
+    case 'add_single_unit':
+        $code     = trim($_POST['unit_code']     ?? '');
+        $name     = trim($_POST['unit_name']     ?? '');
+        $year     = (int)($_POST['unit_year']     ?? 1);
+        $semester = (int)($_POST['unit_semester'] ?? 1);
+        $r = addSingleUnit($conn, $courseId, $code, $name, $year, $semester);
+
+        if ($r['status'] === 'error') {
+            outputHtml(resultPage($conn, 'Add Unit — Error', banner($r['message'], 'error'), ''));
+        } elseif ($r['status'] === 'skipped') {
+            $details = '<p><strong>Course ID:</strong> ' . escape((string)$r['course_id'])
+                . ' &nbsp; <strong>Course:</strong> ' . escape($r['course_name']) . '<br>'
+                . '<strong>Code:</strong> ' . escape($r['code'])
+                . ' &nbsp; <strong>Year:</strong> ' . escape((string)$r['year'])
+                . ' &nbsp; <strong>Semester:</strong> ' . escape((string)$r['semester']) . '</p>';
+            outputHtml(resultPage($conn, 'Add Unit — Skipped', banner($r['message'], 'warning'), $details));
         } else {
-            outputHtml(renderUndoResultHtml($result));
+            $details = '<p><strong>Course ID:</strong> ' . escape((string)$r['course_id'])
+                . ' &nbsp; <strong>Course:</strong> ' . escape($r['course_name']) . '<br>'
+                . '<strong>New Unit ID:</strong> <span class="badge badge-green">' . escape((string)$r['unit_id']) . '</span>'
+                . ' &nbsp; <strong>Code:</strong> ' . escape($r['code'])
+                . ' &nbsp; <strong>Year:</strong> ' . escape((string)$r['year'])
+                . ' &nbsp; <strong>Semester:</strong> ' . escape((string)$r['semester']) . '</p>';
+            outputHtml(resultPage($conn, 'Add Unit — Success', banner($r['message'], 'success'), $details, (int)$r['unit_id']));
         }
         break;
 
     case 'insert_bsc_business_computing':
-        $result = insertBscBusinessComputingUnits($conn, $courseId);
-        if (isCli()) {
-            echo isset($result['error'])
-                ? "ERROR: {$result['error']}\n"
-                : "Inserted: {$result['inserted']}  Skipped: {$result['skipped']}  Failed: {$result['failed']}\n";
+        $r = insertBscBusinessComputingUnits($conn, $courseId);
+        if (isset($r['error'])) {
+            outputHtml(resultPage($conn, 'Bulk Insert — Error', banner($r['error'], 'error'), ''));
         } else {
-            outputHtml(renderInsertResultHtml($result));
+            $allSkipped = $r['inserted'] === 0 && $r['skipped'] > 0;
+            $msg  = $allSkipped ? 'All units already exist — nothing new inserted.' : "Inserted {$r['inserted']} unit(s) into \"{$r['course_name']}\".";
+            $type = $allSkipped ? 'warning' : 'success';
+            $details = '<p><strong>Course ID:</strong> ' . escape((string)$r['course_id'])
+                . ' &nbsp; <strong>Course:</strong> ' . escape($r['course_name']) . '<br>'
+                . '<strong>Inserted:</strong> ' . $r['inserted']
+                . ' &nbsp; <strong>Skipped:</strong> ' . $r['skipped']
+                . ' &nbsp; <strong>Failed:</strong> ' . $r['failed'] . '</p>';
+            outputHtml(resultPage($conn, 'Bulk Insert Result', banner($msg, $type), $details));
+        }
+        break;
+
+    case 'undo_course6':
+        $r = removeWronglyInsertedUnits($conn, $sourceCourseId, $course6MaxLegitId);
+        if (isset($r['error'])) {
+            outputHtml(resultPage($conn, 'Undo — Error', banner($r['error'], 'error'), ''));
+        } else {
+            $type    = $r['deleted'] > 0 ? 'success' : 'warning';
+            $details = '<p><strong>Course ID:</strong> ' . escape((string)$r['course_id'])
+                . ' &nbsp; <strong>Course:</strong> ' . escape($r['course_name']) . '<br>'
+                . '<strong>Units deleted:</strong> <span class="badge badge-red">' . $r['deleted'] . '</span></p>';
+            outputHtml(resultPage($conn, 'Undo Result', banner($r['message'], $type), $details));
         }
         break;
 
     case 'move_units':
-        $result = moveBscBusinessComputingUnitsToCourse($conn, $sourceCourseId, $targetCourseId);
-        if (isCli()) {
-            echo isset($result['error'])
-                ? "ERROR: {$result['error']}\n"
-                : "Moved: {$result['moved']}  Duplicate: {$result['duplicate']}  Missing: {$result['missing']}  Failed: {$result['failed']}\n";
+        $r = moveBscBusinessComputingUnitsToCourse($conn, $sourceCourseId, $targetCourseId);
+        if (isset($r['error'])) {
+            outputHtml(resultPage($conn, 'Move — Error', banner($r['error'], 'error'), ''));
         } else {
-            outputHtml(renderMoveResultHtml($result));
+            $msg     = "Moved {$r['moved']} unit(s) from \"{$r['source_course_name']}\" to \"{$r['target_course_name']}\".";
+            $type    = $r['moved'] > 0 ? 'success' : 'warning';
+            $details = '<p><strong>From:</strong> ' . escape($r['source_course_name']) . ' (ID ' . $r['source_course_id'] . ')<br>'
+                . '<strong>To:</strong> ' . escape($r['target_course_name']) . ' (ID ' . $r['target_course_id'] . ')<br>'
+                . '<strong>Moved:</strong> ' . $r['moved']
+                . ' &nbsp; <strong>Duplicates:</strong> ' . $r['duplicate']
+                . ' &nbsp; <strong>Missing:</strong> ' . $r['missing']
+                . ' &nbsp; <strong>Failed:</strong> ' . $r['failed'] . '</p>';
+            outputHtml(resultPage($conn, 'Move Result', banner($msg, $type), $details));
         }
         break;
 
     default:
-        if (isCli()) {
-            $courses = getAllCourses($conn);
-            $counts  = getUnitCountByCourse($conn);
-            echo "Courses:\n";
-            printf("%-4s %-45s %-6s %-8s\n", 'ID', 'Name', 'Dept', 'Units');
-            echo str_repeat('-', 70) . "\n";
-            foreach ($courses as $c) {
-                printf("%-4s %-45s %-6s %-8s\n", $c['id'], $c['name'], $c['department_id'], $counts[(int)$c['id']] ?? 0);
-            }
-            echo "\n";
-            $units = getExistingUnits($conn, $courseId);
-            echo "Units for course ID {$courseId} (" . count($units) . " total):\n";
-            printf("%-4s %-10s %-4s %-4s %s\n", 'ID', 'Code', 'Yr', 'Sem', 'Name');
-            echo str_repeat('-', 80) . "\n";
-            foreach ($units as $u) {
-                printf("%-4s %-10s %-4s %-4s %s\n", $u['id'], $u['code'], $u['year'], $u['semester'], $u['name']);
-            }
-        } else {
-            outputHtml(renderUnitsInfoHtml($conn, $courseId));
-        }
+        outputHtml(renderMainPage($conn));
         break;
 }
