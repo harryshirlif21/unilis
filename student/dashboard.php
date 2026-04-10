@@ -72,15 +72,254 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <!-- External CSS -->
 <link rel="stylesheet" href="css/styles.css">
 
+<style>
+:root {
+  --primary: #2563eb;
+  --secondary: #1e40af;
+  --accent: #f59e0b;
+  --bg-light: #f9fafb;
+  --text-dark: #1f2937;
+  --text-light: #6b7280;
+}
+
+body {
+  background: white !important;
+}
+
+.footer {
+  background: linear-gradient(135deg, var(--bg-light) 0%, #ffffff 100%);
+  border-top: 1px solid #e5e7eb;
+  margin-top: 2rem;
+  padding: 2rem 0 0 0;
+  position: relative;
+}
+
+.footer-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.footer-column {
+  padding: 1rem;
+  transition: transform 0.3s ease;
+}
+
+.footer-column:hover {
+  transform: translateY(-2px);
+}
+
+.footer-column h2, .footer-column h3 {
+  color: var(--text-dark);
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.footer-about p {
+  color: var(--text-light);
+  line-height: 1.6;
+}
+
+.footer-links ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-links li {
+  margin-bottom: 0.5rem;
+}
+
+.footer-links a {
+  color: var(--text-light);
+  text-decoration: none;
+  transition: color 0.3s ease;
+  position: relative;
+}
+
+.footer-links a:hover {
+  color: var(--primary);
+}
+
+.footer-links a::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -2px;
+  left: 0;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
+.footer-links a:hover::after {
+  width: 100%;
+}
+
+.footer-contact p {
+  margin-bottom: 0.5rem;
+  color: var(--text-light);
+}
+
+.footer-contact a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.footer-contact a:hover {
+  color: var(--secondary);
+}
+
+.social-links {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.social {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-light);
+  color: var(--text-light);
+  text-decoration: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.social:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.social.whatsapp:hover { background: #25d366; color: white; }
+.social.facebook:hover { background: #1877f2; color: white; }
+.social.instagram:hover { background: #e4405f; color: white; }
+.social.twitter:hover { background: #1da1f2; color: white; }
+
+.newsletter-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.newsletter-form input {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.newsletter-form input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.newsletter-form button {
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.newsletter-form button:hover {
+  transform: translateY(-2px);
+}
+
+.footer-bottom {
+  border-top: 1px solid #e5e7eb;
+  margin-top: 2rem;
+  padding: 1rem;
+  background: var(--bg-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.footer-bottom p {
+  margin: 0;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.legal-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.legal-links a {
+  color: var(--text-light);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.legal-links a:hover {
+  color: var(--primary);
+}
+
+@media (max-width: 768px) {
+  .footer-container {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+  }
+  .footer-column {
+    padding: 0.5rem;
+  }
+  .social-links {
+    justify-content: center;
+  }
+  .footer-bottom {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .footer-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .footer-column {
+    text-align: center;
+  }
+  .social-links {
+    justify-content: center;
+  }
+  .newsletter-form {
+    align-items: center;
+  }
+}
+</style>
+
 </head>
 <body>
 <!-- Navbar -->
 <nav class="navbar">
-    <!-- Mobile Sidebar Toggle -->
-    <div class="sidebar-toggle">
+    <!-- Mobile Three-Dot Menu -->
+    <div class="nav-icon" id="mobileMenuToggle" style="cursor: pointer;">
         <i class="fas fa-ellipsis-v"></i>
     </div>
     
+    <!-- Welcome Message (moved to center) -->
     <div class="welcome-msg">
         <strong>👋 Welcome back!</strong>
     </div>
@@ -251,12 +490,6 @@ function logout() {
     <img src="images/lady.jpg" alt="Medical Lady Avatar" class="hero-avatar">
 </div>
 
-<!-- Team Invitations -->
-<div style="max-width:1100px;margin:1rem auto 0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:1rem;">
-  <h3 style="margin:0 0 0.5rem 0;color:#1f2937;">Team Invitations</h3>
-  <p id="teamInviteStatus" style="margin:0 0 0.5rem 0;color:#6b7280;">Loading invitations...</p>
-  <div id="teamInviteList"></div>
-</div>
 
 <div class="features-section">
 
@@ -407,13 +640,13 @@ function logout() {
     <!-- Contact / Social -->
     <div class="footer-column footer-contact">
       <h3>Get in Touch</h3>
-      <p><strong>WhatsApp:</strong> <a href="https://wa.me/254792451666">+254 792 451 666</a></p>
-      <p><strong>Email:</strong> <a href="mailto:mwendihillary@gmail.com">mwendihillary@gmail.com</a></p>
+      <p><i class="fab fa-whatsapp"></i> <strong>WhatsApp:</strong> <a href="https://wa.me/254792451666">+254 792 451 666</a></p>
+      <p><i class="fas fa-envelope"></i> <strong>Email:</strong> <a href="mailto:mwendihillary@gmail.com">mwendihillary@gmail.com</a></p>
       <div class="social-links">
-        <a href="https://wa.me/254792451666" class="social whatsapp" target="_blank" aria-label="WhatsApp"><span>WhatsApp</span></a>
-        <a href="https://facebook.com/yourpage" class="social facebook" target="_blank" aria-label="Facebook"><span>Facebook</span></a>
-        <a href="https://instagram.com/yourhandle" class="social instagram" target="_blank" aria-label="Instagram"><span>Instagram</span></a>
-        <a href="https://x.com/yourhandle" class="social twitter" target="_blank" aria-label="X / Twitter"><span>X</span></a>
+        <a href="https://wa.me/254792451666" class="social whatsapp" target="_blank" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>
+        <a href="https://facebook.com/yourpage" class="social facebook" target="_blank" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+        <a href="https://instagram.com/yourhandle" class="social instagram" target="_blank" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+        <a href="https://x.com/yourhandle" class="social twitter" target="_blank" aria-label="X / Twitter"><i class="fab fa-twitter"></i></a>
       </div>
     </div>
 
@@ -422,8 +655,8 @@ function logout() {
       <h3>Stay Updated</h3>
       <p>Subscribe to our newsletter for tips, updates & exclusive offers.</p>
       <form class="newsletter-form">
-        <input type="email" placeholder="Your email address" required><br>
-        <button type="submit">Subscribe</button>
+        <input type="email" placeholder="Your email address" required>
+        <button type="submit"><i class="fas fa-paper-plane"></i> Subscribe</button>
       </form>
     </div>
 
@@ -534,16 +767,32 @@ function logout() {
 <script>
 // Single tab switching logic (adapted from lecturer dashboard)
 document.addEventListener('DOMContentLoaded', () => {
-    // Mobile sidebar toggle
-    document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+    // Mobile sidebar toggle - Three-dot menu
+    document.getElementById('mobileMenuToggle')?.addEventListener('click', () => {
         document.getElementById('sidebar')?.classList.toggle('show');
     });
-
+    
     document.addEventListener('click', e => {
         const sidebar = document.getElementById('sidebar');
-        const toggle = document.getElementById('sidebarToggle');
-        if (sidebar && toggle && !sidebar.contains(e.target) && !toggle.contains(e.target)) {
+        const mobileMenu = document.getElementById('mobileMenuToggle');
+        
+        // Close sidebar when clicking outside
+        if (sidebar && mobileMenu && !sidebar.contains(e.target) && !mobileMenu.contains(e.target)) {
             sidebar.classList.remove('show');
+        }
+        
+        // Generic modal close
+        if (e.target.classList.contains('modal') || e.target.classList.contains('close')) {
+            const modal = e.target.closest('.modal');
+            if (modal) hideModal(modal.id);
+        }
+    });
+
+    // ESC key to close modals
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            const openModal = document.querySelector('.modal:not(.hidden)');
+            if (openModal) hideModal(openModal.id);
         }
     });
 
@@ -632,11 +881,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Close notifications popup if clicking outside
         if (notificationsContent && !notificationsContent.contains(e.target) && !notificationsIcon?.contains(e.target)) {
             notificationsContent.style.display = 'none';
-        }
-        
-        // Close modal if clicking on backdrop
-        if (modal && e.target === modal) {
-            modal.style.display = 'none';
         }
         
         // Generic modal close
