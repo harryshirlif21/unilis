@@ -55,6 +55,21 @@ class MemberController
             throw new Exception("Member already in team");
         }
 
+        // Enforce: Student can only be in one team per unit
+        $stmt = $this->conn->prepare(
+            "SELECT COUNT(*) as count FROM team_members tm 
+            JOIN teams t ON tm.team_id = t.id 
+            WHERE t.unit_id = (SELECT unit_id FROM teams WHERE id = ?) 
+            AND tm.student_id = ? 
+            AND t.id != ?"
+        );
+        $stmt->execute([$teamId, $studentId, $teamId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($result['count'] > 0) {
+            throw new Exception("Student is already in another team for this unit. A student can only be in one team per unit.");
+        }
+
         // Insert member
         $stmt = $this->conn->prepare("INSERT INTO team_members (team_id, student_id, role, joined_at) VALUES (?, ?, ?, NOW())");
         $stmt->execute([$teamId, $studentId, $role]);

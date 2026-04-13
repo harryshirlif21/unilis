@@ -105,6 +105,24 @@ try {
     if ($stmt->get_result()->num_rows > 0) {
         throw new Exception("Member already in team");
     }
+    $stmt->close();
+
+    // 3a. Enforce: Student can only be in one team per unit
+    $stmt = $conn->prepare(
+        "SELECT COUNT(*) as count FROM team_members tm 
+        JOIN teams t ON tm.team_id = t.id 
+        WHERE t.unit_id = (SELECT unit_id FROM teams WHERE id = ?) 
+        AND tm.student_id = ? 
+        AND t.id != ?"
+    );
+    $stmt->bind_param("iii", $teamId, $studentId, $teamId);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    if ($result['count'] > 0) {
+        throw new Exception("Student is already in another team for this unit. A student can only be in one team per unit.");
+    }
 
     // 4. Ensure invitation helper table exists (code storage)
     $conn->query("

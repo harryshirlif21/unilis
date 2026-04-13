@@ -521,6 +521,21 @@ $stmt->close();
 
 <h1>Teams for Your Units</h1>
 
+<!-- Membership Requests Management -->
+<div class="team-card" style="margin-top:0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+    <div class="team-header" style="color: white;">
+        <div>
+            <strong style="font-size: 1.1rem;">📋 Membership Requests</strong><br>
+            <small style="color: rgba(255,255,255,0.8);">Review and approve/reject team membership leave and removal requests.</small>
+        </div>
+    </div>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <a href="approve_membership_requests.php" class="global-export-btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.5);">
+            🔍 View Membership Requests
+        </a>
+    </div>
+</div>
+
 <!-- Global Export Section -->
 <div class="global-export">
     <h2>📊 Export All Teams & Marks</h2>

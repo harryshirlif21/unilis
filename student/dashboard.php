@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Student Dashboard Navbar</title>
+<title>Student Dashboard</title>
 
 <!-- Font Awesome for profile avatar icon -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -86,6 +86,40 @@ body {
   background: white !important;
 }
 
+/* =====================
+   SIDEBAR MOBILE FIX
+   ===================== */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+  }
+
+  .sidebar.show {
+    transform: translateX(0);
+  }
+
+  /* Dark overlay behind sidebar */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+  }
+
+  .sidebar-overlay.show {
+    display: block;
+  }
+}
+
+/* Footer styles */
 .footer {
   background: linear-gradient(135deg, var(--bg-light) 0%, #ffffff 100%);
   border-top: 1px solid #e5e7eb;
@@ -198,10 +232,10 @@ body {
   box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
-.social.whatsapp:hover { background: #25d366; color: white; }
-.social.facebook:hover { background: #1877f2; color: white; }
+.social.whatsapp:hover  { background: #25d366; color: white; }
+.social.facebook:hover  { background: #1877f2; color: white; }
 .social.instagram:hover { background: #e4405f; color: white; }
-.social.twitter:hover { background: #1da1f2; color: white; }
+.social.twitter:hover   { background: #1da1f2; color: white; }
 
 .newsletter-form {
   display: flex;
@@ -312,14 +346,18 @@ body {
 
 </head>
 <body>
+
+<!-- Sidebar overlay (mobile backdrop) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
 <!-- Navbar -->
 <nav class="navbar">
     <!-- Mobile Three-Dot Menu -->
     <div class="nav-icon" id="mobileMenuToggle" style="cursor: pointer;">
         <i class="fas fa-ellipsis-v"></i>
     </div>
-    
-    <!-- Welcome Message (moved to center) -->
+
+    <!-- Welcome Message (center) -->
     <div class="welcome-msg">
         <strong>👋 Welcome back!</strong>
     </div>
@@ -329,8 +367,7 @@ body {
         <!-- Notifications -->
         <div class="nav-icon" id="notifications-icon" style="position:relative; cursor:pointer;">
             <i class="fas fa-bell"></i>
-            <!-- Red circle indicator for new notifications -->
-            <span id="notificationCount" 
+            <span id="notificationCount"
                   style="position:absolute; top:-5px; right:-5px; width:20px; height:20px; background:#ff6b6b; border-radius:50%; display:<?= $unread_count > 0 ? 'flex' : 'none' ?>; align-items:center; justify-content:center; color:white; font-size:12px; font-weight:bold; border: 2px solid white;">
                 <?= $unread_count > 99 ? '99+' : $unread_count ?>
             </span>
@@ -341,8 +378,8 @@ body {
     </div>
 </nav>
 
-<!-- Sidebar -->
-<aside class="sidebar">
+<!-- Sidebar — id="sidebar" is REQUIRED for the JS toggle to work -->
+<aside class="sidebar" id="sidebar">
     <!-- Main Navigation -->
     <div class="sidebar-section">
         <h4>Main Navigation</h4>
@@ -408,12 +445,6 @@ body {
     </div>
 </aside>
 
-<script>
-function logout() {
-    window.location.href = "../logout.php";
-}
-</script>
-
 <!-- Profile popup -->
 <div class="popup" id="profile-popup">
     <h3><?php echo htmlspecialchars($student['name']); ?></h3>
@@ -452,14 +483,14 @@ function logout() {
                                 <small style="color: #666;"><?= htmlspecialchars(substr($notif['message'], 0, 60)) ?>...</small>
                                 <br>
                                 <small style="color: #999; font-size: 11px;">
-                                    <?php 
+                                    <?php
                                         $time = strtotime($notif['created_at']);
-                                        $now = time();
+                                        $now  = time();
                                         $diff = $now - $time;
-                                        if ($diff < 60) echo "Just now";
-                                        elseif ($diff < 3600) echo floor($diff / 60) . "m ago";
+                                        if ($diff < 60)        echo "Just now";
+                                        elseif ($diff < 3600)  echo floor($diff / 60) . "m ago";
                                         elseif ($diff < 86400) echo floor($diff / 3600) . "h ago";
-                                        else echo date('M d', $time);
+                                        else                   echo date('M d', $time);
                                     ?>
                                 </small>
                             </div>
@@ -489,7 +520,6 @@ function logout() {
     </div>
     <img src="images/lady.jpg" alt="Medical Lady Avatar" class="hero-avatar">
 </div>
-
 
 <div class="features-section">
 
@@ -620,7 +650,7 @@ function logout() {
     <div class="footer-column footer-about">
       <h2>About Us</h2>
       <p>
-        We deliver high-quality services and solutions tailored to help individuals and businesses thrive in the digital world. 
+        We deliver high-quality services and solutions tailored to help individuals and businesses thrive in the digital world.
         Let's connect and build something great together.
       </p>
     </div>
@@ -643,17 +673,17 @@ function logout() {
       <p><i class="fab fa-whatsapp"></i> <strong>WhatsApp:</strong> <a href="https://wa.me/254792451666">+254 792 451 666</a></p>
       <p><i class="fas fa-envelope"></i> <strong>Email:</strong> <a href="mailto:mwendihillary@gmail.com">mwendihillary@gmail.com</a></p>
       <div class="social-links">
-        <a href="https://wa.me/254792451666" class="social whatsapp" target="_blank" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>
-        <a href="https://facebook.com/yourpage" class="social facebook" target="_blank" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
-        <a href="https://instagram.com/yourhandle" class="social instagram" target="_blank" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
-        <a href="https://x.com/yourhandle" class="social twitter" target="_blank" aria-label="X / Twitter"><i class="fab fa-twitter"></i></a>
+        <a href="https://wa.me/254792451666"        class="social whatsapp"  target="_blank" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>
+        <a href="https://facebook.com/yourpage"     class="social facebook"  target="_blank" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+        <a href="https://instagram.com/yourhandle"  class="social instagram" target="_blank" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+        <a href="https://x.com/yourhandle"          class="social twitter"   target="_blank" aria-label="X / Twitter"><i class="fab fa-twitter"></i></a>
       </div>
     </div>
 
     <!-- Newsletter -->
     <div class="footer-column footer-newsletter">
       <h3>Stay Updated</h3>
-      <p>Subscribe to our newsletter for tips, updates & exclusive offers.</p>
+      <p>Subscribe to our newsletter for tips, updates &amp; exclusive offers.</p>
       <form class="newsletter-form">
         <input type="email" placeholder="Your email address" required>
         <button type="submit"><i class="fas fa-paper-plane"></i> Subscribe</button>
@@ -664,9 +694,9 @@ function logout() {
 
   <!-- Enhanced Student Attendance Modal -->
   <div id="studentAttendanceModal" class="modal hidden">
-      <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl max-w-md mx-auto" 
+      <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl max-w-md mx-auto"
            style="max-height: 90vh; overflow-y: auto;">
-          
+
           <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10"
                 onclick="hideModal('studentAttendanceModal')">×</span>
 
@@ -697,7 +727,7 @@ function logout() {
                           <i class="fas fa-keyboard"></i> Enter Your Personal Code
                       </label>
                       <input type="text" id="attendanceCodeInput" maxlength="6" placeholder="Enter 6-digit code"
-                             class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-xl text-center 
+                             class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-xl text-center
                                     tracking-widest focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition uppercase font-mono">
                       <div class="text-center mt-3">
                           <span id="codeTimer" class="text-sm text-gray-600"></span>
@@ -705,12 +735,11 @@ function logout() {
                   </div>
 
                   <div class="text-center space-y-3">
-                      <button type="button" onclick="submitAttendanceCode()" 
+                      <button type="button" onclick="submitAttendanceCode()"
                               class="btn-golden px-12 py-4 text-lg font-semibold rounded-xl shadow-lg">
                           <i class="fas fa-check-circle"></i> Submit Attendance
                       </button>
-                      
-                      <button type="button" onclick="requestNewCode()" 
+                      <button type="button" onclick="requestNewCode()"
                               class="btn-secondary px-8 py-3 text-lg rounded-xl">
                           <i class="fas fa-redo"></i> Request New Code
                       </button>
@@ -724,7 +753,7 @@ function logout() {
                   </div>
                   <h3 class="text-2xl font-bold text-green-600 mb-4">Attendance Marked!</h3>
                   <p class="text-gray-600 mb-6">Your attendance has been successfully recorded.</p>
-                  <button onclick="hideModal('studentAttendanceModal')" 
+                  <button onclick="hideModal('studentAttendanceModal')"
                           class="btn-primary px-8 py-3 rounded-xl">
                       <i class="fas fa-times"></i> Close
                   </button>
@@ -738,11 +767,11 @@ function logout() {
                   <h3 class="text-2xl font-bold text-red-600 mb-4">Error</h3>
                   <p id="errorMessage" class="text-gray-600 mb-6"></p>
                   <div class="space-x-3">
-                      <button onclick="resetAttendanceForm()" 
+                      <button onclick="resetAttendanceForm()"
                               class="btn-secondary px-8 py-3 rounded-xl">
                           <i class="fas fa-arrow-left"></i> Try Again
                       </button>
-                      <button onclick="requestNewCode()" 
+                      <button onclick="requestNewCode()"
                               class="btn-primary px-8 py-3 rounded-xl">
                           <i class="fas fa-redo"></i> Request New Code
                       </button>
@@ -765,462 +794,341 @@ function logout() {
 
 
 <script>
-// Single tab switching logic (adapted from lecturer dashboard)
-document.addEventListener('DOMContentLoaded', () => {
-    // Mobile sidebar toggle - Three-dot menu
-    document.getElementById('mobileMenuToggle')?.addEventListener('click', () => {
-        document.getElementById('sidebar')?.classList.toggle('show');
-    });
-    
-    document.addEventListener('click', e => {
-        const sidebar = document.getElementById('sidebar');
-        const mobileMenu = document.getElementById('mobileMenuToggle');
-        
-        // Close sidebar when clicking outside
-        if (sidebar && mobileMenu && !sidebar.contains(e.target) && !mobileMenu.contains(e.target)) {
-            sidebar.classList.remove('show');
-        }
-        
-        // Generic modal close
-        if (e.target.classList.contains('modal') || e.target.classList.contains('close')) {
-            const modal = e.target.closest('.modal');
-            if (modal) hideModal(modal.id);
-        }
-    });
-
-    // ESC key to close modals
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            const openModal = document.querySelector('.modal:not(.hidden)');
-            if (openModal) hideModal(openModal.id);
-        }
-    });
-
-    // Profile popup functionality
-    const profileIcon = document.getElementById('profile-icon');
-    const profilePopup = document.getElementById('profile-popup');
-    
-    if (profileIcon && profilePopup) {
-        profileIcon.addEventListener('click', () => {
-            const isVisible = profilePopup.style.display === 'block';
-            profilePopup.style.display = isVisible ? 'none' : 'block';
-            
-            // Position profile popup
-            if (profilePopup.style.display === 'block') {
-                const iconRect = profileIcon.getBoundingClientRect();
-                profilePopup.style.top = iconRect.bottom + 10 + 'px';
-                profilePopup.style.right = '20px';
-            }
-        });
-    }
-
-    // Notifications functionality
-    const notificationsIcon = document.getElementById('notifications-icon');
-    const notificationsContent = document.getElementById('notifications-content');
-    
-    if (notificationsIcon && notificationsContent) {
-        notificationsIcon.addEventListener('click', () => {
-            const isVisible = notificationsContent.style.display === 'block';
-            notificationsContent.style.display = isVisible ? 'none' : 'block';
-            
-            // Hide profile popup
-            if (profilePopup) {
-                profilePopup.style.display = 'none';
-            }
-            
-            // Position notifications popup
-            if (notificationsContent.style.display === 'block') {
-                const iconRect = notificationsIcon.getBoundingClientRect();
-                notificationsContent.style.top = iconRect.bottom + 10 + 'px';
-                notificationsContent.style.right = '20px';
-            }
-        });
-    }
-
-    // Sidebar click handler for items without links (e.g., Attendance)
-    document.querySelectorAll('.sidebar-section li').forEach(item => {
-        item.addEventListener('click', (e) => {
-            // If the click target is inside an <a> tag, let normal navigation happen
-            if (e.target.closest('a')) return;
-
-            const text = item.querySelector('span')?.textContent.trim();
-            if (text === 'Attendance') {
-                showModal('studentAttendanceModal');
-                // Remove active class from all sidebar items
-                document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
-                // Add active class to clicked item
-                item.classList.add('active');
-            }
-        });
-    });
-
-    // Generic modal helpers (from lecturer dashboard)
-    window.showModal = function(id) {
-        const modal = document.getElementById(id);
-        if (modal) {
-            modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-        }
-    };
-
-    window.hideModal = function(id) {
-        const modal = document.getElementById(id);
-        if (modal) {
-            modal.classList.add('hidden');
-            document.body.style.overflow = '';
-        }
-    };
-
-    // Close modals on outside click or close button
-    document.addEventListener('click', e => {
-        // Close profile popup if clicking outside
-        if (profilePopup && !profilePopup.contains(e.target) && !profileIcon?.contains(e.target)) {
-            profilePopup.style.display = 'none';
-        }
-        
-        // Close notifications popup if clicking outside
-        if (notificationsContent && !notificationsContent.contains(e.target) && !notificationsIcon?.contains(e.target)) {
-            notificationsContent.style.display = 'none';
-        }
-        
-        // Generic modal close
-        if (e.target.classList.contains('modal') || e.target.classList.contains('close')) {
-            const modal = e.target.closest('.modal');
-            if (modal) hideModal(modal.id);
-        }
-    });
-
-    // ESC key to close modals
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            const openModal = document.querySelector('.modal:not(.hidden)');
-            if (openModal) hideModal(openModal.id);
-        }
-    });
-});
-
+// =============================================
+//  UTILITY
+// =============================================
 function logout() {
     window.location.href = "../logout.php";
 }
 
-// Enhanced Attendance System Functions
-window.attendanceData = {
-    sessions: [],
-    currentSession: null
+// =============================================
+//  MODAL HELPERS
+// =============================================
+window.showModal = function(id) {
+    const modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    // Load sessions when attendance modal opens
+    if (id === 'studentAttendanceModal') {
+        loadActiveAttendanceSessions();
+    }
 };
 
-// Load active attendance sessions
+window.hideModal = function(id) {
+    const modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+};
+
+// =============================================
+//  SIDEBAR TOGGLE (mobile three-dot menu)
+// =============================================
+document.addEventListener('DOMContentLoaded', () => {
+    const sidebar        = document.getElementById('sidebar');
+    const overlay        = document.getElementById('sidebarOverlay');
+    const mobileToggle   = document.getElementById('mobileMenuToggle');
+    const profileIcon    = document.getElementById('profile-icon');
+    const profilePopup   = document.getElementById('profile-popup');
+    const notifIcon      = document.getElementById('notifications-icon');
+    const notifContent   = document.getElementById('notifications-content');
+
+    // ----- Open / close sidebar -----
+    function openSidebar() {
+        sidebar.classList.add('show');
+        overlay.classList.add('show');
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    }
+
+    // Three-dot button
+    mobileToggle?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sidebar.classList.contains('show') ? closeSidebar() : openSidebar();
+    });
+
+    // Clicking the overlay closes the sidebar
+    overlay?.addEventListener('click', closeSidebar);
+
+    // ESC key closes sidebar
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeSidebar();
+            // Also close any open modal
+            const openModal = document.querySelector('.modal:not(.hidden)');
+            if (openModal) hideModal(openModal.id);
+        }
+    });
+
+    // ----- Profile popup -----
+    profileIcon?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const visible = profilePopup.style.display === 'block';
+        profilePopup.style.display = visible ? 'none' : 'block';
+        notifContent.style.display = 'none'; // close the other popup
+
+        if (!visible) {
+            const rect = profileIcon.getBoundingClientRect();
+            profilePopup.style.top   = (rect.bottom + 10) + 'px';
+            profilePopup.style.right = '20px';
+        }
+    });
+
+    // ----- Notifications popup -----
+    notifIcon?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const visible = notifContent.style.display === 'block';
+        notifContent.style.display = visible ? 'none' : 'block';
+        profilePopup.style.display = 'none'; // close the other popup
+
+        if (!visible) {
+            const rect = notifIcon.getBoundingClientRect();
+            notifContent.style.top   = (rect.bottom + 10) + 'px';
+            notifContent.style.right = '20px';
+        }
+    });
+
+    // ----- Global click: close popups / modals when clicking outside -----
+    document.addEventListener('click', (e) => {
+        // Close profile popup
+        if (profilePopup && !profilePopup.contains(e.target) && !profileIcon?.contains(e.target)) {
+            profilePopup.style.display = 'none';
+        }
+        // Close notifications popup
+        if (notifContent && !notifContent.contains(e.target) && !notifIcon?.contains(e.target)) {
+            notifContent.style.display = 'none';
+        }
+        // Close modal on backdrop click or × button
+        if (e.target.classList.contains('modal') || e.target.classList.contains('close')) {
+            const modal = e.target.closest('.modal');
+            if (modal) hideModal(modal.id);
+        }
+    });
+
+    // ----- Sidebar item click handlers -----
+    document.querySelectorAll('.sidebar-section li').forEach(item => {
+        item.addEventListener('click', (e) => {
+            // If clicking a real link, let it navigate
+            if (e.target.closest('a')) return;
+
+            const text = item.querySelector('span')?.textContent.trim();
+            if (text === 'Attendance') {
+                closeSidebar(); // close sidebar first on mobile
+                showModal('studentAttendanceModal');
+                document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
+                item.classList.add('active');
+            }
+        });
+    });
+});
+
+
+// =============================================
+//  ATTENDANCE SYSTEM
+// =============================================
+window.attendanceData = { sessions: [], currentSession: null };
+
 function loadActiveAttendanceSessions() {
     fetch('includes/get_attendance_sessions.php')
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
             if (data.success) {
                 attendanceData.sessions = data.sessions;
                 updateSessionsList();
+                hideAllAttendanceStates();
+                document.getElementById('attendanceForm').classList.remove('hidden');
             }
         })
-        .catch(error => {
-            console.error('Error loading attendance sessions:', error);
-        });
+        .catch(err => console.error('Error loading attendance sessions:', err));
 }
 
-// Update sessions list in modal
 function updateSessionsList() {
-    const sessionsList = document.getElementById('activeSessionsList');
-    if (!sessionsList) return;
-    
-    if (attendanceData.sessions.length === 0) {
-        sessionsList.innerHTML = '<p class="text-gray-500 text-center py-4">No active attendance sessions</p>';
+    const list = document.getElementById('activeSessionsList');
+    if (!list) return;
+
+    if (!attendanceData.sessions.length) {
+        list.innerHTML = '<p class="text-gray-500 text-center py-4">No active attendance sessions</p>';
         return;
     }
-    
-    sessionsList.innerHTML = attendanceData.sessions.map(session => `
+
+    list.innerHTML = attendanceData.sessions.map(s => `
         <div class="border border-gray-200 rounded-lg p-4 mb-3">
             <div class="flex justify-between items-start mb-2">
                 <div>
-                    <h4 class="font-semibold text-lg">${session.unit_name}</h4>
-                    <p class="text-sm text-gray-600">Session: ${session.main_code}</p>
+                    <h4 class="font-semibold text-lg">${s.unit_name}</h4>
+                    <p class="text-sm text-gray-600">Session: ${s.main_code}</p>
                 </div>
                 <div class="text-right">
-                    <span class="text-xs text-gray-500">Expires: ${new Date(session.deadline).toLocaleString()}</span>
+                    <span class="text-xs text-gray-500">Expires: ${new Date(s.deadline).toLocaleString()}</span>
                 </div>
             </div>
             <div class="flex items-center space-x-2">
-                <button onclick="selectSession(${session.session_id})" 
+                <button onclick="selectSession(${s.session_id})"
                         class="btn-primary px-4 py-2 text-sm rounded">
                     Use This Session
                 </button>
-                ${session.attended ? 
-                    '<span class="text-green-600 text-sm"><i class="fas fa-check-circle"></i> Attended</span>' : 
-                    '<span class="text-orange-600 text-sm"><i class="fas fa-clock"></i> Pending</span>'
+                ${s.attended
+                    ? '<span class="text-green-600 text-sm"><i class="fas fa-check-circle"></i> Attended</span>'
+                    : '<span class="text-orange-600 text-sm"><i class="fas fa-clock"></i> Pending</span>'
                 }
             </div>
         </div>
     `).join('');
 }
 
-// Select attendance session
 function selectSession(sessionId) {
     const session = attendanceData.sessions.find(s => s.session_id === sessionId);
     if (!session) return;
-    
     attendanceData.currentSession = session;
     document.getElementById('attendanceCodeInput').value = '';
     document.getElementById('attendanceCodeInput').focus();
-    
-    // Update timer display
     updateCodeTimer(session.expires_at);
 }
 
-// Update code timer
 function updateCodeTimer(expiresAt) {
-    const timerElement = document.getElementById('codeTimer');
-    if (!timerElement) return;
-    
-    const updateTimer = () => {
-        const now = new Date();
-        const expires = new Date(expiresAt);
-        const diff = expires - now;
-        
+    const el = document.getElementById('codeTimer');
+    if (!el) return;
+    let interval = setInterval(() => {
+        const diff = new Date(expiresAt) - new Date();
         if (diff <= 0) {
-            timerElement.innerHTML = '<span class="text-red-600"><i class="fas fa-exclamation-triangle"></i> EXPIRED</span>';
-            clearInterval(timerInterval);
+            el.innerHTML = '<span style="color:#dc2626"><i class="fas fa-exclamation-triangle"></i> EXPIRED</span>';
+            clearInterval(interval);
         } else {
-            const minutes = Math.floor(diff / 60000);
-            const seconds = Math.floor((diff % 60000) / 1000);
-            timerElement.innerHTML = `<i class="fas fa-clock"></i> ${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
+            const m = Math.floor(diff / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            el.innerHTML = `<i class="fas fa-clock"></i> ${m}:${String(s).padStart(2,'0')} remaining`;
         }
-    };
-    
-    updateTimer();
-    const timerInterval = setInterval(updateTimer, 1000);
-    
-    // Clear interval after 2 minutes
-    setTimeout(() => {
-        clearInterval(timerInterval);
-        timerElement.innerHTML = '<span class="text-red-600"><i class="fas fa-exclamation-triangle"></i> EXPIRED</span>';
-    }, 120000);
+    }, 1000);
 }
 
-// Submit attendance code
 function submitAttendanceCode() {
     const code = document.getElementById('attendanceCodeInput').value.trim();
-    if (!code) {
-        showAttendanceError('Please enter your attendance code');
-        return;
-    }
-    
-    if (!attendanceData.currentSession) {
-        showAttendanceError('Please select an attendance session first');
-        return;
-    }
-    
+    if (!code)                        { showAttendanceError('Please enter your attendance code'); return; }
+    if (!attendanceData.currentSession) { showAttendanceError('Please select an attendance session first'); return; }
+
     showAttendanceLoading();
-    
-    const formData = new FormData();
-    formData.append('action', 'submit_attendance');
-    formData.append('session_id', attendanceData.currentSession.session_id);
-    formData.append('code', code);
-    
-    fetch('attendance_submit.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAttendanceSuccess();
-            // Update session status
-            const sessionIndex = attendanceData.sessions.findIndex(s => s.session_id === attendanceData.currentSession.session_id);
-            if (sessionIndex !== -1) {
-                attendanceData.sessions[sessionIndex].attended = true;
-                attendanceData.sessions[sessionIndex].attended_at = data.attended_at;
+
+    const fd = new FormData();
+    fd.append('action',     'submit_attendance');
+    fd.append('session_id', attendanceData.currentSession.session_id);
+    fd.append('code',       code);
+
+    fetch('attendance_submit.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showAttendanceSuccess();
+                const idx = attendanceData.sessions.findIndex(s => s.session_id === attendanceData.currentSession.session_id);
+                if (idx !== -1) attendanceData.sessions[idx].attended = true;
+            } else {
+                showAttendanceError(data.message || 'Invalid code');
             }
-        } else {
-            showAttendanceError(data.message || 'Invalid code');
-        }
-    })
-    .catch(error => {
-        showAttendanceError('Network error. Please try again.');
-        console.error('Attendance submission error:', error);
-    });
+        })
+        .catch(() => showAttendanceError('Network error. Please try again.'));
 }
 
-// Request new code
 function requestNewCode() {
-    if (!attendanceData.currentSession) {
-        showAttendanceError('Please select an attendance session first');
-        return;
-    }
-    
+    if (!attendanceData.currentSession) { showAttendanceError('Please select a session first'); return; }
     showAttendanceLoading();
-    
-    const formData = new FormData();
-    formData.append('action', 'request_new_code');
-    formData.append('session_id', attendanceData.currentSession.session_id);
-    
-    fetch('attendance_submit.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAttendanceMessage('New code sent to your email!', 'success');
-            // Update timer with new code expiry
-            if (data.expires_at) {
-                updateCodeTimer(data.expires_at);
+
+    const fd = new FormData();
+    fd.append('action',     'request_new_code');
+    fd.append('session_id', attendanceData.currentSession.session_id);
+
+    fetch('attendance_submit.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                resetAttendanceForm();
+                if (data.expires_at) updateCodeTimer(data.expires_at);
+            } else {
+                showAttendanceError(data.message || 'Failed to request new code');
             }
-        } else {
-            showAttendanceError(data.message || 'Failed to request new code');
-        }
-    })
-    .catch(error => {
-        showAttendanceError('Network error. Please try again.');
-        console.error('New code request error:', error);
+        })
+        .catch(() => showAttendanceError('Network error. Please try again.'));
+}
+
+function showAttendanceLoading()      { hideAllAttendanceStates(); document.getElementById('attendanceLoading').classList.remove('hidden'); }
+function showAttendanceSuccess()      { hideAllAttendanceStates(); document.getElementById('attendanceSuccess').classList.remove('hidden'); }
+function showAttendanceError(msg)     { hideAllAttendanceStates(); document.getElementById('attendanceError').classList.remove('hidden'); document.getElementById('errorMessage').textContent = msg; }
+function resetAttendanceForm()        { hideAllAttendanceStates(); document.getElementById('attendanceForm').classList.remove('hidden'); document.getElementById('attendanceCodeInput').value = ''; document.getElementById('codeTimer').innerHTML = ''; }
+
+function hideAllAttendanceStates() {
+    ['attendanceLoading','attendanceForm','attendanceSuccess','attendanceError'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
     });
 }
 
-// Show loading state
-function showAttendanceLoading() {
-    hideAllAttendanceStates();
-    document.getElementById('attendanceLoading').classList.remove('hidden');
+// =============================================
+//  NOTIFICATIONS — mark as read
+// =============================================
+function quickMarkRead(notificationId) {
+    const fd = new FormData();
+    fd.append('action',          'mark_notification_read');
+    fd.append('notification_id', notificationId);
+
+    fetch('dashboard.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            const item = document.getElementById('quick-notif-' + notificationId);
+            if (item) {
+                item.style.fontWeight = 'normal';
+                item.style.background = 'white';
+                item.querySelector('[style*="background: #ff6b6b"]')?.remove();
+            }
+            const badge = document.getElementById('notificationCount');
+            if (badge) {
+                const count = parseInt(badge.textContent) || 0;
+                if (count > 1) { badge.textContent = count - 1; }
+                else           { badge.style.display = 'none'; }
+            }
+        })
+        .catch(err => console.error('Error:', err));
 }
 
-// Show success state
-function showAttendanceSuccess() {
-    hideAllAttendanceStates();
-    document.getElementById('attendanceSuccess').classList.remove('hidden');
-}
-
-// Show error state
-function showAttendanceError(message) {
-    hideAllAttendanceStates();
-    document.getElementById('attendanceError').classList.remove('hidden');
-    document.getElementById('errorMessage').textContent = message;
-}
-
-// Show message state
-function showAttendanceMessage(message, type = 'info') {
-    hideAllAttendanceStates();
-    // You could add a message state div here if needed
-    console.log(message);
-}
-
-// Hide all attendance states
-function hideAllAttendanceStates() {
-    document.getElementById('attendanceLoading').classList.add('hidden');
-    document.getElementById('attendanceForm').classList.add('hidden');
-    document.getElementById('attendanceSuccess').classList.add('hidden');
-    document.getElementById('attendanceError').classList.add('hidden');
-}
-
-// Reset attendance form
-function resetAttendanceForm() {
-    hideAllAttendanceStates();
-    document.getElementById('attendanceForm').classList.remove('hidden');
-    document.getElementById('attendanceCodeInput').value = '';
-    document.getElementById('codeTimer').innerHTML = '';
-}
-
-// Initialize attendance system when modal opens
-const originalShowModal = window.showModal;
-window.showModal = function(id) {
-    if (id === 'studentAttendanceModal') {
-        loadActiveAttendanceSessions();
-    }
-    originalShowModal(id);
-};
-
-// Add CSS styles for attendance system
-const attendanceStyles = `
-<style>
-.spinner {
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #f59e0b;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 20px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.success-icon, .error-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-}
-
-.btn-secondary {
-    background: #6c757d;
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.btn-secondary:hover {
-    background: #5a6268;
-    transform: translateY(-1px);
-}
-
-.space-y-3 > * + * {
-    margin-top: 0.75rem;
-}
-
-.space-x-2 > * + * {
-    margin-left: 0.5rem;
-}
-
-.space-x-3 > * + * {
-    margin-left: 0.75rem;
-}
-</style>
-`;
-
-document.head.insertAdjacentHTML('beforeend', attendanceStyles);
-
-// Team invitation acceptance
+// =============================================
+//  TEAM INVITATIONS
+// =============================================
 async function loadTeamInvitations() {
     const statusEl = document.getElementById('teamInviteStatus');
-    const listEl = document.getElementById('teamInviteList');
+    const listEl   = document.getElementById('teamInviteList');
     if (!statusEl || !listEl) return;
+
     statusEl.textContent = 'Loading invitations...';
     listEl.innerHTML = '';
+
     try {
-        const res = await fetch('../teams/api/get_invitations.php', { credentials: 'same-origin' });
+        const res  = await fetch('../teams/api/get_invitations.php', { credentials: 'same-origin' });
         const data = await res.json().catch(() => null);
-        if (!res.ok || !data || !data.success) throw new Error(data?.error || ('HTTP ' + res.status));
+        if (!res.ok || !data?.success) throw new Error(data?.error || ('HTTP ' + res.status));
+
         const invites = data.invitations || [];
-        if (invites.length === 0) {
-            statusEl.textContent = 'No pending team invitations.';
-            return;
-        }
+        if (!invites.length) { statusEl.textContent = 'No pending team invitations.'; return; }
+
         statusEl.textContent = '';
-        // cleanup any expired pending invites first (best effort)
         fetch('../teams/api/cleanup_expired_invitations.php', { credentials: 'same-origin' }).catch(() => {});
 
         invites.forEach(inv => {
             const row = document.createElement('div');
-            row.style.border = '1px solid #e5e7eb';
-            row.style.borderRadius = '8px';
-            row.style.padding = '0.75rem';
-            row.style.marginBottom = '0.5rem';
+            row.style.cssText = 'border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;margin-bottom:.5rem';
             row.innerHTML = `
                 <div style="font-weight:600;">${inv.team_title || ('Team #' + inv.team_id)}</div>
                 <div style="font-size:12px;color:#666;">Invited by: ${inv.inviter_name || ('User #' + inv.invited_by)}</div>
-                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-top:0.5rem;">
-                    <input type="text" id="inviteCode_${inv.id}" placeholder="Enter confirmation code" style="padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;">
-                    <button type="button" onclick="acceptTeamInvitation(${inv.id})" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:0.45rem 0.7rem;cursor:pointer;">Accept</button>
-                </div>
-            `;
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.5rem;">
+                    <input type="text" id="inviteCode_${inv.id}" placeholder="Enter confirmation code"
+                           style="padding:.45rem;border:1px solid #d1d5db;border-radius:6px;">
+                    <button type="button" onclick="acceptTeamInvitation(${inv.id})"
+                            style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:.45rem .7rem;cursor:pointer;">
+                        Accept
+                    </button>
+                </div>`;
             listEl.appendChild(row);
         });
     } catch (err) {
@@ -1229,25 +1137,22 @@ async function loadTeamInvitations() {
 }
 
 async function acceptTeamInvitation(invitationId) {
-    const codeEl = document.getElementById('inviteCode_' + invitationId);
-    const code = (codeEl?.value || '').trim();
-    if (!code) {
-        alert('Enter the confirmation code from your email.');
-        return;
-    }
+    const code = (document.getElementById('inviteCode_' + invitationId)?.value || '').trim();
+    if (!code) { alert('Enter the confirmation code from your email.'); return; }
+
     try {
-        const res = await fetch('../teams/api/accept_invitation.php', {
+        const res  = await fetch('../teams/api/accept_invitation.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 invitation_id: invitationId,
-                code: code,
+                code,
                 csrf_token: <?= json_encode($_SESSION['csrf_token'] ?? '') ?>
             })
         });
         const data = await res.json().catch(() => null);
-        if (!res.ok || !data || !data.success) throw new Error(data?.error || ('HTTP ' + res.status));
+        if (!res.ok || !data?.success) throw new Error(data?.error || ('HTTP ' + res.status));
         alert(data.message || 'Invitation accepted');
         loadTeamInvitations();
     } catch (err) {
@@ -1257,44 +1162,19 @@ async function acceptTeamInvitation(invitationId) {
 
 loadTeamInvitations();
 
-// Mark notification as read via AJAX
-function quickMarkRead(notificationId) {
-    const formData = new FormData();
-    formData.append('action', 'mark_notification_read');
-    formData.append('notification_id', notificationId);
 
-    fetch('dashboard.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const item = document.getElementById('quick-notif-' + notificationId);
-            if (item) {
-                // Remove bold styling and background
-                item.style.fontWeight = 'normal';
-                item.style.background = 'white';
-                
-                // Remove red dot if present
-                const badge = item.querySelector('[style*="background: #ff6b6b"]');
-                if (badge) badge.remove();
-                
-                // Update badge count
-                const badgeEl = document.getElementById('notificationCount');
-                if (badgeEl) {
-                    const count = parseInt(badgeEl.textContent) || 0;
-                    if (count > 1) {
-                        badgeEl.textContent = count - 1;
-                    } else {
-                        badgeEl.style.display = 'none';
-                    }
-                }
-            }
-        }
-    })
-    .catch(error => console.error('Error:', error));
-}
+// =============================================
+//  ATTENDANCE SPINNER CSS (injected once)
+// =============================================
+document.head.insertAdjacentHTML('beforeend', `<style>
+.spinner{border:4px solid #f3f3f3;border-top:4px solid #f59e0b;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 20px}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.btn-secondary{background:#6c757d;color:white;border:none;padding:.5rem 1rem;border-radius:.5rem;font-size:1rem;cursor:pointer;transition:all .3s ease}
+.btn-secondary:hover{background:#5a6268;transform:translateY(-1px)}
+.space-y-3>*+*{margin-top:.75rem}
+.space-x-2>*+*{margin-left:.5rem}
+.space-x-3>*+*{margin-left:.75rem}
+</style>`);
 </script>
 
 </body>

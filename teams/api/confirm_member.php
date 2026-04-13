@@ -110,6 +110,25 @@ try {
         exit;
     }
 
+    // Enforce: Student can only be in one team per unit
+    $stmt = $conn->prepare(
+        "SELECT COUNT(*) as count FROM team_members tm 
+        JOIN teams t ON tm.team_id = t.id 
+        WHERE t.unit_id = (SELECT unit_id FROM teams WHERE id = ?) 
+        AND tm.student_id = ? 
+        AND t.id != ?"
+    );
+    $stmt->bind_param("iii", $teamId, $studentId, $teamId);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    if ($result['count'] > 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Student is already in another team for this unit. A student can only be in one team per unit.']);
+        exit;
+    }
+
     // Add member
     $role = 'member';
     $stmt = $conn->prepare("INSERT INTO team_members (team_id, student_id, role, joined_at) VALUES (?, ?, ?, NOW())");

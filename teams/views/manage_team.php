@@ -207,18 +207,63 @@ async function loadTeam() {
         members.forEach(m => {
             const card = document.createElement('div');
             card.className = `member-card ${m.role === 'leader' ? 'leader' : ''}`;
+            
+            let actionButtons = '';
+            
+            // For regular members (not current user's own card or leaders)
+            if (m.role === 'leader' && !m.isCurrentUser) {
+                // Leader viewing other members: can request removal or use remove button
+                actionButtons = `
+                    <div style="margin-top:0.45rem; display:flex; gap:0.3rem; flex-wrap:wrap;">
+                        <button class="request-removal" data-sid="${m.student_id}" style="background:#ff6b6b; font-size:0.85rem; padding:0.4rem 0.8rem; flex:1;">Removal Request</button>
+                        <button class="remove" data-sid="${m.student_id}" style="font-size:0.85rem; padding:0.4rem 0.8rem; flex:1;">Remove</button>
+                    </div>
+                `;
+            } else if (m.role !== 'leader' && m.isCurrentUser) {
+                // Current user is a regular member: can request to leave
+                actionButtons = `
+                    <div style="margin-top:0.45rem;">
+                        <button class="request-leave" data-sid="${m.student_id}" style="background:#ffc107; font-size:0.85rem; padding:0.4rem 0.8rem; width:100%;">Request to Leave</button>
+                    </div>
+                `;
+            } else if (m.role === 'leader' && m.isCurrentUser) {
+                // Current user is the leader
+                // Show buttons to manage other team members
+                actionButtons = `
+                    <div style="margin-top:0.45rem;">
+                        <button class="view-team-requests" data-team-id="${teamId}" style="background:#6c757d; font-size:0.85rem; padding:0.4rem 0.8rem; width:100%;">View Requests</button>
+                    </div>
+                `;
+            } else if (m.role !== 'leader' && !m.isCurrentUser) {
+                // Other regular members viewed by current user (if current user is leader)
+                // This will be handled by the leader section above
+            }
+            
             card.innerHTML = `
                 <strong>${m.name || 'Unknown'}</strong><br>
                 ${m.reg_no || m.reg_number || m.email || '—'}<br>
                 <em>${m.role}${m.isCurrentUser ? ' (You)' : ''}</em>
-                ${m.role !== 'leader' ? `<button class="remove" data-sid="${m.student_id}">Remove</button>` : ''}
+                ${actionButtons}
             `;
             grid.appendChild(card);
         });
 
         document.getElementById('size').textContent = members.length;
 
-        // Add remove listeners
+        // Add event listeners for membership-related buttons
+        document.querySelectorAll('.request-leave').forEach(btn => {
+            btn.addEventListener('click', () => requestMembershipLeave(btn.dataset.sid));
+        });
+        
+        document.querySelectorAll('.request-removal').forEach(btn => {
+            btn.addEventListener('click', () => showRemovalReasonModal(btn.dataset.sid));
+        });
+        
+        document.querySelectorAll('.view-team-requests').forEach(btn => {
+            btn.addEventListener('click', () => viewTeamRequests(btn.dataset.teamId));
+        });
+
+        // Add remove listeners (old direct removal button)
         document.querySelectorAll('.remove').forEach(btn => {
             btn.addEventListener('click', () => removeMember(btn.dataset.sid));
         });
@@ -396,6 +441,149 @@ async function removeMember(studentId) {
     } catch (err) {
         showMessage("Error removing member: " + err.message);
         console.error("removeMember error:", err);
+    }
+}
+
+// Request membership leave (student wants to leave)
+async function requestMembershipLeave(studentId) {
+    const reason = prompt('Why do you want to leave this team?', '');
+    if (reason === null) return;
+
+    try {
+        const res = await fetch('/teams/api/request_membership_leave.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                reason: reason || null,
+                csrf_token: csrf
+            })
+        });
+
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`HTTP ${res.status}: ${text}`);
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.error || data.message || 'Failed to submit leave request');
+        }
+
+        showMessage(data.message || 'Leave request submitted successfully', 'success');
+        loadTeam();
+
+    } catch (err) {
+        showMessage("Error submitting leave request: " + err.message);
+        console.error("requestMembershipLeave error:", err);
+    }
+}
+
+// Request member removal (team lead wants member removed)
+function showRemovalReasonModal(studentId) {
+    const reason = prompt('Reason for requesting member removal:', '');
+    if (reason === null) return;
+    
+    requestMemberRemoval(studentId, reason);
+}
+
+async function requestMemberRemoval(studentId, reason) {
+    try {
+        const res = await fetch('/teams/api/request_member_removal.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                student_id: studentId,
+                reason: reason || null,
+                csrf_token: csrf
+            })
+        });
+
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`HTTP ${res.status}: ${text}`);
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.error || data.message || 'Failed to submit removal request');
+        }
+
+        showMessage(data.message || 'Removal request submitted successfully. Awaiting lecturer approval.', 'success');
+        loadTeam();
+
+    } catch (err) {
+        showMessage("Error submitting removal request: " + err.message);
+        console.error("requestMemberRemoval error:", err);
+    }
+}
+
+// View pending membership requests for team lead
+async function viewTeamRequests(teamId) {
+    try {
+        const res = await fetch(`/teams/api/get_pending_membership_requests.php?team_id=${teamId}`, {
+            credentials: 'same-origin'
+        });
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load requests');
+        }
+
+        // Create modal to display requests
+        const requests = data.requests || [];
+        
+        if (requests.length === 0) {
+            showMessage('No pending membership requests for this team', 'success');
+            return;
+        }
+
+        let requestsHTML = '<h3>Pending Membership Requests</h3><div style="max-height:400px; overflow-y:auto;">';
+        
+        requests.forEach(req => {
+            const status = req.status === 'pending' 
+                ? 'Pending (awaiting approvals)' 
+                : 'Approved (awaiting completion)';
+            
+            const approvalStatus = `
+                <small style="display:block; margin-top:0.5rem;">
+                    Lecturer: ${req.approved_by_lecturer ? '✓ Approved' : '⏳ Pending'}<br>
+                    Team Lead: ${req.approved_by_team_lead ? '✓ Approved' : '⏳ Pending'}
+                </small>
+            `;
+            
+            requestsHTML += `
+                <div style="border:1px solid #ddd; padding:0.8rem; margin:0.5rem 0; border-radius:4px; background:#f9f9f9;">
+                    <strong>${req.request_type === 'leave' ? 'Leave Request' : 'Removal Request'}</strong><br>
+                    Student: ${req.student_name} (${req.student_reg})<br>
+                    Status: ${status}<br>
+                    Reason: ${req.reason || '(none provided)'}<br>
+                    ${approvalStatus}
+                </div>
+            `;
+        });
+        
+        requestsHTML += '</div>';
+        
+        // Replace message div temporarily with requests
+        const msgDiv = document.getElementById('message');
+        const oldHTML = msgDiv.innerHTML;
+        msgDiv.innerHTML = requestsHTML + '<button onclick="location.reload();">Close</button>';
+        msgDiv.scrollIntoView({ behavior: 'smooth' });
+
+    } catch (err) {
+        showMessage("Error loading requests: " + err.message);
+        console.error("viewTeamRequests error:", err);
     }
 }
 
