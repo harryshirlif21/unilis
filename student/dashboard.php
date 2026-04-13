@@ -25,6 +25,11 @@ try {
     $course_id = $student['course_id'];
     $year_of_study = $student['year_of_study'];
 
+    // Semester filter
+    $semester = intval($_GET['semester'] ?? $_SESSION['cv_semester'] ?? 1);
+    if ($semester < 1 || $semester > 2) $semester = 1;
+    $_SESSION['cv_semester'] = $semester;
+
     // Fetch course name
     $course_stmt = $conn->prepare("SELECT name FROM courses WHERE id = ?");
     $course_stmt->bind_param("i", $course_id);
@@ -341,7 +346,6 @@ body {
   .newsletter-form {
     align-items: center;
   }
-}
 </style>
 
 </head>

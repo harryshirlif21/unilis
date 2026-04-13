@@ -775,6 +775,240 @@ body {
     }
 }
 
+/* === TRAINING PAGE — MOBILE (max-width: 768px) === */
+@media (max-width: 768px) {
+    /* Layout adjustments */
+    .layout {
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        width: 100%;
+        min-width: 100%;
+        position: relative;
+        transform: none;
+        height: auto;
+        max-height: 200px;
+        overflow-y: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .main {
+        margin-left: 0;
+        padding: 20px 16px;
+        max-width: none;
+    }
+    
+    /* Typography scaling */
+    .hero-card h1 {
+        font-size: 1.2rem;
+    }
+    
+    .hero-card p {
+        font-size: 0.9rem;
+    }
+    
+    .sec-title {
+        font-size: 0.8rem;
+    }
+    
+    .module-title {
+        font-size: 0.85rem;
+    }
+    
+    .lesson-title {
+        font-size: 0.82rem;
+    }
+    
+    .assess-title {
+        font-size: 0.85rem;
+    }
+    
+    .assess-meta {
+        font-size: 0.75rem;
+    }
+    
+    /* Assessment grid - single column on mobile */
+    .assess-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .assess-card {
+        padding: 14px 16px;
+    }
+    
+    /* Touch targets - ensure minimum 44px */
+    .lesson-row {
+        min-height: 44px;
+        padding: 12px 14px;
+    }
+    
+    .assess-card {
+        min-height: 44px;
+    }
+    
+    .module-header {
+        min-height: 44px;
+        padding: 11px 16px;
+    }
+    
+    /* Topbar adjustments */
+    .topbar {
+        padding: 0 12px;
+        height: 50px;
+    }
+    
+    .brand {
+        font-size: 0.9rem;
+    }
+    
+    .brand span {
+        font-size: 0.7rem;
+    }
+    
+    .btn-nav {
+        padding: 5px 10px;
+        font-size: 0.75rem;
+        min-height: 36px;
+        min-width: 36px;
+    }
+    
+    .student-name {
+        font-size: 0.75rem;
+    }
+    
+    /* Sidebar semester tabs */
+    .sidebar .unit-link {
+        padding: 8px 10px;
+        font-size: 0.8rem;
+    }
+    
+    .sb-label {
+        font-size: 0.6rem;
+    }
+    
+    /* Hero card mobile optimization */
+    .hero-card {
+        padding: 20px 16px;
+        border-radius: var(--r);
+    }
+    
+    .hero-card::after {
+        display: none; /* Hide decorative element on mobile */
+    }
+    
+    .progress-bar-wrap {
+        height: 6px;
+        margin-bottom: 4px;
+    }
+    
+    .progress-label {
+        font-size: 0.7rem;
+    }
+    
+    /* Module cards */
+    .module-card {
+        margin-bottom: 10px;
+    }
+    
+    .lessons-list {
+        padding: 8px 12px 12px;
+    }
+    
+    /* Assessment type pills */
+    .type-pill {
+        font-size: 0.6rem;
+        padding: 1px 7px;
+    }
+    
+    .score-chip {
+        font-size: 0.7rem;
+        padding: 2px 7px;
+    }
+    
+    /* Empty states */
+    .empty {
+        padding: 30px 20px;
+        font-size: 0.8rem;
+    }
+    
+    /* Modal adjustments */
+    .modal-content {
+        width: calc(100vw - 2rem);
+        margin: 1rem auto;
+        padding: 20px;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+}
+
+/* === TRAINING PAGE — SMALL MOBILE (max-width: 480px) === */
+@media (max-width: 480px) {
+    .main {
+        padding: 16px 12px;
+    }
+    
+    .hero-card {
+        padding: 16px 12px;
+    }
+    
+    .hero-card h1 {
+        font-size: 1.1rem;
+    }
+    
+    .hero-card p {
+        font-size: 0.85rem;
+    }
+    
+    .module-header {
+        padding: 10px 12px;
+    }
+    
+    .module-title {
+        font-size: 0.8rem;
+    }
+    
+    .lesson-row {
+        padding: 10px 12px;
+    }
+    
+    .lesson-title {
+        font-size: 0.78rem;
+    }
+    
+    .assess-card {
+        padding: 12px 14px;
+    }
+    
+    .assess-title {
+        font-size: 0.8rem;
+    }
+    
+    .assess-meta {
+        font-size: 0.7rem;
+        gap: 8px;
+    }
+    
+    .topbar {
+        padding: 0 8px;
+    }
+    
+    .brand {
+        font-size: 0.85rem;
+    }
+    
+    .btn-nav {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+    
+    .student-name {
+        font-size: 0.7rem;
+    }
+}
+
 @media (max-width: 480px) {
     .welcome-msg {
         font-size: 14px;

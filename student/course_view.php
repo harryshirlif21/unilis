@@ -114,6 +114,24 @@ if ($unit_id) {
     } catch (mysqli_sql_exception $e) { error_log($e->getMessage()); }
 }
 
+$browse_mode = isset($_GET['browse']) && $_GET['browse'] === '1';
+$first_incomplete_lesson = null;
+if ($unit_id && !$browse_mode && !empty($modules)) {
+    foreach ($modules as $mod) {
+        foreach ($mod['lessons'] as $lesson) {
+            if (!isset($completed_lessons[$lesson['id']])) {
+                $first_incomplete_lesson = $lesson['id'];
+                break 2;
+            }
+        }
+    }
+}
+
+if ($first_incomplete_lesson) {
+    header("Location: lesson_view.php?lesson_id={$first_incomplete_lesson}&unit_id={$unit_id}");
+    exit;
+}
+
 // Fetch published assessments for this unit
 $assessments = [];
 if ($unit_id) {
@@ -131,6 +149,26 @@ if ($unit_id) {
 $total_lessons    = array_sum(array_map(fn($m) => count($m['lessons']), $modules));
 $done_lessons     = count($completed_lessons);
 $progress_pct     = $total_lessons > 0 ? round(($done_lessons / $total_lessons) * 100) : 0;
+
+// Find first incomplete lesson for "Continue where you left off" in the selected unit
+$continue_lesson = null;
+if ($unit_id && !empty($modules)) {
+    foreach ($modules as $mod) {
+        foreach ($mod['lessons'] as $lesson) {
+            if (!isset($completed_lessons[$lesson['id']])) {
+                $continue_lesson = [
+                    'id' => $lesson['id'],
+                    'title' => $lesson['title'],
+                    'lesson_number' => $lesson['lesson_number'],
+                    'module_title' => $mod['title'],
+                    'unit_id' => $unit_id,
+                    'unit_name' => $unit_name
+                ];
+                break 2;
+            }
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -156,8 +194,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .brand{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--accent)}
 .brand span{color:var(--muted);font-weight:400;font-size:.8rem;margin-left:8px}
 .nav-right{display:flex;align-items:center;gap:10px}
+#sidebarToggle{display:none}
 .btn-nav{background:var(--surf3);border:1px solid var(--border);color:var(--muted);padding:6px 13px;border-radius:var(--rs);font-size:.78rem;cursor:pointer;text-decoration:none;transition:var(--tr);font-family:'DM Sans',sans-serif}
 .btn-nav:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+@media (max-width: 768px) {
+    .layout{flex-direction:column}
+    .sidebar{position:fixed;inset:58px 0 0 0;width:100%;min-width:100%;height:calc(100vh - 58px);z-index:120;transform:translateX(-100%);transition:transform .25s ease,visibility .25s ease;visibility:hidden;box-shadow:0 14px 30px rgba(0,0,0,.12);background:var(--surf)}
+    .sidebar.open{transform:translateX(0);visibility:visible}
+    .main{padding:20px 16px;max-width:none}
+    .topbar{padding:0 16px}
+    #sidebarToggle{display:inline-flex}
+}
+
 .student-name{font-size:.82rem;color:var(--muted)}
 
 /* LAYOUT */
@@ -234,6 +283,131 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 }
 .sb-select:focus{border-color:var(--accent)}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* Continue where you left off section */
+.continue-section {
+  margin: 1rem 0;
+  padding: 0 16px;
+}
+
+.continue-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.continue-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+}
+
+.continue-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.continue-icon i {
+  font-size: 20px;
+  color: white;
+}
+
+.continue-content {
+  flex: 1;
+  color: white;
+}
+
+.continue-content h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.continue-content p {
+  margin: 0;
+  opacity: 0.9;
+  line-height: 1.4;
+  font-size: 0.85rem;
+}
+
+.continue-content strong {
+  font-weight: 600;
+}
+
+.continue-content small {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.continue-action {
+  flex-shrink: 0;
+}
+
+.continue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: white;
+  color: #667eea;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.continue-btn:hover {
+  background: #f8f9fa;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.continue-btn i {
+  transition: transform 0.3s ease;
+}
+
+.continue-btn:hover i {
+  transform: translateX(2px);
+}
+
+@media (max-width: 768px) {
+  .continue-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.25rem;
+    gap: 0.75rem;
+  }
+
+  .continue-content h3 {
+    font-size: 1rem;
+  }
+
+  .continue-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .continue-icon i {
+    font-size: 18px;
+  }
+
+  .continue-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+}
 </style>
 </head>
 <body>
@@ -241,6 +415,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <header class="topbar">
     <div class="brand">UNILIS <span>Course View</span></div>
     <div class="nav-right">
+        <button id="sidebarToggle" class="btn-nav" type="button" aria-expanded="false">
+            <i class="fas fa-bars"></i> Units
+        </button>
         <span class="student-name"><i class="fas fa-user-graduate"></i> <?= htmlspecialchars($student_name) ?></span>
         <a href="my_progress.php?unit_id=<?= $unit_id ?>" class="btn-nav"><i class="fas fa-chart-line"></i> My Progress</a>
         <a href="dashboard.php" class="btn-nav"><i class="fas fa-home"></i> Dashboard</a>
@@ -298,6 +475,29 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                 <i class="fas fa-pen-to-square"></i> Edit enrolled units
             </a>
         </div>
+
+        <?php if ($continue_lesson): ?>
+        <!-- Continue where you left off -->
+        <div class="continue-section">
+            <div class="continue-card">
+                <div class="continue-icon">
+                    <i class="fas fa-play-circle"></i>
+                </div>
+                <div class="continue-content">
+                    <h3>Continue where you left off</h3>
+                    <p>
+                        <strong>Lesson <?= $continue_lesson['lesson_number'] ?>: <?= htmlspecialchars($continue_lesson['title']) ?></strong><br>
+                        <small>In <?= htmlspecialchars($continue_lesson['module_title']) ?> • <?= htmlspecialchars($continue_lesson['unit_name']) ?></small>
+                    </p>
+                </div>
+                <div class="continue-action">
+                    <a href="lesson_view.php?lesson_id=<?= $continue_lesson['id'] ?>&unit_id=<?= $continue_lesson['unit_id'] ?>" class="continue-btn">
+                        <i class="fas fa-arrow-right"></i> Continue
+                    </a>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
     </aside>
 
     <!-- MAIN -->
@@ -428,6 +628,37 @@ function toggleModule(header) {
     const list = header.nextElementSibling;
     list.style.display = header.classList.contains('collapsed') ? 'none' : '';
 }
+
+const sidebar = document.querySelector('.sidebar');
+const sidebarToggle = document.getElementById('sidebarToggle');
+
+function isMobileSidebar() {
+    return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function updateSidebarState() {
+    if (!sidebar) return;
+    sidebar.classList.remove('open');
+    sidebarToggle?.setAttribute('aria-expanded', 'false');
+}
+
+sidebarToggle?.addEventListener('click', () => {
+    if (!sidebar) return;
+    const isOpen = sidebar.classList.toggle('open');
+    sidebarToggle.setAttribute('aria-expanded', String(isOpen));
+});
+
+document.querySelectorAll('.unit-link, .lesson-row').forEach(link => {
+    link.addEventListener('click', () => {
+        if (isMobileSidebar() && sidebar) {
+            sidebar.classList.remove('open');
+            sidebarToggle?.setAttribute('aria-expanded', 'false');
+        }
+    });
+});
+
+window.addEventListener('resize', updateSidebarState);
+updateSidebarState();
 </script>
 </body>
 </html>

@@ -165,6 +165,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 .layout{display:flex;min-height:calc(100vh - 54px)}
 
+#lessonNavToggle{display:none}
+
+@media (max-width: 768px) {
+    .layout{flex-direction:column}
+    .lesson-nav{position:fixed;inset:54px 0 0 0;width:100%;min-width:100%;height:calc(100vh - 54px);z-index:120;transform:translateX(-100%);transition:transform .25s ease,visibility .25s ease;visibility:hidden;box-shadow:0 14px 30px rgba(0,0,0,.12)}
+    .lesson-nav.open{transform:translateX(0);visibility:visible}
+    .content-area{padding:12px 16px 20px;max-width:none}
+    .topbar{padding:0 16px}
+    #lessonNavToggle{display:inline-flex}
+}
+
 /* LESSON NAV SIDEBAR */
 .lesson-nav{width:240px;min-width:240px;background:var(--surf);border-right:1px solid var(--border);padding:16px 12px;overflow-y:auto;position:sticky;top:54px;height:calc(100vh - 54px)}
 .ln-title{font-family:'Syne',sans-serif;font-size:.67rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;display:block}
@@ -175,10 +186,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .ln-check{color:var(--green);font-size:.65rem}
 
 /* MAIN CONTENT */
-.content-area{flex:1;overflow-y:auto;padding:32px 40px;max-width:820px}
+.content-area{flex:1;overflow-y:auto;padding:16px 40px 32px;max-width:820px}
 
 /* LESSON HEADER */
-.lesson-header{margin-bottom:28px}
+.lesson-header{margin-bottom:16px}
 .lesson-header .module-tag{font-size:.75rem;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .lesson-header h1{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;line-height:1.2;margin-bottom:10px}
 .lesson-meta{display:flex;align-items:center;gap:14px;font-size:.8rem;color:var(--muted)}
@@ -325,12 +336,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 <header class="topbar">
     <div class="breadcrumb">
-        <a href="course_view.php?unit_id=<?= $unit_id ?>"><i class="fas fa-home"></i> <?= htmlspecialchars($unit_name) ?></a>
+        <a href="course_view.php?unit_id=<?= $unit_id ?>&browse=1"><i class="fas fa-home"></i> <?= htmlspecialchars($unit_name) ?></a>
         <span class="sep"><i class="fas fa-chevron-right" style="font-size:.6rem"></i></span>
         <span><?= htmlspecialchars($lesson['module_title']) ?></span>
         <span class="sep"><i class="fas fa-chevron-right" style="font-size:.6rem"></i></span>
         <span style="color:var(--text)">L<?= $lesson['lesson_number'] ?>: <?= htmlspecialchars($lesson['title']) ?></span>
     </div>
+    <button id="lessonNavToggle" class="btn-nav" type="button" aria-expanded="false">
+        <i class="fas fa-bars"></i> Lessons
+    </button>
     <div class="nav-right">
         <a href="my_progress.php?unit_id=<?= $unit_id ?>" class="btn-nav"><i class="fas fa-chart-line"></i> Progress</a>
         <a href="../dashboard.php" class="btn-nav"><i class="fas fa-home"></i> Dashboard</a>
@@ -514,10 +528,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                     <i class="fas fa-arrow-left"></i> L<?= $prev_lesson['lesson_number'] ?>: <?= htmlspecialchars(substr($prev_lesson['title'],0,28)) ?>
                 </a>
             <?php else: ?>
-                <a class="btn btn-ghost" href="course_view.php?unit_id=<?= $unit_id ?>">
+                <a class="btn btn-ghost" href="course_view.php?unit_id=<?= $unit_id ?>&browse=1">
                     <i class="fas fa-arrow-left"></i> Back to Course
                 </a>
             <?php endif; ?>
+
 
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
                 <?php if ($is_completed): ?>
@@ -535,7 +550,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                         Next: L<?= $next_lesson['lesson_number'] ?> <i class="fas fa-arrow-right"></i>
                     </a>
                 <?php else: ?>
-                    <a class="btn btn-primary" href="course_view.php?unit_id=<?= $unit_id ?>">
+                    <a class="btn btn-primary" href="course_view.php?unit_id=<?= $unit_id ?>&browse=1">
                         Back to Course <i class="fas fa-home"></i>
                     </a>
                 <?php endif; ?>
@@ -607,7 +622,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             Next Lesson <i class="fas fa-arrow-right"></i>
         </a>
         <?php else: ?>
-        <a class="cp-btn cp-btn-green" href="course_view.php?unit_id=<?= $unit_id ?>">
+        <a class="cp-btn cp-btn-green" href="course_view.php?unit_id=<?= $unit_id ?>&browse=1">
             Back to Course <i class="fas fa-home"></i>
         </a>
         <?php endif; ?>
@@ -620,6 +635,7 @@ const UNIT_ID            = <?= $unit_id ?>;
 const NEXT_LESSON_ID     = <?= $next_lesson  ? $next_lesson['id']  : 'null' ?>;
 const LESSON_ASSESSMENTS = <?= json_encode(array_values($lesson_assessments)) ?>;
 const ALREADY_COMPLETE   = <?= $is_completed ? 'true' : 'false' ?>;
+let shouldNavigateAfterComplete = false;
 
 // ── READING PROGRESS BAR ──────────────────────────────────
 const progressBar = document.getElementById('read-progress');
@@ -667,6 +683,9 @@ if (!ALREADY_COMPLETE && 'IntersectionObserver' in window) {
                         const visible = rect.top >= areaRect.top && rect.bottom <= areaRect.bottom;
                         if (visible && hasScrolled && !autoCompleteTriggered) {
                             autoCompleteTriggered = true;
+                            if (LESSON_ASSESSMENTS.length === 0) {
+                                shouldNavigateAfterComplete = true;
+                            }
                             observer.disconnect();
                             showAutoCompleteToast();
                             markComplete();
@@ -677,6 +696,9 @@ if (!ALREADY_COMPLETE && 'IntersectionObserver' in window) {
 
                 // All conditions met
                 autoCompleteTriggered = true;
+                if (LESSON_ASSESSMENTS.length === 0) {
+                    shouldNavigateAfterComplete = true;
+                }
                 observer.disconnect();
                 setTimeout(() => {
                     showAutoCompleteToast();
@@ -698,6 +720,43 @@ function showAutoCompleteToast() {
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3000);
 }
+
+// ── MOBILE LESSON NAV HANDLING ───────────────────────────
+const layoutContainer = document.querySelector('.layout');
+const lessonNav = document.querySelector('.lesson-nav');
+const lessonNavToggle = document.getElementById('lessonNavToggle');
+
+function isMobileLayout() {
+    return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function updateLessonNavState() {
+    if (!lessonNav) return;
+    if (isMobileLayout()) {
+        lessonNav.classList.remove('open');
+        lessonNavToggle?.setAttribute('aria-expanded', 'false');
+    } else {
+        lessonNav.classList.remove('open');
+    }
+}
+
+lessonNavToggle?.addEventListener('click', () => {
+    if (!lessonNav) return;
+    const isOpen = lessonNav.classList.toggle('open');
+    lessonNavToggle.setAttribute('aria-expanded', String(isOpen));
+});
+
+document.querySelectorAll('.lesson-nav .ln-item').forEach(link => {
+    link.addEventListener('click', () => {
+        if (isMobileLayout() && lessonNav) {
+            lessonNav.classList.remove('open');
+            lessonNavToggle?.setAttribute('aria-expanded', 'false');
+        }
+    });
+});
+
+window.addEventListener('resize', updateLessonNavState);
+updateLessonNavState();
 
 // ── PDF PANE TOGGLE ───────────────────────────────────────
 function togglePdfPane(id) {
@@ -743,6 +802,7 @@ document.getElementById('ap-overlay')?.addEventListener('click', function(e) {
 
 // "Skip for now" in modal — mark complete and continue
 function skipAssessments() {
+    shouldNavigateAfterComplete = true;
     document.getElementById('ap-overlay').classList.remove('open');
     markComplete();
 }
@@ -760,7 +820,13 @@ function markComplete() {
         .then(r => r.json())
         .then(d => {
             if (d.success) {
-                // Hide manual button
+                    if (NEXT_LESSON_ID && shouldNavigateAfterComplete) {
+                        setTimeout(() => {
+                            window.location.href = `lesson_view.php?lesson_id=${NEXT_LESSON_ID}&unit_id=${UNIT_ID}`;
+                        }, 800);
+                        return;
+                    }
+
                 if (btn) btn.style.display = 'none';
 
                 // Show completion panel
