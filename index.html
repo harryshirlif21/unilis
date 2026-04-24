@@ -1,357 +1,231 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>UNILIS — University Learning Integrated System</title>
-
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-
-  <style>
-    :root {
-      --gold:#D4AF37;
-      --blue:#1E6FBA;
-      --green:#2E8B57;
-      --dark:#1F1F1F;
-      --light:#F7F7F7;
-      --white:#FFFFFF;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNILIS - University Integrated Learning Information System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            navy: '#1e3a8a',
+            gold: '#d4af37',
+          }
+        }
+      }
     }
-
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    body{
-      font-family:'Roboto',sans-serif;
-      background:var(--white);
-      color:var(--dark);
-      line-height:1.6;
-      overflow-x:hidden;
-    }
-    h1,h2,h3,h4{font-family:'Inter',sans-serif;font-weight:700;}
-    a{text-decoration:none;color:inherit;}
-    .container{width:90%;max-width:1280px;margin:auto;}
-
-    /* Buttons */
-    .btn{
-      padding:14px 32px;
-      border-radius:12px;
-      font-weight:600;
-      transition:.3s;
-      display:inline-block;
-    }
-    .btn-gold{background:var(--gold);color:white;}
-    .btn-gold:hover{background:#c19a2e;transform:translateY(-2px);}
-    .btn-outline{border:2px solid var(--gold);color:var(--gold);}
-    .btn-outline:hover{background:var(--gold);color:white;}
-
-    /* Header */
-    header{
-      position:fixed;top:0;left:0;right:0;
-      background:rgba(255,255,255,.97);
-      backdrop-filter:blur(12px);
-      z-index:1000;
-      border-bottom:1px solid #eee;
-    }
-    .header-inner{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:18px 0;
-    }
-    .logo img{height:46px;}
-
-    .nav-links{
-      display:flex;
-      gap:50px;
-    }
-    .nav-links a{font-weight:600;}
-    .nav-links a:hover{color:var(--gold);}
-
-    .mobile-toggle{
-      display:none;
-      font-size:1.9rem;
-      background:none;
-      border:none;
-      color:var(--gold);
-      cursor:pointer;
-    }
-
-    /* Mobile Menu */
-    .mobile-menu{
-      position:fixed;
-      inset:0;
-      background:white;
-      padding:140px 40px;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:30px;
-      transform:translateX(-100%);
-      transition:.45s cubic-bezier(.77,0,.18,1);
-      z-index:999;
-    }
-    .mobile-menu.open{transform:translateX(0);}
-    .mobile-menu a{
-      font-size:1.7rem;
-      font-weight:600;
-      text-align:center;
-    }
-    .menu-desc{
-      font-size:.95rem;
-      color:#777;
-      margin-top:6px;
-    }
-    .mobile-close{
-      position:absolute;
-      top:40px;
-      right:40px;
-      font-size:2.2rem;
-      background:none;
-      border:none;
-      color:var(--gold);
-      cursor:pointer;
-    }
-
-    /* Hero */
-    .hero{
-      padding:220px 0 160px;
-      background:linear-gradient(135deg,#fdfdfb,#f0f7ff);
-    }
-    .hero-grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:90px;
-      align-items:center;
-    }
-    .hero-left h1{
-      font-size:4.2rem;
-      background:linear-gradient(90deg,var(--blue),var(--gold));
-      -webkit-background-clip:text;
-      -webkit-text-fill-color:transparent;
-      margin-bottom:28px;
-    }
-    .hero-left p{
-      font-size:1.3rem;
-      max-width:600px;
-      margin-bottom:42px;
-    }
-    .hero-buttons{display:flex;gap:24px;}
-
-    .hero-right{
-      height:600px;
-      border-radius:28px;
-      position:relative;
-      overflow:hidden;
-      background:url('https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=1200&fit=crop') center/cover;
-    }
-    .hero-right::after{
-      content:'';
-      position:absolute;
-      inset:0;
-      background:linear-gradient(135deg,rgba(30,111,186,.4),rgba(46,139,87,.55));
-    }
-    .slide{
-      position:absolute;
-      inset:0;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-      align-items:center;
-      text-align:center;
-      padding:60px;
-      color:white;
-      opacity:0;
-      transition:opacity 1.2s;
-      z-index:2;
-    }
-    .slide.active{opacity:1;}
-    .slide h3{color:var(--gold);font-size:2.3rem;margin-bottom:14px;}
-    .slide p{font-size:1.2rem;}
-
-    /* Features */
-    .features-showcase{
-      padding:160px 0;
-      background:linear-gradient(to bottom,var(--light),white);
-    }
-    .showcase-grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:80px;
-      align-items:center;
-    }
-    .showcase-left h2{
-      font-size:3.2rem;
-      color:var(--green);
-      margin-bottom:30px;
-    }
-    .showcase-right{
-      position:relative;
-      height:640px;
-      border-radius:32px;
-      overflow:hidden;
-      box-shadow:0 40px 100px rgba(0,0,0,.18);
-    }
-    .feature-slide{
-      position:absolute;
-      inset:0;
-      background-size:cover;
-      background-position:center;
-      opacity:0;
-      transition:opacity 1.4s;
-      display:flex;
-      align-items:flex-end;
-      padding:70px;
-    }
-    .feature-slide.active{opacity:1;}
-    .feature-slide::before{
-      content:'';
-      position:absolute;
-      inset:0;
-      background:linear-gradient(135deg,transparent 40%,rgba(31,31,31,.9));
-    }
-    .feature-content{
-      position:relative;
-      z-index:2;
-      color:white;
-      max-width:600px;
-    }
-    .feature-content h3{
-      color:var(--gold);
-      font-size:2.6rem;
-      margin-bottom:16px;
-    }
-
-    .fs1{background-image:url('https://images.unsplash.com/photo-1517248135467-2c7ed3ed2b2d?w=1600&fit=crop');}
-    .fs2{background-image:url('https://images.unsplash.com/photo-1591115765373-5207764f72e7?w=1600&fit=crop');}
-    .fs3{background-image:url('https://images.unsplash.com/photo-1516321310764-9b61a08d765f?w=1600&fit=crop');}
-    .fs4{background-image:url('https://images.unsplash.com/photo-1552664734-0108f1fd38c9?w=1600&fit=crop');}
-    .fs5{background-image:url('https://images.unsplash.com/photo-1581093458791-9eaab96b2c8a?w=1600&fit=crop');}
-    .fs6{background-image:url('https://images.unsplash.com/photo-1495467033332-2cb8edf4c2f9?w=1600&fit=crop');}
-
-    /* Dashboard */
-    .dashboard-preview{
-      padding:180px 0;
-      background:var(--dark);
-      color:white;
-      text-align:center;
-    }
-
-    /* Contact */
-    .contact-section{
-      padding:160px 0;
-      background:var(--light);
-      text-align:center;
-    }
-
-    /* Mobile */
-    @media(max-width:768px){
-      .logo,.nav-links{display:none;}
-      .mobile-toggle{display:block;}
-      .hero-grid,.showcase-grid{grid-template-columns:1fr;text-align:center;}
-      .hero-left h1{font-size:2.8rem;}
-      .hero-right{height:420px;}
-    }
-  </style>
+  </script>
 </head>
-
-<body>
-
-<header>
-  <div class="container header-inner">
-    <a href="#" class="logo"><img src="logo.png" alt="UNILIS"></a>
-    <nav class="nav-links">
-      <a href="#hero">Home</a>
-      <a href="#features">Features</a>
-      <a href="#contact">Contact</a>
-     
-    <a href="login.php">Login</a>
-    </nav>
-    <button class="mobile-toggle" id="mobileToggle">Menu</button>
-  </div>
-
-  <div class="mobile-menu" id="mobileMenu">
-    <button class="mobile-close" id="mobileClose">✕</button>
-    <a href="#hero">Home</a>
-    <a href="#features">Features</a>
-    <a href="#contact">Contact</a>
-    <a href="login.php">Login</a>
-    <a href="student/signup.php" class="btn btn-gold">Student Registration</a>
-  </div>
-</header>
-
-<section class="hero" id="hero">
-  <div class="container hero-grid">
-    <div class="hero-left">
-      <h1>Future of University Learning</h1>
-      <p>
-        UNILIS is an intelligent, fully integrated Learning Management System designed to transform higher education —
-        unifying learning, assessment, communication, analytics, and AI-powered academic support into one secure platform
-        for modern universities.
-      </p>
-      <div class="hero-buttons">
-        <a href="student/signup.php" class="btn btn-gold">Start Free</a>
-        <a href="#contact" class="btn btn-outline">Talk to Us</a>
+<body class="bg-white text-gray-900">
+  <!-- Navbar -->
+  <nav class="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-200 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-4">
+        <div class="flex items-center">
+          <h1 class="text-2xl font-bold text-navy">UNILIS</h1>
+        </div>
+        <div class="hidden md:flex space-x-8">
+          <a href="#features" class="text-gray-700 hover:text-navy transition">Features</a>
+          <a href="#how-it-works" class="text-gray-700 hover:text-navy transition">How It Works</a>
+          <a href="#pricing" class="text-gray-700 hover:text-navy transition">Pricing</a>
+          <a href="#contact" class="text-gray-700 hover:text-navy transition">Contact</a>
+          <a href="login.php" class="text-gray-700 hover:text-navy transition">Login</a>
+        </div>
+        <div class="flex items-center space-x-4">
+          <a href="student/signup.php" class="bg-navy text-white px-4 py-2 rounded-lg hover:bg-navy/90 transition">Sign Up</a>
+          <button class="md:hidden" onclick="toggleMenu()">☰</button>
+        </div>
       </div>
     </div>
+  </nav>
 
-    <div class="hero-right">
-      <div class="slide active"><h3>AI Learning Assistant</h3><p>24/7 academic support</p></div>
-      <div class="slide"><h3>Smart Course Portal</h3><p>All resources in one place</p></div>
-      <div class="slide"><h3>Virtual Classes</h3><p>Learn live or on demand</p></div>
-      <div class="slide"><h3>Performance Insights</h3><p>Track progress early</p></div>
-    </div>
+  <!-- Mobile Menu -->
+  <div class="fixed inset-0 bg-white flex flex-col items-center justify-center space-y-8 transform translate-x-full transition-transform duration-300 md:hidden z-40" id="mobileMenu">
+    <button class="absolute top-4 right-4 text-2xl" onclick="toggleMenu()">✕</button>
+    <a href="#features" class="text-xl text-gray-700 hover:text-navy">Features</a>
+    <a href="#how-it-works" class="text-xl text-gray-700 hover:text-navy">How It Works</a>
+    <a href="#pricing" class="text-xl text-gray-700 hover:text-navy">Pricing</a>
+    <a href="#contact" class="text-xl text-gray-700 hover:text-navy">Contact</a>
+    <a href="login.php" class="text-xl text-gray-700 hover:text-navy">Login</a>
+    <a href="student/signup.php" class="bg-navy text-white px-6 py-2 rounded-lg">Sign Up</a>
   </div>
-</section>
 
-<section class="features-showcase" id="features">
-  <div class="container showcase-grid">
-    <div class="showcase-left">
-      <h2>One Platform. Endless Impact.</h2>
-      <p> UNILIS is an intelligent, fully integrated Learning Management System designed to transform higher education —
-        unifying learning, assessment, communication, analytics, and AI-powered academic support into one secure platform
-        for modern universities.</p>
+  <!-- Hero Section -->
+  <section class="min-h-screen flex items-center text-white py-20" style="background-image: linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1544717297-fa95b6ee9643?w=1920&fit=crop'); background-size: cover; background-position: center; background-attachment: fixed;">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div class="bg-white/10 rounded-2xl p-8 border border-white/20">
+          <h1 class="text-4xl lg:text-6xl font-bold mb-6">
+            Empowering University Learning with <span class="text-gold">UNILIS</span>
+          </h1>
+          <p class="text-xl mb-8 text-gray-100">
+            A comprehensive platform for students and lecturers to manage courses, assignments, assessments, and collaboration seamlessly.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-4">
+            <a href="student/signup.php" class="bg-gold text-gray-900 px-8 py-3 rounded-lg font-semibold hover:bg-gold/90 transition">Start Free Trial</a>
+            <a href="login.php" class="border border-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-gray-900 transition">Login</a>
+          </div>
+        </div>
+        <div class="relative">
+          <div class="bg-white/10 rounded-2xl p-8 border border-white/20">
+            <h3 class="text-2xl font-bold mb-4 text-gold">Key Features</h3>
+            <ul class="space-y-3 text-gray-100">
+              <li>✓ Lecture Notes Management</li>
+              <li>✓ Assignment Management</li>
+              <li>✓ Interactive MCQ Assessments</li>
+              <li>✓ Student Group Collaboration</li>
+              <li>✓ Virtual Meeting System</li>
+              <li>✓ Interactive Course Learning Module</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="showcase-right">
-      <div class="feature-slide fs1 active"><div class="feature-content"><h3>Smart Course Management</h3></div></div>
-      <div class="feature-slide fs2"><div class="feature-content"><h3>Virtual Classrooms</h3></div></div>
-      <div class="feature-slide fs3"><div class="feature-content"><h3>Assignments & Assessments</h3></div></div>
-      <div class="feature-slide fs4"><div class="feature-content"><h3>AI Learning Support</h3></div></div>
-      <div class="feature-slide fs5"><div class="feature-content"><h3>Performance Analytics</h3></div></div>
-      <div class="feature-slide fs6"><div class="feature-content"><h3>Offline Access</h3></div></div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="py-20 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl lg:text-5xl font-bold text-navy mb-4">Comprehensive Learning Tools</h2>
+        <p class="text-xl text-gray-600">Everything you need for modern university education</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- Feature 1 -->
+        <div class="bg-white p-8 rounded-2xl shadow-lg backdrop-blur-sm bg-opacity-80 border border-white/20 hover:shadow-xl transition">
+          <div class="w-12 h-12 bg-navy rounded-lg flex items-center justify-center mb-6">
+            <span class="text-white text-2xl">📚</span>
+          </div>
+          <h3 class="text-xl font-bold text-navy mb-4">Lecture Notes Management</h3>
+          <p class="text-gray-600">Upload, browse, and download course materials with ease. Organize notes by course and topic for quick access.</p>
+        </div>
+        <!-- Feature 2 -->
+        <div class="bg-white p-8 rounded-2xl shadow-lg backdrop-blur-sm bg-opacity-80 border border-white/20 hover:shadow-xl transition">
+          <div class="w-12 h-12 bg-navy rounded-lg flex items-center justify-center mb-6">
+            <span class="text-white text-2xl">📝</span>
+          </div>
+          <h3 class="text-xl font-bold text-navy mb-4">Assignment Management</h3>
+          <p class="text-gray-600">Create assignments with deadlines, submit work, and receive grades. Track progress and stay on top of coursework.</p>
+        </div>
+        <!-- Feature 3 -->
+        <div class="bg-white p-8 rounded-2xl shadow-lg backdrop-blur-sm bg-opacity-80 border border-white/20 hover:shadow-xl transition">
+          <div class="w-12 h-12 bg-navy rounded-lg flex items-center justify-center mb-6">
+            <span class="text-white text-2xl">🧠</span>
+          </div>
+          <h3 class="text-xl font-bold text-navy mb-4">Interactive MCQ Assessments</h3>
+          <p class="text-gray-600">Auto-marked multiple choice questions with instant feedback. Perfect for quick quizzes and self-assessment.</p>
+        </div>
+        <!-- Feature 4 -->
+        <div class="bg-white p-8 rounded-2xl shadow-lg backdrop-blur-sm bg-opacity-80 border border-white/20 hover:shadow-xl transition">
+          <div class="w-12 h-12 bg-navy rounded-lg flex items-center justify-center mb-6">
+            <span class="text-white text-2xl">👥</span>
+          </div>
+          <h3 class="text-xl font-bold text-navy mb-4">Student Group Collaboration</h3>
+          <p class="text-gray-600">Shared workspaces, discussion boards, and task lists for group projects. Enhance teamwork and communication.</p>
+        </div>
+        <!-- Feature 5 -->
+        <div class="bg-white p-8 rounded-2xl shadow-lg backdrop-blur-sm bg-opacity-80 border border-white/20 hover:shadow-xl transition">
+          <div class="w-12 h-12 bg-navy rounded-lg flex items-center justify-center mb-6">
+            <span class="text-white text-2xl">📹</span>
+          </div>
+          <h3 class="text-xl font-bold text-navy mb-4">Virtual Meeting System</h3>
+          <p class="text-gray-600">Schedule meetings, track attendance, and access meeting history. Seamless virtual collaboration for remote learning.</p>
+        </div>
+        <!-- Feature 6 -->
+        <div class="bg-white p-8 rounded-2xl shadow-lg backdrop-blur-sm bg-opacity-80 border border-white/20 hover:shadow-xl transition">
+          <div class="w-12 h-12 bg-navy rounded-lg flex items-center justify-center mb-6">
+            <span class="text-white text-2xl">🎓</span>
+          </div>
+          <h3 class="text-xl font-bold text-navy mb-4">Interactive Course Learning Module</h3>
+          <p class="text-gray-600">Inspired by Cisco Netacad: modules, lessons, embedded quizzes, and progress tracking for interactive learning.</p>
+        </div>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section id="contact" class="contact-section">
-  <div class="container">
-    <h2>Let’s Bring UNILIS to Your Campus</h2>
-    <p>H&S Development team.</p>
-    <a href="https://wa.me/254717091187" class="btn btn-gold">Message on WhatsApp</a>
-  </div>
-</section>
+  <!-- How It Works -->
+  <section id="how-it-works" class="py-20 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl lg:text-5xl font-bold text-navy mb-4">How It Works</h2>
+        <p class="text-xl text-gray-600">Simple steps to transform your learning experience</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="text-center">
+          <div class="w-16 h-16 bg-gold rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-gray-900">1</div>
+          <h3 class="text-xl font-bold text-navy mb-4">Sign Up</h3>
+          <p class="text-gray-600">Create your account as a student or lecturer and set up your profile.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-16 h-16 bg-gold rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-gray-900">2</div>
+          <h3 class="text-xl font-bold text-navy mb-4">Access Courses</h3>
+          <p class="text-gray-600">Join courses, upload materials, create assignments, and start learning.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-16 h-16 bg-gold rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-gray-900">3</div>
+          <h3 class="text-xl font-bold text-navy mb-4">Collaborate & Learn</h3>
+          <p class="text-gray-600">Use all features to enhance your educational journey.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-<script>
-  const mobileMenu = document.getElementById('mobileMenu');
-  mobileToggle.onclick = () => mobileMenu.classList.toggle('open');
-  mobileClose.onclick = () => mobileMenu.classList.remove('open');
-  mobileMenu.querySelectorAll('a').forEach(a =>
-    a.onclick = () => mobileMenu.classList.remove('open')
-  );
+  <!-- CTA -->
+  <section class="py-20 bg-navy text-white">
+    <div class="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
+      <h2 class="text-3xl lg:text-5xl font-bold mb-6">Ready to Revolutionize University Learning?</h2>
+      <p class="text-xl mb-8 text-gray-300">Join thousands of students and lecturers using UNILIS for better education.</p>
+      <a href="student/signup.php" class="bg-gold text-gray-900 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gold/90 transition inline-block">Get Started Today</a>
+    </div>
+  </section>
 
-  const slides = document.querySelectorAll('.slide');
-  let i=0;
-  setInterval(()=>{
-    slides[i].classList.remove('active');
-    i=(i+1)%slides.length;
-    slides[i].classList.add('active');
-  },5000);
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-white py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div>
+          <h3 class="text-xl font-bold text-gold mb-4">UNILIS</h3>
+          <p class="text-gray-400">University Integrated Learning Information System</p>
+        </div>
+        <div>
+          <h4 class="font-bold mb-4">Features</h4>
+          <ul class="space-y-2 text-gray-400">
+            <li><a href="#" class="hover:text-white">Lecture Notes</a></li>
+            <li><a href="#" class="hover:text-white">Assignments</a></li>
+            <li><a href="#" class="hover:text-white">Assessments</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-bold mb-4">Support</h4>
+          <ul class="space-y-2 text-gray-400">
+            <li><a href="#" class="hover:text-white">Help Center</a></li>
+            <li><a href="#" class="hover:text-white">Contact Us</a></li>
+            <li><a href="#" class="hover:text-white">Documentation</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-bold mb-4">Company</h4>
+          <ul class="space-y-2 text-gray-400">
+            <li><a href="#" class="hover:text-white">About</a></li>
+            <li><a href="#" class="hover:text-white">Privacy</a></li>
+            <li><a href="#" class="hover:text-white">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+        <p>&copy; 2024 UNILIS. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
 
-  const featureSlides=document.querySelectorAll('.feature-slide');
-  let f=0;
-  setInterval(()=>{
-    featureSlides[f].classList.remove('active');
-    f=(f+1)%featureSlides.length;
-    featureSlides[f].classList.add('active');
-  },6000);
-</script>
-
+  <script>
+    function toggleMenu() {
+      const menu = document.getElementById('mobileMenu');
+      menu.classList.toggle('translate-x-full');
+    }
+  </script>
 </body>
 </html>

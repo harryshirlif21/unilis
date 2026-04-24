@@ -29,81 +29,189 @@ if (isset($_SESSION['old_input'])) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Student Signup - JKUAT</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: '#1e3a8a',
+            gold: '#d4af37',
+          }
+        }
+      }
+    }
+  </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
+  <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div class="bg-navy text-white p-6 text-center relative">
+      <button type="button" class="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 rounded-full w-10 h-10 flex items-center justify-center transition" onclick="window.location.href='../index.html'">
+        <i class="fas fa-home text-white"></i>
+      </button>
+      <h1 class="text-2xl font-bold">Student Registration</h1>
+      <p class="text-blue-100 mt-1">Join JKUAT Student Portal</p>
+    </div>
+
+    <div class="flex justify-center py-6 px-6">
+      <div class="flex items-center space-x-4">
+        <div class="step active">1</div>
+        <div class="step">2</div>
+        <div class="step">3</div>
+        <div class="step">4</div>
+        <div class="step">5</div>
+      </div>
+    </div>
+
+    <div class="px-8 pb-8">
+      <?php if (!empty($success)): ?>
+        <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-6">
+          <?= $success ?>
+        </div>
+      <?php endif; ?>
+      <?php if (!empty($error)): ?>
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
+          <?= $error ?>
+        </div>
+      <?php endif; ?>
+
+      <form method="POST" id="signupForm" novalidate>
+        <input type="hidden" name="action" value="signup_student">
+        <input type="hidden" name="university" value="JKUAT">
+
+        <!-- Step 1 -->
+        <div class="form-step active">
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Registration Number <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="reg_no" required placeholder="e.g. CS/001/2024"
+                   value="<?= htmlspecialchars($old_input['reg_no'] ?? '') ?>"
+                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+          </div>
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Full Name <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="name" required placeholder="John Doe"
+                   value="<?= htmlspecialchars($old_input['name'] ?? '') ?>"
+                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="form-step">
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Email Address <span class="text-red-500">*</span>
+            </label>
+            <input type="email" name="email" required placeholder="your.email@jkuat.ac.ke"
+                   value="<?= htmlspecialchars($old_input['email'] ?? '') ?>"
+                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+          </div>
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Phone Number <span class="text-red-500">*</span>
+            </label>
+            <input type="tel" name="phone" required placeholder="+254 712 345 678"
+                   value="<?= htmlspecialchars($old_input['phone'] ?? '') ?>"
+                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="form-step">
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              School/Faculty <span class="text-red-500">*</span>
+            </label>
+            <select name="school" required class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+              <option value="">Select your school/faculty</option>
+              <option value="School of Engineering" <?= ($old_input['school'] ?? '') === 'School of Engineering' ? 'selected' : '' ?>>School of Engineering</option>
+              <option value="School of Business" <?= ($old_input['school'] ?? '') === 'School of Business' ? 'selected' : '' ?>>School of Business</option>
+              <option value="School of Computing" <?= ($old_input['school'] ?? '') === 'School of Computing' ? 'selected' : '' ?>>School of Computing</option>
+              <option value="School of Agriculture" <?= ($old_input['school'] ?? '') === 'School of Agriculture' ? 'selected' : '' ?>>School of Agriculture</option>
+            </select>
+          </div>
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Course/Program <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="course" required placeholder="e.g. Computer Science"
+                   value="<?= htmlspecialchars($old_input['course'] ?? '') ?>"
+                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="form-step">
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Year of Study <span class="text-red-500">*</span>
+            </label>
+            <select name="year" required class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+              <option value="">Select year</option>
+              <option value="1" <?= ($old_input['year'] ?? '') === '1' ? 'selected' : '' ?>>Year 1</option>
+              <option value="2" <?= ($old_input['year'] ?? '') === '2' ? 'selected' : '' ?>>Year 2</option>
+              <option value="3" <?= ($old_input['year'] ?? '') === '3' ? 'selected' : '' ?>>Year 3</option>
+              <option value="4" <?= ($old_input['year'] ?? '') === '4' ? 'selected' : '' ?>>Year 4</option>
+              <option value="5" <?= ($old_input['year'] ?? '') === '5' ? 'selected' : '' ?>>Year 5</option>
+            </select>
+          </div>
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Semester <span class="text-red-500">*</span>
+            </label>
+            <select name="semester" required class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+              <option value="">Select semester</option>
+              <option value="1" <?= ($old_input['semester'] ?? '') === '1' ? 'selected' : '' ?>>Semester 1</option>
+              <option value="2" <?= ($old_input['semester'] ?? '') === '2' ? 'selected' : '' ?>>Semester 2</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="form-step">
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Password <span class="text-red-500">*</span>
+            </label>
+            <div class="relative">
+              <input type="password" name="password" id="password" required placeholder="Create a strong password"
+                     class="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+              <i class="fas fa-eye absolute right-4 top-4 cursor-pointer text-gray-400 hover:text-gray-600" id="togglePassword"></i>
+            </div>
+            <div class="password-strength mt-2">
+              <div class="strength-bar"></div>
+            </div>
+            <div class="strength-text text-sm text-gray-600 mt-1">Password strength: <span id="strengthText">Weak</span></div>
+          </div>
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+              Confirm Password <span class="text-red-500">*</span>
+            </label>
+            <input type="password" name="confirm_password" required placeholder="Confirm your password"
+                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+          </div>
+        </div>
+
+        <div class="flex justify-between mt-8">
+          <button type="button" class="btn-back bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300 transition">Back</button>
+          <button type="button" class="btn-next bg-navy text-white px-6 py-3 rounded-lg hover:bg-navy/90 transition">Next</button>
+          <button type="submit" id="submitBtn" class="bg-navy text-white px-6 py-3 rounded-lg hover:bg-navy/90 transition hidden">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <style>
-    :root {
-      --primary: #2563eb;
-      --primary-dark: #1d4ed8;
-      --success: #10b981;
-      --danger: #ef4444;
-      --gray-100: #f3f4f6;
-      --gray-200: #e5e7eb;
-      --gray-500: #6b7280;
-      --gray-700: #374151;
-      --gray-900: #111827;
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Inter', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .container {
-      background: white;
-      max-width: 560px;
-      width: 100%;
-      border-radius: 16px;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.15);
-      overflow: hidden;
-    }
-
-    .header {
-      background: var(--primary);
-      color: white;
-      padding: 24px;
-      text-align: center;
-      position: relative;
-    }
-
-    .home-btn {
-      position: absolute;
-      left: 20px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: rgba(255,255,255,0.2);
-      color: white;
-      border: none;
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 20px;
-      transition: 0.3s;
-    }
-    .home-btn:hover { background: rgba(255,255,255,0.3); }
-
-    .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
-    .header p { opacity: 0.9; font-size: 15px; }
-
-    .step-indicator {
-      display: flex;
-      justify-content: center;
-      padding: 30px 40px 10px;
-      gap: 16px;
-    }
     .step {
       width: 44px;
       height: 44px;
       border-radius: 50%;
-      background: var(--gray-200);
-      color: var(--gray-500);
+      background: #e5e7eb;
+      color: #6b7280;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -119,72 +227,30 @@ if (isset($_SESSION['old_input'])) {
       left: 44px;
       width: 60px;
       height: 3px;
-      background: var(--gray-200);
+      background: #e5e7eb;
       z-index: -1;
     }
     .step:last-child::before { display: none; }
     .step.active {
-      background: var(--primary);
+      background: #1e3a8a;
       color: white;
       transform: scale(1.15);
     }
     .step.completed {
-      background: var(--success);
+      background: #10b981;
       color: white;
     }
     .step.completed::after {
       content: "✓";
       font-weight: bold;
     }
-    .step.active ~ .step::before,
-    .step.completed ~ .step::before { background: var(--gray-200); }
-    .step:not(.active):not(.completed)::before { background: var(--gray-200); }
-
-    .form-body { padding: 40px; }
-    .form-step { display: none; animation: fadeIn 0.5s; }
+    .step:not(.active):not(.completed)::before { background: #e5e7eb; }
+    .form-step { display: none; }
     .form-step.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-    .form-group { margin-bottom: 24px; }
-    label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 600;
-      color: var(--gray-700);
-      font-size: 14px;
-    }
-    input, select {
-      width: 100%;
-      padding: 14px 16px;
-      border: 2px solid var(--gray-200);
-      border-radius: 12px;
-      font-size: 16px;
-      transition: 0.3s;
-    }
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
-    }
-
-    .password-wrapper {
-      position: relative;
-    }
-    .toggle-password {
-      position: absolute;
-      right: 14px;
-      top: 50%;
-      transform: translateY(-50%);
-      cursor: pointer;
-      color: var(--gray-500);
-      font-size: 18px;
-    }
-
     .password-strength {
-      margin-top: 10px;
       height: 8px;
       border-radius: 4px;
-      background: var(--gray-200);
+      background: #e5e7eb;
       overflow: hidden;
     }
     .strength-bar {
@@ -192,276 +258,102 @@ if (isset($_SESSION['old_input'])) {
       width: 0%;
       transition: width 0.4s ease;
     }
-    .strength-text {
-      margin-top: 8px;
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    /* Strength levels */
-    .weak .strength-bar { background: var(--danger); width: 25%; }
+    .weak .strength-bar { background: #ef4444; width: 25%; }
     .medium .strength-bar { background: #f59e0b; width: 50%; }
     .strong .strength-bar { background: #10b981; width: 75%; }
     .very-strong .strength-bar { background: #059669; width: 100%; }
-
-    .success, .error {
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      text-align: center;
-      font-weight: 500;
-    }
-    .success { background: #d1fae5; color: #065f46; }
-    .error { background: #fee2e2; color: #991b1b; }
-
-    .btn-group {
-      display: flex;
-      gap: 12px;
-      margin-top: 32px;
-      justify-content: space-between;
-    }
-    button {
-      padding: 14px 24px;
-      border: none;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: 0.3s;
-      flex: 1;
-    }
-    .btn-back {
-      background: var(--gray-200);
-      color: var(--gray-700);
-    }
-    .btn-next, #submitBtn {
-      background: var(--primary);
-      color: white;
-    }
-    .btn-next:hover, #submitBtn:hover:not(:disabled) {
-      background: var(--primary-dark);
-      transform: translateY(-2px);
-    }
-    #submitBtn:disabled {
-      background: var(--gray-500);
-      cursor: not-allowed;
-    }
-
-    @media (max-width: 480px) {
-      .container { margin: 10px; }
-      .form-body { padding: 24px; }
-      .step-indicator { padding: 20px; gap: 10px; }
-      .step { width: 38px; height: 38px; }
-      .step::before { width: 40px; }
-    }
   </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <button type="button" class="home-btn" onclick="window.location.href='index.html'">
-        <i class="fas fa-home"></i>
-      </button>
-      <h1>Student Registration</h1>
-      <p>Join JKUAT Student Portal</p>
-    </div>
-
-    <div class="step-indicator">
-      <div class="step active">1</div>
-      <div class="step">2</div>
-      <div class="step">3</div>
-      <div class="step">4</div>
-      <div class="step">5</div>
-    </div>
-
-    <div class="form-body">
-      <?php if (!empty($success)): ?><div class="success"><?= $success ?></div><?php endif; ?>
-      <?php if (!empty($error)): ?><div class="error"><?= $error ?></div><?php endif; ?>
-
-      <form method="POST" id="signupForm" novalidate>
-        <input type="hidden" name="action" value="signup_student">
-        <input type="hidden" name="university" value="JKUAT">
-
-        <!-- Step 1 -->
-        <div class="form-step active">
-          <div class="form-group">
-            <label>Registration Number <span style="color:var(--danger)">*</span></label>
-            <input type="text" name="reg_no" required placeholder="e.g. CS/001/2024"
-                   value="<?= htmlspecialchars($old_input['reg_no'] ?? '') ?>">
-          </div>
-          <div class="form-group">
-            <label>Full Name <span style="color:var(--danger)">*</span></label>
-            <input type="text" name="name" required placeholder="John Doe"
-                   value="<?= htmlspecialchars($old_input['name'] ?? '') ?>">
-          </div>
-        </div>
-
-        <!-- Step 2 -->
-        <div class="form-step">
-          <div class="form-group">
-            <label>Email Address <span style="color:var(--danger)">*</span></label>
-            <input type="email" name="email" required placeholder="student@jkuat.ac.ke"
-                   value="<?= htmlspecialchars($old_input['email'] ?? '') ?>">
-          </div>
-          <div class="form-group">
-            <label>School / Faculty <span style="color:var(--danger)">*</span></label>
-            <select name="school" required>
-              <option value="">-- Select School --</option>
-              <option value="School of Computing & IT" <?= (isset($old_input['school']) && $old_input['school']=='School of Computing & IT')?'selected':'' ?>>School of Computing & IT</option>
-              <option value="School of Engineering" <?= (isset($old_input['school']) && $old_input['school']=='School of Engineering')?'selected':'' ?>>School of Engineering</option>
-              <option value="School of Business" <?= (isset($old_input['school']) && $old_input['school']=='School of Business')?'selected':'' ?>>School of Business</option>
-              <option value="School of Health Sciences" <?= (isset($old_input['school']) && $old_input['school']=='School of Health Sciences')?'selected':'' ?>>School of Health Sciences</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Step 3 -->
-        <div class="form-step">
-          <div class="form-group">
-            <label>Department <span style="color:var(--danger)">*</span></label>
-            <select name="department" required>
-              <option value="">-- Select Department --</option>
-              <?php
-              $res = $conn->query("SELECT * FROM departments");
-              while ($row = $res->fetch_assoc()) {
-                  $selected = (isset($old_input['department']) && $old_input['department']==$row['id']) ? 'selected' : '';
-                  echo "<option value='{$row['id']}' $selected>{$row['name']}</option>";
-              }
-              ?>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Course <span style="color:var(--danger)">*</span></label>
-            <select name="course" required>
-              <option value="">-- Select Course --</option>
-              <?php
-              $res = $conn->query("SELECT * FROM courses");
-              while ($row = $res->fetch_assoc()) {
-                  $selected = (isset($old_input['course']) && $old_input['course']==$row['id']) ? 'selected' : '';
-                  echo "<option value='{$row['id']}' $selected>{$row['name']}</option>";
-              }
-              ?>
-            </select>
-          </div>
-        </div>
-
-        <!-- Step 4 -->
-        <div class="form-step">
-          <div class="form-group">
-            <label>Year of Study <span style="color:var(--danger)">*</span></label>
-            <input type="number" name="year_of_study" min="1" max="6" required placeholder="e.g. 3"
-                   value="<?= htmlspecialchars($old_input['year_of_study'] ?? '') ?>">
-          </div>
-          <div class="form-group">
-            <label>Year Joined <span style="color:var(--danger)">*</span></label>
-            <input type="number" name="year_joined" min="2000" max="<?= date('Y') ?>" required
-                   placeholder="<?= date('Y') ?>"
-                   value="<?= htmlspecialchars($old_input['year_joined'] ?? '') ?>">
-          </div>
-        </div>
-
-        <!-- Step 5 -->
-        <div class="form-step">
-          <div class="form-group">
-            <label>Password <span style="color:var(--danger)">*</span></label>
-            <div class="password-wrapper">
-              <input type="password" name="password" id="password" required placeholder="Create a very strong password">
-              <i class="fas fa-eye toggle-password" id="togglePassword"></i>
-            </div>
-            <div class="password-strength"><div class="strength-bar"></div></div>
-            <div class="strength-text" id="strengthText">Enter a password (must be very strong)</div>
-          </div>
-          <div class="form-group">
-            <label>Confirm Password <span style="color:var(--danger)">*</span></label>
-            <input type="password" name="confirm_password" id="confirmPassword" required placeholder="Re-type password">
-          </div>
-        </div>
-
-        <div class="btn-group">
-          <button type="button" class="btn-back" id="prevBtn">Back</button>
-          <button type="button" class="btn-next" id="nextBtn">Next</button>
-          <button type="submit" id="submitBtn" class="btn-next" disabled>Register</button>
-        </div>
-      </form><br>
-      <a href="../index.html">Back to Home</a>
-    </div>
-  </div>
 
   <script>
-    const steps = document.querySelectorAll('.form-step');
-    const indicators = document.querySelectorAll('.step');
-    const nextBtn = document.getElementById('nextBtn');
-    const prevBtn = document.getElementById('prevBtn');
+    // Multi-step form logic
+    const steps = document.querySelectorAll('.step');
+    const formSteps = document.querySelectorAll('.form-step');
+    const btnNext = document.querySelector('.btn-next');
+    const btnBack = document.querySelector('.btn-back');
     const submitBtn = document.getElementById('submitBtn');
-    const passwordInput = document.getElementById('password');
-    const confirmInput = document.getElementById('confirmPassword');
-    const strengthBar = document.querySelector('.strength-bar');
-    const strengthText = document.getElementById('strengthText');
-    const togglePassword = document.getElementById('togglePassword');
     let currentStep = 0;
 
-    function showStep(n) {
-      steps.forEach((s, i) => s.classList.toggle('active', i === n));
-      indicators.forEach((ind, i) => {
-        ind.classList.remove('active', 'completed');
-        if (i < n) ind.classList.add('completed');
-        if (i === n) ind.classList.add('active');
+    function updateSteps() {
+      steps.forEach((step, index) => {
+        step.classList.remove('active', 'completed');
+        if (index < currentStep) {
+          step.classList.add('completed');
+        } else if (index === currentStep) {
+          step.classList.add('active');
+        }
       });
-      prevBtn.style.display = n === 0 ? 'none' : 'block';
-      nextBtn.style.display = n === steps.length - 1 ? 'none' : 'block';
-      submitBtn.style.display = n === steps.length - 1 ? 'block' : 'none';
-      currentStep = n;
+
+      formSteps.forEach((step, index) => {
+        step.classList.toggle('active', index === currentStep);
+      });
+
+      btnBack.style.display = currentStep === 0 ? 'none' : 'block';
+      if (currentStep === steps.length - 1) {
+        btnNext.style.display = 'none';
+        submitBtn.style.display = 'block';
+      } else {
+        btnNext.style.display = 'block';
+        submitBtn.style.display = 'none';
+      }
     }
 
-    function validateCurrentStep() {
-      const inputs = steps[currentStep].querySelectorAll('input[required], select[required]');
-      let valid = true;
-      inputs.forEach(input => { if (!input.value.trim()) valid = false; });
-      return valid;
-    }
-
-    nextBtn.addEventListener('click', () => {
-      if (validateCurrentStep() && currentStep < steps.length - 1) {
-        showStep(currentStep + 1);
+    btnNext.addEventListener('click', () => {
+      if (currentStep < steps.length - 1) {
+        currentStep++;
+        updateSteps();
       }
     });
 
-    prevBtn.addEventListener('click', () => {
-      if (currentStep > 0) showStep(currentStep - 1);
+    btnBack.addEventListener('click', () => {
+      if (currentStep > 0) {
+        currentStep--;
+        updateSteps();
+      }
     });
+
+    // Password strength checker
+    const passwordInput = document.getElementById('password');
+    const strengthBar = document.querySelector('.strength-bar');
+    const strengthText = document.getElementById('strengthText');
+    const passwordStrength = document.querySelector('.password-strength');
 
     passwordInput.addEventListener('input', () => {
-      const val = passwordInput.value;
-      let score = 0;
-      if (val.length >= 12) score++;
-      if (val.length >= 16) score++;
-      if (/[a-z]/.test(val)) score++;
-      if (/[A-Z]/.test(val)) score++;
-      if (/[0-9]/.test(val)) score++;
-      if (/[^A-Za-z0-9]/.test(val)) score++;
+      const password = passwordInput.value;
+      let strength = 0;
+      let feedback = [];
 
-      let level = 'weak', text = 'Too weak';
-      if (score >= 5) { level = 'very-strong'; text = 'Very Strong - Excellent!'; }
-      else if (score >= 4) { level = 'strong'; text = 'Strong'; }
-      else if (score >= 3) { level = 'medium'; text = 'Medium'; }
+      if (password.length >= 8) strength++;
+      if (/[a-z]/.test(password)) strength++;
+      if (/[A-Z]/.test(password)) strength++;
+      if (/[0-9]/.test(password)) strength++;
+      if (/[^A-Za-z0-9]/.test(password)) strength++;
 
-      strengthBar.parentElement.className = 'password-strength ' + level;
-      strengthText.textContent = text;
-      submitBtn.disabled = score < 4 || val !== confirmInput.value;
+      passwordStrength.className = 'password-strength';
+      if (strength <= 2) {
+        passwordStrength.classList.add('weak');
+        strengthText.textContent = 'Weak';
+      } else if (strength === 3) {
+        passwordStrength.classList.add('medium');
+        strengthText.textContent = 'Medium';
+      } else if (strength === 4) {
+        passwordStrength.classList.add('strong');
+        strengthText.textContent = 'Strong';
+      } else {
+        passwordStrength.classList.add('very-strong');
+        strengthText.textContent = 'Very Strong';
+      }
     });
 
-    confirmInput.addEventListener('input', () => {
-      submitBtn.disabled = passwordInput.value !== confirmInput.value || passwordInput.value.length < 8;
-    });
-
+    // Password toggle
+    const togglePassword = document.getElementById('togglePassword');
     togglePassword.addEventListener('click', () => {
-      const type = passwordInput.type === 'password' ? 'text' : 'password';
-      passwordInput.type = type;
-      confirmInput.type = type;
+      const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      passwordInput.setAttribute('type', type);
+      togglePassword.classList.toggle('fa-eye');
       togglePassword.classList.toggle('fa-eye-slash');
     });
 
-    showStep(currentStep);
+    updateSteps();
   </script>
 </body>
 </html>

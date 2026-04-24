@@ -67,1119 +67,1817 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Student Dashboard</title>
-
-<!-- Font Awesome for profile avatar icon -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-<!-- External CSS -->
-<link rel="stylesheet" href="css/styles.css">
-
-<style>
-:root {
-  --primary: #2563eb;
-  --secondary: #1e40af;
-  --accent: #f59e0b;
-  --bg-light: #f9fafb;
-  --text-dark: #1f2937;
-  --text-light: #6b7280;
-}
-
-body {
-  background: white !important;
-}
-
-/* =====================
-   SIDEBAR MOBILE FIX
-   ===================== */
-@media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    z-index: 1000;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    overflow-y: auto;
-  }
-
-  .sidebar.show {
-    transform: translateX(0);
-  }
-
-  /* Dark overlay behind sidebar */
-  .sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 999;
-  }
-
-  .sidebar-overlay.show {
-    display: block;
-  }
-}
-
-/* Footer styles */
-.footer {
-  background: linear-gradient(135deg, var(--bg-light) 0%, #ffffff 100%);
-  border-top: 1px solid #e5e7eb;
-  margin-top: 2rem;
-  padding: 2rem 0 0 0;
-  position: relative;
-}
-
-.footer-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
-}
-
-.footer-column {
-  padding: 1rem;
-  transition: transform 0.3s ease;
-}
-
-.footer-column:hover {
-  transform: translateY(-2px);
-}
-
-.footer-column h2, .footer-column h3 {
-  color: var(--text-dark);
-  margin-bottom: 1rem;
-  font-weight: 600;
-}
-
-.footer-about p {
-  color: var(--text-light);
-  line-height: 1.6;
-}
-
-.footer-links ul {
-  list-style: none;
-  padding: 0;
-}
-
-.footer-links li {
-  margin-bottom: 0.5rem;
-}
-
-.footer-links a {
-  color: var(--text-light);
-  text-decoration: none;
-  transition: color 0.3s ease;
-  position: relative;
-}
-
-.footer-links a:hover {
-  color: var(--primary);
-}
-
-.footer-links a::after {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 2px;
-  bottom: -2px;
-  left: 0;
-  background: var(--primary);
-  transition: width 0.3s ease;
-}
-
-.footer-links a:hover::after {
-  width: 100%;
-}
-
-.footer-contact p {
-  margin-bottom: 0.5rem;
-  color: var(--text-light);
-}
-
-.footer-contact a {
-  color: var(--primary);
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-.footer-contact a:hover {
-  color: var(--secondary);
-}
-
-.social-links {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.social {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--bg-light);
-  color: var(--text-light);
-  text-decoration: none;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.social:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
-
-.social.whatsapp:hover  { background: #25d366; color: white; }
-.social.facebook:hover  { background: #1877f2; color: white; }
-.social.instagram:hover { background: #e4405f; color: white; }
-.social.twitter:hover   { background: #1da1f2; color: white; }
-
-.newsletter-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.newsletter-form input {
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: border-color 0.3s ease;
-}
-
-.newsletter-form input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.newsletter-form button {
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: transform 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.newsletter-form button:hover {
-  transform: translateY(-2px);
-}
-
-.footer-bottom {
-  border-top: 1px solid #e5e7eb;
-  margin-top: 2rem;
-  padding: 1rem;
-  background: var(--bg-light);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.footer-bottom p {
-  margin: 0;
-  color: var(--text-light);
-  font-size: 0.9rem;
-}
-
-.legal-links {
-  display: flex;
-  gap: 1rem;
-}
-
-.legal-links a {
-  color: var(--text-light);
-  text-decoration: none;
-  font-size: 0.9rem;
-  transition: color 0.3s ease;
-}
-
-.legal-links a:hover {
-  color: var(--primary);
-}
-
-@media (max-width: 768px) {
-  .footer-container {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-  }
-  .footer-column {
-    padding: 0.5rem;
-  }
-  .social-links {
-    justify-content: center;
-  }
-  .footer-bottom {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-@media (max-width: 480px) {
-  .footer-container {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  .footer-column {
-    text-align: center;
-  }
-  .social-links {
-    justify-content: center;
-  }
-  .newsletter-form {
-    align-items: center;
-  }
-</style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= htmlspecialchars($student['name']) ?> - UNILIS Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            /* Modern Color Palette */
+            --primary-50: #f0f9ff;
+            --primary-100: #e0f2fe;
+            --primary-200: #bae6fd;
+            --primary-300: #7dd3fc;
+            --primary-400: #38bdf8;
+            --primary-500: #0ea5e9;
+            --primary-600: #0284c7;
+            --primary-700: #0369a1;
+            --primary-800: #075985;
+            --primary-900: #0c4a6e;
+            
+            --secondary-50: #fdf4ff;
+            --secondary-100: #fae8ff;
+            --secondary-200: #f5d0fe;
+            --secondary-300: #f0abfc;
+            --secondary-400: #e879f9;
+            --secondary-500: #d946ef;
+            --secondary-600: #c026d3;
+            --secondary-700: #a21caf;
+            --secondary-800: #86198f;
+            --secondary-900: #701a75;
+            
+            --accent-50: #fefce8;
+            --accent-100: #fef9c3;
+            --accent-200: #fef08a;
+            --accent-300: #fde047;
+            --accent-400: #facc15;
+            --accent-500: #eab308;
+            --accent-600: #ca8a04;
+            --accent-700: #a16207;
+            --accent-800: #854d0e;
+            --accent-900: #713f12;
+            
+            --success-50: #f0fdf4;
+            --success-100: #dcfce7;
+            --success-200: #bbf7d0;
+            --success-300: #86efac;
+            --success-400: #4ade80;
+            --success-500: #22c55e;
+            --success-600: #16a34a;
+            --success-700: #15803d;
+            --success-800: #166534;
+            --success-900: #14532d;
+            
+            --warning-50: #fffbeb;
+            --warning-100: #fef3c7;
+            --warning-200: #fde68a;
+            --warning-300: #fcd34d;
+            --warning-400: #fbbf24;
+            --warning-500: #f59e0b;
+            --warning-600: #d97706;
+            --warning-700: #b45309;
+            --warning-800: #92400e;
+            --warning-900: #78350f;
+            
+            --error-50: #fef2f2;
+            --error-100: #fee2e2;
+            --error-200: #fecaca;
+            --error-300: #fca5a5;
+            --error-400: #f87171;
+            --error-500: #ef4444;
+            --error-600: #dc2626;
+            --error-700: #b91c1c;
+            --error-800: #991b1b;
+            --error-900: #7f1d1d;
+            
+            --neutral-50: #fafafa;
+            --neutral-100: #f5f5f5;
+            --neutral-200: #e5e5e5;
+            --neutral-300: #d4d4d4;
+            --neutral-400: #a3a3a3;
+            --neutral-500: #737373;
+            --neutral-600: #525252;
+            --neutral-700: #404040;
+            --neutral-800: #262626;
+            --neutral-900: #171717;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+            
+            /* Border Radius */
+            --radius-sm: 0.375rem;
+            --radius: 0.5rem;
+            --radius-md: 0.75rem;
+            --radius-lg: 1rem;
+            --radius-xl: 1.5rem;
+            --radius-2xl: 2rem;
+            --radius-full: 9999px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, var(--primary-50) 0%, var(--secondary-50) 100%);
+            min-height: 100vh;
+            color: var(--neutral-900);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* Modern Navigation */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 72px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--neutral-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary-600);
+        }
+        
+        .navbar-brand .logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-500), var(--secondary-500));
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+        
+        .navbar-center {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--primary-50);
+            border-radius: var(--radius-full);
+            border: 1px solid var(--primary-200);
+        }
+        
+        .navbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .nav-button {
+            position: relative;
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-full);
+            background: var(--neutral-100);
+            border: 1px solid var(--neutral-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--neutral-600);
+        }
+        
+        .nav-button:hover {
+            background: var(--primary-50);
+            border-color: var(--primary-200);
+            color: var(--primary-600);
+            transform: translateY(-1px);
+        }
+        
+        .nav-button.active {
+            background: var(--primary-500);
+            border-color: var(--primary-500);
+            color: white;
+        }
+        
+        .notification-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 20px;
+            height: 20px;
+            background: var(--error-500);
+            color: white;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+        }
+        
+        /* Modern Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 72px;
+            left: 0;
+            width: 280px;
+            height: calc(100vh - 72px);
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--neutral-200);
+            padding: 1.5rem;
+            overflow-y: auto;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 999;
+        }
+        
+        .sidebar.show {
+            transform: translateX(0);
+        }
+        
+        .sidebar-section {
+            margin-bottom: 2rem;
+        }
+        
+        .sidebar-section h4 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--neutral-500);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+        
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: var(--radius-lg);
+            margin-bottom: 0.25rem;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            color: var(--neutral-700);
+            font-weight: 500;
+        }
+        
+        .sidebar-item:hover {
+            background: var(--primary-50);
+            color: var(--primary-600);
+            transform: translateX(4px);
+        }
+        
+        .sidebar-item.active {
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+        
+        .sidebar-item i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: 0;
+            margin-top: 72px;
+            padding: 2rem;
+            min-height: calc(100vh - 72px);
+        }
+        
+        /* Hero Section */
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-600), var(--secondary-600));
+            border-radius: var(--radius-2xl);
+            padding: 3rem;
+            margin-bottom: 2rem;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-2xl);
+        }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="50" cy="50" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .hero-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, white, rgba(255,255,255,0.8));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+            font-weight: 400;
+        }
+        
+        .hero-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .hero-stat {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .hero-stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        
+        .hero-stat-label {
+            font-size: 0.875rem;
+            opacity: 0.8;
+        }
+        
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        /* Modern Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--neutral-200);
+            border-radius: var(--radius-xl);
+            padding: 1.5rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-500), var(--secondary-500));
+            transform: scaleX(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--primary-200);
+        }
+        
+        .card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .card-icon.blue { background: linear-gradient(135deg, var(--primary-500), var(--primary-600)); color: white; }
+        .card-icon.green { background: linear-gradient(135deg, var(--success-500), var(--success-600)); color: white; }
+        .card-icon.purple { background: linear-gradient(135deg, var(--secondary-500), var(--secondary-600)); color: white; }
+        .card-icon.orange { background: linear-gradient(135deg, var(--warning-500), var(--warning-600)); color: white; }
+        .card-icon.red { background: linear-gradient(135deg, var(--error-500), var(--error-600)); color: white; }
+        .card-icon.yellow { background: linear-gradient(135deg, var(--accent-500), var(--accent-600)); color: white; }
+        
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--neutral-900);
+        }
+        
+        .card-subtitle {
+            font-size: 0.875rem;
+            color: var(--neutral-500);
+            margin-top: 0.25rem;
+        }
+        
+        .card-stats {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .card-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .card-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--neutral-900);
+        }
+        
+        .card-stat-label {
+            font-size: 0.75rem;
+            color: var(--neutral-500);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .card-progress {
+            margin: 1rem 0;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: var(--neutral-200);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-500), var(--secondary-500));
+            border-radius: var(--radius-full);
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .card-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+        }
+        
+        /* Modern Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            font-size: 0.875rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-secondary {
+            background: var(--neutral-100);
+            color: var(--neutral-700);
+            border: 1px solid var(--neutral-200);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--neutral-200);
+            transform: translateY(-1px);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-500), var(--success-600));
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning-500), var(--warning-600));
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, var(--error-500), var(--error-600));
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        /* Popups */
+        .popup {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            width: 320px;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--neutral-200);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-2xl);
+            padding: 1.5rem;
+            display: none;
+            z-index: 1001;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .popup h3 {
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--neutral-900);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .notification-item {
+            padding: 1rem;
+            border-radius: var(--radius-lg);
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--neutral-200);
+        }
+        
+        .notification-item:hover {
+            background: var(--primary-50);
+            border-color: var(--primary-200);
+        }
+        
+        .notification-item.unread {
+            background: var(--primary-50);
+            border-color: var(--primary-200);
+            font-weight: 600;
+        }
+        
+        .notification-title {
+            font-weight: 600;
+            color: var(--neutral-900);
+            margin-bottom: 0.25rem;
+        }
+        
+        .notification-message {
+            font-size: 0.875rem;
+            color: var(--neutral-600);
+            margin-bottom: 0.5rem;
+        }
+        
+        .notification-time {
+            font-size: 0.75rem;
+            color: var(--neutral-500);
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-content {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: var(--radius-2xl);
+            width: 90%;
+            max-width: 500px;
+            box-shadow: var(--shadow-2xl);
+            border: 1px solid var(--neutral-200);
+            position: relative;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-full);
+            background: var(--neutral-100);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .modal-close:hover {
+            background: var(--error-100);
+            color: var(--error-600);
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 0 1rem;
+            }
+            
+            .navbar-center {
+                display: none;
+            }
+            
+            .sidebar {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .main-content {
+                padding: 1rem;
+            }
+            
+            .hero-section {
+                padding: 2rem 1.5rem;
+            }
+            
+            .hero-title {
+                font-size: 2rem;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .card {
+                padding: 1.25rem;
+            }
+            
+            .popup {
+                width: calc(100vw - 2rem);
+                right: 1rem;
+                left: 1rem;
+            }
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .slide-in {
+            animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--neutral-200);
+            border-top: 4px solid var(--primary-500);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Utility Classes */
+        .text-gradient {
+            background: linear-gradient(135deg, var(--primary-500), var(--secondary-500));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-4 { gap: 1rem; }
+        .text-center { text-align: center; }
+        .w-full { width: 100%; }
+        .h-full { height: 100%; }
+    </style>
 </head>
 <body>
-
-<!-- Sidebar overlay (mobile backdrop) -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-<!-- Navbar -->
-<nav class="navbar">
-    <!-- Mobile Three-Dot Menu -->
-    <div class="nav-icon" id="mobileMenuToggle" style="cursor: pointer;">
-        <i class="fas fa-ellipsis-v"></i>
-    </div>
-
-    <!-- Welcome Message (center) -->
-    <div class="welcome-msg">
-        <strong>👋 Welcome back!</strong>
-    </div>
-
-    <!-- Navigation Icons Container -->
-    <div class="nav-icons-container">
-        <!-- Notifications -->
-        <div class="nav-icon" id="notifications-icon" style="position:relative; cursor:pointer;">
-            <i class="fas fa-bell"></i>
-            <span id="notificationCount"
-                  style="position:absolute; top:-5px; right:-5px; width:20px; height:20px; background:#ff6b6b; border-radius:50%; display:<?= $unread_count > 0 ? 'flex' : 'none' ?>; align-items:center; justify-content:center; color:white; font-size:12px; font-weight:bold; border: 2px solid white;">
-                <?= $unread_count > 99 ? '99+' : $unread_count ?>
-            </span>
+    <!-- Modern Navigation -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <div class="logo">U</div>
+            <span>UNILIS</span>
         </div>
-        <div class="nav-icon" id="profile-icon" style="cursor: pointer;">
-            <i class="fas fa-user"></i>
+        
+        <div class="navbar-center">
+            <span class="material-symbols-outlined" style="font-size: 1.25rem; color: var(--primary-600);">school</span>
+            <span style="font-weight: 600; color: var(--primary-700);"><?= htmlspecialchars($student['name']) ?></span>
         </div>
-    </div>
-</nav>
-
-<!-- Sidebar — id="sidebar" is REQUIRED for the JS toggle to work -->
-<aside class="sidebar" id="sidebar">
-    <!-- Main Navigation -->
-    <div class="sidebar-section">
-        <h4>Main Navigation</h4>
-        <ul>
-            <li class="blue">
-                <a href="dashboard.php">
-                    <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
-                </a>
-            </li>
-            <li class="green">
-                <a href="course_view.php">
-                    <i class="fas fa-chalkboard-teacher"></i><span>Training</span>
-                </a>
-            </li>
-            <li class="orange">
-                <a href="take_assessment.php">
-                    <i class="fas fa-file-alt"></i><span>Exams</span>
-                </a>
-            </li>
-            <li class="golden">
-                <a href="lesson_view.php">
-                    <i class="fas fa-book"></i><span>Lessons</span>
-                </a>
-            </li>
-            <!-- Attendance: no <a> tag — JS click handler opens the modal -->
-            <li class="purple">
-                <i class="fas fa-check-double"></i><span>Attendance</span>
-            </li>
-            <li class="orange">
-                <a href="file_requests.php">
-                    <i class="fas fa-file-contract"></i><span>📁 File Requests</span>
-                </a>
-            </li>
-            <li class="brown">
-                <a href="my_progress.php">
-                    <i class="fas fa-chart-line"></i><span>My Progress</span>
-                </a>
-            </li>
-            <li class="teal">
-                <a href="../teams/views/create_team.php">
-                    <i class="fas fa-users"></i><span>Create Team</span>
-                </a>
-            </li>
-            <li style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;margin-top:4px">
-                <a href="my_units.php" style="color:#fff !important">
-                    <i class="fas fa-book-open"></i><span>My Units</span>
-                </a>
-            </li>
-        </ul>
-    </div>
-
-    <!-- Account Section -->
-    <div class="sidebar-section">
-        <h4>Account</h4>
-        <ul>
-            <li class="blue"><i class="fas fa-user-circle"></i><span>Profile</span></li>
-            <li class="green"><i class="fas fa-cog"></i><span>Settings</span></li>
-            <li class="orange" onclick="logout()">
-                <i class="fas fa-sign-out-alt"></i>
+        
+        <div class="navbar-actions">
+            <button class="nav-button" id="mobileMenuToggle">
+                <span class="material-symbols-outlined">menu</span>
+            </button>
+            
+            <button class="nav-button" id="notifications-icon">
+                <span class="material-symbols-outlined">notifications</span>
+                <?php if ($unread_count > 0): ?>
+                    <span class="notification-badge"><?= $unread_count > 99 ? '99+' : $unread_count ?></span>
+                <?php endif; ?>
+            </button>
+            
+            <button class="nav-button" id="profile-icon">
+                <span class="material-symbols-outlined">account_circle</span>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Modern Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-section">
+            <h4>Main Navigation</h4>
+            <a href="dashboard.php" class="sidebar-item active">
+                <span class="material-symbols-outlined">dashboard</span>
+                <span>Dashboard</span>
+            </a>
+            <a href="course_view.php" class="sidebar-item">
+                <span class="material-symbols-outlined">school</span>
+                <span>Training</span>
+            </a>
+            <a href="take_assessment.php" class="sidebar-item">
+                <span class="material-symbols-outlined">assignment</span>
+                <span>Exams</span>
+            </a>
+            <a href="lesson_view.php" class="sidebar-item">
+                <span class="material-symbols-outlined">menu_book</span>
+                <span>Lessons</span>
+            </a>
+            <div class="sidebar-item" onclick="showModal('studentAttendanceModal')">
+                <span class="material-symbols-outlined">check_circle</span>
+                <span>Attendance</span>
+            </div>
+            <a href="file_requests.php" class="sidebar-item">
+                <span class="material-symbols-outlined">folder</span>
+                <span>File Requests</span>
+            </a>
+            <a href="my_progress.php" class="sidebar-item">
+                <span class="material-symbols-outlined">trending_up</span>
+                <span>My Progress</span>
+            </a>
+            <a href="../teams/views/create_team.php" class="sidebar-item">
+                <span class="material-symbols-outlined">groups</span>
+                <span>Create Team</span>
+            </a>
+            <a href="my_units.php" class="sidebar-item">
+                <span class="material-symbols-outlined">book</span>
+                <span>My Units</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <h4>Account</h4>
+            <a href="#" class="sidebar-item">
+                <span class="material-symbols-outlined">person</span>
+                <span>Profile</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <span class="material-symbols-outlined">settings</span>
+                <span>Settings</span>
+            </a>
+            <div class="sidebar-item" onclick="logout()">
+                <span class="material-symbols-outlined">logout</span>
                 <span>Logout</span>
-            </li>
-        </ul>
-    </div>
-</aside>
-
-<!-- Profile popup -->
-<div class="popup" id="profile-popup">
-    <h3><?php echo htmlspecialchars($student['name']); ?></h3>
-    <p><strong>Email:</strong> <?php echo htmlspecialchars($student['email']); ?></p>
-    <p><strong>Reg No:</strong> <?php echo htmlspecialchars($student['reg_no']); ?></p>
-    <p><strong>Course:</strong> <?php echo htmlspecialchars($course_name); ?></p>
-    <p><strong>Year:</strong> <?php echo htmlspecialchars($student['year_of_study']); ?></p>
-    <p><strong>Joined:</strong> <?php echo htmlspecialchars($student['year_joined']); ?></p>
-    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; text-align: center;">
-        <a href="my_progress.php" style="background: #667eea; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin-right: 10px; text-decoration: none; display: inline-block;">
-            <i class="fas fa-chart-line"></i> My Progress
-        </a>
-        <a href="../logout.php" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block;">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </a>
-    </div>
-</div>
-
-<!-- Latest notifications popup -->
-<div id="notifications-content" class="popup">
-    <h3><i class="fas fa-bell"></i> Notifications</h3>
-    <div id="notif-list">
-        <?php if(empty($latest_notifications)): ?>
-            <div style="padding: 20px; text-align: center; color: #999;">
-                <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 10px; display: block;"></i>
-                No notifications yet
-            </div>
-        <?php else: ?>
-            <ul style="list-style: none; max-height: 400px; overflow-y: auto;">
-                <?php foreach($latest_notifications as $notif): ?>
-                    <li style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; <?php echo !$notif['is_read'] ? 'font-weight: bold; background: #f9f9f9;' : ''; ?>" id="quick-notif-<?= $notif['id'] ?>" onclick="quickMarkRead(<?= $notif['id'] ?>)">
-                        <div style="display: flex; justify-content: space-between; align-items: start; gap: 10px;">
-                            <div style="flex: 1;">
-                                <strong><?= htmlspecialchars($notif['title']) ?></strong>
-                                <br>
-                                <small style="color: #666;"><?= htmlspecialchars(substr($notif['message'], 0, 60)) ?>...</small>
-                                <br>
-                                <small style="color: #999; font-size: 11px;">
-                                    <?php
-                                        $time = strtotime($notif['created_at']);
-                                        $now  = time();
-                                        $diff = $now - $time;
-                                        if ($diff < 60)        echo "Just now";
-                                        elseif ($diff < 3600)  echo floor($diff / 60) . "m ago";
-                                        elseif ($diff < 86400) echo floor($diff / 3600) . "h ago";
-                                        else                   echo date('M d', $time);
-                                    ?>
-                                </small>
-                            </div>
-                            <?php if (!$notif['is_read']): ?>
-                                <span style="width: 8px; height: 8px; background: #ff6b6b; border-radius: 50%; flex-shrink: 0; margin-top: 4px;"></span>
-                            <?php endif; ?>
-                        </div>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        <?php endif; ?>
-    </div>
-    <div style="padding: 12px; border-top: 1px solid #eee; text-align: center; display: flex; gap: 8px; justify-content: center;">
-        <a href="notifications.php" style="flex: 1; padding: 10px 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px;">
-            <i class="fas fa-arrow-right"></i>
-            More
-        </a>
-    </div>
-</div>
-
-<!-- Hero Div below navbar -->
-<div class="hero-section">
-    <div class="hero-content">
-        <p>👋 Welcome back! We are glad to have you on our system. Discover the latest tools and updates designed to make your learning journey smoother.</p>
-        <h2>Explore New Features</h2>
-        <button class="explore-btn">Explore</button>
-    </div>
-    <img src="images/lady.jpg" alt="Medical Lady Avatar" class="hero-avatar">
-</div>
-
-<div class="features-section">
-
-  <!-- 1. Notes -->
-  <div class="feature-card notes-card">
-    <div class="feature-header">
-      <i class="fas fa-book feature-avatar"></i>
-      <h2>Notes</h2>
-    </div>
-    <p class="semester-label">Semester 1</p>
-    <div class="stats">
-      <span><i class="fas fa-layer-group"></i> 8 Units</span>
-      <span><i class="fas fa-file"></i> 6 Files</span>
-      <span class="warning"><i class="fas fa-clock"></i> 2 Pending</span>
-    </div>
-    <div class="progress-bar">
-      <div class="progress-fill" style="width:75%"></div>
-    </div>
-    <p class="status">Updated 2 days ago</p>
-    <p class="motivation">Keep going! You're doing great 📚</p>
-    <div class="feature-buttons">
-      <a href="viewnotes.php">
-        <button class="interactive-btn">Visit notes page</button>
-      </a>
-    </div>
-  </div>
-
-  <!-- 2. Assignments -->
-  <div class="feature-card assignments-card">
-    <div class="feature-header">
-      <i class="fas fa-file-signature feature-avatar"></i>
-      <h2>Assignments</h2>
-    </div>
-    <p class="semester-label">Semester 1</p>
-    <div class="stats">
-      <span>7 Given</span>
-      <span class="success">4 Submitted</span>
-      <span class="danger">3 Pending</span>
-    </div>
-    <div class="progress-bar">
-      <div class="progress-fill" style="width:60%"></div>
-    </div>
-    <p class="status">Deadline approaching ⚠️</p>
-    <p class="motivation">Almost there — stay focused!</p>
-    <div class="feature-buttons">
-      <a href="take_assignment.php">
-        <button class="interactive-btn">View Assignments</button>
-      </a>
-    </div>
-  </div>
-
-  <!-- 3. Meetings -->
-  <div class="feature-card meetings-card">
-    <div class="feature-header">
-      <i class="fas fa-video feature-avatar"></i>
-      <h2>Meetings</h2>
-    </div>
-    <p class="semester-label">Next Meeting</p>
-    <div class="stats">
-      <span><i class="far fa-calendar-check"></i> Today</span>
-      <span><i class="far fa-clock"></i> 4:00 PM</span>
-    </div>
-    <p class="motivation">Stay connected with your class 💻</p>
-    <div class="feature-buttons">
-      <a href="meeting_ide.php">
-        <button class="interactive-btn">Join Meeting</button>
-      </a>
-    </div>
-  </div>
-
-  <!-- 4. Online CATs -->
-  <div class="feature-card cats-card">
-    <div class="feature-header">
-      <i class="fas fa-clipboard-check feature-avatar"></i>
-      <h2>Online CATs</h2>
-    </div>
-    <div class="stats">
-      <span>5 Available</span>
-      <span>2 Attempted</span>
-    </div>
-    <div class="progress-bar">
-      <div class="progress-fill" style="width:40%"></div>
-    </div>
-    <p class="motivation">Stay sharp! Exams ready 🧠</p>
-    <div class="feature-buttons">
-      <a href="take_assessment.php">
-        <button class="interactive-btn">Take CAT</button>
-      </a>
-    </div>
-  </div>
-
-  <!-- 5. Academic Info -->
-  <div class="feature-card academic-card">
-    <div class="feature-header">
-      <i class="fas fa-graduation-cap feature-avatar"></i>
-      <h2>Academic Info</h2>
-    </div>
-    <div class="stats">
-      <span>Results Released</span>
-      <span class="success">GPA Updated</span>
-    </div>
-    <p class="motivation">Track your academic journey 🎓</p>
-    <div class="feature-buttons">
-      <a href="my_progress.php">
-        <button class="interactive-btn">View Details</button>
-      </a>
-    </div>
-  </div>
-
-  <!-- 6. Other Features -->
-  <div class="feature-card other-card">
-    <div class="feature-header">
-      <i class="fas fa-puzzle-piece feature-avatar"></i>
-      <h2>Other Features</h2>
-    </div>
-    <p class="motivation">Explore additional tools & resources ⚙️</p>
-    <div class="feature-buttons">
-      <button class="interactive-btn">Explore</button>
-    </div>
-  </div>
-
-</div>
-
-<footer class="footer">
-  <div class="footer-container">
-
-    <!-- About Column -->
-    <div class="footer-column footer-about">
-      <h2>About Us</h2>
-      <p>
-        We deliver high-quality services and solutions tailored to help individuals and businesses thrive in the digital world.
-        Let's connect and build something great together.
-      </p>
-    </div>
-
-    <!-- Quick Links -->
-    <div class="footer-column footer-links">
-      <h3>Quick Links</h3>
-      <ul>
-        <li><a href="#">Home</a></li>
-        <li><a href="#">Services</a></li>
-        <li><a href="#">About</a></li>
-        <li><a href="#">Blog</a></li>
-        <li><a href="#">Contact</a></li>
-      </ul>
-    </div>
-
-    <!-- Contact / Social -->
-    <div class="footer-column footer-contact">
-      <h3>Get in Touch</h3>
-      <p><i class="fab fa-whatsapp"></i> <strong>WhatsApp:</strong> <a href="https://wa.me/254792451666">+254 792 451 666</a></p>
-      <p><i class="fas fa-envelope"></i> <strong>Email:</strong> <a href="mailto:mwendihillary@gmail.com">mwendihillary@gmail.com</a></p>
-      <div class="social-links">
-        <a href="https://wa.me/254792451666"        class="social whatsapp"  target="_blank" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>
-        <a href="https://facebook.com/yourpage"     class="social facebook"  target="_blank" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
-        <a href="https://instagram.com/yourhandle"  class="social instagram" target="_blank" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
-        <a href="https://x.com/yourhandle"          class="social twitter"   target="_blank" aria-label="X / Twitter"><i class="fab fa-twitter"></i></a>
-      </div>
-    </div>
-
-    <!-- Newsletter -->
-    <div class="footer-column footer-newsletter">
-      <h3>Stay Updated</h3>
-      <p>Subscribe to our newsletter for tips, updates &amp; exclusive offers.</p>
-      <form class="newsletter-form">
-        <input type="email" placeholder="Your email address" required>
-        <button type="submit"><i class="fas fa-paper-plane"></i> Subscribe</button>
-      </form>
-    </div>
-
-  </div>
-
-  <!-- Enhanced Student Attendance Modal -->
-  <div id="studentAttendanceModal" class="modal hidden">
-      <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl max-w-md mx-auto"
-           style="max-height: 90vh; overflow-y: auto;">
-
-          <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10"
-                onclick="hideModal('studentAttendanceModal')">×</span>
-
-          <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">
-              <i class="fas fa-qrcode"></i> Mark Your Attendance
-          </h3>
-
-          <div id="attendanceContent" class="px-8 pb-10">
-              <!-- Loading state -->
-              <div id="attendanceLoading" class="text-center py-10 hidden">
-                  <div class="spinner"></div>
-                  <p class="mt-4 text-gray-600">Loading your attendance information...</p>
-              </div>
-
-              <!-- Attendance form -->
-              <div id="attendanceForm" class="hidden">
-                  <div class="mb-6">
-                      <label class="block text-sm font-medium stat-text-primary mb-3">
-                          <i class="fas fa-clock"></i> Active Sessions
-                      </label>
-                      <div id="activeSessionsList" class="space-y-3">
-                          <!-- Sessions will be loaded here -->
-                      </div>
-                  </div>
-
-                  <div class="mb-6">
-                      <label class="block text-sm font-medium stat-text-primary mb-3">
-                          <i class="fas fa-keyboard"></i> Enter Your Personal Code
-                      </label>
-                      <input type="text" id="attendanceCodeInput" maxlength="6" placeholder="Enter 6-digit code"
-                             class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-xl text-center
-                                    tracking-widest focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition uppercase font-mono">
-                      <div class="text-center mt-3">
-                          <span id="codeTimer" class="text-sm text-gray-600"></span>
-                      </div>
-                  </div>
-
-                  <div class="text-center space-y-3">
-                      <button type="button" onclick="submitAttendanceCode()"
-                              class="btn-golden px-12 py-4 text-lg font-semibold rounded-xl shadow-lg">
-                          <i class="fas fa-check-circle"></i> Submit Attendance
-                      </button>
-                      <button type="button" onclick="requestNewCode()"
-                              class="btn-secondary px-8 py-3 text-lg rounded-xl">
-                          <i class="fas fa-redo"></i> Request New Code
-                      </button>
-                  </div>
-              </div>
-
-              <!-- Success state -->
-              <div id="attendanceSuccess" class="text-center py-10 hidden">
-                  <div class="success-icon mb-6">
-                      <i class="fas fa-check-circle text-6xl text-green-500"></i>
-                  </div>
-                  <h3 class="text-2xl font-bold text-green-600 mb-4">Attendance Marked!</h3>
-                  <p class="text-gray-600 mb-6">Your attendance has been successfully recorded.</p>
-                  <button onclick="hideModal('studentAttendanceModal')"
-                          class="btn-primary px-8 py-3 rounded-xl">
-                      <i class="fas fa-times"></i> Close
-                  </button>
-              </div>
-
-              <!-- Error state -->
-              <div id="attendanceError" class="text-center py-10 hidden">
-                  <div class="error-icon mb-6">
-                      <i class="fas fa-exclamation-triangle text-6xl text-red-500"></i>
-                  </div>
-                  <h3 class="text-2xl font-bold text-red-600 mb-4">Error</h3>
-                  <p id="errorMessage" class="text-gray-600 mb-6"></p>
-                  <div class="space-x-3">
-                      <button onclick="resetAttendanceForm()"
-                              class="btn-secondary px-8 py-3 rounded-xl">
-                          <i class="fas fa-arrow-left"></i> Try Again
-                      </button>
-                      <button onclick="requestNewCode()"
-                              class="btn-primary px-8 py-3 rounded-xl">
-                          <i class="fas fa-redo"></i> Request New Code
-                      </button>
-                  </div>
-              </div>
-          </div>
-      </div>
-  </div>
-
-  <!-- Bottom Bar -->
-  <div class="footer-bottom">
-    <p>&copy; 2026 UNILIS. All rights reserved.</p>
-    <div class="legal-links">
-      <a href="#">Privacy Policy</a>
-      <a href="#">Terms of Service</a>
-      <a href="#">Cookie Policy</a>
-    </div>
-  </div>
-</footer>
-
-
-<script>
-// =============================================
-//  UTILITY
-// =============================================
-function logout() {
-    window.location.href = "../logout.php";
-}
-
-// =============================================
-//  MODAL HELPERS
-// =============================================
-window.showModal = function(id) {
-    const modal = document.getElementById(id);
-    if (modal) {
-        modal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-    // Load sessions when attendance modal opens
-    if (id === 'studentAttendanceModal') {
-        loadActiveAttendanceSessions();
-    }
-};
-
-window.hideModal = function(id) {
-    const modal = document.getElementById(id);
-    if (modal) {
-        modal.classList.add('hidden');
-        document.body.style.overflow = '';
-    }
-};
-
-// =============================================
-//  SIDEBAR TOGGLE (mobile three-dot menu)
-// =============================================
-document.addEventListener('DOMContentLoaded', () => {
-    const sidebar        = document.getElementById('sidebar');
-    const overlay        = document.getElementById('sidebarOverlay');
-    const mobileToggle   = document.getElementById('mobileMenuToggle');
-    const profileIcon    = document.getElementById('profile-icon');
-    const profilePopup   = document.getElementById('profile-popup');
-    const notifIcon      = document.getElementById('notifications-icon');
-    const notifContent   = document.getElementById('notifications-content');
-
-    // ----- Open / close sidebar -----
-    function openSidebar() {
-        sidebar.classList.add('show');
-        overlay.classList.add('show');
-    }
-
-    function closeSidebar() {
-        sidebar.classList.remove('show');
-        overlay.classList.remove('show');
-    }
-
-    // Three-dot button
-    mobileToggle?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        sidebar.classList.contains('show') ? closeSidebar() : openSidebar();
-    });
-
-    // Clicking the overlay closes the sidebar
-    overlay?.addEventListener('click', closeSidebar);
-
-    // ESC key closes sidebar
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeSidebar();
-            // Also close any open modal
-            const openModal = document.querySelector('.modal:not(.hidden)');
-            if (openModal) hideModal(openModal.id);
-        }
-    });
-
-    // ----- Profile popup -----
-    profileIcon?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const visible = profilePopup.style.display === 'block';
-        profilePopup.style.display = visible ? 'none' : 'block';
-        notifContent.style.display = 'none'; // close the other popup
-
-        if (!visible) {
-            const rect = profileIcon.getBoundingClientRect();
-            profilePopup.style.top   = (rect.bottom + 10) + 'px';
-            profilePopup.style.right = '20px';
-        }
-    });
-
-    // ----- Notifications popup -----
-    notifIcon?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const visible = notifContent.style.display === 'block';
-        notifContent.style.display = visible ? 'none' : 'block';
-        profilePopup.style.display = 'none'; // close the other popup
-
-        if (!visible) {
-            const rect = notifIcon.getBoundingClientRect();
-            notifContent.style.top   = (rect.bottom + 10) + 'px';
-            notifContent.style.right = '20px';
-        }
-    });
-
-    // ----- Global click: close popups / modals when clicking outside -----
-    document.addEventListener('click', (e) => {
-        // Close profile popup
-        if (profilePopup && !profilePopup.contains(e.target) && !profileIcon?.contains(e.target)) {
-            profilePopup.style.display = 'none';
-        }
-        // Close notifications popup
-        if (notifContent && !notifContent.contains(e.target) && !notifIcon?.contains(e.target)) {
-            notifContent.style.display = 'none';
-        }
-        // Close modal on backdrop click or × button
-        if (e.target.classList.contains('modal') || e.target.classList.contains('close')) {
-            const modal = e.target.closest('.modal');
-            if (modal) hideModal(modal.id);
-        }
-    });
-
-    // ----- Sidebar item click handlers -----
-    document.querySelectorAll('.sidebar-section li').forEach(item => {
-        item.addEventListener('click', (e) => {
-            // If clicking a real link, let it navigate
-            if (e.target.closest('a')) return;
-
-            const text = item.querySelector('span')?.textContent.trim();
-            if (text === 'Attendance') {
-                closeSidebar(); // close sidebar first on mobile
-                showModal('studentAttendanceModal');
-                document.querySelectorAll('.sidebar-section li').forEach(li => li.classList.remove('active'));
-                item.classList.add('active');
-            }
-        });
-    });
-});
-
-
-// =============================================
-//  ATTENDANCE SYSTEM
-// =============================================
-window.attendanceData = { sessions: [], currentSession: null };
-
-function loadActiveAttendanceSessions() {
-    fetch('includes/get_attendance_sessions.php')
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                attendanceData.sessions = data.sessions;
-                updateSessionsList();
-                hideAllAttendanceStates();
-                document.getElementById('attendanceForm').classList.remove('hidden');
-            }
-        })
-        .catch(err => console.error('Error loading attendance sessions:', err));
-}
-
-function updateSessionsList() {
-    const list = document.getElementById('activeSessionsList');
-    if (!list) return;
-
-    if (!attendanceData.sessions.length) {
-        list.innerHTML = '<p class="text-gray-500 text-center py-4">No active attendance sessions</p>';
-        return;
-    }
-
-    list.innerHTML = attendanceData.sessions.map(s => `
-        <div class="border border-gray-200 rounded-lg p-4 mb-3">
-            <div class="flex justify-between items-start mb-2">
-                <div>
-                    <h4 class="font-semibold text-lg">${s.unit_name}</h4>
-                    <p class="text-sm text-gray-600">Session: ${s.main_code}</p>
-                </div>
-                <div class="text-right">
-                    <span class="text-xs text-gray-500">Expires: ${new Date(s.deadline).toLocaleString()}</span>
-                </div>
-            </div>
-            <div class="flex items-center space-x-2">
-                <button onclick="selectSession(${s.session_id})"
-                        class="btn-primary px-4 py-2 text-sm rounded">
-                    Use This Session
-                </button>
-                ${s.attended
-                    ? '<span class="text-green-600 text-sm"><i class="fas fa-check-circle"></i> Attended</span>'
-                    : '<span class="text-orange-600 text-sm"><i class="fas fa-clock"></i> Pending</span>'
-                }
             </div>
         </div>
-    `).join('');
-}
-
-function selectSession(sessionId) {
-    const session = attendanceData.sessions.find(s => s.session_id === sessionId);
-    if (!session) return;
-    attendanceData.currentSession = session;
-    document.getElementById('attendanceCodeInput').value = '';
-    document.getElementById('attendanceCodeInput').focus();
-    updateCodeTimer(session.expires_at);
-}
-
-function updateCodeTimer(expiresAt) {
-    const el = document.getElementById('codeTimer');
-    if (!el) return;
-    let interval = setInterval(() => {
-        const diff = new Date(expiresAt) - new Date();
-        if (diff <= 0) {
-            el.innerHTML = '<span style="color:#dc2626"><i class="fas fa-exclamation-triangle"></i> EXPIRED</span>';
-            clearInterval(interval);
-        } else {
-            const m = Math.floor(diff / 60000);
-            const s = Math.floor((diff % 60000) / 1000);
-            el.innerHTML = `<i class="fas fa-clock"></i> ${m}:${String(s).padStart(2,'0')} remaining`;
-        }
-    }, 1000);
-}
-
-function submitAttendanceCode() {
-    const code = document.getElementById('attendanceCodeInput').value.trim();
-    if (!code)                        { showAttendanceError('Please enter your attendance code'); return; }
-    if (!attendanceData.currentSession) { showAttendanceError('Please select an attendance session first'); return; }
-
-    showAttendanceLoading();
-
-    const fd = new FormData();
-    fd.append('action',     'submit_attendance');
-    fd.append('session_id', attendanceData.currentSession.session_id);
-    fd.append('code',       code);
-
-    fetch('attendance_submit.php', { method: 'POST', body: fd })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                showAttendanceSuccess();
-                const idx = attendanceData.sessions.findIndex(s => s.session_id === attendanceData.currentSession.session_id);
-                if (idx !== -1) attendanceData.sessions[idx].attended = true;
-            } else {
-                showAttendanceError(data.message || 'Invalid code');
-            }
-        })
-        .catch(() => showAttendanceError('Network error. Please try again.'));
-}
-
-function requestNewCode() {
-    if (!attendanceData.currentSession) { showAttendanceError('Please select a session first'); return; }
-    showAttendanceLoading();
-
-    const fd = new FormData();
-    fd.append('action',     'request_new_code');
-    fd.append('session_id', attendanceData.currentSession.session_id);
-
-    fetch('attendance_submit.php', { method: 'POST', body: fd })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                resetAttendanceForm();
-                if (data.expires_at) updateCodeTimer(data.expires_at);
-            } else {
-                showAttendanceError(data.message || 'Failed to request new code');
-            }
-        })
-        .catch(() => showAttendanceError('Network error. Please try again.'));
-}
-
-function showAttendanceLoading()      { hideAllAttendanceStates(); document.getElementById('attendanceLoading').classList.remove('hidden'); }
-function showAttendanceSuccess()      { hideAllAttendanceStates(); document.getElementById('attendanceSuccess').classList.remove('hidden'); }
-function showAttendanceError(msg)     { hideAllAttendanceStates(); document.getElementById('attendanceError').classList.remove('hidden'); document.getElementById('errorMessage').textContent = msg; }
-function resetAttendanceForm()        { hideAllAttendanceStates(); document.getElementById('attendanceForm').classList.remove('hidden'); document.getElementById('attendanceCodeInput').value = ''; document.getElementById('codeTimer').innerHTML = ''; }
-
-function hideAllAttendanceStates() {
-    ['attendanceLoading','attendanceForm','attendanceSuccess','attendanceError'].forEach(id => {
-        document.getElementById(id)?.classList.add('hidden');
-    });
-}
-
-// =============================================
-//  NOTIFICATIONS — mark as read
-// =============================================
-function quickMarkRead(notificationId) {
-    const fd = new FormData();
-    fd.append('action',          'mark_notification_read');
-    fd.append('notification_id', notificationId);
-
-    fetch('dashboard.php', { method: 'POST', body: fd })
-        .then(r => r.json())
-        .then(data => {
-            if (!data.success) return;
-            const item = document.getElementById('quick-notif-' + notificationId);
-            if (item) {
-                item.style.fontWeight = 'normal';
-                item.style.background = 'white';
-                item.querySelector('[style*="background: #ff6b6b"]')?.remove();
-            }
-            const badge = document.getElementById('notificationCount');
-            if (badge) {
-                const count = parseInt(badge.textContent) || 0;
-                if (count > 1) { badge.textContent = count - 1; }
-                else           { badge.style.display = 'none'; }
-            }
-        })
-        .catch(err => console.error('Error:', err));
-}
-
-// =============================================
-//  TEAM INVITATIONS
-// =============================================
-async function loadTeamInvitations() {
-    const statusEl = document.getElementById('teamInviteStatus');
-    const listEl   = document.getElementById('teamInviteList');
-    if (!statusEl || !listEl) return;
-
-    statusEl.textContent = 'Loading invitations...';
-    listEl.innerHTML = '';
-
-    try {
-        const res  = await fetch('../teams/api/get_invitations.php', { credentials: 'same-origin' });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data?.success) throw new Error(data?.error || ('HTTP ' + res.status));
-
-        const invites = data.invitations || [];
-        if (!invites.length) { statusEl.textContent = 'No pending team invitations.'; return; }
-
-        statusEl.textContent = '';
-        fetch('../teams/api/cleanup_expired_invitations.php', { credentials: 'same-origin' }).catch(() => {});
-
-        invites.forEach(inv => {
-            const row = document.createElement('div');
-            row.style.cssText = 'border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;margin-bottom:.5rem';
-            row.innerHTML = `
-                <div style="font-weight:600;">${inv.team_title || ('Team #' + inv.team_id)}</div>
-                <div style="font-size:12px;color:#666;">Invited by: ${inv.inviter_name || ('User #' + inv.invited_by)}</div>
-                <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.5rem;">
-                    <input type="text" id="inviteCode_${inv.id}" placeholder="Enter confirmation code"
-                           style="padding:.45rem;border:1px solid #d1d5db;border-radius:6px;">
-                    <button type="button" onclick="acceptTeamInvitation(${inv.id})"
-                            style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:.45rem .7rem;cursor:pointer;">
-                        Accept
+    </aside>
+    
+    <!-- Profile Popup -->
+    <div class="popup" id="profile-popup">
+        <h3>
+            <span class="material-symbols-outlined">person</span>
+            Profile
+        </h3>
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-500), var(--secondary-500)); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: 700;">
+                <?= strtoupper(substr(htmlspecialchars($student['name']), 0, 2)) ?>
+            </div>
+            <div>
+                <div style="font-weight: 700; color: var(--neutral-900);"><?= htmlspecialchars($student['name']) ?></div>
+                <div style="font-size: 0.875rem; color: var(--neutral-500);"><?= htmlspecialchars($student['reg_no']) ?></div>
+            </div>
+        </div>
+        <div style="space-y: 0.5rem;">
+            <p style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.25rem; color: var(--neutral-400);">email</span>
+                <span><?= htmlspecialchars($student['email']) ?></span>
+            </p>
+            <p style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.25rem; color: var(--neutral-400);">school</span>
+                <span><?= htmlspecialchars($course_name) ?></span>
+            </p>
+            <p style="display: flex; align-items: center; gap: 0.5rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.25rem; color: var(--neutral-400);">calendar_today</span>
+                <span>Year <?= htmlspecialchars($student['year_of_study']) ?> • Joined <?= htmlspecialchars($student['year_joined']) ?></span>
+            </p>
+        </div>
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--neutral-200); display: flex; gap: 0.75rem;">
+            <a href="my_progress.php" class="btn btn-primary flex-1">
+                <span class="material-symbols-outlined">trending_up</span>
+                Progress
+            </a>
+            <a href="../logout.php" class="btn btn-danger flex-1">
+                <span class="material-symbols-outlined">logout</span>
+                Logout
+            </a>
+        </div>
+    </div>
+    
+    <!-- Notifications Popup -->
+    <div class="popup" id="notifications-content">
+        <h3>
+            <span class="material-symbols-outlined">notifications</span>
+            Notifications
+        </h3>
+        <div id="notif-list">
+            <?php if(empty($latest_notifications)): ?>
+                <div style="text-align: center; padding: 2rem; color: var(--neutral-500);">
+                    <span class="material-symbols-outlined" style="font-size: 3rem; display: block; margin-bottom: 1rem;">notifications_off</span>
+                    No notifications yet
+                </div>
+            <?php else: ?>
+                <?php foreach($latest_notifications as $notif): ?>
+                    <div class="notification-item <?= !$notif['is_read'] ? 'unread' : '' ?>" id="quick-notif-<?= $notif['id'] ?>" onclick="quickMarkRead(<?= $notif['id'] ?>)">
+                        <div class="notification-title"><?= htmlspecialchars($notif['title']) ?></div>
+                        <div class="notification-message"><?= htmlspecialchars(substr($notif['message'], 0, 80)) ?>...</div>
+                        <div class="notification-time">
+                            <?php
+                                $time = strtotime($notif['created_at']);
+                                $now  = time();
+                                $diff = $now - $time;
+                                if ($diff < 60)        echo "Just now";
+                                elseif ($diff < 3600)  echo floor($diff / 60) . "m ago";
+                                elseif ($diff < 86400) echo floor($diff / 3600) . "h ago";
+                                else                   echo date('M d', $time);
+                            ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--neutral-200);">
+            <a href="notifications.php" class="btn btn-primary w-full">
+                <span class="material-symbols-outlined">arrow_forward</span>
+                View All Notifications
+            </a>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <section class="hero-section fade-in">
+            <div class="hero-content">
+                <h1 class="hero-title">Welcome back, <?= htmlspecialchars($student['name']) ?>! 👋</h1>
+                <p class="hero-subtitle">Ready to continue your learning journey? Let's make today productive!</p>
+                
+                <div class="hero-stats">
+                    <div class="hero-stat">
+                        <div class="hero-stat-value">8</div>
+                        <div class="hero-stat-label">Active Units</div>
+                    </div>
+                    <div class="hero-stat">
+                        <div class="hero-stat-value">75%</div>
+                        <div class="hero-stat-label">Progress</div>
+                    </div>
+                    <div class="hero-stat">
+                        <div class="hero-stat-value">4.2</div>
+                        <div class="hero-stat-label">GPA</div>
+                    </div>
+                    <div class="hero-stat">
+                        <div class="hero-stat-value">12</div>
+                        <div class="hero-stat-label">Achievements</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Notes Card -->
+            <div class="card fade-in">
+                <div class="card-header">
+                    <div class="card-icon blue">
+                        <span class="material-symbols-outlined">menu_book</span>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Notes</h3>
+                        <p class="card-subtitle">Semester <?= $semester ?></p>
+                    </div>
+                </div>
+                
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <div class="card-stat-value">8</div>
+                        <div class="card-stat-label">Units</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="card-stat-value">24</div>
+                        <div class="card-stat-label">Files</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="card-stat-value">2</div>
+                        <div class="card-stat-label">Pending</div>
+                    </div>
+                </div>
+                
+                <div class="card-progress">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.875rem; font-weight: 600;">Progress</span>
+                        <span style="font-size: 0.875rem; color: var(--neutral-500);">75%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 75%;"></div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--success-50); border-radius: var(--radius-lg); border-left: 4px solid var(--success-500);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--success-700); font-weight: 500;">
+                        <span class="material-symbols-outlined" style="font-size: 1.25rem;">trending_up</span>
+                        Great progress! Keep going! 📚
+                    </div>
+                </div>
+                
+                <div class="card-actions">
+                    <a href="viewnotes.php" class="btn btn-primary flex-1">
+                        <span class="material-symbols-outlined">visibility</span>
+                        View Notes
+                    </a>
+                    <button class="btn btn-secondary">
+                        <span class="material-symbols-outlined">download</span>
+                        Download
                     </button>
-                </div>`;
-            listEl.appendChild(row);
+                </div>
+            </div>
+            
+            <!-- Assignments Card -->
+            <div class="card fade-in">
+                <div class="card-header">
+                    <div class="card-icon green">
+                        <span class="material-symbols-outlined">assignment</span>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Assignments</h3>
+                        <p class="card-subtitle">Semester <?= $semester ?></p>
+                    </div>
+                </div>
+                
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <div class="card-stat-value">7</div>
+                        <div class="card-stat-label">Total</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="card-stat-value" style="color: var(--success-600);">4</div>
+                        <div class="card-stat-label">Submitted</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="card-stat-value" style="color: var(--warning-600);">3</div>
+                        <div class="card-stat-label">Pending</div>
+                    </div>
+                </div>
+                
+                <div class="card-progress">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.875rem; font-weight: 600;">Completion</span>
+                        <span style="font-size: 0.875rem; color: var(--neutral-500);">57%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 57%; background: linear-gradient(90deg, var(--success-500), var(--success-600));"></div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--warning-50); border-radius: var(--radius-lg); border-left: 4px solid var(--warning-500);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--warning-700); font-weight: 500;">
+                        <span class="material-symbols-outlined" style="font-size: 1.25rem;">schedule</span>
+                        2 assignments due this week
+                    </div>
+                </div>
+                
+                <div class="card-actions">
+                    <a href="take_assignment.php" class="btn btn-success flex-1">
+                        <span class="material-symbols-outlined">edit</span>
+                        View Assignments
+                    </a>
+                    <button class="btn btn-secondary">
+                        <span class="material-symbols-outlined">history</span>
+                        History
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Meetings Card -->
+            <div class="card fade-in">
+                <div class="card-header">
+                    <div class="card-icon purple">
+                        <span class="material-symbols-outlined">video_camera_front</span>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Meetings</h3>
+                        <p class="card-subtitle">Virtual Classes</p>
+                    </div>
+                </div>
+                
+                <div style="margin: 1.5rem 0;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--primary-50); border-radius: var(--radius-lg); border-left: 4px solid var(--primary-500);">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--primary-500); display: flex; align-items: center; justify-content: center; color: white;">
+                            <span class="material-symbols-outlined">event</span>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: var(--neutral-900);">Data Structures Class</div>
+                            <div style="font-size: 0.875rem; color: var(--neutral-500);">Today at 4:00 PM</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
+                    <div style="text-align: center; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-600);">3</div>
+                        <div style="font-size: 0.75rem; color: var(--neutral-500);">This Week</div>
+                    </div>
+                    <div style="text-align: center; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-600);">12</div>
+                        <div style="font-size: 0.75rem; color: var(--neutral-500);">Attended</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--secondary-50); border-radius: var(--radius-lg); border-left: 4px solid var(--secondary-500);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--secondary-700); font-weight: 500;">
+                        <span class="material-symbols-outlined" style="font-size: 1.25rem;">videocam</span>
+                        Stay connected with your class 💻
+                    </div>
+                </div>
+                
+                <div class="card-actions">
+                    <a href="meeting_ide.php" class="btn btn-primary flex-1">
+                        <span class="material-symbols-outlined">video_call</span>
+                        Join Meeting
+                    </a>
+                    <button class="btn btn-secondary">
+                        <span class="material-symbols-outlined">calendar_month</span>
+                        Schedule
+                    </button>
+                </div>
+            </div>
+            
+            <!-- CATs Card -->
+            <div class="card fade-in">
+                <div class="card-header">
+                    <div class="card-icon red">
+                        <span class="material-symbols-outlined">quiz</span>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Online CATs</h3>
+                        <p class="card-subtitle">Continuous Assessment</p>
+                    </div>
+                </div>
+                
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <div class="card-stat-value">5</div>
+                        <div class="card-stat-label">Available</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="card-stat-value">2</div>
+                        <div class="card-stat-label">Attempted</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="card-stat-value">80%</div>
+                        <div class="card-stat-label">Avg Score</div>
+                    </div>
+                </div>
+                
+                <div class="card-progress">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.875rem; font-weight: 600;">Progress</span>
+                        <span style="font-size: 0.875rem; color: var(--neutral-500);">40%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 40%; background: linear-gradient(90deg, var(--error-500), var(--error-600));"></div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--error-50); border-radius: var(--radius-lg); border-left: 4px solid var(--error-500);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--error-700); font-weight: 500;">
+                        <span class="material-symbols-outlined" style="font-size: 1.25rem;">psychology</span>
+                        Stay sharp! Exams ready 🧠
+                    </div>
+                </div>
+                
+                <div class="card-actions">
+                    <a href="take_assessment.php" class="btn btn-danger flex-1">
+                        <span class="material-symbols-outlined">play_arrow</span>
+                        Take CAT
+                    </a>
+                    <button class="btn btn-secondary">
+                        <span class="material-symbols-outlined">bar_chart</span>
+                        Results
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Academic Info Card -->
+            <div class="card fade-in">
+                <div class="card-header">
+                    <div class="card-icon yellow">
+                        <span class="material-symbols-outlined">school</span>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Academic Info</h3>
+                        <p class="card-subtitle">Performance & Progress</p>
+                    </div>
+                </div>
+                
+                <div style="margin: 1.5rem 0;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div style="text-align: center; padding: 1rem; background: var(--success-50); border-radius: var(--radius-lg);">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-600);">4.2</div>
+                            <div style="font-size: 0.75rem; color: var(--neutral-500);">Current GPA</div>
+                        </div>
+                        <div style="text-align: center; padding: 1rem; background: var(--primary-50); border-radius: var(--radius-lg);">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-600);">B+</div>
+                            <div style="font-size: 0.75rem; color: var(--neutral-500);">Grade</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin: 1rem 0;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <span class="material-symbols-outlined" style="color: var(--success-600);">check_circle</span>
+                        <span style="font-size: 0.875rem; color: var(--neutral-700);">Results Released</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="material-symbols-outlined" style="color: var(--primary-600);">trending_up</span>
+                        <span style="font-size: 0.875rem; color: var(--neutral-700);">GPA Updated</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--accent-50); border-radius: var(--radius-lg); border-left: 4px solid var(--accent-500);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--accent-700); font-weight: 500;">
+                        <span class="material-symbols-outlined" style="font-size: 1.25rem;">emoji_events</span>
+                        Track your academic journey 🎓
+                    </div>
+                </div>
+                
+                <div class="card-actions">
+                    <a href="my_progress.php" class="btn btn-warning flex-1">
+                        <span class="material-symbols-outlined">insights</span>
+                        View Details
+                    </a>
+                    <button class="btn btn-secondary">
+                        <span class="material-symbols-outlined">download</span>
+                        Transcript
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Quick Actions Card -->
+            <div class="card fade-in">
+                <div class="card-header">
+                    <div class="card-icon blue">
+                        <span class="material-symbols-outlined">apps</span>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Quick Actions</h3>
+                        <p class="card-subtitle">Common Tasks</p>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 1.5rem 0;">
+                    <button class="btn btn-secondary" style="height: 60px; flex-direction: column; gap: 0.5rem;">
+                        <span class="material-symbols-outlined">upload_file</span>
+                        <span style="font-size: 0.75rem;">Upload</span>
+                    </button>
+                    <button class="btn btn-secondary" style="height: 60px; flex-direction: column; gap: 0.5rem;">
+                        <span class="material-symbols-outlined">chat</span>
+                        <span style="font-size: 0.75rem;">Forum</span>
+                    </button>
+                    <button class="btn btn-secondary" style="height: 60px; flex-direction: column; gap: 0.5rem;">
+                        <span class="material-symbols-outlined">calendar_today</span>
+                        <span style="font-size: 0.75rem;">Calendar</span>
+                    </button>
+                    <button class="btn btn-secondary" style="height: 60px; flex-direction: column; gap: 0.5rem;">
+                        <span class="material-symbols-outlined">help</span>
+                        <span style="font-size: 0.75rem;">Help</span>
+                    </button>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--primary-50); border-radius: var(--radius-lg); border-left: 4px solid var(--primary-500);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary-700); font-weight: 500;">
+                        <span class="material-symbols-outlined" style="font-size: 1.25rem;">tips_and_updates</span>
+                        Explore additional tools & resources ⚙️
+                    </div>
+                </div>
+                
+                <div class="card-actions">
+                    <button class="btn btn-primary w-full">
+                        <span class="material-symbols-outlined">explore</span>
+                        Explore All Features
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity Section -->
+        <section style="margin-top: 2rem;">
+            <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: var(--neutral-900);">Recent Activity</h2>
+            <div class="card">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--success-100); display: flex; align-items: center; justify-content: center;">
+                            <span class="material-symbols-outlined" style="color: var(--success-600);">check_circle</span>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: var(--neutral-900);">Assignment submitted</div>
+                            <div style="font-size: 0.875rem; color: var(--neutral-500);">Data Structures - 2 hours ago</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--primary-100); display: flex; align-items: center; justify-content: center;">
+                            <span class="material-symbols-outlined" style="color: var(--primary-600);">video_camera_front</span>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: var(--neutral-900);">Meeting attended</div>
+                            <div style="font-size: 0.875rem; color: var(--neutral-500);">Algorithm Class - Yesterday</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--warning-100); display: flex; align-items: center; justify-content: center;">
+                            <span class="material-symbols-outlined" style="color: var(--warning-600);">quiz</span>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: var(--neutral-900);">CAT completed</div>
+                            <div style="font-size: 0.875rem; color: var(--neutral-500);">Database Systems - 2 days ago</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <!-- Attendance Modal -->
+    <div id="studentAttendanceModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="hideModal('studentAttendanceModal')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            
+            <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; text-align: center;">
+                <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 0.5rem;">qr_code_scanner</span>
+                Mark Your Attendance
+            </h2>
+            
+            <div id="attendanceContent">
+                <!-- Loading state -->
+                <div id="attendanceLoading" class="hidden" style="text-align: center; padding: 2rem;">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 1rem; color: var(--neutral-500);">Loading your attendance information...</p>
+                </div>
+                
+                <!-- Attendance form -->
+                <div id="attendanceForm" class="hidden">
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--neutral-700);">
+                            <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 0.5rem;">schedule</span>
+                            Active Sessions
+                        </label>
+                        <div id="activeSessionsList">
+                            <!-- Sessions will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--neutral-700);">
+                            <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 0.5rem;">pin</span>
+                            Enter Your Personal Code
+                        </label>
+                        <input type="text" id="attendanceCodeInput" maxlength="6" placeholder="Enter 6-digit code"
+                               style="width: 100%; padding: 1rem; border: 2px solid var(--neutral-200); border-radius: var(--radius-lg); font-size: 1.25rem; text-align: center; font-family: monospace; text-transform: uppercase; letter-spacing: 0.1em; transition: border-color 0.2s;">
+                        <div style="text-align: center; margin-top: 0.5rem;">
+                            <span id="codeTimer" style="font-size: 0.875rem; color: var(--neutral-500);"></span>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                        <button onclick="submitAttendanceCode()" class="btn btn-success flex-1">
+                            <span class="material-symbols-outlined">check_circle</span>
+                            Submit Attendance
+                        </button>
+                        <button onclick="requestNewCode()" class="btn btn-secondary">
+                            <span class="material-symbols-outlined">refresh</span>
+                            Request New Code
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Success state -->
+                <div id="attendanceSuccess" class="hidden" style="text-align: center; padding: 2rem;">
+                    <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--success-100); display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                        <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--success-600);">check_circle</span>
+                    </div>
+                    <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--success-600); margin-bottom: 1rem;">Attendance Marked!</h3>
+                    <p style="color: var(--neutral-600); margin-bottom: 2rem;">Your attendance has been successfully recorded.</p>
+                    <button onclick="hideModal('studentAttendanceModal')" class="btn btn-primary">
+                        <span class="material-symbols-outlined">close</span>
+                        Close
+                    </button>
+                </div>
+                
+                <!-- Error state -->
+                <div id="attendanceError" class="hidden" style="text-align: center; padding: 2rem;">
+                    <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--error-100); display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                        <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--error-600);">error</span>
+                    </div>
+                    <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--error-600); margin-bottom: 1rem;">Error</h3>
+                    <p id="errorMessage" style="color: var(--neutral-600); margin-bottom: 2rem;"></p>
+                    <div style="display: flex; gap: 1rem; justify-content: center;">
+                        <button onclick="resetAttendanceForm()" class="btn btn-secondary">
+                            <span class="material-symbols-outlined">arrow_back</span>
+                            Try Again
+                        </button>
+                        <button onclick="requestNewCode()" class="btn btn-primary">
+                            <span class="material-symbols-outlined">refresh</span>
+                            Request New Code
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        window.attendanceData = { sessions: [], currentSession: null };
+        
+        // Utility functions
+        function logout() {
+            window.location.href = "../logout.php";
+        }
+        
+        function showModal(id) {
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                
+                // Load sessions when attendance modal opens
+                if (id === 'studentAttendanceModal') {
+                    loadActiveAttendanceSessions();
+                }
+            }
+        }
+        
+        function hideModal(id) {
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        }
+        
+        // Sidebar functionality
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.getElementById('sidebar');
+            const mobileToggle = document.getElementById('mobileMenuToggle');
+            const profileIcon = document.getElementById('profile-icon');
+            const profilePopup = document.getElementById('profile-popup');
+            const notifIcon = document.getElementById('notifications-icon');
+            const notifContent = document.getElementById('notifications-content');
+            
+            // Mobile menu toggle
+            mobileToggle?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sidebar.classList.toggle('show');
+            });
+            
+            // Close sidebar when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!sidebar.contains(e.target) && !mobileToggle.contains(e.target)) {
+                    sidebar.classList.remove('show');
+                }
+                
+                // Close popups
+                if (profilePopup && !profilePopup.contains(e.target) && !profileIcon.contains(e.target)) {
+                    profilePopup.style.display = 'none';
+                }
+                
+                if (notifContent && !notifContent.contains(e.target) && !notifIcon.contains(e.target)) {
+                    notifContent.style.display = 'none';
+                }
+            });
+            
+            // Profile popup
+            profileIcon?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const visible = profilePopup.style.display === 'block';
+                profilePopup.style.display = visible ? 'none' : 'block';
+                notifContent.style.display = 'none';
+            });
+            
+            // Notifications popup
+            notifIcon?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const visible = notifContent.style.display === 'block';
+                notifContent.style.display = visible ? 'none' : 'block';
+                profilePopup.style.display = 'none';
+            });
+            
+            // Modal close on backdrop click
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal')) {
+                    hideModal(e.target.id);
+                }
+            });
+            
+            // ESC key to close modals
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    const openModal = document.querySelector('.modal[style*="block"]');
+                    if (openModal) {
+                        hideModal(openModal.id);
+                    }
+                }
+            });
+            
+            // Add animation classes
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('fade-in');
+                    }
+                });
+            });
+            
+            document.querySelectorAll('.card').forEach(card => {
+                observer.observe(card);
+            });
         });
-    } catch (err) {
-        statusEl.textContent = 'Failed to load invitations: ' + err.message;
-    }
-}
-
-async function acceptTeamInvitation(invitationId) {
-    const code = (document.getElementById('inviteCode_' + invitationId)?.value || '').trim();
-    if (!code) { alert('Enter the confirmation code from your email.'); return; }
-
-    try {
-        const res  = await fetch('../teams/api/accept_invitation.php', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                invitation_id: invitationId,
-                code,
-                csrf_token: <?= json_encode($_SESSION['csrf_token'] ?? '') ?>
-            })
+        
+        // Attendance System Functions
+        function loadActiveAttendanceSessions() {
+            showAttendanceLoading();
+            
+            fetch('includes/get_attendance_sessions.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        attendanceData.sessions = data.sessions;
+                        updateSessionsList();
+                        hideAllAttendanceStates();
+                        document.getElementById('attendanceForm').classList.remove('hidden');
+                    } else {
+                        showAttendanceError('Failed to load sessions');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading attendance sessions:', error);
+                    showAttendanceError('Network error. Please try again.');
+                });
+        }
+        
+        function updateSessionsList() {
+            const list = document.getElementById('activeSessionsList');
+            if (!list) return;
+            
+            if (!attendanceData.sessions.length) {
+                list.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--neutral-500);"><span class="material-symbols-outlined" style="font-size: 3rem; display: block; margin-bottom: 1rem;">event_busy</span>No active attendance sessions</div>';
+                return;
+            }
+            
+            list.innerHTML = attendanceData.sessions.map(session => `
+                <div style="padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                        <div>
+                            <h4 style="font-weight: 600; color: var(--neutral-900);">${session.unit_name}</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-500);">Session: ${session.main_code}</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 0.75rem; color: var(--neutral-500);">Expires: ${new Date(session.deadline).toLocaleString()}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <button onclick="selectSession(${session.session_id})" class="btn btn-primary">
+                            <span class="material-symbols-outlined">check_circle</span>
+                            Use This Session
+                        </button>
+                        ${session.attended 
+                            ? '<span style="color: var(--success-600); font-weight: 500;"><span class="material-symbols-outlined" style="vertical-align: middle;">check_circle</span> Attended</span>'
+                            : '<span style="color: var(--warning-600); font-weight: 500;"><span class="material-symbols-outlined" style="vertical-align: middle;">schedule</span> Pending</span>'
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function selectSession(sessionId) {
+            const session = attendanceData.sessions.find(s => s.session_id === sessionId);
+            if (!session) return;
+            
+            attendanceData.currentSession = session;
+            document.getElementById('attendanceCodeInput').value = '';
+            document.getElementById('attendanceCodeInput').focus();
+            updateCodeTimer(session.expires_at);
+        }
+        
+        function updateCodeTimer(expiresAt) {
+            const timerElement = document.getElementById('codeTimer');
+            if (!timerElement) return;
+            
+            const updateTimer = () => {
+                const now = new Date();
+                const expires = new Date(expiresAt);
+                const diff = expires - now;
+                
+                if (diff <= 0) {
+                    timerElement.innerHTML = '<span style="color: var(--error-600);"><span class="material-symbols-outlined" style="vertical-align: middle;">error</span> EXPIRED</span>';
+                    clearInterval(interval);
+                } else {
+                    const minutes = Math.floor(diff / 60000);
+                    const seconds = Math.floor((diff % 60000) / 1000);
+                    timerElement.innerHTML = `<span class="material-symbols-outlined" style="vertical-align: middle;">schedule</span> ${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
+                }
+            };
+            
+            updateTimer();
+            const interval = setInterval(updateTimer, 1000);
+            
+            // Clear interval after 2 minutes
+            setTimeout(() => {
+                clearInterval(interval);
+                timerElement.innerHTML = '<span style="color: var(--error-600);"><span class="material-symbols-outlined" style="vertical-align: middle;">error</span> EXPIRED</span>';
+            }, 120000);
+        }
+        
+        function submitAttendanceCode() {
+            const code = document.getElementById('attendanceCodeInput').value.trim();
+            if (!code) {
+                showAttendanceError('Please enter your attendance code');
+                return;
+            }
+            
+            if (!attendanceData.currentSession) {
+                showAttendanceError('Please select an attendance session first');
+                return;
+            }
+            
+            showAttendanceLoading();
+            
+            const formData = new FormData();
+            formData.append('action', 'submit_attendance');
+            formData.append('session_id', attendanceData.currentSession.session_id);
+            formData.append('code', code);
+            
+            fetch('attendance_submit.php', { method: 'POST', body: formData })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showAttendanceSuccess();
+                        const idx = attendanceData.sessions.findIndex(s => s.session_id === attendanceData.currentSession.session_id);
+                        if (idx !== -1) attendanceData.sessions[idx].attended = true;
+                    } else {
+                        showAttendanceError(data.message || 'Invalid code');
+                    }
+                })
+                .catch(() => {
+                    showAttendanceError('Network error. Please try again.');
+                });
+        }
+        
+        function requestNewCode() {
+            if (!attendanceData.currentSession) {
+                showAttendanceError('Please select a session first');
+                return;
+            }
+            
+            showAttendanceLoading();
+            
+            const formData = new FormData();
+            formData.append('action', 'request_new_code');
+            formData.append('session_id', attendanceData.currentSession.session_id);
+            
+            fetch('attendance_submit.php', { method: 'POST', body: formData })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resetAttendanceForm();
+                        if (data.expires_at) updateCodeTimer(data.expires_at);
+                    } else {
+                        showAttendanceError(data.message || 'Failed to request new code');
+                    }
+                })
+                .catch(() => {
+                    showAttendanceError('Network error. Please try again.');
+                });
+        }
+        
+        function showAttendanceLoading() {
+            hideAllAttendanceStates();
+            document.getElementById('attendanceLoading').classList.remove('hidden');
+        }
+        
+        function showAttendanceSuccess() {
+            hideAllAttendanceStates();
+            document.getElementById('attendanceSuccess').classList.remove('hidden');
+        }
+        
+        function showAttendanceError(message) {
+            hideAllAttendanceStates();
+            document.getElementById('attendanceError').classList.remove('hidden');
+            document.getElementById('errorMessage').textContent = message;
+        }
+        
+        function resetAttendanceForm() {
+            hideAllAttendanceStates();
+            document.getElementById('attendanceForm').classList.remove('hidden');
+            document.getElementById('attendanceCodeInput').value = '';
+            document.getElementById('codeTimer').innerHTML = '';
+        }
+        
+        function hideAllAttendanceStates() {
+            ['attendanceLoading', 'attendanceForm', 'attendanceSuccess', 'attendanceError'].forEach(id => {
+                document.getElementById(id)?.classList.add('hidden');
+            });
+        }
+        
+        // Notifications
+        function quickMarkRead(notificationId) {
+            const formData = new FormData();
+            formData.append('action', 'mark_notification_read');
+            formData.append('notification_id', notificationId);
+            
+            fetch('dashboard.php', { method: 'POST', body: formData })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) return;
+                    
+                    const item = document.getElementById('quick-notif-' + notificationId);
+                    if (item) {
+                        item.classList.remove('unread');
+                        item.style.fontWeight = 'normal';
+                        item.style.background = 'white';
+                        const indicator = item.querySelector('[style*="background: var(--error-500)"]');
+                        if (indicator) indicator.remove();
+                    }
+                    
+                    const badge = document.getElementById('notificationCount');
+                    if (badge) {
+                        const count = parseInt(badge.textContent) || 0;
+                        if (count > 1) {
+                            badge.textContent = count - 1;
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => console.error('Error marking notification as read:', error));
+        }
+        
+        // Add input focus effects
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputs = document.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                input.addEventListener('focus', () => {
+                    input.style.borderColor = 'var(--primary-500)';
+                    input.style.outline = 'none';
+                    input.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
+                });
+                
+                input.addEventListener('blur', () => {
+                    input.style.borderColor = 'var(--neutral-200)';
+                    input.style.boxShadow = 'none';
+                });
+            });
         });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data?.success) throw new Error(data?.error || ('HTTP ' + res.status));
-        alert(data.message || 'Invitation accepted');
-        loadTeamInvitations();
-    } catch (err) {
-        alert('Accept invitation failed: ' + err.message);
-    }
-}
-
-loadTeamInvitations();
-
-
-// =============================================
-//  ATTENDANCE SPINNER CSS (injected once)
-// =============================================
-document.head.insertAdjacentHTML('beforeend', `<style>
-.spinner{border:4px solid #f3f3f3;border-top:4px solid #f59e0b;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 20px}
-@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-.btn-secondary{background:#6c757d;color:white;border:none;padding:.5rem 1rem;border-radius:.5rem;font-size:1rem;cursor:pointer;transition:all .3s ease}
-.btn-secondary:hover{background:#5a6268;transform:translateY(-1px)}
-.space-y-3>*+*{margin-top:.75rem}
-.space-x-2>*+*{margin-left:.5rem}
-.space-x-3>*+*{margin-left:.75rem}
-</style>`);
-</script>
-
+    </script>
 </body>
 </html>
