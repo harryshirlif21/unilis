@@ -51,36 +51,41 @@ COPY composer.json composer.lock* ./
 # Install dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-# Copy full application
+# Copy full application (including the smart-lab folder)
 COPY . .
 
 # Ensure vendor exists
 RUN composer dump-autoload --optimize --classmap-authoritative || true
 
-# Fix permissions for the whole app
-RUN chown -R www-data:www-data /var/www/html \
-    && find /var/www/html -type d -exec chmod 755 {} \; \
-    && find /var/www/html -type f -exec chmod 644 {} \;
-
 # Create required folders and set correct permissions
+# Added directories specifically for Smart Labs assets
 RUN mkdir -p /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
-    && chown -R www-data:www-data /var/www/html/assets/uploads \
+    /var/www/html/assets/requested_files \
+    /var/www/html/uploads
+
+# Set ownership to www-data for everything
+RUN chown -R www-data:www-data /var/www/html
+
+# Strict permissions: Directories 755, Files 644
+RUN find /var/www/html -type d -exec chmod 755 {} \; \
+    && find /var/www/html -type f -exec chmod 644 {} \;
+
+# Writable permissions for specific upload folders
+RUN chmod -R 775 /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
-    && chmod -R 776 /var/www/html/assets/uploads \
-    /var/www/html/assets/assignments \
-    /var/www/html/assets/meetings
+    /var/www/html/assets/requested_files \
+    /var/www/html/uploads
 
 # Make PHP errors visible in docker logs
 RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/php.ini \
     && echo "log_errors = On" >> /usr/local/etc/php/php.ini \
-    && echo "display_errors = On" >> /usr/local/etc/php/php.ini \
+    && echo "display_errors = Off" >> /usr/local/etc/php/php.ini \
     && echo "upload_max_filesize = 50M" >> /usr/local/etc/php/php.ini \
     && echo "post_max_size = 50M" >> /usr/local/etc/php/php.ini \
     && echo "max_execution_time = 300" >> /usr/local/etc/php/php.ini \
-    && echo "max_input_time = 300" >> /usr/local/etc/php/php.ini \
     && echo "memory_limit = 256M" >> /usr/local/etc/php/php.ini
 
 # Copy startup script

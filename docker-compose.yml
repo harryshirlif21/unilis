@@ -6,21 +6,16 @@ services:
     ports:
       - "8080:80"
     volumes:
-      # Mount full project
       - .:/var/www/html
-
-      # Keep vendor inside the container (don’t override with host)
       - vendor:/var/www/html/vendor
-
-      # Persist uploads
       - ./assets/uploads:/var/www/html/assets/uploads
       - ./uploads:/var/www/uploads
       - ./assets/assignments:/var/www/html/assets/assignments
       - ./assets/meetings:/var/www/html/assets/meetings
       - ./assets/requested_files:/var/www/html/assets/requested_files
-
     depends_on:
       - db
+      - smart-labs-db
     environment:
       DB_HOST: db
       MYSQL_USER: unilisuser
@@ -41,18 +36,32 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/unilis.sql:/docker-entrypoint-initdb.d/unilis.sql:ro
-      - ./create_lecturer_file_requests_table.sql:/docker-entrypoint-initdb.d/02_file_requests.sql:ro
+
+  smart-labs-db:
+    image: mysql:8.0.33
+    container_name: smart-labs-db
+    restart: always
+    ports:
+      - "3309:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: unilis_smartlab
+      MYSQL_USER: lab_admin
+      MYSQL_PASSWORD: lab_password
+    volumes:
+      - smart_labs_data:/var/lib/mysql
+      - ./smart-lab/unilis_smartlab.sql:/docker-entrypoint-initdb.d/01_smartlab.sql:ro
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:5.2.1
     container_name: unilis-pma
-    restart: always
     ports:
       - "8081:80"
     environment:
-      PMA_HOST: db
+      PMA_HOSTS: db,smart-labs-db
       MYSQL_ROOT_PASSWORD: rootpass
 
 volumes:
   db_data:
+  smart_labs_data:
   vendor:
