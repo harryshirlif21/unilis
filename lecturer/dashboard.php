@@ -60,7 +60,9 @@ $stmt->close();
     <!-- Your CSS -->
     <link rel="stylesheet" href="./css/styles.css">
 </head>
-<body>
+<body data-theme="light">
+    <!-- Global Theme Manager -->
+    <script src="../assets/js/theme-manager.js"></script>
 
 <!-- NAVBAR -->
 <nav class="navbar">

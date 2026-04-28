@@ -880,7 +880,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .h-full { height: 100%; }
     </style>
 </head>
-<body>
+<body data-theme="light">
+    <!-- Global Theme Manager -->
+    <script src="../assets/js/theme-manager.js"></script>
     <!-- Modern Navigation -->
     <nav class="navbar">
         <div class="navbar-brand">
@@ -955,7 +957,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         
         <div class="sidebar-section">
             <h4>Account</h4>
-            <a href="#" class="sidebar-item">
+            <a href="profile.php" class="sidebar-item">
                 <span class="material-symbols-outlined">person</span>
                 <span>Profile</span>
             </a>

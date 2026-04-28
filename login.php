@@ -51,11 +51,26 @@ unset($_SESSION['login_error']); // Clear after display
 <body class="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-auto md:h-[550px] flex overflow-hidden">
         <!-- Left Panel -->
-        <div class="hidden md:flex w-2/5 bg-gradient-to-br from-pink-500 to-blue-600 text-white flex-col justify-between p-10">
-            <div class="quote-top text-sm uppercase tracking-wider opacity-80">A WISE QUOTE</div>
-            <div class="text-content">
-                <div class="main-text text-4xl font-bold leading-tight mb-5">Get Everything You Want</div>
-                <div class="sub-text text-sm leading-relaxed opacity-90">
+        <div class="hidden md:flex w-2/5 text-white flex-col justify-between p-10 relative overflow-hidden">
+            <!-- Background Image -->
+            <div class="absolute inset-0 bg-cover bg-center bg-no-repeat" 
+                 style="background-image: url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80');">
+            </div>
+            
+            <!-- Glass Effect Overlay -->
+            <div class="absolute inset-0 bg-gradient-to-br from-pink-500/30 to-blue-600/30"></div>
+            
+            <!-- Additional Glass Effect for depth -->
+            <div class="absolute inset-0 bg-white/10"></div>
+            
+            <!-- Content -->
+            <div class="relative z-10">
+                <div class="quote-top text-sm uppercase tracking-wider opacity-90 bg-white/20 rounded-lg px-4 py-2 inline-block shadow-lg border border-white/10">A WISE QUOTE</div>
+            </div>
+            
+            <div class="text-content relative z-10">
+                <div class="main-text text-4xl font-bold leading-tight mb-5 drop-shadow-xl text-shadow">Get Everything You Want</div>
+                <div class="sub-text text-sm leading-relaxed opacity-95 drop-shadow-lg max-w-xs">
                     You can get everything you want if you work hard through the process and stick to the plan.
                 </div>
             </div>

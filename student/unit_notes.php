@@ -86,6 +86,112 @@ $interactive_notes_stmt = $conn->prepare("
 $interactive_notes_stmt->bind_param("ii", $student_id, $unit_id);
 $interactive_notes_stmt->execute();
 $interactive_notes = $interactive_notes_stmt->get_result();
+
+// Content sanitization function
+function sanitizeRichContent($content) {
+    if (empty($content)) return $content;
+    
+    // Remove dangerous tags
+    $dangerous_tags = ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button'];
+    foreach ($dangerous_tags as $tag) {
+        $content = preg_replace('/<\/?' . $tag . '[^>]*>/i', '', $content);
+    }
+    
+    // Remove dangerous attributes
+    $dangerous_attrs = ['onclick', 'onload', 'onerror', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'];
+    foreach ($dangerous_attrs as $attr) {
+        $content = preg_replace('/\s*' . $attr . '\s*=\s*["\'][^"\']*["\']/', '', $content);
+    }
+    
+    // Fix image sources
+    $content = preg_replace_callback('/<img([^>]+)>/i', function($matches) {
+        $imgTag = $matches[0];
+        
+        // Fix malformed src attributes
+        if (preg_match('/src=["\']([^"\']*)["\']/', $imgTag, $srcMatch)) {
+            $src = $srcMatch[1];
+            
+            // Handle mixed base64 and file path
+            if (strpos($src, 'data:image') !== false && strpos($src, '/uploads/') !== false) {
+                // Extract file path from mixed content
+                if (preg_match('/(\/uploads\/[^\'"\s]+)/', $src, $pathMatch)) {
+                    $cleanSrc = $pathMatch[1];
+                    $imgTag = str_replace($srcMatch[0], 'src="' . $cleanSrc . '"', $imgTag);
+                }
+            } elseif (strpos($src, '../uploads/') === 0) {
+                $cleanSrc = '/' . substr($src, 3);
+                $imgTag = str_replace($srcMatch[0], 'src="' . $cleanSrc . '"', $imgTag);
+            } elseif (strpos($src, 'uploads/') === 0) {
+                $cleanSrc = '/' . $src;
+                $imgTag = str_replace($srcMatch[0], 'src="' . $cleanSrc . '"', $imgTag);
+            }
+            
+            // Add alt attribute if missing
+            if (!preg_match('/alt=["\']/', $imgTag)) {
+                $imgTag = str_replace('<img', '<img alt="Content image"', $imgTag);
+            }
+            
+            // Add loading="lazy" for performance
+            if (!preg_match('/loading=["\']/', $imgTag)) {
+                $imgTag = str_replace('<img', '<img loading="lazy"', $imgTag);
+            }
+        }
+        
+        // Remove inline styles and dangerous attributes
+        $imgTag = preg_replace('/\s+(style|width|height|class|id)=["\'][^"\']*["\']/', '', $imgTag);
+        
+        return $imgTag;
+    }, $content);
+    
+    // Clean up excessive class names and automation attributes
+    $content = preg_replace('/\s+class=["\'][^"\']*css-[^"\']*["\']/', '', $content);
+    $content = preg_replace('/\s+automation-testid=["\'][^"\']*["\']/', '', $content);
+    $content = preg_replace('/\s+data-[^=]*=["\'][^"\']*["\']/', '', $content);
+    
+    // Remove empty tags
+    $content = preg_replace('/<[^>]*><\/[^>]*>/', '', $content);
+    
+    // Fix broken HTML entities
+    $content = html_entity_decode($content, ENT_QUOTES, 'UTF-8');
+    
+    return $content;
+}
+
+// Fix image paths in content
+function fixImagePathsInContent($content) {
+    if (empty($content)) return $content;
+    
+    // Fix image src attributes
+    $content = preg_replace_callback('/src=["\']([^"\']*)["\']/', function($matches) {
+        $src = $matches[1];
+        
+        // Fix relative paths
+        if (strpos($src, '../uploads/') === 0) {
+            return 'src="' . str_replace('../', '/', $src) . '"';
+        } elseif (strpos($src, 'uploads/') === 0) {
+            return 'src="/' . $src . '"';
+        }
+        
+        return 'src="' . $src . '"';
+    }, $content);
+    
+    // Add inline-img class to images if missing
+    $content = preg_replace_callback('/<img([^>]*?)class=["\']([^"\']*?)["\']([^>]*?)>/', function($matches) {
+        $attrs = $matches[1] . $matches[3];
+        $existingClass = $matches[2];
+        
+        if (strpos($existingClass, 'inline-img') === false) {
+            return '<img' . $attrs . ' class="' . $existingClass . ' inline-img">';
+        }
+        
+        return '<img' . $attrs . ' class="' . $existingClass . '">';
+    }, $content);
+    
+    // Add class to images without class attribute
+    $content = preg_replace('/<img(?![^>]*class)([^>]*?)>/', '<img class="inline-img"$1>', $content);
+    
+    return $content;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -299,22 +405,297 @@ $interactive_notes = $interactive_notes_stmt->get_result();
 
         .subtopic {
             margin-bottom: 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
         }
 
         .subtopic:last-child {
             margin-bottom: 0;
         }
 
-        .subtopic h5 {
-            color: #333;
+        .subtopic:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .subtopic-header {
+            background: linear-gradient(135deg, #F97316, #ea580c);
+            color: white;
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .subtopic-header:hover {
+            background: linear-gradient(135deg, #ea580c, #dc2626);
+        }
+
+        .subtopic-header h5 {
+            margin: 0;
             font-size: 16px;
-            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .subtopic-toggle {
+            font-size: 14px;
+            transition: transform 0.3s ease;
+        }
+
+        .subtopic-toggle i {
+            transition: transform 0.3s ease;
+        }
+
+        .subtopic.expanded .subtopic-toggle {
+            transform: rotate(180deg);
         }
 
         .subtopic-content {
             color: #666;
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.6;
+            padding: 15px;
+            background: white;
+            display: none;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        /* Fix inline images in content */
+        .subtopic-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 10px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: block;
+        }
+
+        .subtopic-content .inline-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 10px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: block;
+        }
+
+        /* Fix image paths */
+        .subtopic-content img[src*="../uploads/"] {
+            content: attr(src);
+            src: attr(src, url("../uploads/69201953be63d_image.png"));
+        }
+
+        .subtopic.expanded .subtopic-content {
+            display: block;
+        }
+
+        /* Rich Text Content Styling */
+        .rich-text-content {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #374151;
+            line-height: 1.7;
+        }
+
+        .rich-text-p {
+            font-size: 16px;
+            line-height: 1.7;
+            color: #374151;
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
+        .rich-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: block;
+        }
+
+        .rich-link {
+            color: #4dabf7;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .rich-link:hover {
+            color: #339af0;
+            text-decoration: underline;
+        }
+
+        .rich-heading {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 24px 0 16px 0;
+            line-height: 1.3;
+        }
+
+        .rich-list {
+            margin: 16px 0;
+            padding-left: 24px;
+        }
+
+        .rich-list li {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .rich-code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .rich-blockquote {
+            border-left: 4px solid #4dabf7;
+            padding-left: 16px;
+            margin: 16px 0;
+            font-style: italic;
+            color: #6b7280;
+        }
+
+        /* Dark mode compatibility */
+        @media (prefers-color-scheme: dark) {
+            .rich-text-content {
+                color: #e5e7eb;
+            }
+            
+            .rich-text-p {
+                color: #e5e7eb;
+            }
+            
+            .rich-heading {
+                color: #f9fafb;
+            }
+            
+            .rich-code {
+                background: #374151;
+                color: #e5e7eb;
+            }
+            
+            .rich-blockquote {
+                color: #9ca3af;
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .interactive-features {
+            margin-top: 15px;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 8px;
+            border-left: 4px solid #10B981;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0 0 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #d1fae5;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+
+        .feature-list li i {
+            color: #10B981;
+            width: 20px;
+            text-align: center;
+        }
+
+        .progress-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10B981;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .study-timer {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .note-progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .note-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10B981, #059669);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
         }
 
         .empty-state {
@@ -455,22 +836,55 @@ $interactive_notes = $interactive_notes_stmt->get_result();
                             <div class="note-icon">
                                 <i class="fas fa-laptop-code"></i>
                             </div>
-                            <div class="note-title"><?= htmlspecialchars($note['title']) ?></div>
+                            <div class="note-title">
+                                <?= htmlspecialchars($note['title']) ?>
+                                <?php if ($isCompleted): ?>
+                                    <span class="progress-indicator">
+                                        <i class="fas fa-check-circle"></i> Completed
+                                    </span>
+                                <?php endif; ?>
+                            </div>
                             <div class="note-meta">
                                 <span><i class="fas fa-calendar"></i> <?= date('d M Y', strtotime($note['uploaded_at'])) ?></span>
                                 <span><i class="fas fa-clock"></i> <?= date('h:i A', strtotime($note['uploaded_at'])) ?></span>
+                                <span><i class="fas fa-list"></i> <?= count($subtopics) ?> subtopics</span>
                             </div>
+                            <?php if (!empty($subtopics)): ?>
+                                <div class="note-progress-bar">
+                                    <div class="note-progress-fill" style="width: <?= $isCompleted ? '100' : '0' ?>%"></div>
+                                </div>
+                            <?php endif; ?>
                             
                             <?php if (!empty($subtopics)): ?>
                                 <div class="subtopics">
                                     <?php foreach ($subtopics as $index => $subtopic): ?>
-                                        <div class="subtopic">
-                                            <h5><?= htmlspecialchars($subtopic['title'] ?? "Subtopic " . ($index + 1)) ?></h5>
-                                            <div class="subtopic-content">
-                                                <?= nl2br(htmlspecialchars($subtopic['content'] ?? 'No content available')) ?>
+                                        <div class="subtopic" id="subtopic-<?= $note['id'] ?>-<?= $index ?>">
+                                            <div class="subtopic-header" onclick="var elem = document.getElementById('content-<?= $note['id'] ?>-<?= $index ?>'); var toggle = this.querySelector('.subtopic-toggle i'); if (elem.style.display === 'none') { elem.style.display = 'block'; toggle.style.transform = 'rotate(180deg)'; fixImagesInContent(elem); } else { elem.style.display = 'none'; toggle.style.transform = 'rotate(0deg)'; }">
+                                                <h5><?= htmlspecialchars($subtopic['title'] ?? "Subtopic " . ($index + 1)) ?></h5>
+                                                <span class="subtopic-toggle">
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </span>
+                                            </div>
+                                            <div class="subtopic-content" id="content-<?= $note['id'] ?>-<?= $index ?>" style="display: none;">
+                                                <?= fixImagePathsInContent($subtopic['content'] ?? 'No content available') ?>
                                             </div>
                                         </div>
                                     <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($subtopics)): ?>
+                                <div class="interactive-features">
+                                    <strong><i class="fas fa-star"></i> Interactive Features:</strong>
+                                    <ul class="feature-list">
+                                        <li><i class="fas fa-expand-alt"></i> Expandable subtopics</li>
+                                        <li><i class="fas fa-eye"></i> Click to view content</li>
+                                        <li><i class="fas fa-check-circle"></i> Progress tracking</li>
+                                        <li><i class="fas fa-bookmark"></i> Bookmark important sections</li>
+                                    </ul>
+                                    <div class="study-timer" id="timer-<?= $note['id'] ?>">
+                                        <i class="fas fa-clock"></i> <span id="timer-text-<?= $note['id'] ?>">Start Study Timer</span>
+                                    </div>
                                 </div>
                             <?php endif; ?>
                             
@@ -582,6 +996,333 @@ $interactive_notes = $interactive_notes_stmt->get_result();
         });
     });
 
+    function toggleSubtopic(subtopicId) {
+        console.log('Toggling subtopic:', subtopicId); // Debug log
+        const subtopic = document.getElementById(`subtopic-${subtopicId}`);
+        console.log('Found subtopic element:', subtopic); // Debug log
+        
+        if (subtopic) {
+            // Toggle expanded class
+            subtopic.classList.toggle('expanded');
+            console.log('Toggled expanded class'); // Debug log
+            
+            // Update progress bar
+            updateNoteProgress(subtopicId.split('-')[0]);
+        } else {
+            console.error('Subtopic element not found:', subtopicId);
+        }
+    }
+
+    function fixImagesInContent(contentElement) {
+        if (!contentElement) return;
+        
+        const images = contentElement.querySelectorAll('img');
+        images.forEach(img => {
+            let src = img.getAttribute('src');
+            
+            // Fix relative paths
+            if (src && src.startsWith('../uploads/')) {
+                img.src = src.replace('../', '/');
+            } else if (src && src.startsWith('uploads/')) {
+                img.src = '/' + src;
+            }
+            
+            // Add proper styling if missing
+            if (!img.className || !img.className.includes('inline-img')) {
+                img.className = 'inline-img';
+            }
+            
+            // Add alt attribute if missing
+            if (!img.getAttribute('alt')) {
+                img.setAttribute('alt', 'Content image');
+            }
+        });
+    }
+
+    // Rich Text Content Sanitization and Optimization
+    function sanitizeAndOptimizeContent(rawContent) {
+        if (!rawContent) return '';
+        
+        // Create a temporary div to parse HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = rawContent;
+        
+        // Sanitize and optimize content
+        const sanitizedContent = sanitizeHTML(tempDiv);
+        
+        return sanitizedContent.innerHTML;
+    }
+
+    function sanitizeHTML(element) {
+        // Remove script tags and dangerous content
+        const scripts = element.querySelectorAll('script');
+        scripts.forEach(script => script.remove());
+        
+        // Remove dangerous attributes
+        const allElements = element.querySelectorAll('*');
+        allElements.forEach(el => {
+            // Remove unsafe attributes
+            const unsafeAttrs = ['onclick', 'onload', 'onerror', 'onmouseover', 'onmouseout', 'style'];
+            unsafeAttrs.forEach(attr => {
+                if (el.hasAttribute(attr)) {
+                    el.removeAttribute(attr);
+                }
+            });
+            
+            // Clean up class attributes
+            if (el.className) {
+                const classes = el.className.split(' ').filter(cls => 
+                    !cls.includes('css-') && !cls.includes('automation-testid') && !cls.includes('tw-')
+                );
+                el.className = classes.join(' ');
+            }
+        });
+        
+        // Fix images
+        const images = element.querySelectorAll('img');
+        images.forEach(img => {
+            fixImageTag(img);
+        });
+        
+        // Fix links
+        const links = element.querySelectorAll('a');
+        links.forEach(link => {
+            fixLinkTag(link);
+        });
+        
+        // Wrap text nodes in paragraphs
+        wrapTextNodes(element);
+        
+        // Apply standardized classes
+        applyStandardClasses(element);
+        
+        return element;
+    }
+
+    function fixImageTag(img) {
+        let src = img.getAttribute('src');
+        if (!src) return;
+        
+        // Fix malformed image sources
+        if (src.includes('data:image') && src.includes('../uploads/')) {
+            // Extract the file path from mixed content
+            const pathMatch = src.match(/(\/uploads\/[^'"\s]+)/);
+            if (pathMatch) {
+                src = pathMatch[1];
+            }
+        } else if (src.startsWith('../uploads/')) {
+            src = src.replace('../', '/');
+        } else if (src.startsWith('uploads/')) {
+            src = '/' + src;
+        }
+        
+        // Set clean src
+        img.setAttribute('src', src);
+        img.setAttribute('alt', img.getAttribute('alt') || 'Content image');
+        img.setAttribute('loading', 'lazy');
+        
+        // Apply standardized class
+        img.className = 'rich-img';
+        
+        // Remove unnecessary attributes
+        ['class', 'style', 'width', 'height'].forEach(attr => {
+            if (attr !== 'class' && img.hasAttribute(attr)) {
+                img.removeAttribute(attr);
+            }
+        });
+    }
+
+    function fixLinkTag(link) {
+        // Clean up href
+        let href = link.getAttribute('href');
+        if (href && !href.startsWith('http') && !href.startsWith('#')) {
+            // Ensure external links open in new tab
+            if (href.includes('http')) {
+                link.setAttribute('target', '_blank');
+                link.setAttribute('rel', 'noopener noreferrer');
+            }
+        }
+        
+        // Apply standardized class
+        link.className = 'rich-link';
+        
+        // Remove unsafe attributes
+        ['onclick', 'style'].forEach(attr => {
+            if (link.hasAttribute(attr)) {
+                link.removeAttribute(attr);
+            }
+        });
+    }
+
+    function wrapTextNodes(element) {
+        const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+        
+        const textNodes = [];
+        let node;
+        while (node = walker.nextNode()) {
+            if (node.textContent.trim().length > 0) {
+                textNodes.push(node);
+            }
+        }
+        
+        textNodes.forEach(textNode => {
+            const text = textNode.textContent.trim();
+            if (text.length > 0) {
+                const p = document.createElement('p');
+                p.className = 'rich-text-p';
+                p.textContent = text;
+                textNode.parentNode.replaceChild(p, textNode);
+            }
+        });
+    }
+
+    function applyStandardClasses(element) {
+        // Apply classes to common elements
+        const tagClasses = {
+            'p': 'rich-text-p',
+            'h1': 'rich-heading',
+            'h2': 'rich-heading',
+            'h3': 'rich-heading',
+            'h4': 'rich-heading',
+            'h5': 'rich-heading',
+            'h6': 'rich-heading',
+            'ul': 'rich-list',
+            'ol': 'rich-list',
+            'blockquote': 'rich-blockquote',
+            'code': 'rich-code'
+        };
+        
+        Object.entries(tagClasses).forEach(([tag, className]) => {
+            const elements = element.querySelectorAll(tag);
+            elements.forEach(el => {
+                el.className = className;
+            });
+        });
+        
+        // Remove empty tags
+        const emptyTags = element.querySelectorAll('*:empty');
+        emptyTags.forEach(tag => tag.remove());
+        
+        // Fix nesting errors
+        fixNestingErrors(element);
+    }
+
+    function fixNestingErrors(element) {
+        // Fix invalid nesting (e.g., block elements inside inline elements)
+        const blockElements = ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'pre'];
+        const inlineElements = ['span', 'a', 'strong', 'em', 'code'];
+        
+        blockElements.forEach(blockTag => {
+            const blocks = element.querySelectorAll(blockTag);
+            blocks.forEach(block => {
+                inlineElements.forEach(inlineTag => {
+                    const inlines = block.querySelectorAll(inlineTag);
+                    inlines.forEach(inline => {
+                        // Move inline elements outside if they contain block elements
+                        if (inline.querySelector(blockElements.join(','))) {
+                            const parent = inline.parentNode;
+                            while (inline.firstChild) {
+                                parent.insertBefore(inline.firstChild, inline);
+                            }
+                            parent.removeChild(inline);
+                        }
+                    });
+                });
+            });
+        });
+    }
+
+    // Performance optimization: Lazy load content when needed
+    function lazyLoadContent(subtopicId) {
+        const content = document.getElementById(`content-${subtopicId}`);
+        if (content && !content.dataset.optimized) {
+            const rawContent = content.innerHTML;
+            const optimizedContent = sanitizeAndOptimizeContent(rawContent);
+            content.innerHTML = optimizedContent;
+            content.classList.add('rich-text-content');
+            content.dataset.optimized = 'true';
+            
+            // Initialize lazy loading for images
+            initializeLazyImages(content);
+        }
+    }
+
+    function initializeLazyImages(container) {
+        const images = container.querySelectorAll('img[loading="lazy"]');
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.src = img.dataset.src || img.src;
+                    img.classList.remove('lazy');
+                    observer.unobserve(img);
+                }
+            });
+        });
+        
+        images.forEach(img => imageObserver.observe(img));
+    }
+
+    // Enhanced toggle with lazy loading
+    function toggleSubtopicWithLazyLoad(subtopicId) {
+        const subtopic = document.getElementById(`subtopic-${subtopicId}`);
+        const content = document.getElementById(`content-${subtopicId}`);
+        
+        if (subtopic && content) {
+            const isExpanding = content.style.display === 'none';
+            
+            // Lazy load content only when expanding
+            if (isExpanding) {
+                lazyLoadContent(subtopicId);
+            }
+            
+            // Toggle content display
+            content.style.display = isExpanding ? 'block' : 'none';
+            
+            // Toggle expanded class
+            if (isExpanding) {
+                subtopic.classList.add('expanded');
+            } else {
+                subtopic.classList.remove('expanded');
+            }
+            
+            // Update chevron
+            const toggle = subtopic.querySelector('.subtopic-toggle i');
+            if (toggle) {
+                toggle.style.transform = isExpanding ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+            
+            // Update progress bar
+            updateNoteProgress(subtopicId.split('-')[0]);
+        }
+    }
+
+    // Initialize content optimization on page load (only for visible content)
+    document.addEventListener('DOMContentLoaded', () => {
+        // Optimize only the first subtopic of each note for initial load
+        const firstSubtopics = document.querySelectorAll('.subtopic[id$="-0"] .subtopic-content');
+        firstSubtopics.forEach(content => {
+            lazyLoadContent(content.id.replace('content-', ''));
+        });
+    });
+
+    function updateNoteProgress(noteId) {
+        const noteCard = document.querySelector(`#subtopic-${noteId}-0`).closest('.note-card');
+        const subtopics = noteCard.querySelectorAll('.subtopic');
+        const expandedSubtopics = noteCard.querySelectorAll('.subtopic.expanded');
+        const progress = subtopics.length > 0 ? (expandedSubtopics.length / subtopics.length) * 100 : 0;
+        
+        const progressBar = noteCard.querySelector('.note-progress-fill');
+        if (progressBar) {
+            progressBar.style.width = `${progress}%`;
+        }
+    }
+
     function markAsComplete(noteId) {
         const formData = new FormData();
         formData.append('action', 'mark_complete');
@@ -594,16 +1335,147 @@ $interactive_notes = $interactive_notes_stmt->get_result();
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // Show success message
+                showToast('Note marked as complete!', 'success');
+                
+                // Update UI without reload
+                const button = document.querySelector(`button[onclick="markAsComplete(${noteId})"]`);
+                if (button) {
+                    button.classList.add('completed');
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fas fa-check"></i> Completed';
+                }
+                
+                // Update progress bar to 100%
+                const noteCard = button.closest('.note-card');
+                const progressBar = noteCard.querySelector('.note-progress-fill');
+                if (progressBar) {
+                    progressBar.style.width = '100%';
+                }
+                
+                // Add completed indicator
+                const title = noteCard.querySelector('.note-title');
+                if (title && !title.querySelector('.progress-indicator')) {
+                    const indicator = document.createElement('span');
+                    indicator.className = 'progress-indicator';
+                    indicator.innerHTML = '<i class="fas fa-check-circle"></i> Completed';
+                    title.appendChild(indicator);
+                }
             } else {
-                alert('Failed to mark as complete. Please try again.');
+                showToast('Failed to mark as complete. Please try again.', 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred. Please try again.');
+            showToast('An error occurred. Please try again.', 'error');
         });
     }
+
+    function showToast(message, type = 'info') {
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+            <span>${message}</span>
+        `;
+        
+        // Add toast styles
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#10B981' : type === 'error' ? '#EF4444' : '#3B82F6'};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 10000;
+            animation: slideIn 0.3s ease-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease-in';
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 300);
+        }, 3000);
+    }
+
+    // Study Timer functionality
+    let studyTimers = {};
+
+    function startStudyTimer(noteId) {
+        const timerElement = document.getElementById(`timer-${noteId}`);
+        const timerTextElement = document.getElementById(`timer-text-${noteId}`);
+        
+        if (!studyTimers[noteId]) {
+            studyTimers[noteId] = {
+                startTime: Date.now(),
+                interval: null
+            };
+            
+            studyTimers[noteId].interval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - studyTimers[noteId].startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                
+                timerTextElement.textContent = `Studying: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+            
+            timerElement.style.background = 'linear-gradient(135deg, #10B981, #059669)';
+            timerElement.onclick = () => stopStudyTimer(noteId);
+        } else {
+            stopStudyTimer(noteId);
+        }
+    }
+
+    function stopStudyTimer(noteId) {
+        if (studyTimers[noteId]) {
+            clearInterval(studyTimers[noteId].interval);
+            const elapsed = Math.floor((Date.now() - studyTimers[noteId].startTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            
+            const timerTextElement = document.getElementById(`timer-text-${noteId}`);
+            timerTextElement.textContent = `Studied: ${minutes} min`;
+            
+            const timerElement = document.getElementById(`timer-${noteId}`);
+            timerElement.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+            timerElement.onclick = () => startStudyTimer(noteId);
+            
+            delete studyTimers[noteId];
+            
+            showToast(`Study session completed: ${minutes} minutes`, 'success');
+        }
+    }
+
+    // Add timer click handlers and subtopic click handlers
+    document.addEventListener('DOMContentLoaded', () => {
+        // Study timer handlers
+        document.querySelectorAll('.study-timer').forEach(timer => {
+            const noteId = timer.id.replace('timer-', '');
+            timer.addEventListener('click', () => startStudyTimer(noteId));
+        });
+        
+        // Subtopic click handlers - alternative approach
+        document.querySelectorAll('.subtopic-header').forEach(header => {
+            header.addEventListener('click', function(e) {
+                e.preventDefault();
+                const subtopic = this.closest('.subtopic');
+                if (subtopic) {
+                    const subtopicId = subtopic.id.replace('subtopic-', '');
+                    console.log('Header clicked, subtopicId:', subtopicId);
+                    toggleSubtopic(subtopicId);
+                }
+            });
+        });
+    });
 
     function logout() {
         window.location.href = "../logout.php";

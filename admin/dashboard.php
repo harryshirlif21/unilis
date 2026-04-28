@@ -237,7 +237,9 @@ unset($_SESSION['verify_error']);
         .btn-mark-all:hover { background: #343a40; }
     </style>
 </head>
-<body>
+<body data-theme="light">
+    <!-- Global Theme Manager -->
+    <script src="../assets/js/theme-manager.js"></script>
 
 <!-- Top Header Bar -->
 <header class="header">
