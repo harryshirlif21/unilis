@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__.'/../config/database.php';
+require_once __DIR__.'/../config/app.php';
 
 class DashboardModel {
     private PDO $db;
@@ -10,54 +10,40 @@ class DashboardModel {
 
     public function getStats(): array {
         $stats = [];
-        $stats['labs']       = $this->db->query("SELECT COUNT(*) FROM labs WHERE is_active=1")->fetchColumn();
-        $stats['students']   = $this->db->query("SELECT COUNT(*) FROM users WHERE role='student' AND is_active=1")->fetchColumn();
-        $stats['lecturers'] = $this->db->query("SELECT COUNT(*) FROM users WHERE role='lecturer' AND is_active=1")->fetchColumn();
-        $stats['technicians'] = $this->db->query("SELECT COUNT(*) FROM users WHERE role='technician' AND is_active=1")->fetchColumn();
-        $stats['practicals'] = $this->db->query("SELECT COUNT(*) FROM practicals WHERE status IN ('published','ongoing')")->fetchColumn();
-        $stats['assets']     = $this->db->query("SELECT COUNT(*) FROM assets WHERE status='available'")->fetchColumn();
-        $stats['sessions']   = $this->db->query("SELECT COUNT(*) FROM lab_sessions WHERE status='open'")->fetchColumn();
-        $stats['blocks']     = $this->db->query("SELECT COUNT(*) FROM blockchain_blocks")->fetchColumn();
-        $stats['notebooks']  = $this->db->query("SELECT COUNT(*) FROM notebooks")->fetchColumn();
-        $stats['reports']    = $this->db->query("SELECT COUNT(*) FROM reports")->fetchColumn();
-        
-        // Add trend data
-        $stats['today_logins'] = $this->db->query(
-            "SELECT COUNT(*) FROM audit_logs 
-             WHERE action LIKE '%login%' AND DATE(created_at) = CURDATE()"
-        )->fetchColumn();
-        
-        $stats['pending_reports'] = $this->db->query(
-            "SELECT COUNT(*) FROM reports WHERE status = 'submitted'"
-        )->fetchColumn();
-        
-        $stats['pending_notebooks'] = $this->db->query(
-            "SELECT COUNT(*) FROM notebooks WHERE status = 'submitted'"
-        )->fetchColumn();
-        
+        $stats['labs']              = $this->db->query("SELECT COUNT(*) FROM labs WHERE is_active=1")->fetchColumn();
+        $stats['students']          = $this->db->query("SELECT COUNT(*) FROM users WHERE role='student' AND is_active=1")->fetchColumn();
+        $stats['lecturers']         = $this->db->query("SELECT COUNT(*) FROM users WHERE role='lecturer' AND is_active=1")->fetchColumn();
+        $stats['technicians']       = $this->db->query("SELECT COUNT(*) FROM users WHERE role='technician' AND is_active=1")->fetchColumn();
+        $stats['practicals']        = $this->db->query("SELECT COUNT(*) FROM practicals WHERE status IN ('published','completed')")->fetchColumn();
+        $stats['assets']            = $this->db->query("SELECT COUNT(*) FROM assets WHERE status='available'")->fetchColumn();
+        $stats['sessions']          = $this->db->query("SELECT COUNT(*) FROM lab_sessions WHERE status='open'")->fetchColumn();
+        $stats['blocks']            = $this->db->query("SELECT COUNT(*) FROM blockchain_blocks")->fetchColumn();
+        $stats['notebooks']         = $this->db->query("SELECT COUNT(*) FROM notebooks")->fetchColumn();
+        $stats['reports']           = $this->db->query("SELECT COUNT(*) FROM reports")->fetchColumn();
+        $stats['today_logins']      = $this->db->query("SELECT COUNT(*) FROM audit_logs WHERE action LIKE '%login%' AND DATE(created_at) = CURDATE()")->fetchColumn();
+        $stats['pending_reports']   = $this->db->query("SELECT COUNT(*) FROM reports WHERE status = 'submitted'")->fetchColumn();
+        $stats['pending_notebooks'] = $this->db->query("SELECT COUNT(*) FROM notebooks WHERE status = 'submitted'")->fetchColumn();
         return $stats;
     }
 
     public function getLabOccupancy(): array {
         return $this->db->query(
             "SELECT name, lab_code, type, current_count, max_capacity, 
-                   ROUND((current_count / max_capacity) * 100) as occupancy_percentage
+                    ROUND((current_count / NULLIF(max_capacity,0)) * 100) as occupancy_percentage
              FROM labs WHERE is_active=1 ORDER BY name"
         )->fetchAll();
     }
 
     public function getTodaySchedule(): array {
-        $stmt = $this->db->prepare(
-            "SELECT p.id, p.title, p.start_time, p.end_time, p.status, 
-                   l.name as lab_name, l.lab_code, u.full_name as lecturer_name
+        return $this->db->query(
+            "SELECT p.id, p.title, p.status, p.scheduled_date,
+                    l.name as lab_name, l.lab_code, u.full_name as lecturer_name
              FROM practicals p 
              JOIN labs l ON p.lab_id = l.id
              LEFT JOIN users u ON p.lecturer_id = u.id
              WHERE p.scheduled_date = CURDATE()
-             ORDER BY p.start_time ASC LIMIT 8"
-        );
-        $stmt->execute();
-        return $stmt->fetchAll();
+             ORDER BY p.created_at ASC LIMIT 8"
+        )->fetchAll();
     }
 
     public function getRecentActivity(): array {
@@ -89,9 +75,10 @@ class DashboardModel {
     public function getLabUtilizationData(): array {
         return $this->db->query(
             "SELECT l.name, l.type, 
-                   COUNT(CASE WHEN p.status = 'ongoing' THEN 1 END) as active_sessions,
-                   COUNT(CASE WHEN p.status = 'published' THEN 1 END) as scheduled_sessions
+                    COUNT(CASE WHEN ls.status = 'open' THEN 1 END) as active_sessions,
+                    COUNT(CASE WHEN p.status = 'published' THEN 1 END) as scheduled_sessions
              FROM labs l
+             LEFT JOIN lab_sessions ls ON l.id = ls.lab_id
              LEFT JOIN practicals p ON l.id = p.lab_id 
              AND p.scheduled_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
              WHERE l.is_active = 1
@@ -102,10 +89,7 @@ class DashboardModel {
     
     public function getAssetStatusBreakdown(): array {
         return $this->db->query(
-            "SELECT status, COUNT(*) as count
-             FROM assets 
-             GROUP BY status
-             ORDER BY count DESC"
+            "SELECT status, COUNT(*) as count FROM assets GROUP BY status ORDER BY count DESC"
         )->fetchAll();
     }
     
@@ -123,62 +107,43 @@ class DashboardModel {
     
     public function getPracticalCompletionRates(): array {
         return $this->db->query(
-            "SELECT p.title, p.scheduled_date,
-                   COUNT(CASE WHEN p.status = 'completed' THEN 1 END) as completed,
-                   COUNT(CASE WHEN p.status IN ('published', 'ongoing') THEN 1 END) as total,
-                   ROUND((COUNT(CASE WHEN p.status = 'completed' THEN 1 END) / 
-                    COUNT(CASE WHEN p.status IN ('published', 'ongoing') THEN 1 END)) * 100, 2) as completion_rate
+            "SELECT p.title, p.scheduled_date, p.status
              FROM practicals p
              WHERE p.scheduled_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-             GROUP BY p.id, p.title, p.scheduled_date
              ORDER BY p.scheduled_date DESC LIMIT 10"
         )->fetchAll();
     }
     
     public function getSystemHealth(): array {
         $health = [];
-        
-        // Check database connectivity
         try {
             $this->db->query("SELECT 1");
             $health['database'] = 'healthy';
         } catch (Exception $e) {
             $health['database'] = 'error';
         }
-        
-        // Check blockchain integrity
-        $blockCount = $this->db->query("SELECT COUNT(*) FROM blockchain_blocks")->fetchColumn();
+        $blockCount     = $this->db->query("SELECT COUNT(*) FROM blockchain_blocks")->fetchColumn();
         $health['blockchain'] = $blockCount > 0 ? 'healthy' : 'warning';
-        
-        // Check active sessions
         $activeSessions = $this->db->query("SELECT COUNT(*) FROM lab_sessions WHERE status='open'")->fetchColumn();
         $health['sessions'] = $activeSessions > 0 ? 'active' : 'idle';
-        
-        // Check recent activity
-        $recentActivity = $this->db->query(
-            "SELECT COUNT(*) FROM audit_logs 
-             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)"
-        )->fetchColumn();
+        $recentActivity = $this->db->query("SELECT COUNT(*) FROM audit_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)")->fetchColumn();
         $health['activity'] = $recentActivity > 0 ? 'active' : 'low';
-        
         return $health;
     }
     
     public function getUserDashboard(string $userId, string $userRole): array {
         $data = [];
-        
         if ($userRole === 'student') {
             $data['upcoming_practicals'] = $this->getStudentUpcomingPracticals($userId);
-            $data['my_reports'] = $this->getStudentReports($userId);
-            $data['my_notebooks'] = $this->getStudentNotebooks($userId);
+            $data['my_reports']          = $this->getStudentReports($userId);
+            $data['my_notebooks']        = $this->getStudentNotebooks($userId);
         } elseif ($userRole === 'lecturer') {
-            $data['my_practicals'] = $this->getLecturerPracticals($userId);
+            $data['my_practicals']   = $this->getLecturerPracticals($userId);
             $data['pending_grading'] = $this->getPendingGradingCount($userId);
         } elseif ($userRole === 'technician') {
-            $data['lab_assets'] = $this->getLabAssets($userId);
+            $data['lab_assets']        = $this->getLabAssets($userId);
             $data['pending_approvals'] = $this->getPendingApprovalsCount($userId);
         }
-        
         return $data;
     }
     
@@ -187,12 +152,10 @@ class DashboardModel {
             "SELECT p.*, l.name as lab_name
              FROM practicals p
              LEFT JOIN labs l ON p.lab_id = l.id
-             LEFT JOIN users s ON s.lab_id = l.id
-             WHERE p.scheduled_date >= CURDATE() 
-             AND p.status = 'published' AND s.id = ?
-             ORDER BY p.scheduled_date ASC, p.start_time ASC LIMIT 5"
+             WHERE p.scheduled_date >= CURDATE() AND p.status = 'published'
+             ORDER BY p.scheduled_date ASC LIMIT 5"
         );
-        $stmt->execute([$studentId]);
+        $stmt->execute();
         return $stmt->fetchAll();
     }
     
@@ -200,9 +163,7 @@ class DashboardModel {
         $stmt = $this->db->prepare(
             "SELECT r.*, p.title as practical_title
              FROM reports r
-             LEFT JOIN notebooks n ON r.notebook_id = n.id
-             LEFT JOIN lab_sessions ls ON n.session_id = ls.id
-             LEFT JOIN practicals p ON ls.practical_id = p.id
+             LEFT JOIN practicals p ON r.practical_id = p.id
              WHERE r.student_id = ?
              ORDER BY r.created_at DESC LIMIT 5"
         );
@@ -242,31 +203,20 @@ class DashboardModel {
              WHERE p.lecturer_id = ? AND r.status = 'submitted'"
         );
         $stmt->execute([$lecturerId]);
-        return $stmt->fetchColumn();
+        return (int)$stmt->fetchColumn();
     }
     
     private function getLabAssets(string $technicianId): array {
-        $stmt = $this->db->prepare(
-            "SELECT a.*, l.name as lab_name
-             FROM assets a
+        return $this->db->query(
+            "SELECT a.*, l.name as lab_name FROM assets a
              LEFT JOIN labs l ON a.lab_id = l.id
-             LEFT JOIN users t ON t.lab_id = l.id
-             WHERE t.id = ?
              ORDER BY a.name LIMIT 10"
-        );
-        $stmt->execute([$technicianId]);
-        return $stmt->fetchAll();
+        )->fetchAll();
     }
     
     private function getPendingApprovalsCount(string $technicianId): int {
-        $stmt = $this->db->prepare(
-            "SELECT COUNT(*) FROM notebooks n
-             LEFT JOIN lab_sessions ls ON n.session_id = ls.id
-             LEFT JOIN labs l ON ls.lab_id = l.id
-             LEFT JOIN users t ON t.lab_id = l.id
-             WHERE n.status = 'submitted' AND t.id = ?"
-        );
-        $stmt->execute([$technicianId]);
-        return $stmt->fetchColumn();
+        return (int)$this->db->query(
+            "SELECT COUNT(*) FROM notebooks WHERE status = 'submitted'"
+        )->fetchColumn();
     }
 }
