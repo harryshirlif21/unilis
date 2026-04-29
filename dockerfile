@@ -26,7 +26,9 @@ RUN apt-get update && apt-get install -y \
 
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
-
+# Copy and enable custom Apache config
+COPY apache.conf /etc/apache2/sites-available/000-default.conf
+RUN a2ensite 000-default.conf
 # Configure Postfix
 RUN postconf -e "myhostname = unilis.jhubafrica.com" \
     && postconf -e "mydomain = jhubafrica.com" \
