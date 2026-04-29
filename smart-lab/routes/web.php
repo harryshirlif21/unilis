@@ -25,6 +25,7 @@ $map = [
     'audit'              => 'AuditController',
     'blockchain'         => 'BlockchainController',
     'dbtest'             => 'DbtestController',
+    'qr'                 => 'QrAuthController',
 ];
 
 if (isset($map[$controller])) {

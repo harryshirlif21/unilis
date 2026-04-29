@@ -128,20 +128,22 @@
         </form>
       </div>
 
-      <!-- METHOD 3: QR Code -->
-      <div class="auth-method" id="method-qr">
-        <div class="qr-box">
-          <div class="qr-placeholder">
-            <div class="qr-grid" id="qr-grid"></div>
-          </div>
-          <div class="qr-label">Scan with your UNILIS mobile app</div>
-          <div class="qr-session">Session: <?= strtoupper(substr(session_id(), 0, 12)) ?></div>
-          <div><span class="qr-timer" id="qr-timer">Expires in 5:00</span></div>
+     <!-- METHOD 3: QR Code -->
+<div class="auth-method" id="method-qr">
+    <div class="qr-box">
+        <div id="qr-img" style="display:flex;align-items:center;justify-content:center;min-height:160px">
+            <span style="color:#94a3b8;font-size:13px">Loading QR...</span>
         </div>
-        <div class="alert alert-info" style="font-size:12px;">
-          Open the UNILIS SmartLab app → tap <strong>Scan QR</strong> → point at the code above.
-        </div>
-      </div>
+        <div class="qr-label">Scan with your phone camera</div>
+        <div><span class="qr-timer" id="qr-timer">Expires in 5:00</span></div>
+    </div>
+    <div class="alert alert-info" style="font-size:12px;margin-top:12px;">
+        Point your phone camera at the code → select your name once → future scans auto-login instantly!
+    </div>
+    <div id="qr-status" style="text-align:center;font-size:13px;margin-top:8px;color:#6366f1;display:none">
+        ⏳ Waiting for phone scan...
+    </div>
+</div>
 
       <!-- METHOD 4: Confirmation Code -->
       <div class="auth-method" id="method-code">
@@ -176,70 +178,70 @@
   </div>
 </div>
 
-<script src="<?= APP_URL ?>/public/js/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-// Generate random QR pattern
-const grid = document.getElementById('qr-grid');
-if (grid) {
-  for (let i = 0; i < 64; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'qr-cell';
-    cell.style.background = Math.random() > 0.5 ? '#e5e7eb' : 'transparent';
-    grid.appendChild(cell);
-  }
+let qrToken = null;
+let pollInterval = null;
+let qrTimer = 300;
+
+async function generateQR() {
+    const res  = await fetch('<?= APP_URL ?>/qr/generate');
+    const data = await res.json();
+    qrToken = data.token;
+
+    document.getElementById('qr-img').innerHTML = '';
+    new QRCode(document.getElementById('qr-img'), {
+        text: data.url,
+        width: 180,
+        height: 180,
+        colorDark: '#1e293b',
+        colorLight: '#ffffff',
+    });
+
+    document.getElementById('qr-status').style.display = 'block';
+
+    // Reset timer
+    qrTimer = 300;
+
+    // Start polling
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(async () => {
+        const r = await fetch('<?= APP_URL ?>/qr/poll?token=' + qrToken);
+        const d = await r.json();
+        if (d.status === 'claimed') {
+            clearInterval(pollInterval);
+            document.getElementById('qr-status').textContent = '✅ Logged in! Redirecting...';
+            document.getElementById('qr-status').style.color = '#22c55e';
+            setTimeout(() => window.location.href = d.redirect, 1000);
+        } else if (d.status === 'expired') {
+            clearInterval(pollInterval);
+            document.getElementById('qr-status').textContent = '⚠️ Expired. Refreshing...';
+            setTimeout(generateQR, 1500);
+        }
+    }, 2000);
 }
 
-// Biometric simulation
-function simulateBiometric() {
-  const status = document.getElementById('biometric-status');
-  const submitBtn = document.getElementById('biometric-submit');
-  const biometricData = document.getElementById('biometric_data');
-  
-  status.textContent = 'Scanning...';
-  status.className = 'biometric-status scanning';
-  
-  setTimeout(() => {
-    // Generate simulated biometric data
-    const simulatedData = btoa('fingerprint_' + Math.random().toString(36).substring(2, 15));
-    biometricData.value = simulatedData;
-    
-    status.textContent = 'Scan complete!';
-    status.className = 'biometric-status success';
-    submitBtn.disabled = false;
-  }, 2000);
-}
-
-// Enhanced tab switching with biometric support
+// Generate QR when tab is clicked
 document.querySelectorAll('.auth-tab').forEach(tab => {
-  tab.addEventListener('click', function() {
-    const method = this.dataset.method;
-    
-    // Update tabs
-    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-    this.classList.add('active');
-    
-    // Update panels
-    document.querySelectorAll('.auth-method').forEach(m => m.classList.remove('active'));
-    document.getElementById('method-' + method).classList.add('active');
-  });
+    tab.addEventListener('click', function() {
+        const method = this.dataset.method;
+        document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.auth-method').forEach(m => m.classList.remove('active'));
+        document.getElementById('method-' + method).classList.add('active');
+        if (method === 'qr') generateQR();
+    });
 });
 
-// QR Code timer countdown
-let qrTimer = 300; // 5 minutes
-const timerElement = document.getElementById('qr-timer');
-if (timerElement) {
-  setInterval(() => {
+// QR timer
+const timerEl = document.getElementById('qr-timer');
+setInterval(() => {
     if (qrTimer > 0) {
-      qrTimer--;
-      const minutes = Math.floor(qrTimer / 60);
-      const seconds = qrTimer % 60;
-      timerElement.textContent = `Expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
-    } else {
-      timerElement.textContent = 'Expired';
-      timerElement.style.color = '#dc3545';
+        qrTimer--;
+        const m = Math.floor(qrTimer/60), s = qrTimer%60;
+        if (timerEl) timerEl.textContent = `Expires in ${m}:${s.toString().padStart(2,'0')}`;
     }
-  }, 1000);
-}
+}, 1000);
 </script>
 </body>
 </html>
