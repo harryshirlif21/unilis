@@ -129,16 +129,17 @@
       </div>
 
      <!-- METHOD 3: QR Code -->
+<!-- METHOD 3: QR Code -->
 <div class="auth-method" id="method-qr">
     <div class="qr-box">
-        <div id="qr-img" style="display:flex;align-items:center;justify-content:center;min-height:160px">
-            <span style="color:#94a3b8;font-size:13px">Loading QR...</span>
+        <div id="qr-img" style="display:flex;align-items:center;justify-content:center;min-height:180px">
+            <span style="color:#94a3b8;font-size:13px">Click "QR Code" tab to generate</span>
         </div>
         <div class="qr-label">Scan with your phone camera</div>
-        <div><span class="qr-timer" id="qr-timer">Expires in 5:00</span></div>
+        <div><span class="qr-timer" id="qr-timer"></span></div>
     </div>
     <div class="alert alert-info" style="font-size:12px;margin-top:12px;">
-        Point your phone camera at the code → select your name once → future scans auto-login instantly!
+        Scan once → select your name → future scans log you in instantly!
     </div>
     <div id="qr-status" style="text-align:center;font-size:13px;margin-top:8px;color:#6366f1;display:none">
         ⏳ Waiting for phone scan...
@@ -178,50 +179,48 @@
   </div>
 </div>
 
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-let qrToken = null;
-let pollInterval = null;
-let qrTimer = 300;
+let qrToken = null, pollInterval = null, qrSeconds = 300;
+const timerEl = document.getElementById('qr-timer');
+const statusEl = document.getElementById('qr-status');
 
 async function generateQR() {
+    document.getElementById('qr-img').innerHTML = '<span style="color:#94a3b8;font-size:13px">Generating...</span>';
+    if (statusEl) { statusEl.style.display = 'none'; }
+    if (pollInterval) clearInterval(pollInterval);
+    qrSeconds = 300;
+
     const res  = await fetch('<?= APP_URL ?>/qr/generate');
     const data = await res.json();
     qrToken = data.token;
 
     document.getElementById('qr-img').innerHTML = '';
     new QRCode(document.getElementById('qr-img'), {
-        text: data.url,
-        width: 180,
-        height: 180,
-        colorDark: '#1e293b',
-        colorLight: '#ffffff',
+        text: data.url, width: 180, height: 180,
+        colorDark: '#1e293b', colorLight: '#ffffff',
     });
 
-    document.getElementById('qr-status').style.display = 'block';
+    if (statusEl) { statusEl.style.display = 'block'; }
 
-    // Reset timer
-    qrTimer = 300;
-
-    // Start polling
-    if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(async () => {
         const r = await fetch('<?= APP_URL ?>/qr/poll?token=' + qrToken);
         const d = await r.json();
         if (d.status === 'claimed') {
             clearInterval(pollInterval);
-            document.getElementById('qr-status').textContent = '✅ Logged in! Redirecting...';
-            document.getElementById('qr-status').style.color = '#22c55e';
+            statusEl.textContent = '✅ Logged in! Redirecting...';
+            statusEl.style.color = '#22c55e';
             setTimeout(() => window.location.href = d.redirect, 1000);
         } else if (d.status === 'expired') {
             clearInterval(pollInterval);
-            document.getElementById('qr-status').textContent = '⚠️ Expired. Refreshing...';
+            statusEl.textContent = '⚠️ Expired — refreshing...';
             setTimeout(generateQR, 1500);
         }
     }, 2000);
 }
 
-// Generate QR when tab is clicked
+// Generate when QR tab clicked
 document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', function() {
         const method = this.dataset.method;
@@ -233,14 +232,14 @@ document.querySelectorAll('.auth-tab').forEach(tab => {
     });
 });
 
-// QR timer
-const timerEl = document.getElementById('qr-timer');
+// Countdown timer
 setInterval(() => {
-    if (qrTimer > 0) {
-        qrTimer--;
-        const m = Math.floor(qrTimer/60), s = qrTimer%60;
-        if (timerEl) timerEl.textContent = `Expires in ${m}:${s.toString().padStart(2,'0')}`;
-    }
+    if (!timerEl || qrSeconds <= 0) return;
+    qrSeconds--;
+    const m = Math.floor(qrSeconds/60), s = qrSeconds % 60;
+    timerEl.textContent = qrSeconds > 0
+        ? 'Expires in ' + m + ':' + s.toString().padStart(2,'0')
+        : 'Expired';
 }, 1000);
 </script>
 </body>
