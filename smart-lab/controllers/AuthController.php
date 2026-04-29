@@ -172,7 +172,7 @@ class AuthController {
               ->required('Reg number', $reg_number)
               ->required('Email',      $email)
               ->email('Email',         $email)
-              ->required('Role',       $role)
+              
               ->required('Password',   $password)
               ->minLength('Password',  $password, 8);
 
