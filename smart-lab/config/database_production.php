@@ -1,5 +1,5 @@
 <?php
-define('DB_HOST',    'smart-labs-db');  // Docker container name
+define('DB_HOST',    'unilis-db');  // Docker container name
 define('DB_USER',    'lab_admin'); 
 define('DB_PASS',    'lab_password'); 
 define('DB_NAME',    'unilis_smartlab'); 
