@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How to Use UNILIS SmartLab - User Guide</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #06b6d4;
+            --secondary-dark: #0891b2;
+            --accent: #f59e0b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --white: #ffffff;
+            --gray: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background: var(--light);
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            padding: 1rem 0;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 8rem 2rem 4rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .page-header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .page-header p {
+            font-size: 1.25rem;
+            color: var(--gray);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Role Selection */
+        .role-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .role-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border);
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .role-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+
+        .role-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .role-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--primary-light), var(--secondary));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .role-card h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--dark);
+        }
+
+        .role-card p {
+            color: var(--gray);
+            margin-bottom: 1.5rem;
+        }
+
+        .role-features {
+            list-style: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .role-features li {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--gray);
+        }
+
+        .role-features li i {
+            color: var(--success);
+            font-size: 0.875rem;
+        }
+
+        /* Guide Sections */
+        .guide-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border);
+            margin-bottom: 2rem;
+        }
+
+        .guide-section h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .guide-section h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+            margin-top: 1.5rem;
+        }
+
+        .guide-section p {
+            color: var(--gray);
+            margin-bottom: 1rem;
+        }
+
+        .step-list {
+            counter-reset: step-counter;
+            list-style: none;
+        }
+
+        .step-list li {
+            counter-increment: step-counter;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .step-list li::before {
+            content: counter(step-counter);
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .step-content h4 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+        }
+
+        .step-content p {
+            color: var(--gray);
+            margin-bottom: 0;
+        }
+
+        /* Quick Start */
+        .quick-start {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 3rem 2rem;
+            border-radius: 16px;
+            text-align: center;
+            margin-top: 3rem;
+        }
+
+        .quick-start h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: white;
+        }
+
+        .quick-start p {
+            font-size: 1.125rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .quick-start-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-white {
+            background: white;
+            color: var(--primary);
+        }
+
+        .btn-white:hover {
+            background: var(--light);
+            transform: translateY(-2px);
+        }
+
+        .btn-transparent {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-transparent:hover {
+            background: white;
+            color: var(--primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .page-header h1 {
+                font-size: 2rem;
+            }
+
+            .role-selection {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-start-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="landing.html" class="logo">
+                <div class="logo-icon">🧪</div>
+                <span>UNILIS SmartLab</span>
+            </a>
+            <div class="nav-links">
+                <a href="landing.html">Home</a>
+                <a href="#features">Features</a>
+                <a href="#contact">Contact</a>
+                <a href="auth/login" class="btn btn-primary">Login</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="page-header">
+            <h1>How to Use UNILIS SmartLab</h1>
+            <p>Complete guide for getting started with our laboratory management system. Choose your role below to see tailored instructions.</p>
+        </div>
+
+        <!-- Role Selection -->
+        <div class="role-selection">
+            <div class="role-card" onclick="scrollToSection('student-guide')">
+                <div class="role-icon">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <h3>Student</h3>
+                <p>Learn how to attend lab sessions, create notebooks, submit reports, and track your progress.</p>
+                <ul class="role-features">
+                    <li><i class="fas fa-check"></i> Attend scheduled lab sessions</li>
+                    <li><i class="fas fa-check"></i> Create digital lab notebooks</li>
+                    <li><i class="fas fa-check"></i> Submit lab reports online</li>
+                    <li><i class="fas fa-check"></i> View grades and feedback</li>
+                </ul>
+                <a href="#student-guide" class="btn btn-primary">View Student Guide</a>
+            </div>
+
+            <div class="role-card" onclick="scrollToSection('lecturer-guide')">
+                <div class="role-icon">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                </div>
+                <h3>Lecturer</h3>
+                <p>Manage lab sessions, grade reports, track student progress, and oversee laboratory operations.</p>
+                <ul class="role-features">
+                    <li><i class="fas fa-check"></i> Schedule and manage lab sessions</li>
+                    <li><i class="fas fa-check"></i> Grade student reports</li>
+                    <li><i class="fas fa-check"></i> Monitor student notebooks</li>
+                    <li><i class="fas fa-check"></i> Generate performance reports</li>
+                </ul>
+                <a href="#lecturer-guide" class="btn btn-primary">View Lecturer Guide</a>
+            </div>
+
+            <div class="role-card" onclick="scrollToSection('admin-guide')">
+                <div class="role-icon">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <h3>Administrator</h3>
+                <p>System administration, user management, asset tracking, and overall laboratory oversight.</p>
+                <ul class="role-features">
+                    <li><i class="fas fa-check"></i> Manage users and permissions</li>
+                    <li><i class="fas fa-check"></i> Track laboratory assets</li>
+                    <li><i class="fas fa-check"></i> Monitor system performance</li>
+                    <li><i class="fas fa-check"></i> Generate administrative reports</li>
+                </ul>
+                <a href="#admin-guide" class="btn btn-primary">View Admin Guide</a>
+            </div>
+        </div>
+
+        <!-- Student Guide -->
+        <div class="guide-section" id="student-guide">
+            <h2><i class="fas fa-graduation-cap"></i> Student Guide</h2>
+            <h3>Getting Started as a Student</h3>
+            <p>Follow these steps to make the most of your laboratory experience with UNILIS SmartLab.</p>
+            
+            <ol class="step-list">
+                <li>
+                    <div class="step-content">
+                        <h4>1. Login to Your Account</h4>
+                        <p>Use your registration number and password provided by your institution to access the system.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>2. View Your Dashboard</h4>
+                        <p>Check your dashboard for upcoming lab sessions, pending reports, and recent activities.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>3. Attend Lab Sessions</h4>
+                        <p>Join scheduled lab sessions by checking the schedule and attending your assigned sessions.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>4. Create Lab Notebooks</h4>
+                        <p>After each lab session, create a digital notebook to document your observations and results.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>5. Submit Reports</h4>
+                        <p>Complete and submit your lab reports before the deadline. Include all required data and analysis.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>6. Check Grades</h4>
+                        <p>View your graded reports and feedback from your lecturers to improve your performance.</p>
+                    </div>
+                </li>
+            </ol>
+        </div>
+
+        <!-- Lecturer Guide -->
+        <div class="guide-section" id="lecturer-guide">
+            <h2><i class="fas fa-chalkboard-teacher"></i> Lecturer Guide</h2>
+            <h3>Managing Laboratory Sessions</h3>
+            <p>As a lecturer, you have powerful tools to manage lab sessions and track student progress.</p>
+            
+            <ol class="step-list">
+                <li>
+                    <div class="step-content">
+                        <h4>1. Schedule Lab Sessions</h4>
+                        <p>Create and schedule lab sessions, assign laboratories, and set session parameters.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>2. Manage Student Attendance</h4>
+                        <p>Track student attendance and participation in lab sessions.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>3. Review Student Notebooks</h4>
+                        <p>Monitor student progress by reviewing their digital lab notebooks in real-time.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>4. Grade Reports</h4>
+                        <p>Evaluate student reports, provide feedback, and assign grades efficiently.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>5. Track Performance</h4>
+                        <p>Monitor class performance and identify students who may need additional support.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>6. Generate Reports</h4>
+                        <p>Create comprehensive reports on student performance and lab utilization.</p>
+                    </div>
+                </li>
+            </ol>
+        </div>
+
+        <!-- Admin Guide -->
+        <div class="guide-section" id="admin-guide">
+            <h2><i class="fas fa-user-shield"></i> Administrator Guide</h2>
+            <h3>System Administration</h3>
+            <p>As an administrator, you oversee the entire laboratory management system.</p>
+            
+            <ol class="step-list">
+                <li>
+                    <div class="step-content">
+                        <h4>1. User Management</h4>
+                        <p>Create and manage user accounts, assign roles, and set permissions for students, lecturers, and staff.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>2. Laboratory Management</h4>
+                        <p>Configure laboratory settings, manage equipment, and ensure proper resource allocation.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>3. Asset Tracking</h4>
+                        <p>Monitor laboratory assets, track inventory levels, and manage equipment maintenance.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>4. System Monitoring</h4>
+                        <p>Monitor system performance, review audit logs, and ensure data integrity.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>5. Report Generation</h4>
+                        <p>Generate administrative reports on system usage, performance metrics, and compliance.</p>
+                    </div>
+                </li>
+                <li>
+                    <div class="step-content">
+                        <h4>6. Security Management</h4>
+                        <p>Manage system security, handle user authentication, and ensure data protection compliance.</p>
+                    </div>
+                </li>
+            </ol>
+        </div>
+
+        <!-- Quick Start Section -->
+        <div class="quick-start">
+            <h2>Ready to Get Started?</h2>
+            <p>Choose your next step based on your role and needs.</p>
+            <div class="quick-start-buttons">
+                <a href="auth/login" class="btn btn-white">
+                    <i class="fas fa-sign-in-alt"></i> Login Now
+                </a>
+                <a href="landing.html" class="btn btn-transparent">
+                    <i class="fas fa-arrow-left"></i> Back to Home
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Smooth scrolling for anchor links
+        function scrollToSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
+        }
+
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add scroll effect to navigation
+        window.addEventListener('scroll', function() {
+            const nav = document.querySelector('nav');
+            if (window.scrollY > 50) {
+                nav.style.background = 'rgba(255, 255, 255, 0.98)';
+                nav.style.boxShadow = '0 4px 30px rgba(0, 0, 0, 0.15)';
+            } else {
+                nav.style.background = 'rgba(255, 255, 255, 0.95)';
+                nav.style.boxShadow = '0 2px 20px rgba(0, 0, 0, 0.1)';
+            }
+        });
+    </script>
+</body>
+</html>
