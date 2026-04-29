@@ -2,7 +2,7 @@
 // Production Application Configuration for UNILIS SmartLab
 define('APP_NAME',              'UNILIS SmartLab');
 define('APP_VERSION',           '1.0.0');
-define('APP_URL',               'https://unilis.jhubafrica.com/smart-lab');
+define('APP_URL', 'https://unilis.jhubafrica.com/smart-lab');
 define('APP_ENV',               'production');
 define('SESSION_LIFETIME',      3600);
 define('BLOCKCHAIN_DIFFICULTY', 2);

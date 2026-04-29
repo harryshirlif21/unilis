@@ -1,11 +1,7 @@
 <?php
-// Production Database Configuration for UNILIS SmartLab
-// This file should be used on production server (not Docker)
-
-// Production database connection parameters
-define('DB_HOST',    'localhost'); 
-define('DB_USER',    'unilisuser'); 
-define('DB_PASS',    'unilispass'); 
+define('DB_HOST',    'smart-labs-db');  // Docker container name
+define('DB_USER',    'lab_admin'); 
+define('DB_PASS',    'lab_password'); 
 define('DB_NAME',    'unilis_smartlab'); 
 define('DB_CHARSET', 'utf8mb4');
 
@@ -20,12 +16,9 @@ function getDB(): PDO {
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
         } catch (PDOException $e) {
-            // Logs error and prevents the "Internal Server Error" white screen
             error_log("SmartLab DB Error: " . $e->getMessage());
             die("Database connection failed. Please contact system administrator.");
         }
     }
     return $pdo;
 }
-
-?>
