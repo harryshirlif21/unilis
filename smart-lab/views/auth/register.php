@@ -33,19 +33,15 @@
     <div class="auth-features">
       <div class="auth-feature">
         <div class="auth-feature-dot"></div>
-        Students — access practicals and submit reports
+        Access practicals and submit reports
       </div>
       <div class="auth-feature">
         <div class="auth-feature-dot"></div>
-        Lecturers — create and manage practicals
+        Track lab assets and sessions
       </div>
       <div class="auth-feature">
         <div class="auth-feature-dot"></div>
-        Technicians — approve notebooks and manage assets
-      </div>
-      <div class="auth-feature">
-        <div class="auth-feature-dot"></div>
-        Admins — full system control and audit access
+        Digital lab notebooks and blockchain records
       </div>
     </div>
   </div>
@@ -57,7 +53,6 @@
       <div class="auth-title">Create account</div>
       <div class="auth-subtitle">Fill in your details to register</div>
 
-      <!-- Alerts -->
       <?php if (!empty($error)): ?>
         <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
       <?php endif; ?>
@@ -73,7 +68,11 @@
       <?php if (empty($success)): ?>
       <form method="POST" action="<?= APP_URL ?>/auth/register">
 
-        <!-- Row: Full name -->
+        <!-- Hidden role field — always student -->
+        <input type="hidden" name="role" value="student">
+        <input type="hidden" name="lab_id" value="">
+
+        <!-- Full name -->
         <div class="form-group">
           <label class="form-label">Full Name</label>
           <input type="text" name="full_name" class="form-control"
@@ -81,24 +80,12 @@
             value="<?= htmlspecialchars($_POST['full_name'] ?? '') ?>">
         </div>
 
-        <!-- Row: Reg number + Email -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="form-group">
-            <label class="form-label">Reg / Staff No.</label>
-            <input type="text" name="reg_number" class="form-control"
-              placeholder="e.g. SCT/2021/001" required
-              value="<?= htmlspecialchars($_POST['reg_number'] ?? '') ?>">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Role</label>
-            <select name="role" class="form-control" required>
-              <option value="">Select role</option>
-              <option value="student"    <?= ($_POST['role'] ?? '') === 'student'    ? 'selected' : '' ?>>Student</option>
-              <option value="lecturer"   <?= ($_POST['role'] ?? '') === 'lecturer'   ? 'selected' : '' ?>>Lecturer</option>
-              <option value="technician" <?= ($_POST['role'] ?? '') === 'technician' ? 'selected' : '' ?>>Lab Technician</option>
-              <option value="admin"      <?= ($_POST['role'] ?? '') === 'admin'      ? 'selected' : '' ?>>Admin</option>
-            </select>
-          </div>
+        <!-- Reg number -->
+        <div class="form-group">
+          <label class="form-label">Reg / Staff No.</label>
+          <input type="text" name="reg_number" class="form-control"
+            placeholder="e.g. SCT/2021/001" required
+            value="<?= htmlspecialchars($_POST['reg_number'] ?? '') ?>">
         </div>
 
         <!-- Email -->
@@ -109,26 +96,12 @@
             value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
         </div>
 
-        <!-- Department + Lab -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="form-group">
-            <label class="form-label">Department</label>
-            <input type="text" name="department" class="form-control"
-              placeholder="e.g. Physics"
-              value="<?= htmlspecialchars($_POST['department'] ?? '') ?>">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Assigned Lab</label>
-            <select name="lab_id" class="form-control">
-              <option value="">None / General</option>
-              <?php foreach ($labs as $lab): ?>
-                <option value="<?= $lab['id'] ?>"
-                  <?= ($_POST['lab_id'] ?? '') === $lab['id'] ? 'selected' : '' ?>>
-                  <?= htmlspecialchars($lab['name']) ?> (<?= $lab['lab_code'] ?>)
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
+        <!-- Department -->
+        <div class="form-group">
+          <label class="form-label">Department</label>
+          <input type="text" name="department" class="form-control"
+            placeholder="e.g. Physics"
+            value="<?= htmlspecialchars($_POST['department'] ?? '') ?>">
         </div>
 
         <!-- Password row -->
@@ -164,7 +137,6 @@
 
 <script src="<?= APP_URL ?>/public/js/app.js"></script>
 <script>
-// Live password match check
 const pw  = document.getElementById('pw');
 const pw2 = document.getElementById('pw2');
 const hint = document.getElementById('pw-hint');
