@@ -28,7 +28,7 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `labs` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `name` varchar(150) NOT NULL,
   `lab_code` varchar(20) NOT NULL,
   `type` enum('physics','chemistry','engineering','clinical','computer','general') NOT NULL,
@@ -54,7 +54,7 @@ ALTER TABLE `labs`
 --
 
 CREATE TABLE `users` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `reg_number` varchar(50) NOT NULL,
   `full_name` varchar(150) NOT NULL,
   `email` varchar(150) NOT NULL,

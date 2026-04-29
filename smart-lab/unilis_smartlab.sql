@@ -28,7 +28,7 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `approvals` (
-  `id` varchar(36) NOT NULL DEFAULT uuid(),
+  `id` varchar(36) NOT NULL DEFAULT (uuid()),
   `document_type` enum('notebook','report') NOT NULL,
   `document_id` varchar(36) NOT NULL,
   `reviewer_id` varchar(36) NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE `approvals` (
 --
 
 CREATE TABLE `assets` (
-  `id` varchar(36) NOT NULL DEFAULT uuid(),
+  `id` varchar(36) NOT NULL DEFAULT (uuid()),
   `asset_code` varchar(50) NOT NULL,
   `name` varchar(200) NOT NULL,
   `type` enum('equipment','chemical','consumable','instrument') NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE `assets` (
 --
 
 CREATE TABLE `asset_transactions` (
-  `id` varchar(36) NOT NULL DEFAULT uuid(),
+  `id` varchar(36) NOT NULL DEFAULT (uuid()),
   `asset_id` varchar(36) NOT NULL,
   `action` enum('registered','issued','returned','transferred','disposed','usage_logged') NOT NULL,
   `user_id` varchar(36) NOT NULL,
@@ -154,7 +154,7 @@ INSERT INTO `blockchain_blocks` (`id`, `block_index`, `timestamp`, `block_data`,
 --
 
 CREATE TABLE `labs` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `name` varchar(150) NOT NULL,
   `lab_code` varchar(20) NOT NULL,
   `type` enum('physics','chemistry','engineering','clinical','computer','general') NOT NULL,
@@ -183,7 +183,7 @@ INSERT INTO `labs` (`id`, `name`, `lab_code`, `type`, `building`, `room_number`,
 --
 
 CREATE TABLE `lab_requests` (
-  `id` varchar(36) NOT NULL DEFAULT uuid(),
+  `id` varchar(36) NOT NULL DEFAULT (uuid()),
   `requester_id` varchar(36) NOT NULL,
   `requesting_lab` varchar(36) NOT NULL,
   `target_lab` varchar(36) DEFAULT NULL,
@@ -204,7 +204,7 @@ CREATE TABLE `lab_requests` (
 --
 
 CREATE TABLE `lab_sessions` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `practical_id` char(36) NOT NULL,
   `lab_id` char(36) NOT NULL,
   `started_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -232,7 +232,7 @@ CREATE TABLE `lab_session_students` (
 --
 
 CREATE TABLE `notebooks` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `session_id` char(36) NOT NULL,
   `student_id` char(36) NOT NULL,
   `group_id` char(36) DEFAULT NULL,
@@ -256,7 +256,7 @@ CREATE TABLE `notebooks` (
 --
 
 CREATE TABLE `notebook_versions` (
-  `id` varchar(36) NOT NULL DEFAULT uuid(),
+  `id` varchar(36) NOT NULL DEFAULT (uuid()),
   `notebook_id` varchar(36) NOT NULL,
   `version` int(11) NOT NULL,
   `content` longtext DEFAULT NULL,
@@ -270,7 +270,7 @@ CREATE TABLE `notebook_versions` (
 --
 
 CREATE TABLE `practicals` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `title` varchar(200) NOT NULL,
   `lab_id` char(36) NOT NULL,
   `lecturer_id` char(36) NOT NULL,
@@ -303,7 +303,7 @@ INSERT INTO `practicals` (`id`, `title`, `lab_id`, `lecturer_id`, `created_at`, 
 --
 
 CREATE TABLE `practical_requests` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `student_id` char(36) NOT NULL,
   `practical_id` char(36) NOT NULL,
   `reason` text NOT NULL,
@@ -322,7 +322,7 @@ CREATE TABLE `practical_requests` (
 --
 
 CREATE TABLE `reports` (
-  `id` varchar(36) NOT NULL DEFAULT uuid(),
+  `id` varchar(36) NOT NULL DEFAULT (uuid()),
   `notebook_id` varchar(36) NOT NULL,
   `student_id` varchar(36) NOT NULL,
   `practical_id` varchar(36) NOT NULL,
@@ -345,7 +345,7 @@ CREATE TABLE `reports` (
 --
 
 CREATE TABLE `report_deadlines` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `practical_id` char(36) NOT NULL,
   `student_id` char(36) NOT NULL,
   `deadline_date` datetime NOT NULL,
@@ -400,7 +400,7 @@ CREATE TABLE `student_practicals` (
 --
 
 CREATE TABLE `student_sessions` (
-  `id` varchar(36) NOT NULL DEFAULT uuid(),
+  `id` varchar(36) NOT NULL DEFAULT (uuid()),
   `session_id` varchar(36) NOT NULL,
   `student_id` varchar(36) NOT NULL,
   `auth_method` enum('biometric','qr_code','confirmation_code','manual') NOT NULL,
@@ -415,7 +415,7 @@ CREATE TABLE `student_sessions` (
 --
 
 CREATE TABLE `users` (
-  `id` char(36) NOT NULL DEFAULT uuid(),
+  `id` char(36) NOT NULL DEFAULT (uuid()),
   `reg_number` varchar(50) NOT NULL,
   `full_name` varchar(150) NOT NULL,
   `email` varchar(150) NOT NULL,
