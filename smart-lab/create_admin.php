@@ -4,61 +4,123 @@
  * Inserts an admin user into the existing users table
  */
 
-// Include the existing database connection
+// Include existing database connection
 require_once __DIR__.'/../config/database.php';
 
-// Get database connection using existing method
-$pdo = new PDO("mysql:host=".DB_HOST.";dbname=".DB_NAME.";charset=utf8mb4", DB_USER, DB_PASS);
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-// Admin user data
-$admin_data = [
-    'id' => uniqid('admin_', true), // Generate unique ID
-    'reg_number' => 'ADMIN001',
-    'full_name' => 'SmartLab Administrator',
-    'email' => 'admin@unilis.jhubafrica.com',
-    'password' => password_hash('Admin@2024', PASSWORD_DEFAULT),
-    'role' => 'admin',
-    'lab_id' => null,
-    'department' => 'Computer Science',
-    'biometric_hash' => null,
-    'device_fingerprint' => null,
-    'is_active' => 1
-];
+echo "<h2>SmartLab Admin Creation</h2>";
 
 try {
-    // Check if admin already exists
-    $check_sql = "SELECT id FROM users WHERE email = :email OR reg_number = :reg_number";
-    $check_stmt = $pdo->prepare($check_sql);
-    $check_stmt->execute(['email' => $admin_data['email'], 'reg_number' => $admin_data['reg_number']]);
+    // Use existing Database class
+    $db = new Database();
+    $conn = $db->getConnection();
+    echo "<p style='color: green;'>✅ Database connection successful</p>";
     
-    if ($check_stmt->fetch()) {
-        echo "Admin user already exists with this email or registration number.\n";
-        echo "Email: " . $admin_data['email'] . "\n";
-        echo "Reg Number: " . $admin_data['reg_number'] . "\n";
-        exit;
+    // Check if users table exists
+    $result = executeQuery("SHOW TABLES LIKE 'users'");
+    if (empty($result)) {
+        echo "<p style='color: red;'>❌ Users table not found. Creating it...</p>";
+        
+        // Create users table
+        $createTableSQL = "
+        CREATE TABLE IF NOT EXISTS users (
+            id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+            reg_number VARCHAR(50) UNIQUE,
+            full_name VARCHAR(150) NOT NULL,
+            email VARCHAR(150) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            role ENUM('student', 'lecturer', 'technician', 'admin') NOT NULL DEFAULT 'student',
+            lab_id CHAR(36) NULL,
+            department VARCHAR(100) NULL,
+            biometric_hash VARCHAR(255) NULL,
+            device_fingerprint VARCHAR(255) NULL,
+            is_active TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_reg_number (reg_number),
+            INDEX idx_email (email),
+            INDEX idx_lab_id (lab_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ";
+        
+        executeQuery($createTableSQL);
+        echo "<p style='color: green;'>✅ Users table created successfully</p>";
+    } else {
+        echo "<p style='color: green;'>✅ Users table exists</p>";
     }
     
-    // Insert admin user
-    $sql = "INSERT INTO users (
-        id, reg_number, full_name, email, password, role, lab_id, 
-        department, biometric_hash, device_fingerprint, is_active
-    ) VALUES (
-        :id, :reg_number, :full_name, :email, :password, :role, :lab_id,
-        :department, :biometric_hash, :device_fingerprint, :is_active
-    )";
+    // Admin user data
+    $admin_data = [
+        'id' => uniqid('admin_', true),
+        'reg_number' => 'ADMIN001',
+        'full_name' => 'SmartLab Administrator',
+        'email' => 'admin@unilis.jhubafrica.com',
+        'password' => password_hash('Admin@2024', PASSWORD_DEFAULT),
+        'role' => 'admin',
+        'lab_id' => null,
+        'department' => 'Computer Science',
+        'biometric_hash' => null,
+        'device_fingerprint' => null,
+        'is_active' => 1
+    ];
     
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($admin_data);
+    // Check if admin already exists
+    $checkResult = executeQuery("SELECT id FROM users WHERE email = ? OR reg_number = ? LIMIT 1", 
+                              [$admin_data['email'], $admin_data['reg_number']], "ss");
     
-    echo "Admin user created successfully!\n";
-    echo "Login Credentials:\n";
-    echo "Email: " . $admin_data['email'] . "\n";
-    echo "Password: Admin@2024\n";
-    echo "Role: " . $admin_data['role'] . "\n";
-    echo "\nIMPORTANT: Change the password after first login!\n";
+    if (!empty($checkResult)) {
+        echo "<p style='color: orange;'>⚠️ Admin user already exists</p>";
+        
+        // Update existing admin password
+        executeQuery("
+            UPDATE users SET 
+                password = ?, 
+                full_name = ?, 
+                role = ?, 
+                is_active = 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE email = ?
+        ", [
+            $admin_data['password'],
+            $admin_data['full_name'],
+            $admin_data['role'],
+            $admin_data['email']
+        ], "ssss");
+        
+        echo "<p style='color: green;'>✅ Admin password updated successfully</p>";
+    } else {
+        // Insert new admin
+        $columns = implode(', ', array_keys($admin_data));
+        $placeholders = implode(', ', array_fill(0, count($admin_data), '?'));
+        
+        $insertSQL = "INSERT INTO users ($columns) VALUES ($placeholders)";
+        executeQuery($insertSQL, array_values($admin_data));
+        
+        echo "<p style='color: green;'>✅ Admin user created successfully</p>";
+    }
     
-} catch (PDOException $e) {
-    echo "Error creating admin: " . $e->getMessage() . "\n";
+    echo "<h3>Admin Login Credentials:</h3>";
+    echo "<p><strong>Email:</strong> " . htmlspecialchars($admin_data['email']) . "</p>";
+    echo "<p><strong>Password:</strong> Admin@2024</p>";
+    echo "<p><strong>Role:</strong> " . htmlspecialchars($admin_data['role']) . "</p>";
+    
+    echo "<div style='background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 20px 0;'>";
+    echo "<h4 style='color: #f39c12; margin-top: 0;'>🔐 Security Notes:</h4>";
+    echo "<ul style='color: #666;'>";
+    echo "<li><strong>Change password immediately</strong> after first login</li>";
+    echo "<li><strong>Delete this script</strong> from server after use</li>";
+    echo "<li><strong>Store credentials securely</strong></li>";
+    echo "</ul>";
+    echo "</div>";
+    
+    echo "<p><a href='http://localhost/smart-lab/index.php?url=auth/login' style='background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;'>Go to SmartLab Login</a></p>";
+    
+} catch (Exception $e) {
+    echo "<p style='color: red;'>❌ Error: " . htmlspecialchars($e->getMessage()) . "</p>";
+    echo "<p>Please check:</p>";
+    echo "<ul>";
+    echo "<li>MySQL server is running</li>";
+    echo "<li>Docker containers are running (if using Docker)</li>";
+    echo "<li>Database credentials are correct</li>";
+    echo "</ul>";
 }
 ?>
