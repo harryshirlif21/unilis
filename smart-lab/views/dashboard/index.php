@@ -1,8 +1,8 @@
 <?php
 require_once __DIR__.'/../../auth/Auth.php';
 Auth::guard();
-$initials = strtoupper(substr($user_name ?? 'U', 0, 1) . substr(strrchr($user_name ?? ' U', ' '), 1, 1));
-$role_label = ucfirst($user_role ?? 'user');
+$initials = strtoupper(substr(Auth::name(), 0, 1) . substr(strrchr(Auth::name(), ' '), 1, 1));
+$role_label = ucfirst(Auth::role());
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -15,44 +15,18 @@ $role_label = ucfirst($user_role ?? 'user');
 </head>
 <body>
 
-<div class="app-layout">
+<div class="app-container">
+  <!-- Include the new sidebar -->
+  <?php include __DIR__.'/../layouts/sidebar.php'; ?>
 
-<!-- ── SIDEBAR ── -->
-<aside class="sidebar">
-  <div class="sidebar-logo">
-    <div class="logo-mark">
-      <div class="logo-icon">SL</div>
-      <div>
-        <div class="logo-name">SmartLab</div>
-        <div class="logo-ver">UNILIS v1.0</div>
-      </div>
-    </div>
-  </div>
+  <!-- ── MAIN ── -->
+  <div class="main">
 
-  <nav class="sidebar-nav">
-    <div class="nav-group-label">Main</div>
-    <a class="nav-link active" href="<?= APP_URL ?>/dashboard">
-      <span class="nav-icon">⊞</span> Dashboard
-    </a>
-    <a class="nav-link" href="<?= APP_URL ?>/schedule">
-      <span class="nav-icon">📅</span> Schedule
-    </a>
-    <a class="nav-link" href="<?= APP_URL ?>/practicals">
-      <span class="nav-icon">🔬</span> Practicals
-    </a>
-
-    <div class="nav-group-label">Lab Work</div>
-    <a class="nav-link" href="<?= APP_URL ?>/notebooks">
-      <span class="nav-icon">📓</span> Lab Notebooks
-    </a>
-    <a class="nav-link" href="<?= APP_URL ?>/reports">
-      <span class="nav-icon">📄</span> Reports
-      <span class="nav-badge">3</span>
-    </a>
-
-    <div class="nav-group-label">Assets</div>
-    <a class="nav-link" href="<?= APP_URL ?>/assets">
-      <span class="nav-icon">🗄</span> Assets
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-overline">Overview</div>
+      <h1 class="page-title">Dashboard</h1>
+      <div class="page-subtitle">Welcome back, <?= htmlspecialchars(Auth::name()) ?>. Here's what's happening in your lab today.</div>
     </a>
     <a class="nav-link" href="<?= APP_URL ?>/inventory">
       <span class="nav-icon">📦</span> Inventory
@@ -147,37 +121,135 @@ $role_label = ucfirst($user_role ?? 'user');
           <h2 class="section-title">Quick Actions</h2>
         </div>
       </div>
-      <div class="grid grid-cards">
-        <a href="<?= APP_URL ?>/notebooks/create" class="card card-hover">
-          <div class="card-body">
-            <div class="text-lg mb-2">📓</div>
-            <h4 class="text-bold">Create Notebook</h4>
-            <p class="caption">Start a new lab notebook</p>
-          </div>
-        </a>
-        <a href="<?= APP_URL ?>/practicals/create" class="card card-hover">
-          <div class="card-body">
-            <div class="text-lg mb-2">🔬</div>
-            <h4 class="text-bold">Schedule Practical</h4>
-            <p class="caption">Plan a lab session</p>
-          </div>
-        </a>
-        <a href="<?= APP_URL ?>/practical-requests/create" class="card card-hover">
-          <div class="card-body">
-            <div class="text-lg mb-2">📋</div>
-            <h4 class="text-bold">Request Redo</h4>
-            <p class="caption">Request to redo a practical</p>
-          </div>
-        </a>
-        <a href="<?= APP_URL ?>/report-submission" class="card card-hover">
-          <div class="card-body">
-            <div class="text-lg mb-2">📝</div>
-            <h4 class="text-bold">Submit Report</h4>
-            <p class="caption">Complete lab report</p>
-          </div>
-        </a>
-        <a href="<?= APP_URL ?>/assets/create" class="card card-hover">
-          <div class="card-body">
+      <?php if (Auth::role() === 'student'): ?>
+        <!-- Student Quick Actions -->
+        <div class="grid grid-cards">
+          <a href="<?= APP_URL ?>/practicals" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">View My Practicals</h4>
+              <p class="caption">See your scheduled lab sessions</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/report-submission" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">Submit Report</h4>
+              <p class="caption">Upload your lab report</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/notebooks" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">My Notebooks</h4>
+              <p class="caption">Access your lab notebooks</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/schedule" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">View Schedule</h4>
+              <p class="caption">Check lab timetable</p>
+            </div>
+          </a>
+        </div>
+      <?php elseif (Auth::role() === 'lecturer'): ?>
+        <!-- Lecturer Quick Actions -->
+        <div class="grid grid-cards">
+          <a href="<?= APP_URL ?>/practicals/create" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">Create Practical</h4>
+              <p class="caption">Schedule a new lab session</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/schedule" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">View Schedule</h4>
+              <p class="caption">Manage lab timetable</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/reports" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">Grade Reports</h4>
+              <p class="caption">Review student submissions</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/admin" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">Manage Sessions</h4>
+              <p class="caption">Approve practical requests</p>
+            </div>
+          </a>
+        </div>
+      <?php elseif (Auth::role() === 'technician'): ?>
+        <!-- Technician Quick Actions -->
+        <div class="grid grid-cards">
+          <a href="<?= APP_URL ?>/assets" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">Manage Assets</h4>
+              <p class="caption">Track lab equipment</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/inventory" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">View Inventory</h4>
+              <p class="caption">Check stock levels</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/notebooks" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">Approve Notebooks</h4>
+              <p class="caption">Review lab notebooks</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/schedule" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">View Schedule</h4>
+              <p class="caption">See lab sessions</p>
+            </div>
+          </a>
+        </div>
+      <?php elseif (Auth::role() === 'admin'): ?>
+        <!-- Admin Quick Actions -->
+        <div class="grid grid-cards">
+          <a href="<?= APP_URL ?>/users" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">Manage Users</h4>
+              <p class="caption">Add or deactivate users</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/audit" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">View Audit Logs</h4>
+              <p class="caption">Monitor system activity</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/blockchain" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">Blockchain Records</h4>
+              <p class="caption">View asset tracking</p>
+            </div>
+          </a>
+          <a href="<?= APP_URL ?>/practicals" class="card card-hover">
+            <div class="card-body">
+              <div class="text-lg mb-2">?</div>
+              <h4 class="text-bold">All Practicals</h4>
+              <p class="caption">Manage all lab sessions</p>
+            </div>
+          </a>
+        </div>
+      <?php endif; ?>
             <div class="text-lg mb-2">📦</div>
             <h4 class="text-bold">Add Asset</h4>
             <p class="caption">Register new equipment</p>

@@ -1,14 +1,5 @@
 <?php
-// Environment detection and proper config loading
-$is_production = (strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false);
-
-if ($is_production) {
-    require_once __DIR__.'/../config/app_production.php';
-    require_once __DIR__.'/../config/database_production.php';
-} else {
-    require_once __DIR__.'/../config/app.php';
-    require_once __DIR__.'/../config/database.php';
-}
+require_once __DIR__.'/../config/app.php';
 
 require_once __DIR__.'/../models/ScheduleModel.php';
 require_once __DIR__.'/../models/PracticalModel.php';

@@ -29,6 +29,7 @@ $map = [
     'experiments'        => 'ExperimentController',
     'schedules'          => 'ScheduleController',
     'student'            => 'StudentPracticalController',
+    'users'              => 'UsersController',
 ];
 
 if (isset($map[$controller])) {
