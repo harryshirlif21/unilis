@@ -19,34 +19,38 @@ class AuthController {
             $method = sanitize($_POST['auth_method'] ?? 'password');
 
             if ($method === 'password') {
-                $reg  = sanitize($_POST['reg_number'] ?? '');
+                $input = sanitize($_POST['reg_number'] ?? '');
                 $pass = $_POST['password'] ?? '';
-                $email = sanitize($_POST['email'] ?? '');
 
-                if (empty($reg) && empty($email)) {
+                if (empty($input)) {
                     $error = 'Please enter your registration number or email.';
                 } elseif (empty($pass)) {
                     $error = 'Please enter your password.';
-                } elseif (Auth::login($reg, $pass)) {
-                    // Check if MFA is required
-                    if (Auth::requireMultiFactor()) {
-                        $mfaCode = Auth::initiateMultiFactor(Auth::id());
-                        $mfaRequired = true;
-                    } else {
-                        logActivity(Auth::id(), 'login_password', 'auth');
-                        redirect('dashboard');
-                    }
-                } elseif (Auth::loginByEmail($email, $pass)) {
-                    // Check if MFA is required
-                    if (Auth::requireMultiFactor()) {
-                        $mfaCode = Auth::initiateMultiFactor(Auth::id());
-                        $mfaRequired = true;
-                    } else {
-                        logActivity(Auth::id(), 'login_password', 'auth');
-                        redirect('dashboard');
-                    }
                 } else {
-                    $error = 'Invalid registration number, email, or password.';
+                    // Detect if input is email or registration number
+                    $isEmail = filter_var($input, FILTER_VALIDATE_EMAIL);
+                    $loginSuccess = false;
+                    
+                    if ($isEmail) {
+                        // Try email-based login for admin/technician/lecturer
+                        $loginSuccess = Auth::loginByEmail($input, $pass);
+                    } else {
+                        // Try reg_number-based login for students
+                        $loginSuccess = Auth::login($input, $pass);
+                    }
+                    
+                    if ($loginSuccess) {
+                        // Check if MFA is required
+                        if (Auth::requireMultiFactor()) {
+                            $mfaCode = Auth::initiateMultiFactor(Auth::id());
+                            $mfaRequired = true;
+                        } else {
+                            logActivity(Auth::id(), 'login_password', 'auth');
+                            redirect('dashboard');
+                        }
+                    } else {
+                        $error = 'Invalid ' . ($isEmail ? 'email' : 'registration number') . ' or password.';
+                    }
                 }
 
             } elseif ($method === 'biometric') {
