@@ -9,9 +9,15 @@ $role_label = ucfirst(Auth::role());
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Dashboard — UNILIS SmartLab</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= APP_URL ?>/public/css/app.css">
+<title>Dashboard - UNILIS SmartLab</title>
+<!-- Modern Typography -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- ProMax UI Styles -->
+<link rel="stylesheet" href="<?= APP_URL ?>/public/css/promax.css">
+<!-- Alpine.js for UI State Management -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<!-- Font Awesome for Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
@@ -47,70 +53,118 @@ $role_label = ucfirst(Auth::role());
       <div>
         <div class="user-name"><?= htmlspecialchars($user_name ?? 'User') ?></div>
         <div class="user-role"><?= $role_label ?></div>
-      </div>
-      <a href="<?= APP_URL ?>/auth/logout" class="user-logout" title="Logout">⏻</a>
-    </div>
-  </div>
-</aside>
-
-<!-- ── MAIN ── -->
-<div class="main">
-
-  <!-- Page Header -->
-  <div class="page-header">
-    <div class="page-overline">Overview</div>
-    <h1 class="page-title">Dashboard</h1>
-    <div class="page-subtitle">Welcome back, <?= htmlspecialchars($user_name ?? 'User') ?>. Here's what's happening in your lab today.</div>
-  </div>
-
-  <!-- Hero Banner -->
-  <div class="hero-banner">
-    <h2>Lab Management Center</h2>
-    <p>Monitor active sessions, track assets, and manage laboratory operations from your central dashboard.</p>
-  </div>
-
-  <!-- Content -->
-  <div class="content">
-
-    <!-- Stats Section -->
-    <div class="section-header">
-      <div>
-        <div class="section-overline">Laboratory Metrics</div>
-        <h2 class="section-title">Live Statistics</h2>
-      </div>
     </div>
 
-    <div class="grid grid-stats">
-      <div class="stat-card primary">
-        <div class="stat-label">Active Labs</div>
-        <div class="stat-value"><?= $stats['labs'] ?? 0 ?></div>
-        <div class="stat-delta">All operational</div>
+    <!-- ProMax Bento Dashboard Grid -->
+    <div class="promax-bento-grid">
+
+      <!-- Live Statistics Card -->
+      <div class="promax-bento-card animate-fade-in">
+        <h3 style="color: white; margin: 0 0 var(--space-lg) 0; font-size: 1.25rem; font-weight: 600;">Live Statistics</h3>
+        <div class="promax-stats-grid">
+          <div class="promax-stat-card">
+            <div class="promax-stat-number"><?= $stats['labs'] ?? 0 ?></div>
+            <div class="promax-stat-label">Active Labs</div>
+          </div>
+          <div class="promax-stat-card">
+            <div class="promax-stat-number"><?= $stats['students'] ?? 0 ?></div>
+            <div class="promax-stat-label">Students</div>
+          </div>
+          <div class="promax-stat-card">
+            <div class="promax-stat-number"><?= $stats['practicals'] ?? 0 ?></div>
+            <div class="promax-stat-label">Practicals</div>
+          </div>
+          <div class="promax-stat-card">
+            <div class="promax-stat-number"><?= $stats['assets'] ?? 0 ?></div>
+            <div class="promax-stat-label">Assets</div>
+          </div>
+        </div>
       </div>
-      <div class="stat-card gold">
-        <div class="stat-label">Students</div>
-        <div class="stat-value"><?= $stats['students'] ?? 0 ?></div>
-        <div class="stat-delta">Enrolled this term</div>
+
+      <!-- RFID Interaction Card -->
+      <div class="promax-bento-card animate-fade-in" x-data="{ rfidStatus: 'ready', rfidMessage: 'Ready for RFID scan' }">
+        <h3 style="color: white; margin: 0 0 var(--space-lg) 0; font-size: 1.25rem; font-weight: 600;">RFID Scanner</h3>
+        <div class="promax-rfid-card" :class="rfidStatus">
+          <div style="color: white; font-size: 3rem; margin-bottom: var(--space-md);">
+            <i class="fas fa-wifi"></i>
+          </div>
+          <div style="color: white; font-weight: 600; margin-bottom: var(--space-sm);">RFID Access Point</div>
+          <div class="text-mono" style="color: rgba(255, 255, 255, 0.8); font-size: 0.875rem;" x-text="rfidMessage"></div>
+          <button @click="rfidStatus = 'scanning'; rfidMessage = 'Scanning...'; setTimeout(() => { rfidStatus = 'success'; rfidMessage = 'Access Granted'; }, 2000)" 
+                  class="glass" style="margin-top: var(--space-lg); padding: var(--space-sm) var(--space-lg); border: none; border-radius: 8px; color: white; cursor: pointer; transition: all var(--transition-base);">
+            Simulate Scan
+          </button>
+        </div>
       </div>
-      <div class="stat-card success">
-        <div class="stat-label">Practicals</div>
-        <div class="stat-value"><?= $stats['practicals'] ?? 0 ?></div>
-        <div class="stat-delta">Active & published</div>
+
+      <!-- Live Equipment Status -->
+      <div class="promax-bento-card animate-fade-in" style="grid-column: span 2;">
+        <h3 style="color: white; margin: 0 0 var(--space-lg) 0; font-size: 1.25rem; font-weight: 600;">Live Equipment Status</h3>
+        <div class="promax-equipment-grid">
+          <div class="promax-equipment-item">
+            <div class="promax-equipment-name">Microscope Lab</div>
+            <div class="promax-equipment-status online">ONLINE</div>
+          </div>
+          <div class="promax-equipment-item">
+            <div class="promax-equipment-name">Chemistry Station</div>
+            <div class="promax-equipment-status online">ONLINE</div>
+          </div>
+          <div class="promax-equipment-item">
+            <div class="promax-equipment-name">Physics Lab</div>
+            <div class="promax-equipment-status maintenance">MAINTENANCE</div>
+          </div>
+          <div class="promax-equipment-item">
+            <div class="promax-equipment-name">Biology Lab</div>
+            <div class="promax-equipment-status online">ONLINE</div>
+          </div>
+          <div class="promax-equipment-item">
+            <div class="promax-equipment-name">Computer Lab</div>
+            <div class="promax-equipment-status offline">OFFLINE</div>
+          </div>
+          <div class="promax-equipment-item">
+            <div class="promax-equipment-name">Electronics Lab</div>
+            <div class="promax-equipment-status online">ONLINE</div>
+          </div>
+        </div>
       </div>
-      <div class="stat-card primary">
-        <div class="stat-label">Assets</div>
-        <div class="stat-value"><?= $stats['assets'] ?? 0 ?></div>
-        <div class="stat-delta">Available now</div>
+
+      <!-- Forensic Timeline -->
+      <div class="promax-bento-card animate-fade-in" style="grid-column: span 2;">
+        <h3 style="color: white; margin: 0 0 var(--space-lg) 0; font-size: 1.25rem; font-weight: 600;">Forensic Timeline</h3>
+        <div class="promax-forensic-list">
+          <div class="promax-forensic-item">
+            <div class="promax-forensic-timestamp">14:32</div>
+            <div class="promax-forensic-event">RFID scan successful - Lab Access</div>
+            <div class="promax-forensic-status success">SUCCESS</div>
+          </div>
+          <div class="promax-forensic-item">
+            <div class="promax-forensic-timestamp">14:28</div>
+            <div class="promax-forensic-event">Equipment checkout - Microscope #4</div>
+            <div class="promax-forensic-status success">ACTIVE</div>
+          </div>
+          <div class="promax-forensic-item">
+            <div class="promax-forensic-timestamp">14:15</div>
+            <div class="promax-forensic-event">Practical session started - Chemistry Lab</div>
+            <div class="promax-forensic-status warning">IN PROGRESS</div>
+          </div>
+          <div class="promax-forensic-item">
+            <div class="promax-forensic-timestamp">14:02</div>
+            <div class="promax-forensic-event">User authentication - Admin login</div>
+            <div class="promax-forensic-status success">SUCCESS</div>
+          </div>
+          <div class="promax-forensic-item">
+            <div class="promax-forensic-timestamp">13:45</div>
+            <div class="promax-forensic-event">Asset maintenance scheduled</div>
+            <div class="promax-forensic-status warning">SCHEDULED</div>
+          </div>
+          <div class="promax-forensic-item">
+            <div class="promax-forensic-timestamp">13:30</div>
+            <div class="promax-forensic-event">Blockchain record created - Asset #A123</div>
+            <div class="promax-forensic-status success">RECORDED</div>
+          </div>
+        </div>
       </div>
-      <div class="stat-card warning">
-        <div class="stat-label">Live Sessions</div>
-        <div class="stat-value"><?= $stats['sessions'] ?? 0 ?></div>
-        <div class="stat-delta">Open right now</div>
-      </div>
-      <div class="stat-card primary">
-        <div class="stat-label">Blockchain</div>
-        <div class="stat-value"><?= $stats['blocks'] ?? 0 ?></div>
-        <div class="stat-delta">Blocks recorded</div>
-      </div>
+
     </div>
 
     <!-- Quick Actions Panel -->

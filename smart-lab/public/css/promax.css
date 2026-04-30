@@ -1,0 +1,527 @@
+/* ProMax UI/UX Styles - Smart Laboratory System */
+/* Premium Minimalism with Glassmorphism and Depth-focused UI */
+
+/* Import modern typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
+
+/* CSS Variables for Design System */
+:root {
+  /* Color Palette */
+  --primary: #1E6FBA;
+  --primary-dark: #155a9a;
+  --accent: #D4AF37;
+  --success: #2E8B57;
+  --success-light: #3da865;
+  --danger: #dc3545;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  
+  /* Glassmorphism Colors */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  
+  /* Dark Mode */
+  --dark-bg: #0f172a;
+  --dark-surface: #1e293b;
+  --dark-glass: rgba(30, 41, 59, 0.8);
+  --dark-border: rgba(255, 255, 255, 0.1);
+  
+  /* Typography */
+  --font-prose: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Roboto Mono', monospace;
+  
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base Styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-prose);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  color: #1a202c;
+}
+
+/* Glassmorphism Base Classes */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-dark {
+  background: var(--dark-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--dark-border);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+}
+
+/* ProMax Sidebar Navigation */
+.promax-sidebar {
+  width: 280px;
+  height: 100vh;
+  background: var(--dark-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--dark-border);
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  transition: width var(--transition-base);
+  overflow: hidden;
+}
+
+.promax-sidebar:hover {
+  width: 320px;
+}
+
+.promax-sidebar-header {
+  padding: var(--space-xl);
+  border-bottom: 1px solid var(--dark-border);
+}
+
+.promax-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  color: white;
+}
+
+.promax-logo-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 12px rgba(30, 111, 186, 0.3);
+}
+
+.promax-nav-list {
+  list-style: none;
+  padding: var(--space-lg) 0;
+  margin: 0;
+}
+
+.promax-nav-item {
+  margin: var(--space-xs) var(--space-lg);
+}
+
+.promax-nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.promax-nav-link::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left var(--transition-slow);
+}
+
+.promax-nav-link:hover::before {
+  left: 100%;
+}
+
+.promax-nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transform: translateX(4px);
+}
+
+.promax-nav-link.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  box-shadow: 0 4px 12px rgba(30, 111, 186, 0.3);
+}
+
+.promax-nav-icon {
+  width: 20px;
+  text-align: center;
+}
+
+/* Bento Dashboard Grid */
+.promax-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-xl);
+  padding: var(--space-xl);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.promax-bento-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: var(--space-xl);
+  box-shadow: var(--glass-shadow);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.promax-bento-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  transform: scaleX(0);
+  transition: transform var(--transition-base);
+}
+
+.promax-bento-card:hover::before {
+  transform: scaleX(1);
+}
+
+.promax-bento-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* RFID Interaction Card */
+.promax-rfid-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 2px solid var(--glass-border);
+  border-radius: 20px;
+  padding: var(--space-2xl);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+
+.promax-rfid-card.hardware-ready {
+  animation: pulse-glow 2s infinite;
+}
+
+.promax-rfid-card:hover {
+  transform: scale(1.05);
+  border-color: var(--primary);
+}
+
+.promax-rfid-card.success {
+  border-color: var(--success);
+  box-shadow: 0 0 20px rgba(46, 139, 87, 0.4);
+}
+
+.promax-rfid-card.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 20px rgba(220, 53, 69, 0.4);
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(30, 111, 186, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(30, 111, 186, 0.8);
+  }
+}
+
+/* Forensic Log Lists */
+.promax-forensic-list {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: var(--space-lg);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.promax-forensic-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--glass-border);
+  transition: all var(--transition-fast);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.promax-forensic-item:last-child {
+  border-bottom: none;
+}
+
+.promax-forensic-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.promax-forensic-timestamp {
+  color: var(--accent);
+  font-weight: 500;
+  min-width: 80px;
+}
+
+.promax-forensic-event {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.promax-forensic-status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.promax-forensic-status.success {
+  background: var(--success);
+  color: white;
+}
+
+.promax-forensic-status.error {
+  background: var(--danger);
+  color: white;
+}
+
+.promax-forensic-status.warning {
+  background: var(--warning);
+  color: white;
+}
+
+/* Live Equipment Status */
+.promax-equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.promax-equipment-item {
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: var(--space-md);
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.promax-equipment-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+}
+
+.promax-equipment-name {
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+  color: white;
+}
+
+.promax-equipment-status {
+  font-size: 0.875rem;
+  font-family: var(--font-mono);
+}
+
+.promax-equipment-status.online {
+  color: var(--success);
+}
+
+.promax-equipment-status.offline {
+  color: var(--danger);
+}
+
+.promax-equipment-status.maintenance {
+  color: var(--warning);
+}
+
+/* Stats Cards */
+.promax-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-lg);
+  margin-bottom: var(--space-2xl);
+}
+
+.promax-stat-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: var(--space-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.promax-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.promax-stat-number {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: var(--space-xs);
+}
+
+.promax-stat-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .promax-sidebar {
+    width: 60px;
+  }
+  
+  .promax-sidebar:hover {
+    width: 280px;
+  }
+  
+  .promax-bento-grid {
+    grid-template-columns: 1fr;
+    padding: var(--space-lg);
+  }
+  
+  .promax-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Utility Classes */
+.text-prose {
+  font-family: var(--font-prose);
+}
+
+.text-mono {
+  font-family: var(--font-mono);
+}
+
+.text-primary {
+  color: var(--primary);
+}
+
+.text-accent {
+  color: var(--accent);
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.bg-primary {
+  background: var(--primary);
+}
+
+.bg-accent {
+  background: var(--accent);
+}
+
+.bg-success {
+  background: var(--success);
+}
+
+/* Animation Utilities */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
