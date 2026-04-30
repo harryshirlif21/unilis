@@ -17,48 +17,24 @@ try {
     // Check if users table exists
     $stmt = $pdo->query("SHOW TABLES LIKE 'users'");
     if ($stmt->rowCount() === 0) {
-        echo "<p style='color: red;'>Users table not found. Creating it...</p>";
-        
-        // Create users table
-        $createTableSQL = "
-        CREATE TABLE IF NOT EXISTS users (
-            id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-            reg_number VARCHAR(50) UNIQUE,
-            full_name VARCHAR(150) NOT NULL,
-            email VARCHAR(150) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            role ENUM('student', 'lecturer', 'technician', 'admin') NOT NULL DEFAULT 'student',
-            lab_id CHAR(36) NULL,
-            department VARCHAR(100) NULL,
-            biometric_hash VARCHAR(255) NULL,
-            device_fingerprint VARCHAR(255) NULL,
-            is_active TINYINT(1) DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_reg_number (reg_number),
-            INDEX idx_email (email),
-            INDEX idx_lab_id (lab_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ";
-        
-        $pdo->exec($createTableSQL);
-        echo "<p style='color: green;'>Users table created successfully</p>";
+        echo "<p style='color: red;'>Users table not found. Please check database setup.</p>";
+        exit;
     } else {
         echo "<p style='color: green;'>Users table exists</p>";
+        
+        // Show table structure for debugging
+        $columnsStmt = $pdo->query("DESCRIBE users");
+        $columns = $columnsStmt->fetchAll(PDO::FETCH_ASSOC);
+        echo "<p style='color: blue;'>Table has " . count($columns) . " columns</p>";
     }
     
-    // Admin user data
+    // Admin user data - only essential columns
     $admin_data = [
-        'id' => uniqid('admin_', true),
         'reg_number' => 'ADMIN001',
         'full_name' => 'SmartLab Administrator',
         'email' => 'admin@unilis.jhubafrica.com',
         'password' => password_hash('Admin@2024', PASSWORD_DEFAULT),
         'role' => 'admin',
-        'lab_id' => null,
-        'department' => 'Computer Science',
-        'biometric_hash' => null,
-        'device_fingerprint' => null,
         'is_active' => 1
     ];
     
@@ -75,8 +51,7 @@ try {
                 password = ?, 
                 full_name = ?, 
                 role = ?, 
-                is_active = 1,
-                updated_at = CURRENT_TIMESTAMP
+                is_active = 1
             WHERE email = ?
         ");
         $updateStmt->execute([
