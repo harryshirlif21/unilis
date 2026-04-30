@@ -224,7 +224,7 @@ error_log("=== EMAIL RESULT: " . ($email_sent ? 'SUCCESS' : 'FAILED') . " ===");
 if ($action === 'universal_login') {
     $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
     $password = $_POST['password'] ?? '';
-    $return   = $_GET['return'] ?? '';  // THIS IS THE KEY LINE
+    $return   = $_GET['return'] ?? '';
 
     if (!$email) {
         $_SESSION['login_error'] = "Please enter a valid email.";
@@ -232,82 +232,137 @@ if ($action === 'universal_login') {
         exit;
     }
 
-    $roles = [
-        'admin' => [
-            'table' => 'admins',
-            'fields' => ['id', 'password', 'name'],
-            'redirect' => 'admin/dashboard.php',
-            'session_map' => ['name' => 'user_name']
-        ],
-        'lecturer' => [
-            'table' => 'lecturers',
-            'fields' => ['id', 'password', 'name'],
-            'redirect' => 'lecturer/dashboard.php',
-            'session_map' => ['name' => 'user_name']
-        ],
-        'student' => [
-            'table' => 'students',
-            'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'is_verified'],
-            'redirect' => 'student/dashboard.php',
-            'session_map' => [
-                'name' => 'user_name',
-                'course_id' => 'course_id',
-                'year_of_study' => 'year_of_study'
-            ],
-            'requires_verification' => true
-        ]
-    ];
-
     $login_success = false;
-
-    foreach ($roles as $role => $config) {
-        $table = $config['table'];
-        $fields = $config['fields'];
-        $field_list = implode(', ', $fields);
-
-        $sql = "SELECT $field_list FROM $table WHERE email = ? LIMIT 1";
+    $user = null;
+    
+    // Check which database we're connected to and use appropriate login method
+    if (isset($conn->connected_db) && $conn->connected_db === 'SmartLab') {
+        // SmartLab database - use unified users table
+        $sql = "SELECT id, password, full_name, reg_number, role, is_active FROM users WHERE email = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
-        if (!$stmt) continue;
-
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        if ($user && password_verify($password, $user['password'])) {
-            // Student verification check
-            if (!empty($config['requires_verification']) && $user['is_verified'] == 0) {
-                $_SESSION['pending_verification_email'] = $email;
-                header("Location: verify.php?unverified=1");
-                exit;
-            }
-
-            // SUCCESS: Create session
-            $_SESSION['user_id']    = $user['id'];
-            $_SESSION['user_email'] = $email;
-            $_SESSION['user_role']  = $role;
-
-            foreach ($config['session_map'] as $db_col => $session_key) {
-                if (isset($user[$db_col])) {
-                    $_SESSION[$session_key] = $user[$db_col];
+        
+        if ($stmt) {
+            $stmt->bind_param('s', $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $user = $result->fetch_assoc();
+            $stmt->close();
+            
+            if ($user && password_verify($password, $user['password'])) {
+                // Check if user is active
+                if ($user['is_active'] == 0) {
+                    $_SESSION['login_error'] = "Your account has been deactivated. Please contact administrator.";
+                    header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
+                    exit;
                 }
+                $login_success = true;
             }
+        }
+    } else {
+        // UNILIS database - use separate role tables (legacy system)
+        $roles = [
+            'admin' => [
+                'table' => 'admins',
+                'fields' => ['id', 'password', 'name'],
+                'redirect' => 'admin/dashboard.php',
+                'session_map' => ['name' => 'user_name']
+            ],
+            'lecturer' => [
+                'table' => 'lecturers',
+                'fields' => ['id', 'password', 'name'],
+                'redirect' => 'lecturer/dashboard.php',
+                'session_map' => ['name' => 'user_name']
+            ],
+            'student' => [
+                'table' => 'students',
+                'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'is_verified'],
+                'redirect' => 'student/dashboard.php',
+                'session_map' => [
+                    'name' => 'user_name',
+                    'course_id' => 'course_id',
+                    'year_of_study' => 'year_of_study'
+                ],
+                'requires_verification' => true
+            ]
+        ];
 
-            // FINAL REDIRECT: If return URL exists AND it's the auto-mark page → go there!
-            if ($return && strpos($return, 'student_auto_mark.php') !== false) {
-                header("Location: " . $return);
+        foreach ($roles as $role => $config) {
+            $table = $config['table'];
+            $fields = $config['fields'];
+            $field_list = implode(', ', $fields);
+
+            $sql = "SELECT $field_list FROM $table WHERE email = ? LIMIT 1";
+            $stmt = $conn->prepare($sql);
+            if (!$stmt) continue;
+
+            $stmt->bind_param('s', $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $user = $result->fetch_assoc();
+            $stmt->close();
+
+            if ($user && password_verify($password, $user['password'])) {
+                // Student verification check
+                if (!empty($config['requires_verification']) && $user['is_verified'] == 0) {
+                    $_SESSION['pending_verification_email'] = $email;
+                    header("Location: verify.php?unverified=1");
+                    exit;
+                }
+
+                // SUCCESS: Create session
+                $_SESSION['user_id']    = $user['id'];
+                $_SESSION['user_email'] = $email;
+                $_SESSION['user_role']  = $role;
+
+                foreach ($config['session_map'] as $db_col => $session_key) {
+                    if (isset($user[$db_col])) {
+                        $_SESSION[$session_key] = $user[$db_col];
+                    }
+                }
+
+                // FINAL REDIRECT: If return URL exists AND it's the auto-mark page -> go there!
+                if ($return && strpos($return, 'student_auto_mark.php') !== false) {
+                    header("Location: " . $return);
+                    exit;
+                }
+
+                // Otherwise go to normal dashboard
+                header("Location: " . $config['redirect']);
+                $login_success = true;
                 exit;
             }
-
-            // Otherwise go to normal dashboard
-            header("Location: " . $config['redirect']);
-            $login_success = true;
-            exit;
         }
     }
 
-    if (!$login_success) {
+    if ($login_success && $user) {
+        // SmartLab login success - create session
+        $_SESSION['user_id']    = $user['id'];
+        $_SESSION['user_email'] = $email;
+        $_SESSION['user_role']  = $user['role'];
+        $_SESSION['user_name']  = $user['full_name'];
+        $_SESSION['reg_number'] = $user['reg_number'];
+
+        // Role-based redirects for SmartLab
+        $redirects = [
+            'admin' => 'admin/dashboard.php',
+            'lab_admin' => 'admin/dashboard.php',
+            'lecturer' => 'lecturer/dashboard.php',
+            'technician' => 'smart-lab/index.php?url=dashboard',
+            'student' => 'student/dashboard.php'
+        ];
+
+        // FINAL REDIRECT: If return URL exists AND it's the auto-mark page -> go there!
+        if ($return && strpos($return, 'student_auto_mark.php') !== false) {
+            header("Location: " . $return);
+            exit;
+        }
+
+        // Redirect based on role, default to student if role not found
+        $redirect = $redirects[$user['role']] ?? 'student/dashboard.php';
+        header("Location: " . $redirect);
+        exit;
+
+    } else {
         $_SESSION['login_error'] = "Invalid email or password.";
         header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
         exit;
