@@ -4,17 +4,37 @@
  * Inserts an admin user into the existing users table
  */
 
-// Database connection
-$host = 'localhost';
-$dbname = 'unilis';
-$username = 'root';
-$password = '';
+// Database connection - try multiple configurations
+$connection_attempts = [
+    ['host' => 'localhost', 'dbname' => 'unilis', 'username' => 'root', 'password' => ''],
+    ['host' => '127.0.0.1', 'dbname' => 'unilis', 'username' => 'root', 'password' => ''],
+    ['host' => 'localhost', 'dbname' => 'unilis', 'username' => 'unilisuser', 'password' => 'unilispass'],
+    ['host' => '127.0.0.1', 'dbname' => 'unilis_smartlab', 'username' => 'lab_admin', 'password' => 'lab_password'],
+    ['host' => 'smart-labs-db', 'dbname' => 'unilis_smartlab', 'username' => 'lab_admin', 'password' => 'lab_password']
+];
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
+$pdo = null;
+$connected_db = null;
+
+foreach ($connection_attempts as $attempt) {
+    try {
+        $pdo = new PDO("mysql:host={$attempt['host']};dbname={$attempt['dbname']};charset=utf8mb4", 
+                      $attempt['username'], $attempt['password']);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $connected_db = $attempt['dbname'];
+        echo "Connected to database: {$attempt['dbname']} on {$attempt['host']}\n";
+        break;
+    } catch (PDOException $e) {
+        echo "Failed to connect to {$attempt['dbname']} on {$attempt['host']}: " . $e->getMessage() . "\n";
+        continue;
+    }
+}
+
+if (!$pdo) {
+    die("Database connection failed. Please check:\n" .
+        "1. MySQL server is running\n" .
+        "2. Database credentials are correct\n" .
+        "3. Database exists\n");
 }
 
 // Admin user data
