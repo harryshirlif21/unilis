@@ -100,7 +100,7 @@ unset($_SESSION['login_error']); // Clear after display
                 </div>
             <?php endif; ?>
 
-            <form method="POST" class="w-full max-w-sm">
+            <form method="POST" action="actions.php" class="w-full max-w-sm">
                 <input type="hidden" name="action" value="universal_login">
                 
                 <div class="mb-4">
