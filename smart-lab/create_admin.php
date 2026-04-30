@@ -115,6 +115,101 @@ try {
     
     echo "<p><a href='https://unilis.jhubafrica.com/smart-lab/index.php?url=auth/login' style='background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;'>Go to SmartLab Login</a></p>";
     
+    // Display current users in the table
+    echo "<div style='margin-top: 30px;'>";
+    echo "<h3>Current Users in Database:</h3>";
+    
+    try {
+        $usersStmt = $pdo->query("SELECT id, reg_number, full_name, email, role, department, is_active, created_at FROM users ORDER BY created_at DESC");
+        $users = $usersStmt->fetchAll();
+        
+        if (!empty($users)) {
+            echo "<table style='width: 100%; border-collapse: collapse; margin-top: 15px;'>";
+            echo "<thead>";
+            echo "<tr style='background: #f8f9fa;'>";
+            echo "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>ID</th>";
+            echo "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Reg Number</th>";
+            echo "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Full Name</th>";
+            echo "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Email</th>";
+            echo "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Role</th>";
+            echo "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Department</th>";
+            echo "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Status</th>";
+            echo "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Created</th>";
+            echo "</tr>";
+            echo "</thead>";
+            echo "<tbody>";
+            
+            foreach ($users as $user) {
+                echo "<tr>";
+                echo "<td style='border: 1px solid #ddd; padding: 8px;'>" . htmlspecialchars(substr($user['id'], 0, 8)) . "...</td>";
+                echo "<td style='border: 1px solid #ddd; padding: 8px;'>" . htmlspecialchars($user['reg_number'] ?? 'N/A') . "</td>";
+                echo "<td style='border: 1px solid #ddd; padding: 8px;'>" . htmlspecialchars($user['full_name']) . "</td>";
+                echo "<td style='border: 1px solid #ddd; padding: 8px;'>" . htmlspecialchars($user['email']) . "</td>";
+                
+                // Role with color coding
+                $roleColor = [
+                    'admin' => '#dc3545',
+                    'lecturer' => '#6f42c1', 
+                    'technician' => '#20c997',
+                    'student' => '#007bff'
+                ];
+                $color = $roleColor[$user['role']] ?? '#6c757d';
+                echo "<td style='border: 1px solid #ddd; padding: 8px;'>";
+                echo "<span style='background: {$color}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px;'>";
+                echo htmlspecialchars(ucfirst($user['role']));
+                echo "</span>";
+                echo "</td>";
+                
+                echo "<td style='border: 1px solid #ddd; padding: 8px;'>" . htmlspecialchars($user['department'] ?? 'N/A') . "</td>";
+                
+                // Status
+                $statusColor = $user['is_active'] ? '#28a745' : '#dc3545';
+                $statusText = $user['is_active'] ? 'Active' : 'Inactive';
+                echo "<td style='border: 1px solid #ddd; padding: 8px;'>";
+                echo "<span style='background: {$statusColor}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px;'>";
+                echo $statusText;
+                echo "</span>";
+                echo "</td>";
+                
+                echo "<td style='border: 1px solid #ddd; padding: 8px;'>" . date('M j, Y', strtotime($user['created_at'])) . "</td>";
+                echo "</tr>";
+            }
+            
+            echo "</tbody>";
+            echo "</table>";
+            
+            // Summary statistics
+            echo "<div style='margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;'>";
+            echo "<h4>Summary Statistics:</h4>";
+            echo "<div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;'>";
+            
+            $roleCounts = [];
+            $activeCount = 0;
+            foreach ($users as $user) {
+                $roleCounts[$user['role']] = ($roleCounts[$user['role']] ?? 0) + 1;
+                if ($user['is_active']) $activeCount++;
+            }
+            
+            echo "<div><strong>Total Users:</strong> " . count($users) . "</div>";
+            echo "<div><strong>Active Users:</strong> " . $activeCount . "</div>";
+            echo "<div><strong>Admins:</strong> " . ($roleCounts['admin'] ?? 0) . "</div>";
+            echo "<div><strong>Lecturers:</strong> " . ($roleCounts['lecturer'] ?? 0) . "</div>";
+            echo "<div><strong>Technicians:</strong> " . ($roleCounts['technician'] ?? 0) . "</div>";
+            echo "<div><strong>Students:</strong> " . ($roleCounts['student'] ?? 0) . "</div>";
+            
+            echo "</div>";
+            echo "</div>";
+            
+        } else {
+            echo "<p style='color: orange; text-align: center; padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;'>No users found in the database.</p>";
+        }
+        
+    } catch (Exception $e) {
+        echo "<p style='color: red;'>Error fetching users: " . htmlspecialchars($e->getMessage()) . "</p>";
+    }
+    
+    echo "</div>";
+    
 } catch (Exception $e) {
     echo "<p style='color: red;'>Error: " . htmlspecialchars($e->getMessage()) . "</p>";
     echo "<p>Please check:</p>";
