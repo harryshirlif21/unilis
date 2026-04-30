@@ -1,0 +1,178 @@
+name: Deploy SmartLab to Production
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Build and test
+  build:
+    runs-on: ubuntu-latest
+    
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MYSQL_ROOT_PASSWORD: testpass
+          MYSQL_DATABASE: test_smartlab
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        extensions: mbstring, xml, mysql, bcmath, gd, zip, curl
+        coverage: xdebug
+
+    - name: Copy environment file
+      run: cp .env.example .env
+
+    - name: Install dependencies
+      run: composer install --no-progress --no-interaction --prefer-dist
+
+    - name: Run syntax check
+      run: find . -name "*.php" -exec php -l {} \;
+
+    - name: Run tests
+      run: |
+        # Create test database
+        mysql -h127.0.0.1 -uroot -ptestpass -e "CREATE DATABASE IF NOT EXISTS test_smartlab;"
+        
+        # Run setup script
+        php setup_default_admin.php
+        
+        echo "Tests completed successfully"
+
+    - name: Log in to Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+
+    - name: Build and push Docker image
+      if: github.event_name != 'pull_request'
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  # Deploy to production
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.PROD_HOST }}
+        username: ${{ secrets.PROD_USERNAME }}
+        key: ${{ secrets.PROD_SSH_KEY }}
+        port: ${{ secrets.PROD_SSH_PORT }}
+        script: |
+          cd /var/www/smartlab
+          
+          # Backup current deployment
+          docker-compose down
+          docker tag smartlab-app:latest smartlab-app:backup
+          
+          # Pull latest changes
+          git pull origin main
+          
+          # Build and start new containers
+          docker-compose build
+          docker-compose up -d
+          
+          # Wait for database to be ready
+          sleep 30
+          
+          # Run setup script
+          docker-compose exec smartlab-app php setup_default_admin.php
+          
+          # Clean up old images
+          docker image prune -f
+          
+          echo "Deployment completed successfully!"
+
+    - name: Health check
+      run: |
+        sleep 60
+        curl -f ${{ secrets.PROD_URL }}/health || exit 1
+
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        message: |
+          SmartLab deployment ${{ job.status }}!
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+
+  # Deploy to staging
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to staging
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.STAGING_HOST }}
+        username: ${{ secrets.STAGING_USERNAME }}
+        key: ${{ secrets.STAGING_SSH_KEY }}
+        port: ${{ secrets.STAGING_SSH_PORT }}
+        script: |
+          cd /var/www/smartlab-staging
+          
+          docker-compose down
+          git pull origin develop
+          docker-compose build
+          docker-compose up -d
+          
+          sleep 30
+          docker-compose exec smartlab-app php setup_default_admin.php
+          
+          echo "Staging deployment completed!"

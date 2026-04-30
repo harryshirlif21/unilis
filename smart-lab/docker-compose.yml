@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # SmartLab Application
+  smartlab-app:
+    build: .
+    container_name: smartlab-app
+    ports:
+      - "80:80"
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html
+    volumes:
+      - ./uploads:/var/www/html/uploads
+      - ./logs:/var/www/html/logs
+    depends_on:
+      - smartlab-db
+    networks:
+      - smartlab-network
+    restart: unless-stopped
+
+  # MariaDB Database
+  smartlab-db:
+    image: mariadb:10.6
+    container_name: smartlab-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-SmartLabRoot2024!}
+      MYSQL_DATABASE: ${DB_NAME:-unilis_smartlab}
+      MYSQL_USER: ${DB_USER:-lab_admin}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-lab_password}
+    volumes:
+      - smartlab-db-data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - smartlab-network
+    restart: unless-stopped
+
+  # Redis for caching (optional)
+  smartlab-redis:
+    image: redis:7-alpine
+    container_name: smartlab-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - smartlab-redis-data:/data
+    networks:
+      - smartlab-network
+    restart: unless-stopped
+
+  # Nginx reverse proxy (optional for production)
+  smartlab-nginx:
+    image: nginx:alpine
+    container_name: smartlab-nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - smartlab-app
+    networks:
+      - smartlab-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  smartlab-db-data:
+    driver: local
+  smartlab-redis-data:
+    driver: local
+
+networks:
+  smartlab-network:
+    driver: bridge

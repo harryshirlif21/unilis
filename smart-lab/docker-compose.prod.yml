@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # SmartLab Application (Production)
+  smartlab-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartlab-app-prod
+    ports:
+      - "80:80"
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html
+      - APP_ENV=production
+      - APP_DEBUG=false
+    volumes:
+      - ./uploads:/var/www/html/uploads
+      - ./logs:/var/www/html/logs
+      - ./ssl:/etc/ssl/certs:ro
+    depends_on:
+      - smartlab-db
+      - smartlab-redis
+    networks:
+      - smartlab-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MariaDB Database (Production)
+  smartlab-db:
+    image: mariadb:10.6
+    container_name: smartlab-db-prod
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - smartlab-db-data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./backups:/backups
+    networks:
+      - smartlab-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Redis for caching
+  smartlab-redis:
+    image: redis:7-alpine
+    container_name: smartlab-redis-prod
+    command: redis-server --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - smartlab-redis-data:/data
+    networks:
+      - smartlab-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  smartlab-nginx:
+    image: nginx:alpine
+    container_name: smartlab-nginx-prod
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - smartlab-app
+    networks:
+      - smartlab-network
+    restart: unless-stopped
+
+  # Backup Service
+  smartlab-backup:
+    image: mariadb:10.6
+    container_name: smartlab-backup
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    networks:
+      - smartlab-network
+    command: >
+      sh -c "
+        while true; do
+          sleep 86400  # Wait 24 hours
+          /backup.sh
+        done
+      "
+    restart: unless-stopped
+
+volumes:
+  smartlab-db-data:
+    driver: local
+  smartlab-redis-data:
+    driver: local
+
+networks:
+  smartlab-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
