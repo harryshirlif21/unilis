@@ -38,7 +38,39 @@ class AuthController {
                 }
 
             } elseif ($method === 'biometric') {
-                // Biometric Email OTP Flow
+                $biometricData = $_POST['biometric_data'] ?? '';
+                
+                if (empty($biometricData)) {
+                    $error = 'Biometric authentication data is required.';
+                } else {
+                    $biometricHash = hash('sha256', $biometricData . BIOMETRIC_SALT);
+                    if (Auth::loginBiometric($biometricHash)) {
+                        if (Auth::requireMultiFactor()) {
+                            $mfaCode = Auth::initiateMultiFactor(Auth::id());
+                            $mfaRequired = true;
+                        } else {
+                            logActivity(Auth::id(), 'login_biometric', 'auth');
+                            redirect('dashboard');
+                        }
+                    } else {
+                        $error = 'Biometric authentication failed.';
+                    }
+                }
+
+            } elseif ($method === 'qr') {
+                $qrToken = sanitize($_POST['qr_token'] ?? '');
+                $sessionId = sanitize($_POST['session_id'] ?? '');
+                
+                if (empty($qrToken) || empty($sessionId)) {
+                    $error = 'QR code and session ID are required.';
+                } elseif (Auth::loginByQR($qrToken, $sessionId)) {
+                    logActivity(Auth::id(), 'login_qr', 'auth');
+                    redirect('dashboard');
+                } else {
+                    $error = 'Invalid QR code or session.';
+                }
+
+            } elseif ($method === 'code') {
                 $action = sanitize($_POST['action'] ?? '');
                 
                 if ($action === 'send_otp') {
@@ -72,7 +104,7 @@ class AuthController {
                     // Insert new OTP
                     $otpId = bin2hex(random_bytes(16));
                     $expiresAt = date('Y-m-d H:i:s', time() + 600); // 10 minutes
-                    $stmt = $db->prepare("INSERT INTO otp_codes (id, user_id, code, type, expires_at) VALUES (?, ?, ?, 'biometric', ?)");
+                    $stmt = $db->prepare("INSERT INTO otp_codes (id, user_id, code, type, expires_at) VALUES (?, ?, ?, 'auth_code', ?)");
                     $stmt->execute([$otpId, $user['id'], $otpCode, $expiresAt]);
                     
                     // Send OTP email
@@ -106,7 +138,7 @@ class AuthController {
                     
                     // Verify OTP
                     $db = getDB();
-                    $stmt = $db->prepare("SELECT * FROM otp_codes WHERE user_id = ? AND code = ? AND type = 'biometric' AND used = 0 AND expires_at > NOW() LIMIT 1");
+                    $stmt = $db->prepare("SELECT * FROM otp_codes WHERE user_id = ? AND code = ? AND type = 'auth_code' AND used = 0 AND expires_at > NOW() LIMIT 1");
                     $stmt->execute([$userId, $otpCode]);
                     $otpRecord = $stmt->fetch();
                     
@@ -130,9 +162,9 @@ class AuthController {
                         $_SESSION['user_role'] = $user['role'];
                         $_SESSION['user_name'] = $user['full_name'];
                         $_SESSION['lab_id'] = $user['lab_id'] ?? '';
-                        $_SESSION['auth_method'] = 'biometric';
+                        $_SESSION['auth_method'] = 'auth_code_otp';
                         
-                        logActivity($user['id'], 'login_biometric_otp', 'auth');
+                        logActivity($user['id'], 'login_auth_code_otp', 'auth');
                         
                         header('Content-Type: application/json');
                         echo json_encode(['success' => true, 'redirect' => APP_URL . '/dashboard']);
@@ -142,40 +174,46 @@ class AuthController {
                         echo json_encode(['success' => false, 'error' => 'User account not found.']);
                         return;
                     }
-                } else {
-                    $error = 'Invalid biometric authentication action.';
-                }
-
-            } elseif ($method === 'qr') {
-                $qrToken = sanitize($_POST['qr_token'] ?? '');
-                $sessionId = sanitize($_POST['session_id'] ?? '');
-                
-                if (empty($qrToken) || empty($sessionId)) {
-                    $error = 'QR code and session ID are required.';
-                } elseif (Auth::loginByQR($qrToken, $sessionId)) {
-                    logActivity(Auth::id(), 'login_qr', 'auth');
-                    redirect('dashboard');
-                } else {
-                    $error = 'Invalid QR code or session.';
-                }
-
-            } elseif ($method === 'code') {
-                $code = strtoupper(implode('', $_POST['code'] ?? []));
-                if (strlen($code) !== 6) {
-                    $error = 'Please enter all 6 characters of your code.';
-                } else {
-                    $result = Auth::loginByCode($code);
-                    if ($result['success']) {
-                        // Store session data for student selection
-                        $_SESSION['pending_session'] = $result['session'];
-                        $_SESSION['available_students'] = $result['students'];
-                        renderView('auth/select_student', [
-                            'session' => $result['session'],
-                            'students' => $result['students']
-                        ]);
-                        return;
+                    
+                } elseif ($action === 'verify_session_code') {
+                    // Original lab session code functionality
+                    $code = strtoupper(implode('', $_POST['code'] ?? []));
+                    if (strlen($code) !== 6) {
+                        $error = 'Please enter all 6 characters of your code.';
                     } else {
-                        $error = $result['message'];
+                        $result = Auth::loginByCode($code);
+                        if ($result['success']) {
+                            // Store session data for student selection
+                            $_SESSION['pending_session'] = $result['session'];
+                            $_SESSION['available_students'] = $result['students'];
+                            renderView('auth/select_student', [
+                                'session' => $result['session'],
+                                'students' => $result['students']
+                            ]);
+                            return;
+                        } else {
+                            $error = $result['message'];
+                        }
+                    }
+                } else {
+                    // Default to session code verification if no action specified
+                    $code = strtoupper(implode('', $_POST['code'] ?? []));
+                    if (strlen($code) !== 6) {
+                        $error = 'Please enter all 6 characters of your code.';
+                    } else {
+                        $result = Auth::loginByCode($code);
+                        if ($result['success']) {
+                            // Store session data for student selection
+                            $_SESSION['pending_session'] = $result['session'];
+                            $_SESSION['available_students'] = $result['students'];
+                            renderView('auth/select_student', [
+                                'session' => $result['session'],
+                                'students' => $result['students']
+                            ]);
+                            return;
+                        } else {
+                            $error = $result['message'];
+                        }
                     }
                 }
             }

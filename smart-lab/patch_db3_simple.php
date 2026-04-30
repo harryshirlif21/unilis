@@ -1,36 +1,30 @@
 <?php
 /**
- * Database Patch Script for UNILIS SmartLab
+ * Simple Database Patch Script for UNILIS SmartLab
  * Creates missing tables and columns for QR, OTP, and biometric features
  * Run this script once and delete it afterwards
  */
 
-// Environment detection
-$is_production = (strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false);
-
-if ($is_production) {
-    require_once __DIR__.'/config/app_production.php';
-    require_once __DIR__.'/config/database_production.php';
-} else {
-    require_once __DIR__.'/config/app.php';
-    require_once __DIR__.'/config/database.php';
-}
-
-// For local development, use main database instead of smart-labs-db
-if (!$is_production) {
-    // Override database connection for local development
-    define('DB_HOST', 'localhost');
-    define('DB_USER', 'root');
-    define('DB_PASS', '');
-    define('DB_NAME', 'unilis_smartlab');
-}
+// Use existing database configuration
+require_once __DIR__.'/config/app.php';
+require_once __DIR__.'/config/database.php';
 
 echo "<!DOCTYPE html><html><head><title>UNILIS SmartLab - Database Patch</title>";
 echo "<style>body{font-family:Arial,sans-serif;margin:20px;} .ok{color:green;} .error{color:red;} .warning{color:orange;} pre{background:#f5f5f5;padding:10px;border-radius:5px;}</style>";
 echo "</head><body><h1>UNILIS SmartLab Database Patch</h1>";
 
 try {
-    $db = getDB();
+    // For local development, use main database
+    if (!defined('DB_HOST') || DB_HOST === 'smart-labs-db') {
+        $db = new PDO('mysql:host=localhost;dbname=unilis_smartlab;charset=utf8mb4', 'root', '', [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+    } else {
+        $db = getDB();
+    }
+    
     echo "<p class='ok'>✓ Database connection successful</p>";
     
     // Check and create qr_sessions table
@@ -43,8 +37,8 @@ try {
             token varchar(255) NOT NULL,
             status enum('pending','claimed','expired') DEFAULT 'pending',
             user_id varchar(36) DEFAULT NULL,
-            created_at timestamp NOT NULL DEFAULT current_timestamp(),
-            expires_at timestamp NOT NULL,
+            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at timestamp NULL DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY token (token)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
@@ -67,7 +61,7 @@ try {
             type enum('biometric','auth_code') NOT NULL DEFAULT 'biometric',
             expires_at timestamp NOT NULL,
             used tinyint(1) DEFAULT 0,
-            created_at timestamp NOT NULL DEFAULT current_timestamp(),
+            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY user_id (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
@@ -112,7 +106,7 @@ try {
     
     echo "<h2>5. Cleanup Instructions</h2>";
     echo "<div class='warning'>";
-    echo "<p><strong>IMPORTANT:</strong> Delete this file (patch_db3.php) after successful patch!</p>";
+    echo "<p><strong>IMPORTANT:</strong> Delete this file (patch_db3_simple.php) after successful patch!</p>";
     echo "<p>This script should only be run once to avoid duplicate operations.</p>";
     echo "</div>";
     
