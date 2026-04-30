@@ -20,8 +20,8 @@ $url = trim($_GET['url'] ?? '', '/');
 $segments = explode('/', $url);
 $controller = $segments[0] ?? 'dashboard';
 
-// Allow access to auth pages without login
-if (!isset($_SESSION['user_id']) && $controller !== 'auth') {
+// Allow access to auth pages and QR endpoints without login
+if (!isset($_SESSION['user_id']) && $controller !== 'auth' && $controller !== 'qr') {
     if ($is_production) {
         header('Location: https://unilis.jhubafrica.com/login.php');
     } else {

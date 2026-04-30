@@ -294,6 +294,18 @@ document.querySelectorAll('.auth-tab').forEach(tab => {
         document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
         this.classList.add('active');
         document.querySelectorAll('.auth-method').forEach(m => m.classList.remove('active'));
+        
+        // Show the corresponding method
+        const methodDiv = document.getElementById('method-' + method);
+        if (methodDiv) {
+            methodDiv.classList.add('active');
+        }
+        
+        // Trigger QR generation when QR tab is clicked
+        if (method === 'qr') {
+            generateQR();
+        }
+    });
 });
 
 // Auth Code OTP flow

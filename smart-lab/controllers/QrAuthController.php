@@ -5,13 +5,48 @@ $is_production = (strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !
 if ($is_production) {
     require_once __DIR__.'/../config/app_production.php';
     require_once __DIR__.'/../config/database_production.php';
+    require_once __DIR__.'/../auth/Auth.php';
+    require_once __DIR__.'/../utils/helpers.php';
 } else {
-    require_once __DIR__.'/../config/app.php';
-    require_once __DIR__.'/../config/database.php';
+    // For local development, use standalone approach
+    if (!defined('APP_URL')) {
+        define('APP_URL', 'http://localhost/smart-lab');
+    }
+    
+    // Create local database connection
+    class LocalDB {
+        private static $pdo = null;
+        public static function get() {
+            if (self::$pdo === null) {
+                self::$pdo = new PDO('mysql:host=localhost;dbname=unilis_smartlab;charset=utf8mb4', 'root', '', [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]);
+            }
+            return self::$pdo;
+        }
+    }
+    
+    function getDB() {
+        return LocalDB::get();
+    }
+    
+    function sanitize($input) {
+        return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
+    }
+    
+    function logActivity($userId, $action, $module = 'system') {
+        // Simple logging for local development
+        error_log("Activity: User $userId - $action in $module");
+    }
 }
 
-require_once __DIR__.'/../auth/Auth.php';
-require_once __DIR__.'/../utils/helpers.php';
+// For Docker production, ensure database connection works
+if ($is_production && defined('DB_HOST') && DB_HOST === 'smart-labs-db') {
+    // In Docker production, the database should be accessible via the service name
+    // No additional configuration needed if docker-compose.yml is correct
+}
 
 class QrAuthController {
 
