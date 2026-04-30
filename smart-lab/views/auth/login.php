@@ -236,6 +236,10 @@
         <a href="<?= APP_URL ?>/auth/register" style="color:var(--primary);text-decoration:none;font-size:14px;">
           Don't have an account? <strong>Register here</strong>
         </a>
+        <br>
+        <a href="<?= APP_URL ?>/auth/registerStaff" style="color:var(--primary);text-decoration:none;font-size:14px;">
+          Staff or Admin? <strong>Register here</strong>
+        </a>
       </div>
 
       <p style="text-align:center;font-size:12px;color:var(--text3);margin-top:24px;">

@@ -360,6 +360,89 @@ class AuthController {
         ]);
     }
 
+    // ── REGISTER STAFF ───────────────────────────────────────────────
+    public function registerStaff($param = null) {
+        if (Auth::check()) { redirect('dashboard'); }
+
+        $error   = '';
+        $success = '';
+        $db      = getDB();
+
+        // Load labs for dropdown
+        $labs = $db->query("SELECT id, name, lab_code FROM labs WHERE is_active = 1 ORDER BY name")->fetchAll();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Validate staff registration key
+            $staffKey = $_POST['staff_key'] ?? '';
+            if ($staffKey !== STAFF_REGISTRATION_KEY) {
+                $error = 'Invalid staff registration key. Please contact your administrator.';
+            } else {
+                // Get form data
+                $fullName     = sanitize($_POST['full_name'] ?? '');
+                $regNumber    = sanitize($_POST['reg_number'] ?? '');
+                $email        = sanitize($_POST['email'] ?? '');
+                $role         = sanitize($_POST['role'] ?? '');
+                $department   = sanitize($_POST['department'] ?? '');
+                $labId        = sanitize($_POST['lab_id'] ?? '');
+                $password     = $_POST['password'] ?? '';
+                $passwordConf = $_POST['password_confirm'] ?? '';
+
+                // Validate role (only allow admin, lecturer, technician)
+                $allowedRoles = ['admin', 'lecturer', 'technician'];
+                if (!in_array($role, $allowedRoles)) {
+                    $error = 'Invalid role selected.';
+                } elseif (empty($fullName) || empty($regNumber) || empty($email) || empty($role) || empty($department)) {
+                    $error = 'All required fields must be filled.';
+                } elseif ($role !== 'admin' && empty($labId)) {
+                    $error = 'Laboratory assignment is required for lecturers and technicians.';
+                } elseif (strlen($password) < 8) {
+                    $error = 'Password must be at least 8 characters long.';
+                } elseif ($password !== $passwordConf) {
+                    $error = 'Passwords do not match.';
+                } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $error = 'Please enter a valid email address.';
+                } else {
+                    // Check for duplicates
+                    $checkStmt = $db->prepare("SELECT id FROM users WHERE reg_number = ? OR email = ? LIMIT 1");
+                    $checkStmt->execute([$regNumber, $email]);
+                    
+                    if ($checkStmt->fetch()) {
+                        $error = 'A user with this registration number or email already exists.';
+                    } else {
+                        // Create staff user
+                        $id = bin2hex(random_bytes(16));
+                        $passwordHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+                        
+                        $insertStmt = $db->prepare("
+                            INSERT INTO users (id, reg_number, full_name, email, password, role, department, lab_id, is_active, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+                        ");
+                        
+                        $params = [$id, $regNumber, $fullName, $email, $passwordHash, $role, $department];
+                        if ($role !== 'admin') {
+                            $params[] = $labId;
+                        } else {
+                            $params[] = null;
+                        }
+                        
+                        if ($insertStmt->execute($params)) {
+                            logActivity($id, 'staff_registered', 'auth');
+                            $success = "Staff account created for $fullName ($regNumber). You can now log in.";
+                        } else {
+                            $error = 'Failed to create staff account. Please try again.';
+                        }
+                    }
+                }
+            }
+        }
+
+        renderView('auth/register_staff', [
+            'error'   => $error,
+            'success' => $success,
+            'labs'    => $labs,
+        ]);
+    }
+
     // ── LOGOUT ─────────────────────────────────────────────────
     public function logout($param = null) {
         if (Auth::check()) {

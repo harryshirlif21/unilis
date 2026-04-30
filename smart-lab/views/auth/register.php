@@ -129,6 +129,9 @@
       <p style="text-align:center;font-size:12px;color:var(--text3);margin-top:20px;">
         Already have an account?
         <a href="<?= APP_URL ?>/auth/login" style="color:var(--teal);">Sign in</a>
+        <br>
+        Staff or Admin? 
+        <a href="<?= APP_URL ?>/auth/registerStaff" style="color:var(--teal);">Register here</a>
       </p>
 
     </div>

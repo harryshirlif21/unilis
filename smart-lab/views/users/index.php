@@ -34,6 +34,9 @@
           </div>
         </div>
         <div class="page-actions">
+          <a href="<?= APP_URL ?>/auth/registerStaff" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Add Staff
+          </a>
           <span class="total-count"><?= $total_users ?> Total Users</span>
         </div>
       </div>

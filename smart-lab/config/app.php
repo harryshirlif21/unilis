@@ -10,3 +10,4 @@ define('BIOMETRIC_ENABLED',     true);
 define('BIOMETRIC_SALT',        'unilis_biometric_salt_2025');
 define('UPLOAD_PATH',           __DIR__.'/../public/uploads/');
 define('LOG_PATH',              __DIR__.'/../logs/');
+define('STAFF_REGISTRATION_KEY', 'UNILIS@Staff2025');
