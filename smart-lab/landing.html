@@ -149,7 +149,7 @@
                     <a href="index.php?url=auth/login" class="btn-glass inline-block">Login</a>
                     <button onclick="openRegisterModal()" class="btn-gradient">Get Started</button>
                 </div>
-                <button class="md:hidden text-gray-600">
+                <button id="mobile-menu-button" class="md:hidden text-gray-600">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                     </svg>
@@ -157,6 +157,41 @@
             </div>
         </div>
     </nav>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden">
+        <div class="fixed right-0 top-0 h-full w-80 bg-white shadow-xl transform translate-x-full transition-transform duration-300" id="mobile-menu-panel">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-8">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-r from-primary-500 to-purple-600 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                            </svg>
+                        </div>
+                        <span class="text-xl font-bold text-gray-900">Smart Laboratories</span>
+                    </div>
+                    <button id="close-mobile-menu" class="text-gray-600 hover:text-gray-900">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <a href="#features" class="block text-gray-600 hover:text-primary-600 transition-colors py-2">Features</a>
+                    <a href="#how-it-works" class="block text-gray-600 hover:text-primary-600 transition-colors py-2">How it Works</a>
+                    <a href="#testimonials" class="block text-gray-600 hover:text-primary-600 transition-colors py-2">Testimonials</a>
+                    <a href="#contact" class="block text-gray-600 hover:text-primary-600 transition-colors py-2">Contact</a>
+                    
+                    <div class="pt-4 border-t border-gray-200">
+                        <a href="index.php?url=auth/login" class="btn-glass block w-full text-center mb-3">Login</a>
+                        <button onclick="openRegisterModal()" class="btn-gradient block w-full text-center">Get Started</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Hero Section -->
     <section class="pt-32 pb-20 px-6">
@@ -630,10 +665,43 @@
             }
         });
 
-        // Close modal with Escape key
+        // Mobile Menu functionality
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+        const mobileMenuPanel = document.getElementById('mobile-menu-panel');
+        const closeMobileMenu = document.getElementById('close-mobile-menu');
+
+        function openMobileMenu() {
+            mobileMenu.classList.remove('hidden');
+            setTimeout(() => {
+                mobileMenuPanel.classList.remove('translate-x-full');
+            }, 10);
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMobileMenuFunc() {
+            mobileMenuPanel.classList.add('translate-x-full');
+            setTimeout(() => {
+                mobileMenu.classList.add('hidden');
+            }, 300);
+            document.body.style.overflow = 'auto';
+        }
+
+        mobileMenuButton.addEventListener('click', openMobileMenu);
+        closeMobileMenu.addEventListener('click', closeMobileMenuFunc);
+
+        // Close mobile menu when clicking overlay
+        mobileMenu.addEventListener('click', function(e) {
+            if (e.target === mobileMenu) {
+                closeMobileMenuFunc();
+            }
+        });
+
+        // Close mobile menu with Escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeRegisterModal();
+                closeMobileMenuFunc();
             }
         });
     </script>
