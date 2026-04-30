@@ -18,6 +18,22 @@ class Auth {
         return false;
     }
     
+    public static function loginByEmail(string $email, string $password): bool {
+        $db   = getDB();
+        $stmt = $db->prepare("SELECT * FROM users WHERE email = ? AND is_active = 1 LIMIT 1");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+        if ($user && password_verify($password, $user['password'])) {
+            $_SESSION['user_id']   = $user['id'];
+            $_SESSION['user_role'] = $user['role'];
+            $_SESSION['user_name'] = $user['full_name'];
+            $_SESSION['lab_id']    = $user['lab_id'] ?? '';
+            $_SESSION['auth_method'] = 'password';
+            return true;
+        }
+        return false;
+    }
+    
     public static function loginBiometric(string $biometricHash): bool {
         $db   = getDB();
         $stmt = $db->prepare("SELECT * FROM users WHERE biometric_hash = ? AND is_active = 1 LIMIT 1");

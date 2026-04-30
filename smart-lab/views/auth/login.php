@@ -85,8 +85,14 @@
           <div class="form-group">
             <label class="form-label">Registration Number</label>
             <input type="text" name="reg_number" class="form-control"
-              placeholder="e.g. SCT/2021/001" required autofocus
+              placeholder="e.g. SCT/2021/001" 
               value="<?= htmlspecialchars($_POST['reg_number'] ?? '') ?>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email (Optional)</label>
+            <input type="email" name="email" class="form-control"
+              placeholder="admin@unilis.jhubafrica.com" 
+              value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
           </div>
           <div class="form-group">
             <label class="form-label">Password</label>

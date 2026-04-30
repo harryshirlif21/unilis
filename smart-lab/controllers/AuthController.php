@@ -21,9 +21,12 @@ class AuthController {
             if ($method === 'password') {
                 $reg  = sanitize($_POST['reg_number'] ?? '');
                 $pass = $_POST['password'] ?? '';
+                $email = sanitize($_POST['email'] ?? '');
 
-                if (empty($reg) || empty($pass)) {
-                    $error = 'Please enter your registration number and password.';
+                if (empty($reg) && empty($email)) {
+                    $error = 'Please enter your registration number or email.';
+                } elseif (empty($pass)) {
+                    $error = 'Please enter your password.';
                 } elseif (Auth::login($reg, $pass)) {
                     // Check if MFA is required
                     if (Auth::requireMultiFactor()) {
@@ -33,8 +36,17 @@ class AuthController {
                         logActivity(Auth::id(), 'login_password', 'auth');
                         redirect('dashboard');
                     }
+                } elseif (Auth::loginByEmail($email, $pass)) {
+                    // Check if MFA is required
+                    if (Auth::requireMultiFactor()) {
+                        $mfaCode = Auth::initiateMultiFactor(Auth::id());
+                        $mfaRequired = true;
+                    } else {
+                        logActivity(Auth::id(), 'login_password', 'auth');
+                        redirect('dashboard');
+                    }
                 } else {
-                    $error = 'Invalid registration number or password.';
+                    $error = 'Invalid registration number, email, or password.';
                 }
 
             } elseif ($method === 'biometric') {
