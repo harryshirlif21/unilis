@@ -4,81 +4,12 @@
  * Inserts an admin user into the existing users table
  */
 
-// SmartLab Database Configuration
-// Use the same configuration as the SmartLab system
-$is_production = (strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false);
+// Include the existing database connection
+require_once __DIR__.'/../config/database.php';
 
-if ($is_production) {
-    // Production database configuration
-    $host = 'smart-labs-db';  // Docker service name
-    $dbname = 'unilis_smartlab';
-    $username = 'lab_admin';
-    $password = 'lab_password';
-} else {
-    // Local development configuration
-    $host = 'localhost';
-    $dbname = 'unilis_smartlab';
-    $username = 'root';
-    $password = '';
-}
-
-// Try multiple connection attempts
-$connection_attempts = [
-    ['host' => $host, 'dbname' => $dbname, 'username' => $username, 'password' => $password],
-    ['host' => '127.0.0.1', 'dbname' => $dbname, 'username' => $username, 'password' => $password],
-    ['host' => 'localhost', 'dbname' => $dbname, 'username' => $username, 'password' => $password],
-    ['host' => 'smart-labs-db', 'dbname' => $dbname, 'username' => $username, 'password' => $password]
-];
-
-$pdo = null;
-$connected_db = null;
-
-foreach ($connection_attempts as $attempt) {
-    try {
-        $pdo = new PDO("mysql:host={$attempt['host']};dbname={$attempt['dbname']};charset=utf8mb4", 
-                      $attempt['username'], $attempt['password']);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $connected_db = $attempt['dbname'];
-        echo "Connected to database: {$attempt['dbname']} on {$attempt['host']}\n";
-        break;
-    } catch (PDOException $e) {
-        echo "Failed to connect to {$attempt['dbname']} on {$attempt['host']}: " . $e->getMessage() . "\n";
-        continue;
-    }
-}
-
-if (!$pdo) {
-    echo "Database connection failed. Trying fallback configurations...\n";
-    
-    // Fallback to common configurations
-    $fallback_attempts = [
-        ['host' => 'localhost', 'dbname' => 'unilis', 'username' => 'root', 'password' => ''],
-        ['host' => '127.0.0.1', 'dbname' => 'unilis', 'username' => 'root', 'password' => ''],
-        ['host' => 'localhost', 'dbname' => 'unilis', 'username' => 'unilisuser', 'password' => 'unilispass']
-    ];
-    
-    foreach ($fallback_attempts as $attempt) {
-        try {
-            $pdo = new PDO("mysql:host={$attempt['host']};dbname={$attempt['dbname']};charset=utf8mb4", 
-                          $attempt['username'], $attempt['password']);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $connected_db = $attempt['dbname'];
-            echo "Connected to fallback database: {$attempt['dbname']} on {$attempt['host']}\n";
-            break;
-        } catch (PDOException $e) {
-            echo "Failed to connect to fallback {$attempt['dbname']}: " . $e->getMessage() . "\n";
-            continue;
-        }
-    }
-}
-
-if (!$pdo) {
-    die("Database connection failed. Please check:\n" .
-        "1. MySQL server is running\n" .
-        "2. Database credentials are correct\n" .
-        "3. Database exists\n" .
-        "4. Docker containers are running (if using Docker)\n");
-}
+// Get database connection using existing method
+$pdo = new PDO("mysql:host=".DB_HOST.";dbname=".DB_NAME.";charset=utf8mb4", DB_USER, DB_PASS);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 // Admin user data
 $admin_data = [
