@@ -101,35 +101,66 @@
 
       <!-- METHOD 2: Biometric -->
       <div class="auth-method" id="method-biometric">
-        <form method="POST" action="<?= APP_URL ?>/auth/login">
-          <input type="hidden" name="auth_method" value="biometric">
-          <input type="hidden" id="biometric_data" name="biometric_data">
-          
-          <div class="biometric-container">
-            <div class="biometric-scanner">
-              <div class="biometric-icon">
-                <i class="fas fa-fingerprint"></i>
-              </div>
-              <div class="biometric-status" id="biometric-status">
-                Ready to scan
-              </div>
+        <!-- Step 1: Enter registration number -->
+        <div id="biometric-step-1">
+          <form id="biometric-otp-form">
+            <input type="hidden" name="auth_method" value="biometric">
+            <input type="hidden" name="action" value="send_otp">
+            <div class="form-group">
+              <label class="form-label">Registration Number</label>
+              <input type="text" name="reg_number" class="form-control"
+                placeholder="e.g. SCT/2021/001" required
+                id="biometric-reg-number">
             </div>
-            <button type="button" class="btn btn-secondary btn-full" onclick="simulateBiometric()" style="margin-bottom:12px;">
-              <i class="fas fa-fingerprint"></i> Scan Fingerprint
+            <button type="submit" class="btn btn-primary btn-full">
+              <i class="fas fa-envelope"></i> Send OTP to Email
             </button>
-            <div class="alert alert-info" style="font-size:12px;">
-              Place your finger on the biometric scanner. This is a simulation for demo purposes.
+            <div class="alert alert-info" style="font-size:12px;margin-top:12px;">
+              Enter your registration number to receive a 6-digit OTP code at your registered email address.
             </div>
-          </div>
-          
-          <button type="submit" id="biometric-submit" class="btn btn-primary btn-full" disabled>
-            Authenticate with Biometric
-          </button>
-        </form>
+          </form>
+        </div>
+        
+        <!-- Step 2: Enter OTP (hidden initially) -->
+        <div id="biometric-step-2" style="display:none;">
+          <form id="biometric-verify-form">
+            <input type="hidden" name="auth_method" value="biometric">
+            <input type="hidden" name="action" value="verify_otp">
+            <input type="hidden" id="biometric-user-id" name="user_id">
+            
+            <div class="alert alert-success" style="font-size:13px;margin-bottom:20px;">
+              <i class="fas fa-check-circle"></i> OTP sent to <span id="biometric-masked-email"></span>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Enter 6-Digit OTP Code</label>
+              <div class="code-inputs">
+                <input type="text" class="code-input" name="otp[]" maxlength="1">
+                <input type="text" class="code-input" name="otp[]" maxlength="1">
+                <input type="text" class="code-input" name="otp[]" maxlength="1">
+                <input type="text" class="code-input" name="otp[]" maxlength="1">
+                <input type="text" class="code-input" name="otp[]" maxlength="1">
+                <input type="text" class="code-input" name="otp[]" maxlength="1">
+              </div>
+            </div>
+            
+            <div style="display:flex;gap:10px;">
+              <button type="button" id="biometric-back-btn" class="btn btn-secondary" style="flex:1;">
+                ← Back
+              </button>
+              <button type="submit" class="btn btn-primary" style="flex:1;">
+                Verify OTP →
+              </button>
+            </div>
+            
+            <div class="alert alert-warning" style="font-size:12px;margin-top:12px;">
+              <i class="fas fa-clock"></i> OTP expires in 10 minutes
+            </div>
+          </form>
+        </div>
       </div>
 
      <!-- METHOD 3: QR Code -->
-<!-- METHOD 3: QR Code -->
 <div class="auth-method" id="method-qr">
     <div class="qr-box">
         <div id="qr-img" style="display:flex;align-items:center;justify-content:center;min-height:180px">
@@ -151,7 +182,7 @@
         <form method="POST" action="<?= APP_URL ?>/auth/login">
           <input type="hidden" name="auth_method" value="code">
           <p style="font-size:13px;color:var(--text2);margin-bottom:20px;">
-            Enter the 6-character code provided by your lab technician or lecturer.
+            Your 6-character session code has been sent to your registered email address. Check your inbox and enter the code below.
           </p>
           <div class="code-inputs">
             <input type="text" class="code-input" name="code[]" maxlength="1">
@@ -229,6 +260,99 @@ document.querySelectorAll('.auth-tab').forEach(tab => {
         document.querySelectorAll('.auth-method').forEach(m => m.classList.remove('active'));
         document.getElementById('method-' + method).classList.add('active');
         if (method === 'qr') generateQR();
+    });
+});
+
+// Biometric OTP flow
+document.getElementById('biometric-otp-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const regNumber = formData.get('reg_number');
+    
+    try {
+        const response = await fetch('<?= APP_URL ?>/auth/login', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Move to step 2
+            document.getElementById('biometric-step-1').style.display = 'none';
+            document.getElementById('biometric-step-2').style.display = 'block';
+            document.getElementById('biometric-masked-email').textContent = result.masked_email;
+            document.getElementById('biometric-user-id').value = result.user_id;
+            
+            // Focus first OTP input
+            document.querySelector('#biometric-step-2 .code-input').focus();
+        } else {
+            // Show error
+            alert(result.error || 'Failed to send OTP. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Network error. Please try again.');
+    }
+});
+
+// Back button for biometric
+document.getElementById('biometric-back-btn').addEventListener('click', function() {
+    document.getElementById('biometric-step-2').style.display = 'none';
+    document.getElementById('biometric-step-1').style.display = 'block';
+    document.getElementById('biometric-reg-number').focus();
+});
+
+// Biometric OTP verification
+document.getElementById('biometric-verify-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const otpInputs = document.querySelectorAll('#biometric-step-2 .code-input');
+    const otpCode = Array.from(otpInputs).map(input => input.value).join('');
+    
+    if (otpCode.length !== 6) {
+        alert('Please enter all 6 digits of the OTP code.');
+        return;
+    }
+    
+    formData.set('otp_code', otpCode);
+    
+    try {
+        const response = await fetch('<?= APP_URL ?>/auth/login', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Redirect to dashboard
+            window.location.href = result.redirect || '<?= APP_URL ?>/dashboard';
+        } else {
+            alert(result.error || 'Invalid or expired OTP. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Network error. Please try again.');
+    }
+});
+
+// Auto-focus next OTP input
+document.querySelectorAll('.code-input').forEach((input, index) => {
+    input.addEventListener('input', function() {
+        if (this.value.length === 1) {
+            if (index < this.parentElement.children.length - 1) {
+                this.parentElement.children[index + 1].focus();
+            }
+        }
+    });
+    
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Backspace' && this.value === '' && index > 0) {
+            this.parentElement.children[index - 1].focus();
+        }
     });
 });
 

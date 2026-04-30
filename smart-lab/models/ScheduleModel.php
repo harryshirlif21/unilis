@@ -1,24 +1,34 @@
 <?php
-require_once __DIR__.'/../config/database.php';
+require_once __DIR__.'/../config/app.php';
 
 class ScheduleModel {
     private PDO $db;
     
     public function __construct() {
-        $this->db = getDB();
+        try {
+            $this->db = getDB();
+        } catch (Exception $e) {
+            error_log("ScheduleModel::__construct Error: " . $e->getMessage());
+            throw $e;
+        }
     }
     
     public function getTodaySchedule(): array {
-        $stmt = $this->db->prepare(
-            "SELECT p.*, l.name as lab_name, l.lab_code, u.full_name as lecturer_name
-             FROM practicals p
-             LEFT JOIN labs l ON p.lab_id = l.id
-             LEFT JOIN users u ON p.lecturer_id = u.id
-             WHERE p.scheduled_date = CURDATE()
-             ORDER BY p.start_time ASC"
-        );
-        $stmt->execute();
-        return $stmt->fetchAll();
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT p.*, l.name as lab_name, l.lab_code, u.full_name as lecturer_name
+                 FROM practicals p
+                 LEFT JOIN labs l ON p.lab_id = l.id
+                 LEFT JOIN users u ON p.lecturer_id = u.id
+                 WHERE p.scheduled_date = CURDATE()
+                 ORDER BY p.created_at ASC"
+            );
+            $stmt->execute();
+            return $stmt->fetchAll();
+        } catch (Exception $e) {
+            error_log("ScheduleModel::getTodaySchedule Error: " . $e->getMessage());
+            return [];
+        }
     }
     
     public function getWeekSchedule(string $startDate = null): array {

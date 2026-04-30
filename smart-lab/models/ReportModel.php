@@ -1,11 +1,16 @@
 <?php
-require_once __DIR__.'/../config/database.php';
+require_once __DIR__.'/../config/app.php';
 
 class ReportModel {
     private PDO $db;
     
     public function __construct() {
-        $this->db = getDB();
+        try {
+            $this->db = getDB();
+        } catch (Exception $e) {
+            error_log("ReportModel::__construct Error: " . $e->getMessage());
+            throw $e;
+        }
     }
     
     public function create(array $data): bool {

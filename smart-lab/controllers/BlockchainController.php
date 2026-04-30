@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/../models/BlockchainModel.php';
+require_once __DIR__.'/../auth/Auth.php';
 require_once __DIR__.'/../utils/helpers.php';
 
 class BlockchainController {

@@ -38,23 +38,112 @@ class AuthController {
                 }
 
             } elseif ($method === 'biometric') {
-                $biometricData = $_POST['biometric_data'] ?? '';
+                // Biometric Email OTP Flow
+                $action = sanitize($_POST['action'] ?? '');
                 
-                if (empty($biometricData)) {
-                    $error = 'Biometric authentication data is required.';
-                } else {
-                    $biometricHash = hash('sha256', $biometricData . BIOMETRIC_SALT);
-                    if (Auth::loginBiometric($biometricHash)) {
-                        if (Auth::requireMultiFactor()) {
-                            $mfaCode = Auth::initiateMultiFactor(Auth::id());
-                            $mfaRequired = true;
-                        } else {
-                            logActivity(Auth::id(), 'login_biometric', 'auth');
-                            redirect('dashboard');
-                        }
-                    } else {
-                        $error = 'Biometric authentication failed.';
+                if ($action === 'send_otp') {
+                    // Step 1: Send OTP to email
+                    $regNumber = sanitize($_POST['reg_number'] ?? '');
+                    
+                    if (empty($regNumber)) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'Registration number is required.']);
+                        return;
                     }
+                    
+                    // Look up user by registration number
+                    $db = getDB();
+                    $stmt = $db->prepare("SELECT id, full_name, email FROM users WHERE reg_number = ? AND is_active = 1 LIMIT 1");
+                    $stmt->execute([$regNumber]);
+                    $user = $stmt->fetch();
+                    
+                    if (!$user) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'No account found with that registration number.']);
+                        return;
+                    }
+                    
+                    // Generate 6-digit OTP
+                    $otpCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+                    
+                    // Delete old unused OTPs for this user
+                    $db->prepare("DELETE FROM otp_codes WHERE user_id = ? AND used = 0")->execute([$user['id']]);
+                    
+                    // Insert new OTP
+                    $otpId = bin2hex(random_bytes(16));
+                    $expiresAt = date('Y-m-d H:i:s', time() + 600); // 10 minutes
+                    $stmt = $db->prepare("INSERT INTO otp_codes (id, user_id, code, type, expires_at) VALUES (?, ?, ?, 'biometric', ?)");
+                    $stmt->execute([$otpId, $user['id'], $otpCode, $expiresAt]);
+                    
+                    // Send OTP email
+                    require_once __DIR__.'/../utils/Mailer.php';
+                    $emailSent = Mailer::sendOTP($user['email'], $user['full_name'], $otpCode);
+                    
+                    if ($emailSent) {
+                        header('Content-Type: application/json');
+                        echo json_encode([
+                            'success' => true,
+                            'masked_email' => Mailer::maskEmail($user['email']),
+                            'user_id' => $user['id']
+                        ]);
+                        return;
+                    } else {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'Failed to send OTP email. Please try again.']);
+                        return;
+                    }
+                    
+                } elseif ($action === 'verify_otp') {
+                    // Step 2: Verify OTP and login
+                    $userId = sanitize($_POST['user_id'] ?? '');
+                    $otpCode = sanitize($_POST['otp_code'] ?? '');
+                    
+                    if (empty($userId) || empty($otpCode)) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'Invalid request.']);
+                        return;
+                    }
+                    
+                    // Verify OTP
+                    $db = getDB();
+                    $stmt = $db->prepare("SELECT * FROM otp_codes WHERE user_id = ? AND code = ? AND type = 'biometric' AND used = 0 AND expires_at > NOW() LIMIT 1");
+                    $stmt->execute([$userId, $otpCode]);
+                    $otpRecord = $stmt->fetch();
+                    
+                    if (!$otpRecord) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'Invalid or expired OTP code.']);
+                        return;
+                    }
+                    
+                    // Mark OTP as used
+                    $db->prepare("UPDATE otp_codes SET used = 1 WHERE id = ?")->execute([$otpRecord['id']]);
+                    
+                    // Get user and start session
+                    $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND is_active = 1 LIMIT 1");
+                    $stmt->execute([$userId]);
+                    $user = $stmt->fetch();
+                    
+                    if ($user) {
+                        // Start session
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['user_role'] = $user['role'];
+                        $_SESSION['user_name'] = $user['full_name'];
+                        $_SESSION['lab_id'] = $user['lab_id'] ?? '';
+                        $_SESSION['auth_method'] = 'biometric';
+                        
+                        logActivity($user['id'], 'login_biometric_otp', 'auth');
+                        
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => true, 'redirect' => APP_URL . '/dashboard']);
+                        return;
+                    } else {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'User account not found.']);
+                        return;
+                    }
+                } else {
+                    $error = 'Invalid biometric authentication action.';
                 }
 
             } elseif ($method === 'qr') {

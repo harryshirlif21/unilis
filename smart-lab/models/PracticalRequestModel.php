@@ -1,28 +1,40 @@
 <?php
+require_once __DIR__.'/../config/app.php';
+
 class PracticalRequestModel {
     private PDO $db;
     
     public function __construct() {
-        $this->db = getDB();
+        try {
+            $this->db = getDB();
+        } catch (Exception $e) {
+            error_log("PracticalRequestModel::__construct Error: " . $e->getMessage());
+            throw $e;
+        }
     }
     
     public function create(array $data): bool {
-        $stmt = $this->db->prepare(
-            "INSERT INTO practical_requests 
-             (id, student_id, practical_id, reason, preferred_lab, urgency, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        
-        return $stmt->execute([
-            $data['id'],
-            $data['student_id'],
-            $data['practical_id'],
-            $data['reason'],
-            $data['preferred_lab'],
-            $data['urgency'],
-            $data['status'],
-            $data['created_at']
-        ]);
+        try {
+            $stmt = $this->db->prepare(
+                "INSERT INTO practical_requests 
+                 (id, student_id, practical_id, reason, preferred_lab, urgency, status, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            
+            return $stmt->execute([
+                $data['id'],
+                $data['student_id'],
+                $data['practical_id'],
+                $data['reason'],
+                $data['preferred_lab'],
+                $data['urgency'],
+                $data['status'],
+                $data['created_at']
+            ]);
+        } catch (Exception $e) {
+            error_log("PracticalRequestModel::create Error: " . $e->getMessage());
+            return false;
+        }
     }
     
     public function getById(string $requestId): ?array {

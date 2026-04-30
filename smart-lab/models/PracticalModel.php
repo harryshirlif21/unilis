@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__.'/../config/database.php';
+require_once __DIR__.'/../config/app.php';
 
 class PracticalModel {
     private PDO $db;
@@ -9,43 +9,33 @@ class PracticalModel {
     }
     
     public function create(array $data): bool {
-        $stmt = $this->db->prepare(
-            "INSERT INTO practicals 
-             (id, title, description, lab_id, lecturer_id, course_code, 
-              scheduled_date, start_time, end_time, max_students, 
-              required_equipment, required_chemicals, safety_notes, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
-        );
-        
-        return $stmt->execute([
-            $data['id'],
-            $data['title'],
-            $data['description'],
-            $data['lab_id'],
-            $data['lecturer_id'],
-            $data['course_code'],
-            $data['scheduled_date'],
-            $data['start_time'],
-            $data['end_time'],
-            $data['max_students'],
-            $data['required_equipment'],
-            $data['required_chemicals'],
-            $data['safety_notes']
-        ]);
+        try {
+            $stmt = $this->db->prepare(
+                "INSERT INTO practicals 
+                 (id, title, description, lab_id, lecturer_id, scheduled_date, 
+                  duration_hours, max_students, status, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+            );
+            
+            return $stmt->execute([
+                $data['id'],
+                $data['title'],
+                $data['description'],
+                $data['lab_id'],
+                $data['lecturer_id'],
+                $data['scheduled_date'],
+                $data['duration_hours'] ?? 2,
+                $data['max_students'],
+                $data['status'] ?? 'draft'
+            ]);
+        } catch (Exception $e) {
+            error_log("PracticalModel::create Error: " . $e->getMessage());
+            return false;
+        }
     }
     
     public function getAll(?string $lecturerId = null): array {
-        $sql = "SELECT p.*, l.name as lab_name, l.lab_code, 
-                       u.full_name as lecturer_name, u.email as lecturer_email,
-                       COUNT(ls.id) as session_count
-                FROM practicals p
-                LEFT JOIN labs l ON p.lab_id = l.id
-                LEFT JOIN users u ON p.lecturer_id = u.id
-                LEFT JOIN lab_sessions ls ON p.id = ls.practical_id
-                GROUP BY p.id
-                ORDER BY p.scheduled_date DESC, p.start_time DESC";
-        
-        if ($lecturerId) {
+        try {
             $sql = "SELECT p.*, l.name as lab_name, l.lab_code, 
                            u.full_name as lecturer_name, u.email as lecturer_email,
                            COUNT(ls.id) as session_count
@@ -53,16 +43,31 @@ class PracticalModel {
                     LEFT JOIN labs l ON p.lab_id = l.id
                     LEFT JOIN users u ON p.lecturer_id = u.id
                     LEFT JOIN lab_sessions ls ON p.id = ls.practical_id
-                    WHERE p.lecturer_id = ?
                     GROUP BY p.id
-                    ORDER BY p.scheduled_date DESC, p.start_time DESC";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([$lecturerId]);
-        } else {
-            $stmt = $this->db->query($sql);
+                    ORDER BY p.scheduled_date DESC, p.created_at DESC";
+            
+            if ($lecturerId) {
+                $sql = "SELECT p.*, l.name as lab_name, l.lab_code, 
+                               u.full_name as lecturer_name, u.email as lecturer_email,
+                               COUNT(ls.id) as session_count
+                        FROM practicals p
+                        LEFT JOIN labs l ON p.lab_id = l.id
+                        LEFT JOIN users u ON p.lecturer_id = u.id
+                        LEFT JOIN lab_sessions ls ON p.id = ls.practical_id
+                        WHERE p.lecturer_id = ?
+                        GROUP BY p.id
+                        ORDER BY p.scheduled_date DESC, p.created_at DESC";
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute([$lecturerId]);
+            } else {
+                $stmt = $this->db->query($sql);
+            }
+            
+            return $stmt->fetchAll();
+        } catch (Exception $e) {
+            error_log("PracticalModel::getAll Error: " . $e->getMessage());
+            return [];
         }
-        
-        return $stmt->fetchAll();
     }
     
     public function getById(string $practicalId): ?array {
@@ -79,31 +84,29 @@ class PracticalModel {
     }
     
     public function update(string $practicalId, array $data): bool {
-        $stmt = $this->db->prepare(
-            "UPDATE practicals 
-             SET title = ?, description = ?, lab_id = ?, course_code = ?,
-                 scheduled_date = ?, start_time = ?, end_time = ?, 
-                 max_students = ?, required_equipment = ?, 
-                 required_chemicals = ?, safety_notes = ?, status = ?,
-                 updated_at = NOW()
-             WHERE id = ?"
-        );
-        
-        return $stmt->execute([
-            $data['title'],
-            $data['description'],
-            $data['lab_id'],
-            $data['course_code'],
-            $data['scheduled_date'],
-            $data['start_time'],
-            $data['end_time'],
-            $data['max_students'],
-            $data['required_equipment'],
-            $data['required_chemicals'],
-            $data['safety_notes'],
-            $data['status'],
-            $practicalId
-        ]);
+        try {
+            $stmt = $this->db->prepare(
+                "UPDATE practicals 
+                 SET title = ?, description = ?, lab_id = ?, 
+                     scheduled_date = ?, duration_hours = ?, 
+                     max_students = ?, status = ?
+                 WHERE id = ?"
+            );
+            
+            return $stmt->execute([
+                $data['title'],
+                $data['description'],
+                $data['lab_id'],
+                $data['scheduled_date'],
+                $data['duration_hours'] ?? 2,
+                $data['max_students'],
+                $data['status'],
+                $practicalId
+            ]);
+        } catch (Exception $e) {
+            error_log("PracticalModel::update Error: " . $e->getMessage());
+            return false;
+        }
     }
     
     public function delete(string $practicalId): bool {
@@ -151,99 +154,121 @@ class PracticalModel {
         return $stmt->fetchAll();
     }
     
-    public function checkLabAvailability(string $labId, string $date, string $startTime, string $endTime, ?string $excludePractical = null): bool {
-        $sql = "SELECT COUNT(*) as conflicts 
-                FROM practicals p 
-                WHERE p.lab_id = ? AND p.scheduled_date = ? 
-                AND p.status IN ('published', 'ongoing')
-                AND ((p.start_time <= ? AND p.end_time > ?) 
-                     OR (p.start_time < ? AND p.end_time >= ?))";
-        
-        $params = [$labId, $date, $startTime, $startTime, $endTime, $endTime];
-        
-        if ($excludePractical) {
-            $sql .= " AND p.id != ?";
-            $params[] = $excludePractical;
+    public function checkLabAvailability(string $labId, string $date, ?string $excludePractical = null): bool {
+        try {
+            $sql = "SELECT COUNT(*) as conflicts 
+                    FROM practicals p 
+                    WHERE p.lab_id = ? AND p.scheduled_date = ? 
+                    AND p.status IN ('published', 'completed')";
+            
+            $params = [$labId, $date];
+            
+            if ($excludePractical) {
+                $sql .= " AND p.id != ?";
+                $params[] = $excludePractical;
+            }
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $result = $stmt->fetch();
+            
+            return $result['conflicts'] == 0;
+        } catch (Exception $e) {
+            error_log("PracticalModel::checkLabAvailability Error: " . $e->getMessage());
+            return false;
         }
-        
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        $result = $stmt->fetch();
-        
-        return $result['conflicts'] == 0;
     }
     
     public function getSchedule(string $labId, string $date): array {
-        $stmt = $this->db->prepare(
-            "SELECT p.*, u.full_name as lecturer_name
-             FROM practicals p
-             LEFT JOIN users u ON p.lecturer_id = u.id
-             WHERE p.lab_id = ? AND p.scheduled_date = ? 
-             AND p.status IN ('published', 'ongoing')
-             ORDER BY p.start_time"
-        );
-        $stmt->execute([$labId, $date]);
-        return $stmt->fetchAll();
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT p.*, u.full_name as lecturer_name
+                 FROM practicals p
+                 LEFT JOIN users u ON p.lecturer_id = u.id
+                 WHERE p.lab_id = ? AND p.scheduled_date = ? 
+                 AND p.status IN ('published', 'completed')
+                 ORDER BY p.created_at"
+            );
+            $stmt->execute([$labId, $date]);
+            return $stmt->fetchAll();
+        } catch (Exception $e) {
+            error_log("PracticalModel::getSchedule Error: " . $e->getMessage());
+            return [];
+        }
     }
     
     public function getUpcomingPracticals(?string $studentId = null): array {
-        $sql = "SELECT p.*, l.name as lab_name, l.lab_code,
-                       u.full_name as lecturer_name
-                FROM practicals p
-                LEFT JOIN labs l ON p.lab_id = l.id
-                LEFT JOIN users u ON p.lecturer_id = u.id
-                WHERE p.scheduled_date >= CURDATE() 
-                AND p.status = 'published'
-                ORDER BY p.scheduled_date ASC, p.start_time ASC";
-        
-        if ($studentId) {
-            // Filter by student's lab access
+        try {
             $sql = "SELECT p.*, l.name as lab_name, l.lab_code,
                            u.full_name as lecturer_name
                     FROM practicals p
                     LEFT JOIN labs l ON p.lab_id = l.id
                     LEFT JOIN users u ON p.lecturer_id = u.id
-                    LEFT JOIN users s ON s.lab_id = l.id
                     WHERE p.scheduled_date >= CURDATE() 
                     AND p.status = 'published'
-                    AND s.id = ?
-                    ORDER BY p.scheduled_date ASC, p.start_time ASC";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([$studentId]);
-        } else {
-            $stmt = $this->db->query($sql);
+                    ORDER BY p.scheduled_date ASC, p.created_at ASC";
+            
+            if ($studentId) {
+                // Filter by student's lab access
+                $sql = "SELECT p.*, l.name as lab_name, l.lab_code,
+                               u.full_name as lecturer_name
+                        FROM practicals p
+                        LEFT JOIN labs l ON p.lab_id = l.id
+                        LEFT JOIN users u ON p.lecturer_id = u.id
+                        LEFT JOIN users s ON s.lab_id = l.id
+                        WHERE p.scheduled_date >= CURDATE() 
+                        AND p.status = 'published'
+                        AND s.id = ?
+                        ORDER BY p.scheduled_date ASC, p.created_at ASC";
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute([$studentId]);
+            } else {
+                $stmt = $this->db->query($sql);
+            }
+            
+            return $stmt->fetchAll();
+        } catch (Exception $e) {
+            error_log("PracticalModel::getUpcomingPracticals Error: " . $e->getMessage());
+            return [];
         }
-        
-        return $stmt->fetchAll();
     }
     
     public function getPracticalStats(): array {
-        $stmt = $this->db->query(
-            "SELECT 
-                COUNT(*) as total_practicals,
-                COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
-                COUNT(CASE WHEN status = 'published' THEN 1 END) as published,
-                COUNT(CASE WHEN status = 'ongoing' THEN 1 END) as ongoing,
-                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
-                COUNT(CASE WHEN scheduled_date >= CURDATE() THEN 1 END) as upcoming
-             FROM practicals"
-        );
-        return $stmt->fetch();
+        try {
+            $stmt = $this->db->query(
+                "SELECT 
+                    COUNT(*) as total_practicals,
+                    COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
+                    COUNT(CASE WHEN status = 'published' THEN 1 END) as published,
+                    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+                    COUNT(CASE WHEN scheduled_date >= CURDATE() THEN 1 END) as upcoming
+                 FROM practicals"
+            );
+            return $stmt->fetch();
+        } catch (Exception $e) {
+            error_log("PracticalModel::getPracticalStats Error: " . $e->getMessage());
+            return [];
+        }
     }
     
     public function getLabUtilization(string $labId, string $startDate, string $endDate): array {
-        $stmt = $this->db->prepare(
-            "SELECT p.scheduled_date, 
-                   SUM(TIMESTAMPDIFF(MINUTE, p.start_time, p.end_time)) as total_minutes
-             FROM practicals p
-             WHERE p.lab_id = ? 
-             AND p.scheduled_date BETWEEN ? AND ?
-             AND p.status IN ('published', 'ongoing', 'completed')
-             GROUP BY p.scheduled_date
-             ORDER BY p.scheduled_date"
-        );
-        $stmt->execute([$labId, $startDate, $endDate]);
-        return $stmt->fetchAll();
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT p.scheduled_date, 
+                       SUM(p.duration_hours * 60) as total_minutes
+                 FROM practicals p
+                 WHERE p.lab_id = ? 
+                 AND p.scheduled_date BETWEEN ? AND ?
+                 AND p.status IN ('published', 'completed')
+                 GROUP BY p.scheduled_date
+                 ORDER BY p.scheduled_date"
+            );
+            $stmt->execute([$labId, $startDate, $endDate]);
+            return $stmt->fetchAll();
+        } catch (Exception $e) {
+            error_log("PracticalModel::getLabUtilization Error: " . $e->getMessage());
+            return [];
+        }
     }
     
     public function getEnrolledStudents(string $practicalId): array {
