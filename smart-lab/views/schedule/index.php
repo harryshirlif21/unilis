@@ -78,9 +78,9 @@
                 <?php foreach ($todaySchedule as $session): ?>
                     <div class="timeline-item">
                         <div class="timeline-time">
-                            <?= date('H:i', strtotime($session['start_time'])) ?>
+                            <?= date('H:i', strtotime($session['scheduled_date'])) ?>
                             <br>
-                            <small>to <?= date('H:i', strtotime($session['end_time'])) ?></small>
+                            <small><?= $session['duration_hours'] ?? 0 ?>h</small>
                         </div>
                         <div class="timeline-content">
                             <div class="timeline-header">
@@ -92,15 +92,13 @@
                             <div class="timeline-details">
                                 <p><strong>Laboratory:</strong> <?= htmlspecialchars($session['lab_name']) ?> (<?= htmlspecialchars($session['lab_code']) ?>)</p>
                                 <p><strong>Lecturer:</strong> <?= htmlspecialchars($session['lecturer_name'] ?? 'Not assigned') ?></p>
-                                <p><strong>Course:</strong> <?= htmlspecialchars($session['course_code'] ?? 'N/A') ?></p>
                                 <p><strong>Max Students:</strong> <?= $session['max_students'] ?? 'N/A' ?></p>
                             </div>
                             <?php if ($session['status'] === 'published'): ?>
                                 <div class="timeline-actions">
-                                    <a href="<?= APP_URL ?>/practicals/start-session/<?= $session['id'] ?>" class="btn btn-success btn-sm">Start Session</a>
                                     <a href="<?= APP_URL ?>/practicals/view/<?= $session['id'] ?>" class="btn btn-primary btn-sm">View Details</a>
                                 </div>
-                            <?php elseif ($session['status'] === 'ongoing'): ?>
+                            <?php elseif ($session['status'] === 'completed'): ?>
                                 <div class="timeline-actions">
                                     <a href="<?= APP_URL ?>/practicals/end-session/<?= $session['id'] ?>" class="btn btn-warning btn-sm">End Session</a>
                                     <a href="<?= APP_URL ?>/practicals/view/<?= $session['id'] ?>" class="btn btn-primary btn-sm">View Details</a>
@@ -136,7 +134,7 @@
                             <?php foreach ($daySessions as $session): ?>
                                 <div class="session-card">
                                     <div class="session-time">
-                                        <?= date('H:i', strtotime($session['start_time'])) ?>
+                                        <?= date('H:i', strtotime($session['scheduled_date'])) ?>
                                     </div>
                                     <div class="session-title">
                                         <?= htmlspecialchars($session['title']) ?>
@@ -222,7 +220,7 @@
                             <th>Title</th>
                             <th>Laboratory</th>
                             <th>Lecturer</th>
-                            <th>Course</th>
+                            <th>Max Students</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -232,8 +230,8 @@
                             <tr>
                                 <td><?= date('M j, Y', strtotime($session['scheduled_date'])) ?></td>
                                 <td>
-                                    <?= date('H:i', strtotime($session['start_time'])) ?>
-                                    <br><small>- <?= date('H:i', strtotime($session['end_time'])) ?></small>
+                                    <?= date('H:i', strtotime($session['scheduled_date'])) ?>
+                                    <br><small><?= $session['duration_hours'] ?? 0 ?>h</small>
                                 </td>
                                 <td><?= htmlspecialchars($session['title']) ?></td>
                                 <td>
@@ -241,7 +239,7 @@
                                     <br><small><?= htmlspecialchars($session['lab_code']) ?></small>
                                 </td>
                                 <td><?= htmlspecialchars($session['lecturer_name'] ?? 'Not assigned') ?></td>
-                                <td><?= htmlspecialchars($session['course_code'] ?? 'N/A') ?></td>
+                                <td><?= $session['max_students'] ?? 'N/A' ?></td>
                                 <td>
                                     <span class="badge badge-<?= $session['status'] ?>">
                                         <?= ucfirst($session['status']) ?>
