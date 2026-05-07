@@ -54,4 +54,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // ── SmartLabs sidebar drawer (mobile) ──
+  const html = document.documentElement;
+  const sidebar = document.querySelector('[data-sl-sidebar]');
+  const overlay = document.querySelector('[data-sl-sidebar-overlay]');
+  const toggles = document.querySelectorAll('[data-sl-sidebar-toggle]');
+
+  const closeSidebar = () => html.classList.remove('sl-sidebar-open');
+  const openSidebar = () => html.classList.add('sl-sidebar-open');
+  const toggleSidebar = () => html.classList.toggle('sl-sidebar-open');
+
+  if (sidebar) {
+    toggles.forEach(btn => btn.addEventListener('click', toggleSidebar));
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
+
+    // If no toggle exists in a page header, inject one (mobile-first).
+    if (!toggles.length) {
+      const injected = document.createElement('button');
+      injected.type = 'button';
+      injected.setAttribute('aria-label', 'Open sidebar');
+      injected.className = 'sl-icon-btn';
+      injected.style.position = 'fixed';
+      injected.style.left = '16px';
+      injected.style.top = '16px';
+      injected.style.zIndex = '950';
+      injected.innerHTML = '<i class="pi pi-bars"></i>';
+      injected.addEventListener('click', openSidebar);
+      document.body.appendChild(injected);
+    }
+  }
+
+  // ── Theme toggle (light/dark) ──
+  const applyTheme = (theme) => {
+    if (theme === 'dark') html.setAttribute('data-theme', 'dark');
+    else html.removeAttribute('data-theme');
+  };
+
+  const storedTheme = localStorage.getItem('sl_theme');
+  if (storedTheme) applyTheme(storedTheme);
+
+  document.querySelectorAll('[data-sl-theme-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      const next = isDark ? 'light' : 'dark';
+      applyTheme(next === 'dark' ? 'dark' : 'light');
+      localStorage.setItem('sl_theme', next);
+    });
+  });
+
 });

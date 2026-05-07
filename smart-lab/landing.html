@@ -3,41 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Laboratories - AI-Powered Laboratory Management</title>
-    <meta name="description" content="Transform your laboratory with AI-powered automation, real-time monitoring, and intelligent analytics">
+    <title>SmartLabs by UNILIS — Next Generation IoT Laboratory Platform</title>
+    <meta name="description" content="SmartLabs by UNILIS: AI analytics, IoT monitoring, blockchain equipment tracking, and smart academic workflows — unified in a premium SaaS dashboard UI.">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/primeicons/primeicons.css">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: {
                         'sans': ['Inter', 'system-ui', 'sans-serif'],
+                        'display': ['Poppins', 'Inter', 'system-ui', 'sans-serif'],
                     },
                     colors: {
-                        'primary': {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            200: '#bae6fd',
-                            300: '#7dd3fc',
-                            400: '#38bdf8',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
-                            700: '#0369a1',
-                            800: '#075985',
-                            900: '#0c4a6e',
-                        }
+                        primary: '#2563eb',
+                        secondary: '#0f172a',
+                        accent: '#06b6d4',
+                        surface: '#ffffff',
+                        background: '#f1f5f9',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
                     },
                     animation: {
                         'float': 'float 6s ease-in-out infinite',
                         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'shine': 'shine 2.8s ease-in-out infinite',
                     },
                     keyframes: {
                         float: {
                             '0%, 100%': { transform: 'translateY(0px)' },
                             '50%': { transform: 'translateY(-20px)' },
+                        },
+                        shine: {
+                            '0%': { transform: 'translateX(-120%)' },
+                            '55%': { transform: 'translateX(120%)' },
+                            '100%': { transform: 'translateX(120%)' },
                         }
                     }
                 }
@@ -45,21 +49,108 @@
         }
     </script>
     <style>
+        :root{
+            --glass-white: rgba(255,255,255,0.08);
+            --glass-border: rgba(255,255,255,0.15);
+            --glass-blur: 18px;
+            --glass-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
+            --text-on-hero: rgba(255,255,255,0.92);
+            --text-on-hero-muted: rgba(255,255,255,0.80);
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 50%, #e0f2fe 100%); color: #1e293b; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background:
+              radial-gradient(1200px 600px at 15% 20%, rgba(37, 99, 235, 0.18), transparent 55%),
+              radial-gradient(900px 500px at 85% 30%, rgba(6, 182, 212, 0.16), transparent 55%),
+              radial-gradient(900px 600px at 60% 95%, rgba(124, 58, 237, 0.10), transparent 55%),
+              linear-gradient(145deg, #f8fafc 0%, #f1f5f9 55%, #eef2ff 100%);
+            color: #0f172a;
+        }
+
+        /* Fullscreen hero with clear background image */
+        .hero-cover {
+            min-height: 100vh;
+            padding-top: 110px; /* room for fixed nav */
+            padding-bottom: 56px;
+            position: relative;
+            background:
+              url('lab.jpg') center/cover no-repeat;
+            background-attachment: scroll;
+        }
+
+        .hero-cover::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            /* Light tint only (keep photo visible) */
+            background:
+              radial-gradient(900px 520px at 20% 20%, rgba(37, 99, 235, 0.22), transparent 60%),
+              radial-gradient(900px 520px at 80% 35%, rgba(6, 182, 212, 0.18), transparent 60%),
+              radial-gradient(900px 520px at 60% 95%, rgba(124, 58, 237, 0.14), transparent 60%),
+              linear-gradient(135deg, rgba(2, 6, 23, 0.22) 0%, rgba(2, 6, 23, 0.08) 45%, rgba(2, 6, 23, 0.26) 100%);
+            pointer-events: none;
+        }
+
+        .hero-inner {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-glass {
+            background: var(--glass-white);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+
+        .hero-text {
+            color: var(--text-on-hero);
+        }
+        .hero-muted {
+            color: var(--text-on-hero-muted);
+        }
+        .hero-chip {
+            background: rgba(255,255,255,0.10);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.90);
+        }
+        .hero-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+        }
         
         /* Glassmorphism Base */
         .glass {
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            background: var(--glass-white);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
         }
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow: 0 26px 80px rgba(2, 6, 23, 0.40);
+        }
+
+        /* Frosted glass navbar (floating, sticky) */
+        .nav-glass {
+            background: rgba(15, 23, 42, 0.35);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255,255,255,0.14);
+            box-shadow: 0 18px 55px rgba(2, 6, 23, 0.22);
+        }
+        .nav-link-hero { color: rgba(255,255,255,0.76); }
+        .nav-link-hero:hover { color: rgba(255,255,255,0.94); }
         
         /* Button Styles */
         .btn-gradient {
-            background: linear-gradient(135deg, #0ea5e9 0%, #7c3aed 100%);
+            background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
             color: white;
             padding: 12px 24px;
             border-radius: 12px;
@@ -73,15 +164,15 @@
         
         .btn-gradient:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 24px rgba(14, 165, 233, 0.3);
+            box-shadow: 0 16px 40px rgba(37, 99, 235, 0.25);
         }
         
         .btn-glass {
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: #1e293b;
+            background: rgba(255,255,255,0.10);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.18);
+            color: rgba(255,255,255,0.92);
             padding: 12px 24px;
             border-radius: 12px;
             font-weight: 600;
@@ -92,34 +183,87 @@
         }
         
         .btn-glass:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateY(-2px);
+            background: rgba(255,255,255,0.14);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(37, 99, 235, 0.18);
         }
+
+        .btn-dark {
+            background: rgba(15, 23, 42, 0.92);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-dark:hover { transform: translateY(-2px); box-shadow: 0 18px 55px rgba(2, 6, 23, 0.22); }
         
         /* Card Styles */
         .feature-card {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255,255,255,0.10);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255,255,255,0.15);
             border-radius: 20px;
             padding: 32px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 26px 80px rgba(2, 6, 23, 0.16);
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
         
         .feature-card:hover {
             transform: translateY(-8px);
-            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 30px 80px rgba(2, 6, 23, 0.12);
+        }
+
+        .feature-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+            transform: translateX(-120%);
+            opacity: 0;
+        }
+        .feature-card:hover::after {
+            opacity: 1;
+            animation: shine 2.8s ease-in-out infinite;
         }
         
         /* Typography */
         .heading-gradient {
-            background: linear-gradient(135deg, #0ea5e9 0%, #7c3aed 100%);
+            background: linear-gradient(135deg, #2563eb 0%, #06b6d4 55%, #7c3aed 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.10);
+            border: 1px solid rgba(255,255,255,0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: rgba(255,255,255,0.88);
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .chip-dot {
+            width: 10px; height: 10px; border-radius: 999px;
+            background: linear-gradient(135deg, #10b981, #06b6d4);
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+        }
+
+        /* Simple reveal animation */
+        .reveal { opacity: 0; transform: translateY(14px); transition: opacity .7s ease, transform .7s ease; }
+        .reveal.is-visible { opacity: 1; transform: translateY(0); }
         
         /* Responsive */
         @media (max-width: 768px) {
@@ -130,26 +274,28 @@
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="fixed top-0 left-0 right-0 z-50 glass">
+    <nav class="fixed top-0 left-0 right-0 z-50 nav-glass">
         <div class="container mx-auto px-6 py-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-r from-primary-500 to-purple-600 rounded-xl flex items-center justify-center">
-                        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                        </svg>
+                    <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <i class="pi pi-microchip text-white text-xl"></i>
                     </div>
-                    <span class="text-xl font-bold text-gray-900">Smart Laboratories</span>
+                    <div>
+                        <div class="text-xl font-bold text-white font-display leading-tight">SmartLabs</div>
+                        <div class="text-[11px] text-white/70 font-semibold tracking-widest uppercase -mt-0.5">UNILIS</div>
+                    </div>
                 </div>
                 <div class="hidden md:flex items-center space-x-8">
-                    <a href="#features" class="text-gray-600 hover:text-primary-600 transition-colors">Features</a>
-                    <a href="#how-it-works" class="text-gray-600 hover:text-primary-600 transition-colors">How it Works</a>
-                    <a href="#testimonials" class="text-gray-600 hover:text-primary-600 transition-colors">Testimonials</a>
-                    <a href="#contact" class="text-gray-600 hover:text-primary-600 transition-colors">Contact</a>
+                    <a href="#features" class="nav-link-hero transition-colors">Features</a>
+                    <a href="#how-it-works" class="nav-link-hero transition-colors">How it Works</a>
+                    <a href="#modules" class="nav-link-hero transition-colors">Modules</a>
+                    <a href="#testimonials" class="nav-link-hero transition-colors">Testimonials</a>
+                    <a href="#contact" class="nav-link-hero transition-colors">Contact</a>
                     <a href="index.php?url=auth/login" class="btn-glass inline-block">Login</a>
-                    <button onclick="openRegisterModal()" class="btn-gradient">Get Started</button>
+                    <a href="index.php?url=auth/register" class="btn-gradient">Get Started</a>
                 </div>
-                <button id="mobile-menu-button" class="md:hidden text-gray-600">
+                <button id="mobile-menu-button" class="md:hidden text-white/80">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                     </svg>
@@ -159,19 +305,17 @@
     </nav>
 
     <!-- Mobile Menu -->
-    <div id="mobile-menu" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden">
-        <div class="fixed right-0 top-0 h-full w-80 bg-white shadow-xl transform translate-x-full transition-transform duration-300" id="mobile-menu-panel">
+    <div id="mobile-menu" class="fixed inset-0 bg-black/50 z-40 hidden">
+        <div class="fixed right-0 top-0 h-full w-80 glass-dark transform translate-x-full transition-transform duration-300" id="mobile-menu-panel">
             <div class="p-6">
                 <div class="flex items-center justify-between mb-8">
                     <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 bg-gradient-to-r from-primary-500 to-purple-600 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                            </svg>
+                        <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <i class="pi pi-microchip text-white text-xl"></i>
                         </div>
-                        <span class="text-xl font-bold text-gray-900">Smart Laboratories</span>
+                        <span class="text-xl font-bold text-white font-display">SmartLabs</span>
                     </div>
-                    <button id="close-mobile-menu" class="text-gray-600 hover:text-gray-900">
+                    <button id="close-mobile-menu" class="text-white/80 hover:text-white">
                         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
@@ -179,14 +323,15 @@
                 </div>
                 
                 <div class="space-y-4">
-                    <a href="#features" class="block text-gray-600 hover:text-primary-600 transition-colors py-2">Features</a>
-                    <a href="#how-it-works" class="block text-gray-600 hover:text-primary-600 transition-colors py-2">How it Works</a>
-                    <a href="#testimonials" class="block text-gray-600 hover:text-primary-600 transition-colors py-2">Testimonials</a>
-                    <a href="#contact" class="block text-gray-600 hover:text-primary-600 transition-colors py-2">Contact</a>
+                    <a href="#features" class="block nav-link-hero transition-colors py-2">Features</a>
+                    <a href="#how-it-works" class="block nav-link-hero transition-colors py-2">How it Works</a>
+                    <a href="#modules" class="block nav-link-hero transition-colors py-2">Modules</a>
+                    <a href="#testimonials" class="block nav-link-hero transition-colors py-2">Testimonials</a>
+                    <a href="#contact" class="block nav-link-hero transition-colors py-2">Contact</a>
                     
-                    <div class="pt-4 border-t border-gray-200">
+                    <div class="pt-4 border-t border-white/15">
                         <a href="index.php?url=auth/login" class="btn-glass block w-full text-center mb-3">Login</a>
-                        <button onclick="openRegisterModal()" class="btn-gradient block w-full text-center">Get Started</button>
+                        <a href="index.php?url=auth/register" class="btn-gradient block w-full text-center">Get Started</a>
                     </div>
                 </div>
             </div>
@@ -194,39 +339,70 @@
     </div>
 
     <!-- Hero Section -->
-    <section class="pt-32 pb-20 px-6">
-        <div class="container mx-auto">
+    <section class="hero-cover px-6">
+        <div class="container mx-auto hero-inner">
             <div class="grid md:grid-cols-2 gap-12 items-center">
                 <div class="space-y-8">
-                    <div class="inline-flex items-center px-4 py-2 rounded-full glass text-sm font-medium text-gray-700">
-                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                        AI-Powered Laboratory Management
+                    <div class="chip hero-chip">
+                        <span class="chip-dot"></span>
+                        Smart scientific intelligence — live systems online
+                        <span class="ml-2 hero-muted font-semibold">vNext</span>
                     </div>
-                    <h1 class="text-5xl md:text-6xl font-bold leading-tight text-gray-900">
-                        Transform Your<br>
-                        <span class="heading-gradient">Laboratory with AI</span>
+                    <h1 class="text-5xl md:text-6xl font-bold leading-tight hero-text font-display">
+                        SmartLabs.<br>
+                        <span class="heading-gradient">IoT + AI Laboratory</span><br>
+                        platform for UNILIS.
                     </h1>
-                    <p class="text-xl text-gray-600 leading-relaxed">
-                        Experience the future of laboratory management with AI-powered automation, real-time monitoring, and intelligent analytics designed for modern research institutions.
+                    <p class="text-xl hero-muted leading-relaxed max-w-xl">
+                        A premium university laboratory ecosystem that unifies IoT monitoring, AI analytics, blockchain equipment tracking, and smart academic workflows — without disrupting your existing system.
                     </p>
                     <div class="flex flex-col sm:flex-row gap-4">
-                        <button class="btn-gradient">Start Free Trial</button>
-                        <button class="btn-glass">Watch Demo</button>
+                        <a href="index.php?url=auth/login" class="btn-gradient text-center">Open Dashboard</a>
+                        <a href="index.php?url=auth/register" class="btn-glass text-center" style="border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.92);">Create Account</a>
+                    </div>
+                    <div class="hero-divider"></div>
+                    <div class="flex flex-wrap items-center gap-3 pt-2">
+                        <span class="hero-glass px-3 py-2 rounded-xl text-sm hero-text font-semibold"><i class="pi pi-shield mr-2 text-cyan-200"></i>Secure by design</span>
+                        <span class="hero-glass px-3 py-2 rounded-xl text-sm hero-text font-semibold"><i class="pi pi-chart-line mr-2 text-blue-200"></i>Real-time analytics</span>
+                        <span class="hero-glass px-3 py-2 rounded-xl text-sm hero-text font-semibold"><i class="pi pi-link mr-2 text-indigo-200"></i>Blockchain logs</span>
                     </div>
                 </div>
                 <div class="relative">
-                    <div class="absolute inset-0 bg-gradient-to-r from-primary-400 to-purple-400 rounded-3xl blur-3xl opacity-30 animate-float"></div>
-                    <div class="relative glass rounded-3xl p-8">
-                        <img src="https://images.unsplash.com/photo-1532094349884-543bc11b234d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=85" 
-                             alt="Students conducting chemistry practical" 
-                             class="rounded-2xl w-full h-auto object-cover">
-                        <div class="mt-6 flex items-center justify-between">
+                    <div class="absolute -inset-4 bg-gradient-to-r from-blue-500/30 to-cyan-400/20 rounded-3xl blur-3xl opacity-80 animate-float"></div>
+                    <div class="relative hero-glass rounded-3xl p-6 md:p-8">
+                        <div class="flex items-center justify-between mb-5">
                             <div>
-                                <div class="text-gray-900 font-semibold">Advanced Laboratory</div>
-                                <div class="text-gray-600 text-sm">Real-time monitoring active</div>
+                                <div class="hero-text font-semibold">Live Laboratory Monitoring</div>
+                                <div class="hero-muted text-sm">Preview panel — binds to in-app IoT feeds</div>
                             </div>
-                            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
+                                <span class="text-sm font-semibold hero-text">Online</span>
+                            </div>
                         </div>
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div class="hero-glass rounded-2xl p-4">
+                                <div class="text-xs uppercase tracking-widest hero-muted font-bold">Temperature</div>
+                                <div class="text-2xl font-extrabold hero-text mt-1">24.6°C</div>
+                                <div class="text-xs hero-muted mt-1">Stable · safe range</div>
+                            </div>
+                            <div class="hero-glass rounded-2xl p-4">
+                                <div class="text-xs uppercase tracking-widest hero-muted font-bold">Humidity</div>
+                                <div class="text-2xl font-extrabold hero-text mt-1">48%</div>
+                                <div class="text-xs hero-muted mt-1">Nominal</div>
+                            </div>
+                            <div class="hero-glass rounded-2xl p-4">
+                                <div class="text-xs uppercase tracking-widest hero-muted font-bold">Gas</div>
+                                <div class="text-2xl font-extrabold hero-text mt-1">0 ppm</div>
+                                <div class="text-xs hero-muted mt-1">No detection</div>
+                            </div>
+                            <div class="hero-glass rounded-2xl p-4">
+                                <div class="text-xs uppercase tracking-widest hero-muted font-bold">Safety</div>
+                                <div class="text-2xl font-extrabold text-emerald-200 mt-1">OK</div>
+                                <div class="text-xs hero-muted mt-1">All sensors reporting</div>
+                            </div>
+                        </div>
+                        <div class="text-xs hero-muted">Background image: students doing a lab practical (hero cover).</div>
                     </div>
                 </div>
             </div>
@@ -234,49 +410,43 @@
     </section>
 
     <!-- Features Section -->
-    <section id="features" class="py-20 px-6">
+    <section id="features" class="py-20 px-6 reveal">
         <div class="container mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-4xl md:text-5xl font-bold mb-4">
-                    Powerful Features for<br>
-                    <span class="heading-gradient">Modern Laboratories</span>
+                    A Futuristic Platform for<br>
+                    <span class="heading-gradient">Modern University Labs</span>
                 </h2>
                 <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-                    Everything you need to streamline your laboratory operations and enhance research productivity
+                    Premium dashboards, intelligent monitoring, and smart academic workflows — designed for UNILIS and built to scale.
                 </p>
             </div>
             <div class="grid md:grid-cols-3 gap-8">
                 <div class="feature-card">
-                    <div class="w-14 h-14 bg-gradient-to-r from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mb-6">
-                        <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                        </svg>
+                    <div class="w-14 h-14 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="pi pi-sparkles text-white text-2xl"></i>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">AI Automation</h3>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">AI Analytics</h3>
                     <p class="text-gray-600 leading-relaxed">
-                        Intelligent automation that learns your laboratory patterns and optimizes workflows automatically, reducing manual tasks by up to 80%.
+                        Smart summaries, trend detection, and actionable insights for attendance, practical progress, and operational efficiency.
                     </p>
                 </div>
                 <div class="feature-card">
-                    <div class="w-14 h-14 bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6">
-                        <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                        </svg>
+                    <div class="w-14 h-14 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="pi pi-wifi text-white text-2xl"></i>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Real-time Analytics</h3>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">IoT Monitoring</h3>
                     <p class="text-gray-600 leading-relaxed">
-                        Monitor every aspect of your laboratory with instant insights and comprehensive data visualization for better decision-making.
+                        Temperature, humidity, gas detection and safety alerts surfaced in a clean operational panel — built for real-time awareness.
                     </p>
                 </div>
                 <div class="feature-card">
-                    <div class="w-14 h-14 bg-gradient-to-r from-green-500 to-green-600 rounded-2xl flex items-center justify-center mb-6">
-                        <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                        </svg>
+                    <div class="w-14 h-14 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="pi pi-link text-white text-2xl"></i>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Enterprise Security</h3>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Blockchain Tracking</h3>
                     <p class="text-gray-600 leading-relaxed">
-                        Bank-level security with encrypted data storage, compliance with industry standards, and regular security audits.
+                        Immutable equipment movement logs and verification trails that strengthen accountability and reduce operational friction.
                     </p>
                 </div>
             </div>
@@ -284,7 +454,7 @@
     </section>
 
     <!-- How It Works -->
-    <section id="how-it-works" class="py-20 px-6 bg-gradient-to-r from-primary-50 to-purple-50">
+    <section id="how-it-works" class="py-20 px-6 bg-gradient-to-r from-primary-50 to-purple-50 reveal">
         <div class="container mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-4xl md:text-5xl font-bold mb-4">
@@ -297,109 +467,83 @@
             </div>
             <div class="grid md:grid-cols-3 gap-8">
                 <div class="text-center">
-                    <div class="w-16 h-16 bg-gradient-to-r from-primary-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold">
-                        1
+                    <div class="w-16 h-16 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold shadow-lg">
+                        <i class="pi pi-user-plus"></i>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 mb-4">Sign Up</h3>
-                    <p class="text-gray-600">Create your account and set up your laboratory profile in minutes</p>
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">Authenticate</h3>
+                    <p class="text-gray-600">Login with your existing SmartLab account — roles and permissions stay intact.</p>
                 </div>
                 <div class="text-center">
-                    <div class="w-16 h-16 bg-gradient-to-r from-primary-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold">
-                        2
+                    <div class="w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold shadow-lg">
+                        <i class="pi pi-sliders-h"></i>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 mb-4">Configure</h3>
-                    <p class="text-gray-600">Customize workflows, set up automation rules, and integrate with existing systems</p>
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">Operate</h3>
+                    <p class="text-gray-600">Schedule practicals, track inventory, manage requests, and monitor labs in one interface.</p>
                 </div>
                 <div class="text-center">
-                    <div class="w-16 h-16 bg-gradient-to-r from-primary-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold">
-                        3
+                    <div class="w-16 h-16 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold shadow-lg">
+                        <i class="pi pi-chart-line"></i>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 mb-4">Transform</h3>
-                    <p class="text-gray-600">Watch as AI optimizes your operations and provides valuable insights</p>
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">Analyze</h3>
+                    <p class="text-gray-600">Use analytics summaries and dashboards to improve completion rates and utilization.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Dashboard Preview -->
-    <section class="py-20 px-6">
+    <!-- Modules -->
+    <section id="modules" class="py-20 px-6 reveal">
         <div class="container mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-4xl md:text-5xl font-bold mb-4">
-                    Intelligent<br>
-                    <span class="heading-gradient">Dashboard</span>
+                    Everything is<br>
+                    <span class="heading-gradient">Connected</span>
                 </h2>
                 <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-                    Comprehensive control center for your entire laboratory
+                    A unified ecosystem for students, lecturers, technicians and administrators.
                 </p>
             </div>
-            <div class="max-w-6xl mx-auto">
-                <div class="glass rounded-3xl p-8">
-                    <div class="grid md:grid-cols-4 gap-6 mb-8">
-                        <div class="text-center">
-                            <div class="text-3xl font-bold text-primary-600 mb-2">24</div>
-                            <div class="text-sm text-gray-600">Active Labs</div>
+            <div class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <div class="feature-card">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-lg">
+                            <i class="pi pi-graduation-cap text-xl"></i>
                         </div>
-                        <div class="text-center">
-                            <div class="text-3xl font-bold text-purple-600 mb-2">142</div>
-                            <div class="text-sm text-gray-600">Experiments</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-3xl font-bold text-green-600 mb-2">98.5%</div>
-                            <div class="text-sm text-gray-600">Efficiency</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-3xl font-bold text-orange-600 mb-2">1,247</div>
-                            <div class="text-sm text-gray-600">Samples</div>
-                        </div>
+                        <span class="chip"><span class="chip-dot"></span>Student</span>
                     </div>
-                    <div class="grid md:grid-cols-2 gap-8">
-                        <div class="bg-gray-50 rounded-2xl p-6">
-                            <h4 class="text-lg font-bold text-gray-900 mb-4">Recent Activity</h4>
-                            <div class="space-y-3">
-                                <div class="flex items-center justify-between p-3 bg-white rounded-xl">
-                                    <div class="flex items-center space-x-3">
-                                        <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                        <div>
-                                            <div class="text-sm text-gray-900">Lab A - Analysis Complete</div>
-                                            <div class="text-xs text-gray-500">2 minutes ago</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="flex items-center justify-between p-3 bg-white rounded-xl">
-                                    <div class="flex items-center space-x-3">
-                                        <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                        <div>
-                                            <div class="text-sm text-gray-900">Lab B - Sample Processing</div>
-                                            <div class="text-xs text-gray-500">15 minutes ago</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Practical Progress</h3>
+                    <p class="text-gray-600 leading-relaxed">Attendance, practical completion tracking, notebook workflow, and report submission — streamlined.</p>
+                    <div class="mt-6 flex gap-3">
+                        <a class="btn-glass" href="index.php?url=auth/login">Login</a>
+                        <a class="btn-gradient" href="index.php?url=auth/register">Register</a>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg">
+                            <i class="pi pi-book text-xl"></i>
                         </div>
-                        <div class="bg-gray-50 rounded-2xl p-6">
-                            <h4 class="text-lg font-bold text-gray-900 mb-4">System Performance</h4>
-                            <div class="space-y-4">
-                                <div>
-                                    <div class="flex justify-between mb-2">
-                                        <span class="text-sm text-gray-600">CPU Usage</span>
-                                        <span class="text-sm text-primary-600">45%</span>
-                                    </div>
-                                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                        <div class="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full" style="width:45%"></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="flex justify-between mb-2">
-                                        <span class="text-sm text-gray-600">Memory</span>
-                                        <span class="text-sm text-green-600">67%</span>
-                                    </div>
-                                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                        <div class="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full" style="width:67%"></div>
-                                    </div>
-                                </div>
-                            </div>
+                        <span class="chip"><span class="chip-dot"></span>Lecturer</span>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Smart Scheduling</h3>
+                    <p class="text-gray-600 leading-relaxed">Create practicals, manage sessions, grade reports, and view lab occupancy insights.</p>
+                    <div class="mt-6 flex gap-3">
+                        <a class="btn-dark" href="index.php?url=auth/login">Open Dashboard</a>
+                        <a class="btn-glass" href="#features">Explore</a>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-lg">
+                            <i class="pi pi-wrench text-xl"></i>
                         </div>
+                        <span class="chip"><span class="chip-dot"></span>Technician & Admin</span>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Equipment Intelligence</h3>
+                    <p class="text-gray-600 leading-relaxed">Asset status, inventory controls, blockchain logs, audit trail visibility and system governance.</p>
+                    <div class="mt-6 flex gap-3">
+                        <a class="btn-dark" href="index.php?url=auth/login">Login</a>
+                        <a class="btn-glass" href="#contact">Contact</a>
                     </div>
                 </div>
             </div>
@@ -407,7 +551,7 @@
     </section>
 
     <!-- Testimonials -->
-    <section id="testimonials" class="py-20 px-6 bg-gradient-to-r from-primary-50 to-purple-50">
+    <section id="testimonials" class="py-20 px-6 reveal">
         <div class="container mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-4xl md:text-5xl font-bold mb-4">
@@ -415,115 +559,64 @@
                     <span class="heading-gradient">Leading Institutions</span>
                 </h2>
                 <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-                    See what researchers and lab managers say about Smart Laboratories
+                    See what researchers and lab managers say about SmartLabs.
                 </p>
             </div>
             <div class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
                 <div class="feature-card">
                     <div class="flex items-center mb-4">
-                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=50&q=80" 
-                             alt="Dr. Sarah Chen" 
-                             class="w-12 h-12 rounded-full mr-4">
+                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=120&q=80"
+                             alt="Dr. Sarah Chen"
+                             class="w-12 h-12 rounded-full mr-4 object-cover">
                         <div>
                             <div class="font-bold text-gray-900">Dr. Sarah Chen</div>
-                            <div class="text-sm text-gray-600">Stanford Research Lab</div>
+                            <div class="text-sm text-gray-600">Research Lab Director</div>
                         </div>
                     </div>
-                    <div class="flex mb-4">
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                    </div>
-                    <p class="text-gray-600">"Smart Laboratories has revolutionized how we manage our experiments. The AI automation saves us hours every day."</p>
+                    <p class="text-gray-600 leading-relaxed">“The dashboards make lab operations feel effortless — monitoring, scheduling, and reporting finally live in one place.”</p>
                 </div>
                 <div class="feature-card">
                     <div class="flex items-center mb-4">
-                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=50&q=80" 
-                             alt="Prof. Michael Torres" 
-                             class="w-12 h-12 rounded-full mr-4">
+                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80"
+                             alt="Prof. Michael Torres"
+                             class="w-12 h-12 rounded-full mr-4 object-cover">
                         <div>
                             <div class="font-bold text-gray-900">Prof. Michael Torres</div>
-                            <div class="text-sm text-gray-600">MIT Chemistry Dept</div>
+                            <div class="text-sm text-gray-600">Chemistry Department</div>
                         </div>
                     </div>
-                    <div class="flex mb-4">
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                    </div>
-                    <p class="text-gray-600">"The real-time monitoring capabilities are unmatched. We can track everything from anywhere."</p>
+                    <p class="text-gray-600 leading-relaxed">“SmartLabs improved practical completion rates and reduced admin overhead. Students love the clarity.”</p>
                 </div>
                 <div class="feature-card">
                     <div class="flex items-center mb-4">
-                        <img src="https://images.unsplash.com/photo-1494790108755-2616b332c1ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=50&q=80" 
-                             alt="Dr. Emily Johnson" 
-                             class="w-12 h-12 rounded-full mr-4">
+                        <img src="https://images.unsplash.com/photo-1494790108755-2616b332c1ca?auto=format&fit=crop&w=120&q=80"
+                             alt="Dr. Emily Johnson"
+                             class="w-12 h-12 rounded-full mr-4 object-cover">
                         <div>
                             <div class="font-bold text-gray-900">Dr. Emily Johnson</div>
-                            <div class="text-sm text-gray-600">Harvard Medical Lab</div>
+                            <div class="text-sm text-gray-600">Laboratory Coordinator</div>
                         </div>
                     </div>
-                    <div class="flex mb-4">
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                        <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                        </svg>
-                    </div>
-                    <p class="text-gray-600">"Best investment we've made for our laboratory. The ROI has been incredible."</p>
+                    <p class="text-gray-600 leading-relaxed">“The glass UI feels premium, and the audit trail + equipment tracking adds real accountability.”</p>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- CTA Section -->
-    <section class="py-20 px-6">
+    <section class="py-20 px-6 reveal">
         <div class="container mx-auto text-center">
             <div class="max-w-4xl mx-auto">
                 <h2 class="text-4xl md:text-5xl font-bold mb-6">
-                    Ready to Transform Your<br>
-                    <span class="heading-gradient">Laboratory?</span>
+                    Ready to enter the<br>
+                    <span class="heading-gradient">SmartLabs era?</span>
                 </h2>
                 <p class="text-xl text-gray-600 mb-8">
-                    Join thousands of laboratories already using Smart Laboratories to revolutionize their research and operations.
+                    Open the dashboard now. Your existing SmartLab backend stays intact — the experience becomes futuristic.
                 </p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button onclick="openRegisterModal()" class="btn-gradient">Start Free Trial</button>
-                    <a href="index.php?url=auth/login" class="btn-glass inline-block">Schedule Demo</a>
+                    <a href="index.php?url=auth/login" class="btn-gradient">Login</a>
+                    <a href="index.php?url=auth/register" class="btn-glass inline-block">Register</a>
                 </div>
             </div>
         </div>
@@ -535,136 +628,48 @@
             <div class="grid md:grid-cols-4 gap-8 mb-12">
                 <div>
                     <div class="flex items-center space-x-3 mb-4">
-                        <div class="w-10 h-10 bg-gradient-to-r from-primary-500 to-purple-600 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                            </svg>
+                        <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center">
+                            <i class="pi pi-microchip text-white text-xl"></i>
                         </div>
-                        <span class="text-xl font-bold text-white">Smart Laboratories</span>
+                        <span class="text-xl font-bold text-white font-display">SmartLabs</span>
                     </div>
-                    <p class="text-gray-400">AI-powered laboratory management for the future of research.</p>
+                    <p class="text-gray-400">Next Generation IoT Laboratory Platform — built for UNILIS.</p>
                 </div>
                 <div>
                     <h4 class="text-white font-bold mb-4">Product</h4>
                     <ul class="space-y-2 text-gray-400">
-                        <li><a href="#" class="hover:text-white transition-colors">Features</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">Pricing</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">Security</a></li>
+                        <li><a href="#features" class="hover:text-white transition-colors">Features</a></li>
+                        <li><a href="#modules" class="hover:text-white transition-colors">Modules</a></li>
+                        <li><a href="index.php?url=auth/login" class="hover:text-white transition-colors">Dashboard</a></li>
                     </ul>
                 </div>
                 <div>
                     <h4 class="text-white font-bold mb-4">Company</h4>
                     <ul class="space-y-2 text-gray-400">
-                        <li><a href="#" class="hover:text-white transition-colors">About</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">Blog</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">Careers</a></li>
+                        <li><a href="#contact" class="hover:text-white transition-colors">Contact</a></li>
+                        <li><a href="index.php?url=auth/register" class="hover:text-white transition-colors">Register</a></li>
+                        <li><a href="index.php?url=auth/login" class="hover:text-white transition-colors">Login</a></li>
                     </ul>
                 </div>
                 <div>
                     <h4 class="text-white font-bold mb-4">Connect</h4>
                     <div class="flex space-x-4">
-                        <a href="#" class="text-gray-400 hover:text-white transition-colors">
-                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"/>
-                            </svg>
+                        <a href="index.php?url=auth/login" class="text-gray-400 hover:text-white transition-colors">
+                            <i class="pi pi-sign-in text-2xl"></i>
                         </a>
-                        <a href="#" class="text-gray-400 hover:text-white transition-colors">
-                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/>
-                            </svg>
+                        <a href="index.php?url=auth/register" class="text-gray-400 hover:text-white transition-colors">
+                            <i class="pi pi-user-plus text-2xl"></i>
                         </a>
                     </div>
                 </div>
             </div>
             <div class="border-t border-gray-800 pt-8 text-center text-gray-400">
-                <p>&copy; 2024 Smart Laboratories. All rights reserved.</p>
+                <p>&copy; 2026 UNILIS SmartLabs. All rights reserved.</p>
             </div>
         </div>
     </footer>
 
-    
-    <!-- Registration Modal -->
-    <div id="registerModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-        <div class="glass rounded-3xl p-8 max-w-md w-full">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Create Account</h2>
-                <button onclick="closeRegisterModal()" class="text-gray-500 hover:text-gray-700">
-                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-            
-            <form onsubmit="handleRegister(event)">
-                <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-                            <input type="text" required class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="First name">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                            <input type="text" required class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Last name">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                        <input type="email" required class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Enter your email">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Institution</label>
-                        <input type="text" required class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Your institution">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                        <input type="password" required class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Create a password">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
-                        <input type="password" required class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Confirm your password">
-                    </div>
-                    <div class="flex items-center">
-                        <input type="checkbox" required class="w-4 h-4 text-primary-600 border-gray-300 rounded">
-                        <span class="ml-2 text-sm text-gray-600">I agree to the <a href="#" class="text-primary-600 hover:text-primary-700">Terms of Service</a> and <a href="#" class="text-primary-600 hover:text-primary-700">Privacy Policy</a></span>
-                    </div>
-                    <button type="submit" class="w-full btn-gradient">Create Account</button>
-                </div>
-            </form>
-            
-            <div class="mt-6 text-center">
-                <p class="text-gray-600">Already have an account? <a href="index.php?url=auth/login" class="text-primary-600 hover:text-primary-700 font-medium">Login</a></p>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // Registration Modal functions
-        function openRegisterModal() {
-            document.getElementById('registerModal').classList.remove('hidden');
-            document.getElementById('registerModal').classList.add('flex');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeRegisterModal() {
-            document.getElementById('registerModal').classList.add('hidden');
-            document.getElementById('registerModal').classList.remove('flex');
-            document.body.style.overflow = 'auto';
-        }
-
-        function handleRegister(event) {
-            event.preventDefault();
-            // Here you would normally send registration request to server
-            alert('Registration functionality would connect to your backend system');
-            closeRegisterModal();
-        }
-
-        // Close modal when clicking outside
-        document.getElementById('registerModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeRegisterModal();
-            }
-        });
-
         // Mobile Menu functionality
         const mobileMenuButton = document.getElementById('mobile-menu-button');
         const mobileMenu = document.getElementById('mobile-menu');
@@ -700,10 +705,22 @@
         // Close mobile menu with Escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
-                closeRegisterModal();
                 closeMobileMenuFunc();
             }
         });
+
+        // Reveal-on-scroll (soft fade-in)
+        const revealEls = document.querySelectorAll('.reveal');
+        if ('IntersectionObserver' in window) {
+            const io = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) entry.target.classList.add('is-visible');
+                });
+            }, { threshold: 0.12 });
+            revealEls.forEach(el => io.observe(el));
+        } else {
+            revealEls.forEach(el => el.classList.add('is-visible'));
+        }
     </script>
 </body>
 </html>

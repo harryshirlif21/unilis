@@ -13,6 +13,7 @@ class Auth {
             $_SESSION['user_name'] = $user['full_name'];
             $_SESSION['lab_id']    = $user['lab_id'] ?? '';
             $_SESSION['auth_method'] = 'password';
+            $_SESSION['last_activity'] = time();
             return true;
         }
         return false;
@@ -29,6 +30,7 @@ class Auth {
             $_SESSION['user_name'] = $user['full_name'];
             $_SESSION['lab_id']    = $user['lab_id'] ?? '';
             $_SESSION['auth_method'] = 'password';
+            $_SESSION['last_activity'] = time();
             return true;
         }
         return false;
@@ -45,6 +47,7 @@ class Auth {
             $_SESSION['user_name'] = $user['full_name'];
             $_SESSION['lab_id']    = $user['lab_id'] ?? '';
             $_SESSION['auth_method'] = 'biometric';
+            $_SESSION['last_activity'] = time();
             return true;
         }
         return false;
@@ -72,6 +75,7 @@ class Auth {
             $_SESSION['lab_id']    = $user['lab_id'] ?? '';
             $_SESSION['session_id'] = $sessionId;
             $_SESSION['auth_method'] = 'qr';
+            $_SESSION['last_activity'] = time();
             return true;
         }
         return false;
@@ -138,6 +142,7 @@ class Auth {
             $_SESSION['lab_id']    = $user['lab_id'] ?? '';
             $_SESSION['session_id'] = $sessionId;
             $_SESSION['auth_method'] = 'code';
+            $_SESSION['last_activity'] = time();
             return true;
         }
         return false;
@@ -195,7 +200,29 @@ class Auth {
         session_destroy();
         header('Location: '.APP_URL.'/auth/login'); exit;
     }
-    public static function check(): bool   { return isset($_SESSION['user_id']); }
+    
+    public static function check(): bool {
+        // Check if user is logged in
+        if (!isset($_SESSION['user_id'])) {
+            return false;
+        }
+        
+        // Check session timeout
+        if (isset($_SESSION['last_activity'])) {
+            $inactive_time = time() - $_SESSION['last_activity'];
+            $session_lifetime = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 3600; // Default 1 hour
+            
+            if ($inactive_time > $session_lifetime) {
+                self::logout();
+                return false;
+            }
+        }
+        
+        // Update last activity time
+        $_SESSION['last_activity'] = time();
+        return true;
+    }
+    
     public static function role(): string  { return $_SESSION['user_role'] ?? ''; }
     public static function id(): string    { return $_SESSION['user_id']   ?? ''; }
     public static function name(): string  { return $_SESSION['user_name'] ?? ''; }

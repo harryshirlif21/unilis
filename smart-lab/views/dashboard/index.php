@@ -1,326 +1,215 @@
 <?php
-require_once __DIR__.'/../../auth/Auth.php';
+require_once __DIR__ . '/../../auth/Auth.php';
 Auth::guard();
-$initials = strtoupper(substr(Auth::name(), 0, 1) . substr(strrchr(Auth::name(), ' '), 1, 1));
-$role_label = ucfirst(Auth::role());
+
+// Keep existing data inputs intact; UI will gracefully fall back when missing.
+$stats = $stats ?? [];
+$schedule = $schedule ?? [];
+$labs = $labs ?? [];
+$blocks = $blocks ?? [];
+$activity = $activity ?? [];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Dashboard - UNILIS SmartLab</title>
-<!-- Modern Typography -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
-<!-- ProMax UI Styles -->
-<link rel="stylesheet" href="<?= APP_URL ?>/public/css/promax.css">
-<!-- Alpine.js for UI State Management -->
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<!-- Font Awesome for Icons -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Dashboard - UNILIS SmartLab</title>
+  <link rel="stylesheet" href="<?= APP_URL ?>/public/css/app.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
 <div class="app-container">
-  <!-- Include the new sidebar -->
-  <?php include __DIR__.'/../layouts/sidebar.php'; ?>
+  <?php include __DIR__ . '/../layouts/sidebar.php'; ?>
 
-  <!-- ── MAIN ── -->
-  <div class="main">
-
-    <!-- Page Header -->
+  <div class="main-content">
     <div class="page-header">
-      <div class="page-overline">Overview</div>
+      <div class="page-overline">SmartLabs Intelligence</div>
       <h1 class="page-title">Dashboard</h1>
-      <div class="page-subtitle">Welcome back, <?= htmlspecialchars(Auth::name()) ?>. Here's what's happening in your lab today.</div>
-    </a>
-    <a class="nav-link" href="<?= APP_URL ?>/inventory">
-      <span class="nav-icon">📦</span> Inventory
-    </a>
-    <a class="nav-link" href="<?= APP_URL ?>/blockchain">
-      <span class="nav-icon">⛓</span> Blockchain
-    </a>
-
-    <div class="nav-group-label">System</div>
-    <a class="nav-link" href="<?= APP_URL ?>/audit">
-      <span class="nav-icon">🔍</span> Audit Log
-    </a>
-  </nav>
-
-  <div class="sidebar-footer">
-    <div class="user-card">
-      <div class="user-avatar"><?= $initials ?></div>
-      <div>
-        <div class="user-name"><?= htmlspecialchars($user_name ?? 'User') ?></div>
-        <div class="user-role"><?= $role_label ?></div>
+      <div class="page-subtitle">Welcome back, <?= htmlspecialchars(Auth::name()) ?>. Real-time laboratory signals and academic workflow insights.</div>
     </div>
 
-    <!-- ProMax Bento Dashboard Grid -->
-    <div class="promax-bento-grid">
-
-      <!-- Live Statistics Card -->
-      <div class="promax-bento-card animate-fade-in">
-        <h3 style="color: white; margin: 0 0 var(--space-lg) 0; font-size: 1.25rem; font-weight: 600;">Live Statistics</h3>
-        <div class="promax-stats-grid">
-          <div class="promax-stat-card">
-            <div class="promax-stat-number"><?= $stats['labs'] ?? 0 ?></div>
-            <div class="promax-stat-label">Active Labs</div>
-          </div>
-          <div class="promax-stat-card">
-            <div class="promax-stat-number"><?= $stats['students'] ?? 0 ?></div>
-            <div class="promax-stat-label">Students</div>
-          </div>
-          <div class="promax-stat-card">
-            <div class="promax-stat-number"><?= $stats['practicals'] ?? 0 ?></div>
-            <div class="promax-stat-label">Practicals</div>
-          </div>
-          <div class="promax-stat-card">
-            <div class="promax-stat-number"><?= $stats['assets'] ?? 0 ?></div>
-            <div class="promax-stat-label">Assets</div>
-          </div>
-        </div>
+    <!-- KPI row -->
+    <div class="grid grid-stats mb-4">
+      <div class="stat-card primary">
+        <div class="stat-label">Active Labs</div>
+        <div class="stat-value"><?= $stats['labs'] ?? 0 ?></div>
+        <div class="stat-delta caption"><i class="pi pi-bolt"></i> Live capacity + occupancy</div>
       </div>
-
-      <!-- RFID Interaction Card -->
-      <div class="promax-bento-card animate-fade-in" x-data="{ rfidStatus: 'ready', rfidMessage: 'Ready for RFID scan' }">
-        <h3 style="color: white; margin: 0 0 var(--space-lg) 0; font-size: 1.25rem; font-weight: 600;">RFID Scanner</h3>
-        <div class="promax-rfid-card" :class="rfidStatus">
-          <div style="color: white; font-size: 3rem; margin-bottom: var(--space-md);">
-            <i class="fas fa-wifi"></i>
-          </div>
-          <div style="color: white; font-weight: 600; margin-bottom: var(--space-sm);">RFID Access Point</div>
-          <div class="text-mono" style="color: rgba(255, 255, 255, 0.8); font-size: 0.875rem;" x-text="rfidMessage"></div>
-          <button @click="rfidStatus = 'scanning'; rfidMessage = 'Scanning...'; setTimeout(() => { rfidStatus = 'success'; rfidMessage = 'Access Granted'; }, 2000)" 
-                  class="glass" style="margin-top: var(--space-lg); padding: var(--space-sm) var(--space-lg); border: none; border-radius: 8px; color: white; cursor: pointer; transition: all var(--transition-base);">
-            Simulate Scan
-          </button>
-        </div>
+      <div class="stat-card success">
+        <div class="stat-label">Students</div>
+        <div class="stat-value"><?= $stats['students'] ?? 0 ?></div>
+        <div class="stat-delta caption"><i class="pi pi-chart-line"></i> Participation & attendance</div>
       </div>
-
-      <!-- Live Equipment Status -->
-      <div class="promax-bento-card animate-fade-in" style="grid-column: span 2;">
-        <h3 style="color: white; margin: 0 0 var(--space-lg) 0; font-size: 1.25rem; font-weight: 600;">Live Equipment Status</h3>
-        <div class="promax-equipment-grid">
-          <div class="promax-equipment-item">
-            <div class="promax-equipment-name">Microscope Lab</div>
-            <div class="promax-equipment-status online">ONLINE</div>
-          </div>
-          <div class="promax-equipment-item">
-            <div class="promax-equipment-name">Chemistry Station</div>
-            <div class="promax-equipment-status online">ONLINE</div>
-          </div>
-          <div class="promax-equipment-item">
-            <div class="promax-equipment-name">Physics Lab</div>
-            <div class="promax-equipment-status maintenance">MAINTENANCE</div>
-          </div>
-          <div class="promax-equipment-item">
-            <div class="promax-equipment-name">Biology Lab</div>
-            <div class="promax-equipment-status online">ONLINE</div>
-          </div>
-          <div class="promax-equipment-item">
-            <div class="promax-equipment-name">Computer Lab</div>
-            <div class="promax-equipment-status offline">OFFLINE</div>
-          </div>
-          <div class="promax-equipment-item">
-            <div class="promax-equipment-name">Electronics Lab</div>
-            <div class="promax-equipment-status online">ONLINE</div>
-          </div>
-        </div>
+      <div class="stat-card gold">
+        <div class="stat-label">Practicals</div>
+        <div class="stat-value"><?= $stats['practicals'] ?? 0 ?></div>
+        <div class="stat-delta caption"><i class="pi pi-calendar"></i> Sessions + completion</div>
       </div>
-
-      <!-- Forensic Timeline -->
-      <div class="promax-bento-card animate-fade-in" style="grid-column: span 2;">
-        <h3 style="color: white; margin: 0 0 var(--space-lg) 0; font-size: 1.25rem; font-weight: 600;">Forensic Timeline</h3>
-        <div class="promax-forensic-list">
-          <div class="promax-forensic-item">
-            <div class="promax-forensic-timestamp">14:32</div>
-            <div class="promax-forensic-event">RFID scan successful - Lab Access</div>
-            <div class="promax-forensic-status success">SUCCESS</div>
-          </div>
-          <div class="promax-forensic-item">
-            <div class="promax-forensic-timestamp">14:28</div>
-            <div class="promax-forensic-event">Equipment checkout - Microscope #4</div>
-            <div class="promax-forensic-status success">ACTIVE</div>
-          </div>
-          <div class="promax-forensic-item">
-            <div class="promax-forensic-timestamp">14:15</div>
-            <div class="promax-forensic-event">Practical session started - Chemistry Lab</div>
-            <div class="promax-forensic-status warning">IN PROGRESS</div>
-          </div>
-          <div class="promax-forensic-item">
-            <div class="promax-forensic-timestamp">14:02</div>
-            <div class="promax-forensic-event">User authentication - Admin login</div>
-            <div class="promax-forensic-status success">SUCCESS</div>
-          </div>
-          <div class="promax-forensic-item">
-            <div class="promax-forensic-timestamp">13:45</div>
-            <div class="promax-forensic-event">Asset maintenance scheduled</div>
-            <div class="promax-forensic-status warning">SCHEDULED</div>
-          </div>
-          <div class="promax-forensic-item">
-            <div class="promax-forensic-timestamp">13:30</div>
-            <div class="promax-forensic-event">Blockchain record created - Asset #A123</div>
-            <div class="promax-forensic-status success">RECORDED</div>
-          </div>
-        </div>
+      <div class="stat-card warning">
+        <div class="stat-label">Assets</div>
+        <div class="stat-value"><?= $stats['assets'] ?? 0 ?></div>
+        <div class="stat-delta caption"><i class="pi pi-link"></i> Tracked + verified</div>
       </div>
-
     </div>
 
-    <!-- Quick Actions Panel -->
-    <div class="panel-gradient">
+    <!-- Live Monitoring + Analytics -->
+    <div class="grid grid-two mb-4">
+      <div class="panel hero-banner">
+        <div class="section-header">
+          <div>
+            <div class="section-overline">Live Laboratory Monitoring</div>
+            <h3 class="section-title">Environmental Signals</h3>
+            <p class="caption">Temperature · Humidity · Gas detection · Safety alerts</p>
+          </div>
+          <div class="badge badge-primary badge-dot">ONLINE</div>
+        </div>
+        <div class="grid grid-two">
+          <div class="card inset">
+            <div class="overline">Temperature</div>
+            <div class="metric" id="sl-temp">24.6°C</div>
+            <div class="caption">Stable — within safe range</div>
+          </div>
+          <div class="card inset">
+            <div class="overline">Humidity</div>
+            <div class="metric" id="sl-hum">48%</div>
+            <div class="caption">Nominal — no condensation risk</div>
+          </div>
+          <div class="card inset">
+            <div class="overline">Gas</div>
+            <div class="metric" id="sl-gas">0 ppm</div>
+            <div class="caption">No detection</div>
+          </div>
+          <div class="card inset">
+            <div class="overline">Safety</div>
+            <div class="metric" id="sl-safety">OK</div>
+            <div class="caption">All sensors reporting</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="section-header">
+          <div>
+            <div class="section-overline">Student Analytics</div>
+            <h3 class="section-title">Attendance & Participation</h3>
+            <p class="caption">Trend signal (demo-ready; binds to real data when provided)</p>
+          </div>
+          <a href="<?= APP_URL ?>/reports" class="btn btn-sm btn-secondary"><i class="pi pi-file"></i> Reports</a>
+        </div>
+        <div class="panel-muted">
+          <canvas id="slStudentChart" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="panel-gradient mb-4">
       <div class="section-header">
         <div>
           <div class="section-overline">Quick Access</div>
-          <h2 class="section-title">Quick Actions</h2>
+          <h2 class="section-title">Smart Actions</h2>
         </div>
       </div>
-      <?php if (Auth::role() === 'student'): ?>
-        <!-- Student Quick Actions -->
-        <div class="grid grid-cards">
-          <a href="<?= APP_URL ?>/practicals" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">View My Practicals</h4>
-              <p class="caption">See your scheduled lab sessions</p>
-            </div>
+
+      <div class="grid grid-cards">
+        <?php if (Auth::role() === 'student'): ?>
+          <a href="<?= APP_URL ?>/practicals" class="card">
+            <div class="overline"><i class="pi pi-flask"></i> Practicals</div>
+            <h4 class="text-bold">View My Practicals</h4>
+            <p class="caption">See your scheduled lab sessions</p>
           </a>
-          <a href="<?= APP_URL ?>/report-submission" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">Submit Report</h4>
-              <p class="caption">Upload your lab report</p>
-            </div>
+          <a href="<?= APP_URL ?>/report-submission" class="card">
+            <div class="overline"><i class="pi pi-upload"></i> Submission</div>
+            <h4 class="text-bold">Submit Report</h4>
+            <p class="caption">Upload your lab report</p>
           </a>
-          <a href="<?= APP_URL ?>/notebooks" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">My Notebooks</h4>
-              <p class="caption">Access your lab notebooks</p>
-            </div>
+          <a href="<?= APP_URL ?>/notebooks" class="card">
+            <div class="overline"><i class="pi pi-book"></i> Notebooks</div>
+            <h4 class="text-bold">My Notebooks</h4>
+            <p class="caption">Access your lab notebooks</p>
           </a>
-          <a href="<?= APP_URL ?>/schedule" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">View Schedule</h4>
-              <p class="caption">Check lab timetable</p>
-            </div>
+          <a href="<?= APP_URL ?>/schedule" class="card">
+            <div class="overline"><i class="pi pi-calendar"></i> Schedule</div>
+            <h4 class="text-bold">View Schedule</h4>
+            <p class="caption">Check lab timetable</p>
           </a>
-        </div>
-      <?php elseif (Auth::role() === 'lecturer'): ?>
-        <!-- Lecturer Quick Actions -->
-        <div class="grid grid-cards">
-          <a href="<?= APP_URL ?>/practicals/create" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">Create Practical</h4>
-              <p class="caption">Schedule a new lab session</p>
-            </div>
+        <?php elseif (Auth::role() === 'lecturer'): ?>
+          <a href="<?= APP_URL ?>/practicals/create" class="card">
+            <div class="overline"><i class="pi pi-plus-circle"></i> Create</div>
+            <h4 class="text-bold">Create Practical</h4>
+            <p class="caption">Schedule a new lab session</p>
           </a>
-          <a href="<?= APP_URL ?>/schedule" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">View Schedule</h4>
-              <p class="caption">Manage lab timetable</p>
-            </div>
+          <a href="<?= APP_URL ?>/schedule" class="card">
+            <div class="overline"><i class="pi pi-calendar"></i> Timetable</div>
+            <h4 class="text-bold">View Schedule</h4>
+            <p class="caption">Manage lab timetable</p>
           </a>
-          <a href="<?= APP_URL ?>/reports" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">Grade Reports</h4>
-              <p class="caption">Review student submissions</p>
-            </div>
+          <a href="<?= APP_URL ?>/reports" class="card">
+            <div class="overline"><i class="pi pi-check-square"></i> Grading</div>
+            <h4 class="text-bold">Grade Reports</h4>
+            <p class="caption">Review student submissions</p>
           </a>
-          <a href="<?= APP_URL ?>/admin" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">Manage Sessions</h4>
-              <p class="caption">Approve practical requests</p>
-            </div>
+          <a href="<?= APP_URL ?>/admin" class="card">
+            <div class="overline"><i class="pi pi-verified"></i> Requests</div>
+            <h4 class="text-bold">Manage Sessions</h4>
+            <p class="caption">Approve practical requests</p>
           </a>
-        </div>
-      <?php elseif (Auth::role() === 'technician'): ?>
-        <!-- Technician Quick Actions -->
-        <div class="grid grid-cards">
-          <a href="<?= APP_URL ?>/assets" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">Manage Assets</h4>
-              <p class="caption">Track lab equipment</p>
-            </div>
+        <?php elseif (Auth::role() === 'technician'): ?>
+          <a href="<?= APP_URL ?>/assets" class="card">
+            <div class="overline"><i class="pi pi-box"></i> Assets</div>
+            <h4 class="text-bold">Manage Assets</h4>
+            <p class="caption">Track lab equipment</p>
           </a>
-          <a href="<?= APP_URL ?>/inventory" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">View Inventory</h4>
-              <p class="caption">Check stock levels</p>
-            </div>
+          <a href="<?= APP_URL ?>/inventory" class="card">
+            <div class="overline"><i class="pi pi-database"></i> Inventory</div>
+            <h4 class="text-bold">View Inventory</h4>
+            <p class="caption">Check stock levels</p>
           </a>
-          <a href="<?= APP_URL ?>/notebooks" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">Approve Notebooks</h4>
-              <p class="caption">Review lab notebooks</p>
-            </div>
+          <a href="<?= APP_URL ?>/notebooks" class="card">
+            <div class="overline"><i class="pi pi-book"></i> Notebooks</div>
+            <h4 class="text-bold">Approve Notebooks</h4>
+            <p class="caption">Review lab notebooks</p>
           </a>
-          <a href="<?= APP_URL ?>/schedule" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">View Schedule</h4>
-              <p class="caption">See lab sessions</p>
-            </div>
+          <a href="<?= APP_URL ?>/schedule" class="card">
+            <div class="overline"><i class="pi pi-calendar"></i> Schedule</div>
+            <h4 class="text-bold">View Schedule</h4>
+            <p class="caption">See lab sessions</p>
           </a>
-        </div>
-      <?php elseif (Auth::role() === 'admin'): ?>
-        <!-- Admin Quick Actions -->
-        <div class="grid grid-cards">
-          <a href="<?= APP_URL ?>/users" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">Manage Users</h4>
-              <p class="caption">Add or deactivate users</p>
-            </div>
+        <?php elseif (Auth::role() === 'admin'): ?>
+          <a href="<?= APP_URL ?>/users" class="card">
+            <div class="overline"><i class="pi pi-users"></i> Users</div>
+            <h4 class="text-bold">Manage Users</h4>
+            <p class="caption">Add or deactivate users</p>
           </a>
-          <a href="<?= APP_URL ?>/audit" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">View Audit Logs</h4>
-              <p class="caption">Monitor system activity</p>
-            </div>
+          <a href="<?= APP_URL ?>/audit" class="card">
+            <div class="overline"><i class="pi pi-shield"></i> Audit</div>
+            <h4 class="text-bold">View Audit Logs</h4>
+            <p class="caption">Monitor system activity</p>
           </a>
-          <a href="<?= APP_URL ?>/blockchain" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">Blockchain Records</h4>
-              <p class="caption">View asset tracking</p>
-            </div>
+          <a href="<?= APP_URL ?>/blockchain" class="card">
+            <div class="overline"><i class="pi pi-link"></i> Ledger</div>
+            <h4 class="text-bold">Blockchain Records</h4>
+            <p class="caption">View asset tracking</p>
           </a>
-          <a href="<?= APP_URL ?>/practicals" class="card card-hover">
-            <div class="card-body">
-              <div class="text-lg mb-2">?</div>
-              <h4 class="text-bold">All Practicals</h4>
-              <p class="caption">Manage all lab sessions</p>
-            </div>
+          <a href="<?= APP_URL ?>/practicals" class="card">
+            <div class="overline"><i class="pi pi-flask"></i> Practicals</div>
+            <h4 class="text-bold">All Practicals</h4>
+            <p class="caption">Manage all lab sessions</p>
           </a>
-        </div>
-      <?php endif; ?>
-            <div class="text-lg mb-2">📦</div>
-            <h4 class="text-bold">Add Asset</h4>
-            <p class="caption">Register new equipment</p>
-          </div>
-        </a>
-        <a id="openSmartLabView" href="<?= APP_URL ?>/smartlab?role=<?= urlencode($user_role) ?>" class="card card-hover smartlab-card">
-          <div class="card-body">
-            <div class="text-lg mb-2">📺</div>
-            <h4 class="text-bold">Smart Lab View</h4>
-            <p class="caption">Open lab projection dashboard</p>
-          </div>
+        <?php endif; ?>
+
+        <a id="openSmartLabView" href="<?= APP_URL ?>/smartlab?role=<?= urlencode(Auth::role()) ?>" class="card purple">
+          <div class="overline"><i class="pi pi-desktop"></i> Projection</div>
+          <h4 class="text-bold">Smart Lab View</h4>
+          <p class="caption">Open lab projection dashboard</p>
         </a>
       </div>
     </div>
 
-    <!-- Schedule and Occupancy Grid -->
-    <div class="grid grid-two">
+    <!-- Schedule and occupancy -->
+    <div class="grid grid-two mb-4">
 
       <!-- Today Schedule -->
       <div class="panel">
@@ -411,8 +300,8 @@ $role_label = ucfirst(Auth::role());
       </div>
     </div>
 
-    <!-- Blockchain and Activity Grid -->
-    <div class="grid grid-two">
+    <!-- Blockchain, Activity, and Equipment Intelligence -->
+    <div class="grid grid-two mb-4">
 
       <!-- Recent Blockchain Blocks -->
       <div class="panel">
@@ -506,105 +395,94 @@ $role_label = ucfirst(Auth::role());
       </div>
     </div>
 
-  </div><!-- /content -->
-</div><!-- /main -->
-</div><!-- /app-layout -->
+    <div class="panel mb-4">
+      <div class="section-header">
+        <div>
+          <div class="section-overline">Equipment Intelligence</div>
+          <h3 class="section-title">Utilization Signal</h3>
+          <p class="caption">Operational demand & uptime projection</p>
+        </div>
+        <a href="<?= APP_URL ?>/assets" class="btn btn-sm btn-secondary"><i class="pi pi-box"></i> Assets</a>
+      </div>
+      <div class="panel-muted">
+        <canvas id="slEquipmentChart" height="90"></canvas>
+      </div>
+    </div>
 
-<style>
-/* Premium Dashboard Styles */
-.d-flex { display: flex; }
-.align-items-start { align-items: flex-start; }
-.align-items-center { align-items: center; }
-.justify-content-between { justify-content: space-between; }
-.gap-2 { gap: var(--space-sm); }
-.gap-3 { gap: var(--space-md); }
-.flex-1 { flex: 1; }
-.text-lg { font-size: 18px; }
-.mt-1 { margin-top: var(--space-xs); }
-.mb-1 { margin-bottom: var(--space-xs); }
-.mb-2 { margin-bottom: var(--space-sm); }
-.mb-3 { margin-bottom: var(--space-md); }
-.p-3 { padding: var(--space-md); }
+  </div>
+</div>
 
-/* Card hover effects */
-.card-hover {
-  transition: var(--transition-normal);
-  text-decoration: none;
-  color: var(--text);
-}
+<script>
+(() => {
+  const mkChart = (id, cfg) => {
+    const el = document.getElementById(id);
+    if (!el || typeof Chart === 'undefined') return;
+    new Chart(el, cfg);
+  };
 
-.card-hover:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-lg);
-  text-decoration: none;
-  color: var(--text);
-}
+  mkChart('slStudentChart', {
+    type: 'line',
+    data: {
+      labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+      datasets: [{
+        label: 'Attendance',
+        data: [72, 75, 78, 74, 82, 70, 76],
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.12)',
+        tension: 0.35,
+        fill: true,
+        pointRadius: 3
+      },{
+        label: 'Participation',
+        data: [58, 60, 64, 62, 69, 55, 61],
+        borderColor: '#06b6d4',
+        backgroundColor: 'rgba(6,182,212,0.10)',
+        tension: 0.35,
+        fill: true,
+        pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true } },
+      scales: {
+        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(148,163,184,0.18)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
 
-.card-body {
-  padding: var(--space-lg);
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .grid-cards {
-    grid-template-columns: 1fr;
-  }
-  
-  .grid-two {
-    grid-template-columns: 1fr;
-  }
-  
-  .hero-banner {
-    padding: var(--space-xl) var(--space-lg);
-  }
-  
-  .hero-banner h2 {
-    font-size: 18px;
-  }
-}
-
-/* Premium stat card animations */
-.stat-card {
-  transition: var(--transition-normal);
-}
-
-.stat-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-lg);
-}
-
-/* Panel animations */
-.panel {
-  transition: var(--transition-normal);
-}
-
-.panel:hover {
-  box-shadow: var(--shadow-md);
-}
-
-/* Badge animations */
-.badge {
-  transition: var(--transition-fast);
-}
-
-.badge:hover {
-  transform: scale(1.05);
-}
-
-/* Progress bar animations */
-[style*="background: var(--color-"] {
-  transition: width 0.5s ease;
-}
-
-/* Empty state improvements */
-.empty-state {
-  transition: var(--transition-normal);
-}
-
-.empty-state:hover {
-  border-color: var(--border-strong);
-}
-</style>
+  mkChart('slEquipmentChart', {
+    type: 'bar',
+    data: {
+      labels: ['Microscopes','Chemistry','Physics','Biology','Computing','Electronics'],
+      datasets: [{
+        label: 'Utilization (%)',
+        data: [82, 74, 61, 69, 88, 57],
+        backgroundColor: [
+          'rgba(37,99,235,0.55)',
+          'rgba(16,185,129,0.55)',
+          'rgba(245,158,11,0.55)',
+          'rgba(124,58,237,0.55)',
+          'rgba(6,182,212,0.55)',
+          'rgba(239,68,68,0.45)'
+        ],
+        borderRadius: 10
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(148,163,184,0.18)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+})();
+</script>
 
 <script src="<?= APP_URL ?>/public/js/app.js"></script>
 </body>

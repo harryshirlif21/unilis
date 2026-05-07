@@ -1,161 +1,131 @@
 <?php // Sidebar partial - included by views that need it ?>
 
-<aside class="promax-sidebar" x-data="{ expanded: false }">
-  <div class="promax-sidebar-header">
-    <div class="promax-logo">
-      <div class="promax-logo-icon">SL</div>
-      <div>
-        <div class="text-prose font-semibold">UNILIS SmartLab</div>
-        <div class="text-xs opacity-70">Laboratory Management</div>
+<?php
+  $uri = $_SERVER['REQUEST_URI'] ?? '';
+  $isActive = function(string $segment) use ($uri): bool {
+    return strpos($uri, $segment) !== false;
+  };
+?>
+
+<aside class="sl-sidebar" data-sl-sidebar>
+  <div class="sl-sidebar__header">
+    <a href="<?= APP_URL ?>/dashboard" class="sl-sidebar__brand">
+      <div class="sl-sidebar__brandIcon">SL</div>
+      <div class="sl-sidebar__brandText">
+        <div class="sl-sidebar__brandName">SmartLabs</div>
+        <div class="sl-sidebar__brandSub">UNILIS Laboratory Ecosystem</div>
       </div>
-    </div>
+    </a>
+    <button class="sl-icon-btn sl-sidebar__collapseBtn" type="button" aria-label="Toggle sidebar" data-sl-sidebar-toggle>
+      <i class="pi pi-bars"></i>
+    </button>
   </div>
-  
-  <nav>
-    <ul class="promax-nav-list">
-      <!-- Dashboard - All Roles -->
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/dashboard" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/dashboard') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-grid promax-nav-icon"></i>
-          <span>Dashboard</span>
-        </a>
-      </li>
-      
-      <!-- Schedule - All Roles -->
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/schedule" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/schedule') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-calendar promax-nav-icon"></i>
-          <span>Schedule</span>
-        </a>
-      </li>
-      
-      <!-- Practicals - All Roles -->
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/practicals" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/practicals') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-flask promax-nav-icon"></i>
-          <span>Practicals</span>
-        </a>
-      </li>
-      
-      <!-- Practical Requests - Students Only -->
-      <?php if (Auth::role() === 'student'): ?>
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/practical-requests" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/practical-requests') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-clipboard promax-nav-icon"></i>
-          <span>Practical Requests</span>
-        </a>
-      </li>
-      <?php endif; ?>
-      
-      <!-- Manage Requests - Admin, Lecturer, Technician -->
-      <?php if (in_array(Auth::role(), ['admin', 'lecturer', 'technician'])): ?>
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/admin" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/admin') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-check-circle promax-nav-icon"></i>
-          <span>Manage Requests</span>
-        </a>
-      </li>
-      <?php endif; ?>
-      
-      <!-- Notebooks - All Roles -->
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/notebooks" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/notebooks') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-book promax-nav-icon"></i>
-          <span>Notebooks</span>
-        </a>
-      </li>
-      
-      <!-- Reports - All Roles -->
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/reports" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/reports') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-file-text promax-nav-icon"></i>
-          <span>Reports</span>
-        </a>
-      </li>
-      
-      <!-- Report Submission - Students Only -->
-      <?php if (Auth::role() === 'student'): ?>
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/report-submission" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/report-submission') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-upload promax-nav-icon"></i>
-          <span>Report Submission</span>
-        </a>
-      </li>
-      <?php endif; ?>
-      
-      <!-- Assets - Admin, Technician, Lecturer -->
-      <?php if (in_array(Auth::role(), ['admin', 'technician', 'lecturer'])): ?>
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/assets" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/assets') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-package promax-nav-icon"></i>
-          <span>Assets</span>
-        </a>
-      </li>
-      <?php endif; ?>
-      
-      <!-- Inventory - Admin, Technician -->
-      <?php if (in_array(Auth::role(), ['admin', 'technician'])): ?>
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/inventory" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/inventory') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-layers promax-nav-icon"></i>
-          <span>Inventory</span>
-        </a>
-      </li>
-      <?php endif; ?>
-      
-      <!-- Blockchain - Admin, Technician -->
-      <?php if (in_array(Auth::role(), ['admin', 'technician'])): ?>
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/blockchain" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/blockchain') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-link promax-nav-icon"></i>
-          <span>Blockchain</span>
-        </a>
-      </li>
-      <?php endif; ?>
-      
-      <!-- Audit Logs - Admin Only -->
-      <?php if (Auth::role() === 'admin'): ?>
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/audit" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/audit') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-shield promax-nav-icon"></i>
-          <span>Audit Logs</span>
-        </a>
-      </li>
-      
-      <!-- Users - Admin Only -->
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/users" class="promax-nav-link <?= (strpos($_SERVER['REQUEST_URI'], '/users') !== false) ? 'active' : '' ?>">
-          <i class="fas fa-users promax-nav-icon"></i>
-          <span>Users</span>
-        </a>
-      </li>
-      <?php endif; ?>
-      
-      <!-- Divider -->
-      <li class="promax-nav-item" style="margin: var(--space-lg) var(--space-lg); border-top: 1px solid var(--dark-border);"></li>
-      
-      <!-- Logout - All Roles -->
-      <li class="promax-nav-item">
-        <a href="<?= APP_URL ?>/auth/logout" class="promax-nav-link" style="color: var(--danger);">
-          <i class="fas fa-log-out promax-nav-icon"></i>
-          <span>Logout</span>
-        </a>
-      </li>
-    </ul>
+
+  <nav class="sl-sidebar__nav" aria-label="Primary">
+    <div class="sl-nav__groupLabel">Core</div>
+    <a href="<?= APP_URL ?>/dashboard" class="sl-nav__link <?= $isActive('/dashboard') ? 'active' : '' ?>">
+      <i class="pi pi-th-large sl-nav__icon"></i>
+      <span>Dashboard</span>
+    </a>
+
+    <a href="<?= APP_URL ?>/schedule" class="sl-nav__link <?= $isActive('/schedule') ? 'active' : '' ?>">
+      <i class="pi pi-calendar sl-nav__icon"></i>
+      <span>Schedule</span>
+    </a>
+
+    <a href="<?= APP_URL ?>/practicals" class="sl-nav__link <?= $isActive('/practicals') ? 'active' : '' ?>">
+      <i class="pi pi-flask sl-nav__icon"></i>
+      <span>Practicals</span>
+    </a>
+
+    <?php if (Auth::role() === 'student'): ?>
+      <a href="<?= APP_URL ?>/practical-requests" class="sl-nav__link <?= $isActive('/practical-requests') ? 'active' : '' ?>">
+        <i class="pi pi-clipboard sl-nav__icon"></i>
+        <span>Practical Requests</span>
+      </a>
+    <?php endif; ?>
+
+    <?php if (in_array(Auth::role(), ['admin', 'lecturer', 'technician'])): ?>
+      <a href="<?= APP_URL ?>/admin" class="sl-nav__link <?= $isActive('/admin') ? 'active' : '' ?>">
+        <i class="pi pi-check-circle sl-nav__icon"></i>
+        <span>Manage Requests</span>
+      </a>
+    <?php endif; ?>
+
+    <div class="sl-nav__groupLabel">Academic</div>
+    <a href="<?= APP_URL ?>/notebooks" class="sl-nav__link <?= $isActive('/notebooks') ? 'active' : '' ?>">
+      <i class="pi pi-book sl-nav__icon"></i>
+      <span>Notebooks</span>
+    </a>
+
+    <a href="<?= APP_URL ?>/reports" class="sl-nav__link <?= $isActive('/reports') ? 'active' : '' ?>">
+      <i class="pi pi-file-edit sl-nav__icon"></i>
+      <span>Reports</span>
+    </a>
+
+    <?php if (Auth::role() === 'student'): ?>
+      <a href="<?= APP_URL ?>/report-submission" class="sl-nav__link <?= $isActive('/report-submission') ? 'active' : '' ?>">
+        <i class="pi pi-upload sl-nav__icon"></i>
+        <span>Report Submission</span>
+      </a>
+    <?php endif; ?>
+
+    <?php if (in_array(Auth::role(), ['admin', 'technician', 'lecturer'])): ?>
+      <div class="sl-nav__groupLabel">Operations</div>
+      <a href="<?= APP_URL ?>/assets" class="sl-nav__link <?= $isActive('/assets') ? 'active' : '' ?>">
+        <i class="pi pi-box sl-nav__icon"></i>
+        <span>Assets</span>
+      </a>
+    <?php endif; ?>
+
+    <?php if (in_array(Auth::role(), ['admin', 'technician'])): ?>
+      <a href="<?= APP_URL ?>/inventory" class="sl-nav__link <?= $isActive('/inventory') ? 'active' : '' ?>">
+        <i class="pi pi-database sl-nav__icon"></i>
+        <span>Inventory</span>
+      </a>
+    <?php endif; ?>
+
+    <?php if (in_array(Auth::role(), ['admin', 'technician'])): ?>
+      <a href="<?= APP_URL ?>/blockchain" class="sl-nav__link <?= $isActive('/blockchain') ? 'active' : '' ?>">
+        <i class="pi pi-link sl-nav__icon"></i>
+        <span>Blockchain</span>
+      </a>
+    <?php endif; ?>
+
+    <?php if (Auth::role() === 'admin'): ?>
+      <div class="sl-nav__groupLabel">System</div>
+      <a href="<?= APP_URL ?>/audit" class="sl-nav__link <?= $isActive('/audit') ? 'active' : '' ?>">
+        <i class="pi pi-shield sl-nav__icon"></i>
+        <span>Audit Logs</span>
+      </a>
+      <a href="<?= APP_URL ?>/users" class="sl-nav__link <?= $isActive('/users') ? 'active' : '' ?>">
+        <i class="pi pi-users sl-nav__icon"></i>
+        <span>Users</span>
+      </a>
+    <?php endif; ?>
+
+    <div class="sl-sidebar__spacer"></div>
+
+    <a href="<?= APP_URL ?>/auth/logout" class="sl-nav__link sl-nav__link--danger">
+      <i class="pi pi-sign-out sl-nav__icon"></i>
+      <span>Logout</span>
+    </a>
   </nav>
-  
-  <!-- User Info -->
-  <div class="promax-sidebar-footer" style="position: absolute; bottom: 0; left: 0; right: 0; padding: var(--space-lg); border-top: 1px solid var(--dark-border);">
-    <div class="glass-dark" style="padding: var(--space-md); border-radius: 8px;">
-      <div style="display: flex; align-items: center; gap: var(--space-md);">
-        <div style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary), var(--accent)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
-          <?= strtoupper(substr(Auth::name(), 0, 2)) ?>
-        </div>
-        <div style="flex: 1;">
-          <div style="color: white; font-weight: 500; font-size: 0.875rem;"><?= htmlspecialchars(Auth::name()) ?></div>
-          <div style="color: rgba(255, 255, 255, 0.7); font-size: 0.75rem; text-transform: capitalize;"><?= htmlspecialchars(Auth::role()) ?></div>
-        </div>
+
+  <div class="sl-sidebar__footer">
+    <div class="sl-userCard">
+      <div class="sl-userCard__avatar">
+        <?= strtoupper(substr(Auth::name(), 0, 2)) ?>
       </div>
+      <div class="sl-userCard__meta">
+        <div class="sl-userCard__name"><?= htmlspecialchars(Auth::name()) ?></div>
+        <div class="sl-userCard__role"><?= htmlspecialchars(ucfirst(Auth::role())) ?></div>
+      </div>
+      <button class="sl-icon-btn" type="button" aria-label="Toggle theme" data-sl-theme-toggle>
+        <i class="pi pi-moon"></i>
+      </button>
     </div>
   </div>
 </aside>
+
+<div class="sl-sidebarOverlay" data-sl-sidebar-overlay aria-hidden="true"></div>
