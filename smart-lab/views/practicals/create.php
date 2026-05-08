@@ -28,8 +28,8 @@
                 
                 <div class="form-group">
                     <label class="form-label">Description</label>
-                    <textarea name="description" id="description-editor" class="form-control tinymce-editor" rows="8" 
-                        placeholder="Describe the practical objectives and procedures..."><?= htmlspecialchars($data['description'] ?? '') ?></textarea>
+                    <div id="description-editor" class="quill-editor"></div>
+                    <textarea name="description" style="display:none;"><?= htmlspecialchars($data['description'] ?? '') ?></textarea>
                 </div>
             </div>
 
@@ -110,14 +110,14 @@
                 
                 <div class="form-group">
                     <label class="form-label">Results Table Template</label>
-                    <textarea name="results_template" id="results-template" class="form-control tinymce-editor" rows="6" 
-                        placeholder="Create a table template for students to record their experimental results..."><?= htmlspecialchars($data['results_template'] ?? '') ?></textarea>
+                    <div id="results-template" class="quill-editor"></div>
+                    <textarea name="results_template" style="display:none;"><?= htmlspecialchars($data['results_template'] ?? '') ?></textarea>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Calculations & Observations Template</label>
-                    <textarea name="calculations_template" id="calculations-template" class="form-control tinymce-editor" rows="6" 
-                        placeholder="Provide instructions and space for students to show their calculations and observations..."><?= htmlspecialchars($data['calculations_template'] ?? '') ?></textarea>
+                    <div id="calculations-template" class="quill-editor"></div>
+                    <textarea name="calculations_template" style="display:none;"><?= htmlspecialchars($data['calculations_template'] ?? '') ?></textarea>
                 </div>
             </div>
             
@@ -133,54 +133,126 @@
     </div>
 </div>
 
-<!-- TinyMCE Rich Text Editor -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<!-- Quill Rich Text Editor -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 <script>
-tinymce.init({
-    selector: '.tinymce-editor',
-    height: 200,
-    menubar: true,
-    plugins: [
-        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-        'insertdatetime', 'media', 'table', 'help', 'wordcount'
-    ],
-    toolbar: 'undo redo | blocks | ' +
-        'bold italic underline strikethrough | alignleft aligncenter ' +
-        'alignright alignjustify | bullist numlist outdent indent | ' +
-        'removeformat | table | image | code',
-    table_default_attributes: {
-        'border': '1',
-        'class': 'table table-bordered'
-    },
-    table_default_styles: {
-        'border-collapse': 'collapse',
-        'width': '100%'
-    },
-    images_upload_url: '<?= APP_URL ?>/public/upload.php',
-    images_upload_handler: function (blobInfo, success, failure) {
-        var xhr, formData;
-        xhr = new XMLHttpRequest();
-        xhr.withCredentials = false;
-        xhr.open('POST', '<?= APP_URL ?>/public/upload.php');
-        xhr.onload = function() {
-            var json;
-            if (xhr.status != 200) {
-                failure('HTTP Error: ' + xhr.status);
-                return;
-            }
-            json = JSON.parse(xhr.responseText);
-            if (!json || typeof json.location != 'string') {
-                failure('Invalid JSON: ' + xhr.responseText);
-                return;
-            }
-            success(json.location);
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Quill editors
+    const descriptionEditor = new Quill('#description-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'image'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Describe the practical objectives and procedures...'
+    });
+
+    const resultsTemplateEditor = new Quill('#results-template', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['table'],
+                ['link', 'image'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Create a table template for students to record their experimental results...'
+    });
+
+    const calculationsTemplateEditor = new Quill('#calculations-template', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'image'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Provide instructions and space for students to show their calculations and observations...'
+    });
+
+    // Load existing content from hidden textareas
+    const descriptionContent = document.querySelector('textarea[name="description"]').value;
+    if (descriptionContent) {
+        descriptionEditor.root.innerHTML = descriptionContent;
+    }
+
+    const resultsContent = document.querySelector('textarea[name="results_template"]').value;
+    if (resultsContent) {
+        resultsTemplateEditor.root.innerHTML = resultsContent;
+    }
+
+    const calculationsContent = document.querySelector('textarea[name="calculations_template"]').value;
+    if (calculationsContent) {
+        calculationsTemplateEditor.root.innerHTML = calculationsContent;
+    }
+
+    // Handle image uploads
+    const toolbar = descriptionEditor.getModule('toolbar');
+    toolbar.addHandler('image', function() {
+        selectLocalImage(descriptionEditor);
+    });
+
+    const resultsToolbar = resultsTemplateEditor.getModule('toolbar');
+    resultsToolbar.addHandler('image', function() {
+        selectLocalImage(resultsTemplateEditor);
+    });
+
+    const calculationsToolbar = calculationsTemplateEditor.getModule('toolbar');
+    calculationsToolbar.addHandler('image', function() {
+        selectLocalImage(calculationsTemplateEditor);
+    });
+
+    function selectLocalImage(editor) {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+
+        input.onchange = () => {
+            const file = input.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('<?= APP_URL ?>/public/upload.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.location) {
+                    const range = editor.getSelection();
+                    editor.insertEmbed(range.index, 'image', data.location);
+                } else {
+                    alert('Failed to upload image');
+                }
+            })
+            .catch(error => {
+                alert('Error uploading image');
+            });
         };
-        formData = new FormData();
-        formData.append('file', blobInfo.blob(), blobInfo.filename());
-        xhr.send(formData);
-    },
-    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }'
+    }
+
+    // Sync content to hidden textarea before form submission
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function() {
+        document.querySelector('textarea[name="description"]').value = descriptionEditor.root.innerHTML;
+        document.querySelector('textarea[name="results_template"]').value = resultsTemplateEditor.root.innerHTML;
+        document.querySelector('textarea[name="calculations_template"]').value = calculationsTemplateEditor.root.innerHTML;
+    });
 });
 </script>
 
@@ -258,7 +330,23 @@ tinymce.init({
     min-height: 80px;
 }
 
-.tinymce-editor {
-    min-height: 150px;
+.quill-editor {
+    min-height: 200px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.ql-toolbar {
+    border-top-left-radius: var(--radius-md);
+    border-top-right-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.ql-container {
+    border-bottom-left-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
+    background: var(--surface);
+    min-height: 200px;
 }
 </style>

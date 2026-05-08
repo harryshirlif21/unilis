@@ -126,7 +126,8 @@
             <div id="analysis-tab" class="tab-pane">
                 <div class="section-content">
                     <h3>Analysis</h3>
-                    <textarea id="analysis-content" class="form-textarea tinymce-editor" rows="10" placeholder="Enter your analysis here..."><?= $submission_data['analysis'] ?? '' ?></textarea>
+                    <div id="analysis-content" class="quill-editor"></div>
+                    <textarea name="analysis" style="display:none;"><?= $submission_data['analysis'] ?? '' ?></textarea>
                     <button onclick="saveSection('analysis')" class="btn btn-outline btn-sm">Save Analysis</button>
                 </div>
             </div>
@@ -135,7 +136,8 @@
             <div id="discussion-tab" class="tab-pane">
                 <div class="section-content">
                     <h3>Discussion</h3>
-                    <textarea id="discussion-content" class="form-textarea tinymce-editor" rows="10" placeholder="Enter your discussion here..."><?= $submission_data['discussion'] ?? '' ?></textarea>
+                    <div id="discussion-content" class="quill-editor"></div>
+                    <textarea name="discussion" style="display:none;"><?= $submission_data['discussion'] ?? '' ?></textarea>
                     <button onclick="saveSection('discussion')" class="btn btn-outline btn-sm">Save Discussion</button>
                 </div>
             </div>
@@ -144,7 +146,8 @@
             <div id="conclusion-tab" class="tab-pane">
                 <div class="section-content">
                     <h3>Conclusion</h3>
-                    <textarea id="conclusion-content" class="form-textarea tinymce-editor" rows="10" placeholder="Enter your conclusion here..."><?= $submission_data['conclusion'] ?? '' ?></textarea>
+                    <div id="conclusion-content" class="quill-editor"></div>
+                    <textarea name="conclusion" style="display:none;"><?= $submission_data['conclusion'] ?? '' ?></textarea>
                     <button onclick="saveSection('conclusion')" class="btn btn-outline btn-sm">Save Conclusion</button>
                 </div>
             </div>
@@ -153,7 +156,8 @@
             <div id="references-tab" class="tab-pane">
                 <div class="section-content">
                     <h3>References</h3>
-                    <textarea id="references-content" class="form-textarea tinymce-editor" rows="10" placeholder="Enter references here..."><?= $submission_data['references'] ?? '' ?></textarea>
+                    <div id="references-content" class="quill-editor"></div>
+                    <textarea name="references" style="display:none;"><?= $submission_data['references'] ?? '' ?></textarea>
                     <button onclick="saveSection('references')" class="btn btn-outline btn-sm">Save References</button>
                 </div>
             </div>
@@ -363,72 +367,101 @@
 .tinymce-editor {
     min-height: 200px;
 }
+
+.quill-editor {
+    min-height: 200px;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+}
+
+.ql-toolbar {
+    border-top-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+    background: #f9fafb;
+}
+
+.ql-container {
+    border-bottom-left-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+    background: #f9fafb;
+    min-height: 200px;
+}
 </style>
 
-<!-- TinyMCE Rich Text Editor -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<!-- Quill Rich Text Editor -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 <script>
-tinymce.init({
-    selector: '.tinymce-editor',
-    height: 250,
-    menubar: true,
-    plugins: [
-        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-        'insertdatetime', 'media', 'table', 'help', 'wordcount'
-    ],
-    toolbar: 'undo redo | blocks | ' +
-        'bold italic underline strikethrough | alignleft aligncenter ' +
-        'alignright alignjustify | bullist numlist outdent indent | ' +
-        'removeformat | table | image | code',
-    table_default_attributes: {
-        'border': '1',
-        'class': 'table table-bordered'
-    },
-    table_default_styles: {
-        'border-collapse': 'collapse',
-        'width': '100%'
-    },
-    images_upload_url: '<?= APP_URL ?>/public/upload.php',
-    images_upload_handler: function (blobInfo, success, failure) {
-        var xhr, formData;
-        xhr = new XMLHttpRequest();
-        xhr.withCredentials = false;
-        xhr.open('POST', '<?= APP_URL ?>/public/upload.php');
-        xhr.onload = function() {
-            var json;
-            if (xhr.status != 200) {
-                failure('HTTP Error: ' + xhr.status);
-                return;
-            }
-            json = JSON.parse(xhr.responseText);
-            if (!json || typeof json.location != 'string') {
-                failure('Invalid JSON: ' + xhr.responseText);
-                return;
-            }
-            success(json.location);
+let quillEditors = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Quill editors
+    const sections = ['analysis', 'discussion', 'conclusion', 'references'];
+    
+    sections.forEach(section => {
+        const editor = new Quill('#' + section + '-content', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            },
+            placeholder: 'Enter your ' + section + ' here...'
+        });
+        
+        // Load existing content
+        const textarea = document.querySelector('textarea[name="' + section + '"]');
+        if (textarea && textarea.value) {
+            editor.root.innerHTML = textarea.value;
+        }
+        
+        // Store editor instance
+        quillEditors[section] = editor;
+        
+        // Handle image uploads
+        const toolbar = editor.getModule('toolbar');
+        toolbar.addHandler('image', function() {
+            selectLocalImage(editor);
+        });
+    });
+    
+    function selectLocalImage(editor) {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+
+        input.onchange = () => {
+            const file = input.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('<?= APP_URL ?>/public/upload.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.location) {
+                    const range = editor.getSelection();
+                    editor.insertEmbed(range.index, 'image', data.location);
+                } else {
+                    alert('Failed to upload image');
+                }
+            })
+            .catch(error => {
+                alert('Error uploading image');
+            });
         };
-        formData = new FormData();
-        formData.append('file', blobInfo.blob(), blobInfo.filename());
-        xhr.send(formData);
-    },
-    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }',
-    setup: function(editor) {
-        editor.on('init', function() {
-            // Get content from textarea and set it in editor
-            const textarea = editor.getElement();
-            if (textarea.value) {
-                editor.setContent(textarea.value);
-            }
-        });
-        editor.on('change', function() {
-            // Update textarea content when editor changes
-            const textarea = editor.getElement();
-            textarea.value = editor.getContent();
-        });
     }
 });
-</script>
 
 <script>
 const scheduleId = <?= $schedule['id'] ?>;
@@ -535,13 +568,13 @@ function clearResults() {
 
 function saveSection(sectionType) {
     let content;
-    const textarea = document.getElementById(sectionType + '-content');
     
-    // Get content from TinyMCE if available, otherwise use textarea
-    if (tinymce.get(sectionType + '-content')) {
-        content = tinymce.get(sectionType + '-content').getContent();
+    // Get content from Quill editor if available
+    if (quillEditors[sectionType]) {
+        content = quillEditors[sectionType].root.innerHTML;
     } else {
-        content = textarea.value;
+        const textarea = document.querySelector('textarea[name="' + sectionType + '"]');
+        content = textarea ? textarea.value : '';
     }
     
     fetch('<?= APP_URL ?>/student/practical/save', {
@@ -569,13 +602,13 @@ function saveProgress() {
     const sections = ['analysis', 'discussion', 'conclusion', 'references'];
     sections.forEach(section => {
         let content;
-        const textarea = document.getElementById(section + '-content');
         
-        // Get content from TinyMCE if available, otherwise use textarea
-        if (tinymce.get(section + '-content')) {
-            content = tinymce.get(section + '-content').getContent();
+        // Get content from Quill editor if available
+        if (quillEditors[section]) {
+            content = quillEditors[section].root.innerHTML;
         } else {
-            content = textarea.value;
+            const textarea = document.querySelector('textarea[name="' + section + '"]');
+            content = textarea ? textarea.value : '';
         }
         
         if (content.trim()) {
