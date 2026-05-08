@@ -1,17 +1,29 @@
 <?php
 /**
- * Simple Admin Creation for SmartLab
- * Uses existing SmartLab database connection
+ * SmartLab Admin Creation & Database Setup
+ * Uses production database connection with Docker support
  */
 
-require_once __DIR__.'/config/app.php';
-require_once __DIR__.'/config/database.php';
+require_once __DIR__.'/config/database_production.php';
 
-echo "<h2>SmartLab Admin Creation</h2>";
+// Override host for local development if needed
+// Uncomment the next line to use localhost instead of Docker container name
+// define('DB_HOST', 'localhost');
+
+echo "<h2>SmartLab Admin Creation & Database Setup</h2>";
+
+// Display connection mode
+$hostToCheck = defined('DB_HOST') ? DB_HOST : 'unilis-db';
+$isDocker = ($hostToCheck === 'unilis-db' || $hostToCheck === 'smart-labs-db');
+$connectionMode = $isDocker ? '🐳 Docker Mode' : '💻 Local/Localhost Mode';
+echo "<p style='color: #0066cc;'><strong>Connection Mode:</strong> $connectionMode</p>";
 
 try {
     $db = getDB();
     echo "<p style='color: green;'>✅ Database connection successful</p>";
+    if (defined('DB_HOST') && defined('DB_NAME')) {
+        echo "<p style='color: blue;'><strong>Host:</strong> " . DB_HOST . " | <strong>Database:</strong> " . DB_NAME . "</p>";
+    }
     
     // ===== DATABASE MIGRATION: Add missing practicals fields =====
     echo "<h3>Checking Practicals Table Structure...</h3>";
@@ -166,12 +178,35 @@ try {
     echo "<p><a href='".APP_URL."/index.php?url=auth/login' style='background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;'>Go to SmartLab Login</a></p>";
     
 } catch (Exception $e) {
-    echo "<p style='color: red;'>❌ Error: " . htmlspecialchars($e->getMessage()) . "</p>";
-    echo "<p>Please check:</p>";
+    echo "<div style='background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 6px; margin: 20px 0; color: #721c24;'>";
+    echo "<h3 style='margin-top: 0;'>❌ Connection Error</h3>";
+    echo "<p><strong>Error Message:</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
+    echo "<hr style='border: 1px solid #f5c6cb;'>";
+    echo "<h4>Troubleshooting Steps:</h4>";
+    echo "<ol>";
+    echo "<li><strong>Check Docker Container:</strong><br><code>docker ps</code><br>Look for container with name containing 'db' or 'unilis'</li>";
+    echo "<li><strong>Start Docker Containers:</strong><br><code>docker-compose up -d</code><br>Run from the smart-lab project directory</li>";
+    echo "<li><strong>For XAMPP Local Development:</strong><br>";
+    echo "   a) Start MySQL service (XAMPP Control Panel)<br>";
+    echo "   b) Open <code>config/database_production.php</code><br>";
+    echo "   c) Uncomment: <code>define('DB_HOST', 'localhost');</code></li>";
+    echo "<li><strong>Verify Database Exists:</strong><br>";
+    echo "   Create it with: <code>CREATE DATABASE unilis_smartlab;</code></li>";
+    echo "<li><strong>Check Credentials:</strong><br>";
+    echo "   Default - User: lab_admin | Password: lab_password</li>";
+    echo "</ol>";
+    echo "</div>";
+    
+    echo "<div style='background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 20px 0;'>";
+    echo "<h4>📝 Expected Configuration:</h4>";
+    echo "<p><strong>Database Name:</strong> unilis_smartlab</p>";
+    echo "<p><strong>Database User:</strong> lab_admin</p>";
+    echo "<p><strong>Expected Hosts (tried in order):</strong></p>";
     echo "<ul>";
-    echo "<li>MySQL server is running</li>";
-    echo "<li>Docker containers are running (if using Docker)</li>";
-    echo "<li>Database credentials are correct</li>";
+    echo "<li>unilis-db (Docker)</li>";
+    echo "<li>localhost (XAMPP/Local)</li>";
+    echo "<li>127.0.0.1 (Fallback)</li>";
     echo "</ul>";
+    echo "</div>";
 }
 ?>
