@@ -199,9 +199,9 @@ class PracticalModel {
             $params = [$labId, $date];
             
             if ($startTime && $endTime) {
-                // Check for time overlap: conflicts if the new time range intersects with existing
-                // New practical (start1, end1) conflicts with existing (start2, end2) if:
-                // start1 < end2 AND end1 > start2
+                // Check for time overlap using standard overlap logic:
+                // Two time ranges [s1, e1] and [s2, e2] overlap if: s1 < e2 AND e1 > s2
+                // This handles all cases of partial or complete overlap
                 $sql .= " AND (
                     (p.start_time < ? AND p.end_time > ?)
                 )";
@@ -227,6 +227,55 @@ class PracticalModel {
         } catch (Exception $e) {
             error_log("PracticalModel::checkLabAvailability Error: " . $e->getMessage());
             return false;
+        }
+    }
+    
+    public function getAvailableSlots(string $labId, string $date): array {
+        try {
+            // Get all existing practicals for this lab on this date
+            $sql = "SELECT start_time, end_time 
+                    FROM practicals 
+                    WHERE lab_id = ? AND scheduled_date = ? 
+                    AND status IN ('published', 'ongoing')
+                    ORDER BY start_time";
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$labId, $date]);
+            $existing = $stmt->fetchAll();
+            
+            // Define standard time slots (e.g., 8 AM to 6 PM in 1-hour intervals)
+            $slots = [];
+            $startHour = 8;
+            $endHour = 18;
+            
+            for ($hour = $startHour; $hour < $endHour; $hour++) {
+                $slotStart = sprintf('%02d:00:00', $hour);
+                $slotEnd = sprintf('%02d:00:00', $hour + 1);
+                
+                // Check if this slot conflicts with any existing practical
+                $isAvailable = true;
+                foreach ($existing as $practical) {
+                    $pStart = $practical['start_time'];
+                    $pEnd = $practical['end_time'];
+                    
+                    // Check overlap: slot conflicts if slot_start < p_end AND slot_end > p_start
+                    if ($slotStart < $pEnd && $slotEnd > $pStart) {
+                        $isAvailable = false;
+                        break;
+                    }
+                }
+                
+                $slots[] = [
+                    'start' => $slotStart,
+                    'end' => $slotEnd,
+                    'available' => $isAvailable
+                ];
+            }
+            
+            return $slots;
+        } catch (Exception $e) {
+            error_log("PracticalModel::getAvailableSlots Error: " . $e->getMessage());
+            return [];
         }
     }
     

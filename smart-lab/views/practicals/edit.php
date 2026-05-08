@@ -397,6 +397,68 @@ document.addEventListener('DOMContentLoaded', function() {
     if (openTableBtn) {
         openTableBtn.addEventListener('click', window.toggleTableBuilder);
     }
+    
+    // Real-time lab availability checker
+    const labSelect = document.querySelector('select[name="lab_id"]');
+    const dateInput = document.querySelector('input[name="scheduled_date"]');
+    const startTimeInput = document.querySelector('input[name="start_time"]');
+    const endTimeInput = document.querySelector('input[name="end_time"]');
+    
+    function checkAvailability() {
+        if (!labSelect.value || !dateInput.value || !startTimeInput.value || !endTimeInput.value) {
+            return;
+        }
+        
+        const url = new URL('<?= APP_URL ?>/practicals/checkAvailability', window.location.origin);
+        url.searchParams.append('lab_id', labSelect.value);
+        url.searchParams.append('date', dateInput.value);
+        url.searchParams.append('start_time', startTimeInput.value);
+        url.searchParams.append('end_time', endTimeInput.value);
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.available) {
+                    removeAvailabilityMessage();
+                } else {
+                    showAvailabilityMessage(data.slots);
+                }
+            })
+            .catch(error => {
+                console.error('Error checking availability:', error);
+            });
+    }
+    
+    function showAvailabilityMessage(slots) {
+        let messageDiv = document.getElementById('availability-message');
+        if (!messageDiv) {
+            messageDiv = document.createElement('div');
+            messageDiv.id = 'availability-message';
+            messageDiv.style.cssText = 'background: #fff3cd; border: 1px solid #ffc107; padding: 12px 20px; border-radius: 4px; margin-bottom: 20px; color: #856404;';
+            document.querySelector('.panel').insertBefore(messageDiv, document.querySelector('form'));
+        }
+        
+        const freeSlots = slots.filter(s => s.available);
+        if (freeSlots.length > 0) {
+            const slotList = freeSlots.slice(0, 5).map(s => `${s.start.substring(0,5)}-${s.end.substring(0,5)}`).join(', ');
+            messageDiv.innerHTML = `<strong>⚠️ Lab Not Available</strong><br>Available slots: ${slotList}`;
+        } else {
+            messageDiv.innerHTML = '<strong>⚠️ Lab Not Available</strong><br>No slots available on this date.';
+        }
+    }
+    
+    function removeAvailabilityMessage() {
+        const messageDiv = document.getElementById('availability-message');
+        if (messageDiv) {
+            messageDiv.remove();
+        }
+    }
+    
+    // Add event listeners for real-time checking
+    if (labSelect) labSelect.addEventListener('change', checkAvailability);
+    if (dateInput) dateInput.addEventListener('change', checkAvailability);
+    if (startTimeInput) startTimeInput.addEventListener('change', checkAvailability);
+    if (endTimeInput) endTimeInput.addEventListener('change', checkAvailability);
 });
 </script>
 

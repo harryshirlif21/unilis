@@ -82,7 +82,17 @@ class PracticalController {
                 );
                 
                 if (!$isAvailable) {
-                    $error = 'Lab is not available at the requested time.';
+                    // Get available slots for better error message
+                    $availableSlots = $this->model->getAvailableSlots($data['lab_id'], $data['scheduled_date']);
+                    $freeSlots = array_filter($availableSlots, fn($slot) => $slot['available']);
+                    
+                    if (!empty($freeSlots)) {
+                        $slotList = array_slice($freeSlots, 0, 3);
+                        $slotTimes = implode(', ', array_map(fn($s) => substr($s['start'], 0, 5) . '-' . substr($s['end'], 0, 5), $slotList));
+                        $error = "Lab is not available at the requested time. Available slots: $slotTimes";
+                    } else {
+                        $error = 'Lab is not available at the requested time. No slots available on this date.';
+                    }
                 } elseif ($this->model->create($data)) {
                     logActivity(Auth::id(), 'practical_created', 'practicals');
                     $success = 'Practical created successfully!';
@@ -102,6 +112,37 @@ class PracticalController {
             'success' => $success,
             'labs' => $labs,
             'data' => $data ?? []
+        ]);
+    }
+    
+    public function checkAvailability() {
+        header('Content-Type: application/json');
+        Auth::guard();
+        
+        // Only lecturers and admins can check availability
+        if (!in_array(Auth::role(), ['lecturer', 'admin'])) {
+            http_response_code(403);
+            echo json_encode(['available' => false, 'message' => 'Access denied']);
+            exit;
+        }
+        
+        $labId = sanitize($_GET['lab_id'] ?? '');
+        $date = sanitize($_GET['date'] ?? '');
+        $startTime = sanitize($_GET['start_time'] ?? '');
+        $endTime = sanitize($_GET['end_time'] ?? '');
+        
+        if (empty($labId) || empty($date)) {
+            echo json_encode(['available' => false, 'message' => 'Lab ID and date are required']);
+            exit;
+        }
+        
+        $isAvailable = $this->model->checkLabAvailability($labId, $date, $startTime, $endTime);
+        $availableSlots = $this->model->getAvailableSlots($labId, $date);
+        
+        echo json_encode([
+            'available' => $isAvailable,
+            'message' => $isAvailable ? 'Lab is available' : 'Lab is not available at this time',
+            'slots' => $availableSlots
         ]);
     }
     
@@ -223,7 +264,17 @@ class PracticalController {
                     );
                     
                     if (!$isAvailable) {
-                        $error = 'Lab is not available at the requested time.';
+                        // Get available slots for better error message
+                        $availableSlots = $this->model->getAvailableSlots($data['lab_id'], $data['scheduled_date']);
+                        $freeSlots = array_filter($availableSlots, fn($slot) => $slot['available']);
+                        
+                        if (!empty($freeSlots)) {
+                            $slotList = array_slice($freeSlots, 0, 3);
+                            $slotTimes = implode(', ', array_map(fn($s) => substr($s['start'], 0, 5) . '-' . substr($s['end'], 0, 5), $slotList));
+                            $error = "Lab is not available at the requested time. Available slots: $slotTimes";
+                        } else {
+                            $error = 'Lab is not available at the requested time. No slots available on this date.';
+                        }
                     }
                 }
                 
@@ -245,33 +296,6 @@ class PracticalController {
             'success' => $success,
             'labs' => $labs,
             'userRole' => $userRole
-        ]);
-    }
-    
-    public function checkAvailability() {
-        Auth::guard();
-        
-        // Only lecturers and admins can check availability
-        if (!in_array(Auth::role(), ['lecturer', 'admin'])) {
-            http_response_code(403);
-            echo '403 Forbidden - Access denied';
-            exit;
-        }
-        
-        $labId = sanitize($_GET['lab_id'] ?? '');
-        $date = sanitize($_GET['date'] ?? '');
-        $startTime = sanitize($_GET['start_time'] ?? '');
-        $endTime = sanitize($_GET['end_time'] ?? '');
-        
-        if (empty($labId) || empty($date) || empty($startTime) || empty($endTime)) {
-            jsonResponse(['available' => false, 'message' => 'Missing parameters']);
-        }
-        
-        $isAvailable = $this->model->checkLabAvailability($labId, $date, $startTime, $endTime);
-        
-        jsonResponse([
-            'available' => $isAvailable,
-            'message' => $isAvailable ? 'Lab is available' : 'Lab is not available at this time'
         ]);
     }
 }
