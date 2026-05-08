@@ -193,19 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
         placeholder: 'Describe the practical objectives and procedures...'
     });
 
-    const resultsTemplateEditor = new Quill('#results-template', {
-        theme: 'snow',
-        modules: {
-            toolbar: [
-                [{ 'header': [1, 2, 3, false] }],
-                ['bold', 'italic', 'underline', 'strike'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                ['link', 'image'],
-                ['clean']
-            ]
-        },
-        placeholder: 'Create a table template for students to record their experimental results...'
-    });
+
 
     const calculationsTemplateEditor = new Quill('#calculations-template', {
         theme: 'snow',
@@ -236,10 +224,7 @@ document.addEventListener('DOMContentLoaded', function() {
         descriptionEditor.root.innerHTML = descriptionContent;
     }
 
-    const resultsContent = document.querySelector('textarea[name="results_template"]').value;
-    if (resultsContent) {
-        resultsTemplateEditor.root.innerHTML = resultsContent;
-    }
+
 
     const calculationsContent = document.querySelector('textarea[name="calculations_template"]').value;
     if (calculationsContent) {
@@ -252,10 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
         selectLocalImage(descriptionEditor);
     });
 
-    const resultsToolbar = resultsTemplateEditor.getModule('toolbar');
-    resultsToolbar.addHandler('image', function() {
-        selectLocalImage(resultsTemplateEditor);
-    });
+
 
     const calculationsToolbar = calculationsTemplateEditor.getModule('toolbar');
     calculationsToolbar.addHandler('image', function() {
@@ -324,7 +306,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const newRow = tbody.insertRow();
         for (let i = 0; i < colCount; i++) {
             const cell = newRow.insertCell(i);
-            cell.contentEditable = true;
+            cell.contentEditable = 'true';
+            cell.addEventListener('input', syncTableHTML);
         }
         syncTableHTML();
     };
@@ -335,8 +318,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         for (let i = 0; i < rows.length; i++) {
             const cell = i === 0 ? document.createElement('th') : document.createElement('td');
-            cell.contentEditable = true;
+            cell.contentEditable = 'true';
             cell.textContent = i === 0 ? 'New Column' : '';
+            cell.addEventListener('input', syncTableHTML);
             rows[i].appendChild(cell);
         }
         syncTableHTML();
@@ -375,10 +359,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.toggleTableBuilder = function() {
         const wrapper = document.getElementById('table-builder-wrapper');
-        if (wrapper.style.display === 'none') {
-            wrapper.style.display = 'block';
-        } else {
-            wrapper.style.display = 'none';
+        const isHidden = wrapper.style.display === 'none' || wrapper.style.display === '';
+        wrapper.style.display = isHidden ? 'block' : 'none';
+        const openBtn = document.getElementById('open-table-builder-btn');
+        if (openBtn) {
+            openBtn.textContent = isHidden ? 'Close Table Builder' : 'Open Table Builder';
         }
     };
 
@@ -401,8 +386,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Sync table HTML on any content change
-    document.getElementById('results-table-builder').addEventListener('input', syncTableHTML);
+    // Sync table HTML on any content change using event delegation
+    document.querySelector('.table-preview').addEventListener('input', syncTableHTML);
     
     // Attach event listener to open table builder button
     const openTableBtn = document.getElementById('open-table-builder-btn');
