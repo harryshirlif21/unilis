@@ -126,7 +126,7 @@
             <div id="analysis-tab" class="tab-pane">
                 <div class="section-content">
                     <h3>Analysis</h3>
-                    <textarea id="analysis-content" class="form-textarea" rows="10" placeholder="Enter your analysis here..."><?= htmlspecialchars($submission_data['analysis'] ?? '') ?></textarea>
+                    <textarea id="analysis-content" class="form-textarea tinymce-editor" rows="10" placeholder="Enter your analysis here..."><?= $submission_data['analysis'] ?? '' ?></textarea>
                     <button onclick="saveSection('analysis')" class="btn btn-outline btn-sm">Save Analysis</button>
                 </div>
             </div>
@@ -135,7 +135,7 @@
             <div id="discussion-tab" class="tab-pane">
                 <div class="section-content">
                     <h3>Discussion</h3>
-                    <textarea id="discussion-content" class="form-textarea" rows="10" placeholder="Enter your discussion here..."><?= htmlspecialchars($submission_data['discussion'] ?? '') ?></textarea>
+                    <textarea id="discussion-content" class="form-textarea tinymce-editor" rows="10" placeholder="Enter your discussion here..."><?= $submission_data['discussion'] ?? '' ?></textarea>
                     <button onclick="saveSection('discussion')" class="btn btn-outline btn-sm">Save Discussion</button>
                 </div>
             </div>
@@ -144,7 +144,7 @@
             <div id="conclusion-tab" class="tab-pane">
                 <div class="section-content">
                     <h3>Conclusion</h3>
-                    <textarea id="conclusion-content" class="form-textarea" rows="10" placeholder="Enter your conclusion here..."><?= htmlspecialchars($submission_data['conclusion'] ?? '') ?></textarea>
+                    <textarea id="conclusion-content" class="form-textarea tinymce-editor" rows="10" placeholder="Enter your conclusion here..."><?= $submission_data['conclusion'] ?? '' ?></textarea>
                     <button onclick="saveSection('conclusion')" class="btn btn-outline btn-sm">Save Conclusion</button>
                 </div>
             </div>
@@ -153,7 +153,7 @@
             <div id="references-tab" class="tab-pane">
                 <div class="section-content">
                     <h3>References</h3>
-                    <textarea id="references-content" class="form-textarea" rows="10" placeholder="Enter references here..."><?= htmlspecialchars($submission_data['references'] ?? '') ?></textarea>
+                    <textarea id="references-content" class="form-textarea tinymce-editor" rows="10" placeholder="Enter references here..."><?= $submission_data['references'] ?? '' ?></textarea>
                     <button onclick="saveSection('references')" class="btn btn-outline btn-sm">Save References</button>
                 </div>
             </div>
@@ -359,7 +359,76 @@
     cursor: pointer;
     color: #6b7280;
 }
+
+.tinymce-editor {
+    min-height: 200px;
+}
 </style>
+
+<!-- TinyMCE Rich Text Editor -->
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+tinymce.init({
+    selector: '.tinymce-editor',
+    height: 250,
+    menubar: true,
+    plugins: [
+        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+        'insertdatetime', 'media', 'table', 'help', 'wordcount'
+    ],
+    toolbar: 'undo redo | blocks | ' +
+        'bold italic underline strikethrough | alignleft aligncenter ' +
+        'alignright alignjustify | bullist numlist outdent indent | ' +
+        'removeformat | table | image | code',
+    table_default_attributes: {
+        'border': '1',
+        'class': 'table table-bordered'
+    },
+    table_default_styles: {
+        'border-collapse': 'collapse',
+        'width': '100%'
+    },
+    images_upload_url: '<?= APP_URL ?>/public/upload.php',
+    images_upload_handler: function (blobInfo, success, failure) {
+        var xhr, formData;
+        xhr = new XMLHttpRequest();
+        xhr.withCredentials = false;
+        xhr.open('POST', '<?= APP_URL ?>/public/upload.php');
+        xhr.onload = function() {
+            var json;
+            if (xhr.status != 200) {
+                failure('HTTP Error: ' + xhr.status);
+                return;
+            }
+            json = JSON.parse(xhr.responseText);
+            if (!json || typeof json.location != 'string') {
+                failure('Invalid JSON: ' + xhr.responseText);
+                return;
+            }
+            success(json.location);
+        };
+        formData = new FormData();
+        formData.append('file', blobInfo.blob(), blobInfo.filename());
+        xhr.send(formData);
+    },
+    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }',
+    setup: function(editor) {
+        editor.on('init', function() {
+            // Get content from textarea and set it in editor
+            const textarea = editor.getElement();
+            if (textarea.value) {
+                editor.setContent(textarea.value);
+            }
+        });
+        editor.on('change', function() {
+            // Update textarea content when editor changes
+            const textarea = editor.getElement();
+            textarea.value = editor.getContent();
+        });
+    }
+});
+</script>
 
 <script>
 const scheduleId = <?= $schedule['id'] ?>;
@@ -465,7 +534,15 @@ function clearResults() {
 }
 
 function saveSection(sectionType) {
-    const content = document.getElementById(sectionType + '-content').value;
+    let content;
+    const textarea = document.getElementById(sectionType + '-content');
+    
+    // Get content from TinyMCE if available, otherwise use textarea
+    if (tinymce.get(sectionType + '-content')) {
+        content = tinymce.get(sectionType + '-content').getContent();
+    } else {
+        content = textarea.value;
+    }
     
     fetch('<?= APP_URL ?>/student/practical/save', {
         method: 'POST',
@@ -491,7 +568,16 @@ function saveProgress() {
     // Save all sections
     const sections = ['analysis', 'discussion', 'conclusion', 'references'];
     sections.forEach(section => {
-        const content = document.getElementById(section + '-content').value;
+        let content;
+        const textarea = document.getElementById(section + '-content');
+        
+        // Get content from TinyMCE if available, otherwise use textarea
+        if (tinymce.get(section + '-content')) {
+            content = tinymce.get(section + '-content').getContent();
+        } else {
+            content = textarea.value;
+        }
+        
         if (content.trim()) {
             saveSection(section);
         }

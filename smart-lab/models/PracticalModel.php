@@ -13,8 +13,10 @@ class PracticalModel {
             $stmt = $this->db->prepare(
                 "INSERT INTO practicals 
                  (id, title, description, lab_id, lecturer_id, scheduled_date, 
-                  duration_hours, max_students, status, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+                  duration_hours, max_students, status, created_at, course_code, 
+                  start_time, end_time, required_equipment, required_chemicals, 
+                  safety_notes, results_template, calculations_template)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?)"
             );
             
             return $stmt->execute([
@@ -26,7 +28,15 @@ class PracticalModel {
                 $data['scheduled_date'],
                 $data['duration_hours'] ?? 2,
                 $data['max_students'],
-                $data['status'] ?? 'draft'
+                $data['status'] ?? 'draft',
+                $data['course_code'] ?? null,
+                $data['start_time'] ?? null,
+                $data['end_time'] ?? null,
+                $data['required_equipment'] ?? null,
+                $data['required_chemicals'] ?? null,
+                $data['safety_notes'] ?? null,
+                $data['results_template'] ?? null,
+                $data['calculations_template'] ?? null
             ]);
         } catch (Exception $e) {
             error_log("PracticalModel::create Error: " . $e->getMessage());
@@ -103,7 +113,8 @@ class PracticalModel {
                      scheduled_date = ?, duration_hours = ?, 
                      max_students = ?, status = ?,
                      course_code = ?, start_time = ?, end_time = ?,
-                     required_equipment = ?, required_chemicals = ?, safety_notes = ?
+                     required_equipment = ?, required_chemicals = ?, safety_notes = ?,
+                     results_template = ?, calculations_template = ?
                  WHERE id = ?"
             );
             
@@ -121,6 +132,8 @@ class PracticalModel {
                 $data['required_equipment'] ?? null,
                 $data['required_chemicals'] ?? null,
                 $data['safety_notes'] ?? null,
+                $data['results_template'] ?? null,
+                $data['calculations_template'] ?? null,
                 $practicalId
             ]);
         } catch (Exception $e) {

@@ -28,7 +28,7 @@
                 
                 <div class="form-group">
                     <label class="form-label">Description</label>
-                    <textarea name="description" class="form-control" rows="4" 
+                    <textarea name="description" id="description-editor" class="form-control tinymce-editor" rows="8" 
                         placeholder="Describe the practical objectives and procedures..."><?= htmlspecialchars($data['description'] ?? '') ?></textarea>
                 </div>
             </div>
@@ -103,6 +103,23 @@
                         placeholder="Safety precautions and warnings..."><?= htmlspecialchars($data['safety_notes'] ?? '') ?></textarea>
                 </div>
             </div>
+
+            <div class="form-section">
+                <h3 class="section-title">Student Submission Templates</h3>
+                <p class="section-desc">Provide templates for students to fill in their results and calculations</p>
+                
+                <div class="form-group">
+                    <label class="form-label">Results Table Template</label>
+                    <textarea name="results_template" id="results-template" class="form-control tinymce-editor" rows="6" 
+                        placeholder="Create a table template for students to record their experimental results..."><?= htmlspecialchars($data['results_template'] ?? '') ?></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Calculations & Observations Template</label>
+                    <textarea name="calculations_template" id="calculations-template" class="form-control tinymce-editor" rows="6" 
+                        placeholder="Provide instructions and space for students to show their calculations and observations..."><?= htmlspecialchars($data['calculations_template'] ?? '') ?></textarea>
+                </div>
+            </div>
             
             <div class="form-actions d-flex gap-3 mt-4">
                 <button type="submit" class="btn btn-primary btn-lg">
@@ -115,6 +132,57 @@
         </form>
     </div>
 </div>
+
+<!-- TinyMCE Rich Text Editor -->
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+tinymce.init({
+    selector: '.tinymce-editor',
+    height: 200,
+    menubar: true,
+    plugins: [
+        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+        'insertdatetime', 'media', 'table', 'help', 'wordcount'
+    ],
+    toolbar: 'undo redo | blocks | ' +
+        'bold italic underline strikethrough | alignleft aligncenter ' +
+        'alignright alignjustify | bullist numlist outdent indent | ' +
+        'removeformat | table | image | code',
+    table_default_attributes: {
+        'border': '1',
+        'class': 'table table-bordered'
+    },
+    table_default_styles: {
+        'border-collapse': 'collapse',
+        'width': '100%'
+    },
+    images_upload_url: '<?= APP_URL ?>/public/upload.php',
+    images_upload_handler: function (blobInfo, success, failure) {
+        var xhr, formData;
+        xhr = new XMLHttpRequest();
+        xhr.withCredentials = false;
+        xhr.open('POST', '<?= APP_URL ?>/public/upload.php');
+        xhr.onload = function() {
+            var json;
+            if (xhr.status != 200) {
+                failure('HTTP Error: ' + xhr.status);
+                return;
+            }
+            json = JSON.parse(xhr.responseText);
+            if (!json || typeof json.location != 'string') {
+                failure('Invalid JSON: ' + xhr.responseText);
+                return;
+            }
+            success(json.location);
+        };
+        formData = new FormData();
+        formData.append('file', blobInfo.blob(), blobInfo.filename());
+        xhr.send(formData);
+    },
+    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }'
+});
+</script>
 
 <style>
 .form-section {
@@ -135,6 +203,13 @@
     color: var(--text);
     margin-bottom: 20px;
     letter-spacing: -0.1px;
+}
+
+.section-desc {
+    font-size: 13px;
+    color: var(--text-2);
+    margin-bottom: 16px;
+    margin-top: -12px;
 }
 
 .form-group {
@@ -181,5 +256,9 @@
 .modern-form textarea.form-control {
     resize: vertical;
     min-height: 80px;
+}
+
+.tinymce-editor {
+    min-height: 150px;
 }
 </style>
