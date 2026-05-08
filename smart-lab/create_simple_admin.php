@@ -13,6 +13,57 @@ try {
     $db = getDB();
     echo "<p style='color: green;'>✅ Database connection successful</p>";
     
+    // ===== DATABASE MIGRATION: Add missing practicals fields =====
+    echo "<h3>Checking Practicals Table Structure...</h3>";
+    
+    try {
+        $stmt = $db->query("SHOW TABLES LIKE 'practicals'");
+        if ($stmt->rowCount() > 0) {
+            echo "<p style='color: green;'>✅ Practicals table exists</p>";
+            
+            // Check for missing columns
+            $columnsStmt = $db->query("DESCRIBE practicals");
+            $columns = $columnsStmt->fetchAll(PDO::FETCH_ASSOC);
+            $columnNames = array_column($columns, 'Field');
+            
+            // Add duration_hours if missing
+            if (!in_array('duration_hours', $columnNames)) {
+                echo "<p style='color: orange;'>⚠️ Adding missing column: duration_hours</p>";
+                $db->exec("ALTER TABLE practicals ADD COLUMN duration_hours INT DEFAULT 2 AFTER scheduled_date");
+                echo "<p style='color: green;'>✅ Column duration_hours added successfully</p>";
+            } else {
+                echo "<p style='color: green;'>✅ Column duration_hours exists</p>";
+            }
+            
+            // Add results_template if missing
+            if (!in_array('results_template', $columnNames)) {
+                echo "<p style='color: orange;'>⚠️ Adding missing column: results_template</p>";
+                $db->exec("ALTER TABLE practicals ADD COLUMN results_template LONGTEXT AFTER safety_notes");
+                echo "<p style='color: green;'>✅ Column results_template added successfully</p>";
+            } else {
+                echo "<p style='color: green;'>✅ Column results_template exists</p>";
+            }
+            
+            // Add calculations_template if missing
+            if (!in_array('calculations_template', $columnNames)) {
+                echo "<p style='color: orange;'>⚠️ Adding missing column: calculations_template</p>";
+                $db->exec("ALTER TABLE practicals ADD COLUMN calculations_template LONGTEXT AFTER results_template");
+                echo "<p style='color: green;'>✅ Column calculations_template added successfully</p>";
+            } else {
+                echo "<p style='color: green;'>✅ Column calculations_template exists</p>";
+            }
+            
+            echo "<div style='background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 6px; margin: 20px 0;'>";
+            echo "<h4 style='color: #155724; margin-top: 0;'>✅ Practicals Table Migration Complete</h4>";
+            echo "<p style='color: #155724;'>All required fields are now available in the practicals table.</p>";
+            echo "</div>";
+        }
+    } catch (Exception $e) {
+        echo "<p style='color: red;'>❌ Error checking practicals table: " . htmlspecialchars($e->getMessage()) . "</p>";
+    }
+    
+    // ===== END DATABASE MIGRATION =====
+    
     // Check if users table exists
     $stmt = $db->query("SHOW TABLES LIKE 'users'");
     if ($stmt->rowCount() === 0) {

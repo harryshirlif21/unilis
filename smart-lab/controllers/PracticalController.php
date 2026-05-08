@@ -49,7 +49,7 @@ class PracticalController {
             $data = [
                 'id' => bin2hex(random_bytes(16)),
                 'title' => sanitize($_POST['title'] ?? ''),
-                'description' => sanitizeHTML($_POST['description'] ?? ''), // HTML from TinyMCE - sanitized
+                'description' => sanitizeHTML($_POST['description'] ?? ''),
                 'lab_id' => sanitize($_POST['lab_id'] ?? ''),
                 'lecturer_id' => Auth::id(),
                 'course_code' => sanitize($_POST['course_code'] ?? ''),
@@ -60,8 +60,8 @@ class PracticalController {
                 'required_equipment' => sanitize($_POST['required_equipment'] ?? ''),
                 'required_chemicals' => sanitize($_POST['required_chemicals'] ?? ''),
                 'safety_notes' => sanitize($_POST['safety_notes'] ?? ''),
-                'results_template' => sanitizeHTML($_POST['results_template'] ?? ''), // HTML from TinyMCE - sanitized
-                'calculations_template' => sanitizeHTML($_POST['calculations_template'] ?? ''), // HTML from TinyMCE - sanitized
+                'results_template' => sanitizeHTML($_POST['results_template'] ?? ''),
+                'calculations_template' => sanitizeHTML($_POST['calculations_template'] ?? ''),
                 'status' => 'draft'
             ];
             

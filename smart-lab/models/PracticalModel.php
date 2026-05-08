@@ -13,16 +13,16 @@ class PracticalModel {
             $stmt = $this->db->prepare(
                 "INSERT INTO practicals 
                  (id, title, description, lab_id, lecturer_id, scheduled_date, 
-                  duration_hours, max_students, status, created_at, course_code, 
+                  duration_hours, max_students, status, course_code, 
                   start_time, end_time, required_equipment, required_chemicals, 
                   safety_notes, results_template, calculations_template)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?)"
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             
             return $stmt->execute([
                 $data['id'],
                 $data['title'],
-                $data['description'],
+                $data['description'] ?? null,
                 $data['lab_id'],
                 $data['lecturer_id'],
                 $data['scheduled_date'],

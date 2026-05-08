@@ -5,6 +5,21 @@
         <div class="page-subtitle">Set up a new laboratory practical session with scheduling and resource requirements</div>
     </div>
 
+    <?php if (!empty($error)): ?>
+        <div class="alert alert-danger" style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 12px 20px; border-radius: 4px; margin-bottom: 20px; color: #721c24;">
+            <strong>Error:</strong> <?= htmlspecialchars($error) ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if (!empty($success)): ?>
+        <div class="alert alert-success" style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 12px 20px; border-radius: 4px; margin-bottom: 20px; color: #155724;">
+            <strong>Success:</strong> <?= htmlspecialchars($success) ?>
+            <p style="margin-top: 10px; margin-bottom: 0;">
+                <a href="<?= APP_URL ?>/practicals" style="color: #155724; text-decoration: underline;">View all practicals</a>
+            </p>
+        </div>
+    <?php endif; ?>
+
     <div class="panel">
         <form method="POST" action="<?= APP_URL ?>/practicals/create" class="modern-form">
             <div class="form-section">
