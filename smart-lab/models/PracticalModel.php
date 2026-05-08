@@ -199,15 +199,9 @@ class PracticalModel {
             $params = [$labId, $date];
             
             if ($startTime && $endTime) {
-                $sql .= " AND (
-                    (p.start_time < ? AND p.end_time > ?) OR
-                    (p.start_time >= ? AND p.start_time < ?) OR
-                    (p.end_time > ? AND p.end_time <= ?)
-                )";
-                $params[] = $endTime;
-                $params[] = $startTime;
-                $params[] = $startTime;
-                $params[] = $endTime;
+                // Simplified time overlap check:
+                // New practical conflicts if: new_start < existing_end AND new_end > existing_start
+                $sql .= " AND (? < p.end_time AND ? > p.start_time)";
                 $params[] = $startTime;
                 $params[] = $endTime;
             }
