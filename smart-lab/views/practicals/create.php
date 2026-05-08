@@ -142,7 +142,7 @@
                             <textarea id="table-html-output" name="results_template" rows="6" class="form-control" style="display:none;"></textarea>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleTableBuilder()">Open Table Builder</button>
+                    <button type="button" class="btn btn-outline btn-sm" id="open-table-builder-btn">Open Table Builder</button>
                 </div>
                 
                 <div class="form-group">
@@ -403,6 +403,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Sync table HTML on any content change
     document.getElementById('results-table-builder').addEventListener('input', syncTableHTML);
+    
+    // Attach event listener to open table builder button
+    const openTableBtn = document.getElementById('open-table-builder-btn');
+    if (openTableBtn) {
+        openTableBtn.addEventListener('click', window.toggleTableBuilder);
+    }
 });
 </script>
 
