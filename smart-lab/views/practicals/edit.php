@@ -98,13 +98,14 @@
                 
                 <div class="form-group">
                     <label class="form-label">Results Table Template</label>
-                    <div class="table-builder-container">
+                    <div class="table-builder-container" id="table-builder-wrapper" style="display:none;">
                         <div class="table-toolbar">
-                            <button type="button" class="btn btn-outline btn-sm" onclick="addTableRow()">Add Row</button>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="addTableColumn()">Add Column</button>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="removeLastRow()">Remove Last Row</button>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="removeLastColumn()">Remove Last Column</button>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="clearTable()">Clear Table</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="window.addTableRow()">Add Row</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="window.addTableColumn()">Add Column</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="window.removeLastRow()">Remove Last Row</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="window.removeLastColumn()">Remove Last Column</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="window.clearTable()">Clear Table</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleTableBuilder()">Close Table Builder</button>
                         </div>
                         <div class="table-preview">
                             <table id="results-table-builder" class="table-builder">
@@ -129,6 +130,7 @@
                             <textarea id="table-html-output" name="results_template" rows="6" class="form-control" style="display:none;"></textarea>
                         </div>
                     </div>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleTableBuilder()">Open Table Builder</button>
                 </div>
                 
                 <div class="form-group">
@@ -165,7 +167,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 [{ 'list': 'ordered'}, { 'list': 'bullet' }],
                 ['link', 'image'],
                 ['clean']
-            ]
+            ],
+            clipboard: {
+                matchVisual: false,
+                matchers: [
+                    ['b', 'strong'],
+                    ['i', 'em'],
+                    ['u', 'underline'],
+                    ['s', 'strike']
+                ]
+            }
         },
         placeholder: 'Describe the practical objectives and procedures...'
     });
@@ -193,7 +204,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 [{ 'list': 'ordered'}, { 'list': 'bullet' }],
                 ['link', 'image'],
                 ['clean']
-            ]
+            ],
+            clipboard: {
+                matchVisual: false,
+                matchers: [
+                    ['b', 'strong'],
+                    ['i', 'em'],
+                    ['u', 'underline'],
+                    ['s', 'strike']
+                ]
+            }
         },
         placeholder: 'Provide instructions and space for students to show their calculations and observations...'
     });
@@ -283,8 +303,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     });
 
-    // Table builder functions
-    function addTableRow() {
+    // Table builder functions - make them global
+    window.addTableRow = function() {
         const table = document.getElementById('results-table-builder');
         const tbody = table.querySelector('tbody');
         const colCount = table.rows[0].cells.length;
@@ -295,9 +315,9 @@ document.addEventListener('DOMContentLoaded', function() {
             cell.contentEditable = true;
         }
         syncTableHTML();
-    }
+    };
 
-    function addTableColumn() {
+    window.addTableColumn = function() {
         const table = document.getElementById('results-table-builder');
         const rows = table.rows;
         
@@ -308,18 +328,18 @@ document.addEventListener('DOMContentLoaded', function() {
             rows[i].appendChild(cell);
         }
         syncTableHTML();
-    }
+    };
 
-    function removeLastRow() {
+    window.removeLastRow = function() {
         const table = document.getElementById('results-table-builder');
         const tbody = table.querySelector('tbody');
         if (tbody.rows.length > 1) {
             tbody.deleteRow(tbody.rows.length - 1);
             syncTableHTML();
         }
-    }
+    };
 
-    function removeLastColumn() {
+    window.removeLastColumn = function() {
         const table = document.getElementById('results-table-builder');
         const rows = table.rows;
         if (rows[0].cells.length > 1) {
@@ -328,9 +348,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             syncTableHTML();
         }
-    }
+    };
 
-    function clearTable() {
+    window.clearTable = function() {
         if (confirm('Are you sure you want to clear the table?')) {
             const table = document.getElementById('results-table-builder');
             const tbody = table.querySelector('tbody');
@@ -339,7 +359,16 @@ document.addEventListener('DOMContentLoaded', function() {
             thead.innerHTML = '<tr><th contenteditable="true">Column 1</th><th contenteditable="true">Column 2</th><th contenteditable="true">Column 3</th></tr>';
             syncTableHTML();
         }
-    }
+    };
+
+    window.toggleTableBuilder = function() {
+        const wrapper = document.getElementById('table-builder-wrapper');
+        if (wrapper.style.display === 'none') {
+            wrapper.style.display = 'block';
+        } else {
+            wrapper.style.display = 'none';
+        }
+    };
 
     function syncTableHTML() {
         const table = document.getElementById('results-table-builder');
