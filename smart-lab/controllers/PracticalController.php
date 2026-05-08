@@ -137,6 +137,113 @@ class PracticalController {
         ]);
     }
     
+    public function edit($practicalId = null) {
+        Auth::guard();
+        
+        if (!$practicalId) {
+            redirect('practicals');
+        }
+        
+        $practical = $this->model->getById($practicalId);
+        
+        if (!$practical) {
+            http_response_code(404);
+            echo '404 — Practical not found';
+            exit;
+        }
+        
+        // Check if user can edit this practical
+        $userRole = Auth::role();
+        $canEdit = ($userRole === 'lecturer' && $practical['lecturer_id'] === Auth::id()) || $userRole === 'admin';
+        
+        if (!$canEdit) {
+            http_response_code(403);
+            echo '403 Forbidden - You do not have permission to edit this practical';
+            exit;
+        }
+        
+        $error = '';
+        $success = '';
+        $labs = $this->model->getLabs();
+        
+        // Handle status change (publish)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['status'])) {
+            $newStatus = sanitize($_POST['status'] ?? '');
+            if (in_array($newStatus, ['draft', 'published'])) {
+                if ($this->model->updateStatus($practicalId, $newStatus)) {
+                    logActivity(Auth::id(), 'practical_status_changed', 'practicals', $newStatus);
+                    redirect('practicals/view/' . $practicalId);
+                } else {
+                    $error = 'Failed to update status';
+                }
+            }
+        }
+        
+        // Handle full edit
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['status'])) {
+            $data = [
+                'title' => sanitize($_POST['title'] ?? ''),
+                'description' => sanitize($_POST['description'] ?? ''),
+                'lab_id' => sanitize($_POST['lab_id'] ?? ''),
+                'course_code' => sanitize($_POST['course_code'] ?? ''),
+                'scheduled_date' => $_POST['scheduled_date'] ?? '',
+                'start_time' => $_POST['start_time'] ?? '',
+                'end_time' => $_POST['end_time'] ?? '',
+                'max_students' => intval($_POST['max_students'] ?? 30),
+                'required_equipment' => sanitize($_POST['required_equipment'] ?? ''),
+                'required_chemicals' => sanitize($_POST['required_chemicals'] ?? ''),
+                'safety_notes' => sanitize($_POST['safety_notes'] ?? '')
+            ];
+            
+            // Validate required fields
+            if (empty($data['title']) || empty($data['lab_id']) || 
+                empty($data['scheduled_date']) || empty($data['start_time']) || 
+                empty($data['end_time'])) {
+                $error = 'Title, lab, date, and times are required.';
+            } elseif ($data['start_time'] >= $data['end_time']) {
+                $error = 'End time must be after start time.';
+            } else {
+                // Check lab availability (skip if same lab and time)
+                $isSameTime = ($data['lab_id'] == $practical['lab_id'] && 
+                               $data['scheduled_date'] == $practical['scheduled_date'] && 
+                               $data['start_time'] == $practical['start_time'] && 
+                               $data['end_time'] == $practical['end_time']);
+                
+                if (!$isSameTime) {
+                    $isAvailable = $this->model->checkLabAvailability(
+                        $data['lab_id'], 
+                        $data['scheduled_date'], 
+                        $data['start_time'], 
+                        $data['end_time'],
+                        $practicalId // exclude current practical from check
+                    );
+                    
+                    if (!$isAvailable) {
+                        $error = 'Lab is not available at the requested time.';
+                    }
+                }
+                
+                if (empty($error)) {
+                    if ($this->model->update($practicalId, $data)) {
+                        logActivity(Auth::id(), 'practical_updated', 'practicals');
+                        $success = 'Practical updated successfully!';
+                        $practical = array_merge($practical, $data);
+                    } else {
+                        $error = 'Failed to update practical.';
+                    }
+                }
+            }
+        }
+        
+        renderView('practicals/edit', [
+            'practical' => $practical,
+            'error' => $error,
+            'success' => $success,
+            'labs' => $labs,
+            'userRole' => $userRole
+        ]);
+    }
+    
     public function checkAvailability() {
         Auth::guard();
         

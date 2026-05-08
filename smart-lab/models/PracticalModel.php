@@ -83,13 +83,27 @@ class PracticalModel {
         return $stmt->fetch() ?: null;
     }
     
+    public function updateStatus(string $practicalId, string $status): bool {
+        try {
+            $stmt = $this->db->prepare(
+                "UPDATE practicals SET status = ? WHERE id = ?"
+            );
+            return $stmt->execute([$status, $practicalId]);
+        } catch (Exception $e) {
+            error_log("PracticalModel::updateStatus Error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
     public function update(string $practicalId, array $data): bool {
         try {
             $stmt = $this->db->prepare(
                 "UPDATE practicals 
                  SET title = ?, description = ?, lab_id = ?, 
                      scheduled_date = ?, duration_hours = ?, 
-                     max_students = ?, status = ?
+                     max_students = ?, status = ?,
+                     course_code = ?, start_time = ?, end_time = ?,
+                     required_equipment = ?, required_chemicals = ?, safety_notes = ?
                  WHERE id = ?"
             );
             
@@ -100,7 +114,13 @@ class PracticalModel {
                 $data['scheduled_date'],
                 $data['duration_hours'] ?? 2,
                 $data['max_students'],
-                $data['status'],
+                $data['status'] ?? 'draft',
+                $data['course_code'] ?? null,
+                $data['start_time'] ?? null,
+                $data['end_time'] ?? null,
+                $data['required_equipment'] ?? null,
+                $data['required_chemicals'] ?? null,
+                $data['safety_notes'] ?? null,
                 $practicalId
             ]);
         } catch (Exception $e) {
@@ -154,7 +174,7 @@ class PracticalModel {
         return $stmt->fetchAll();
     }
     
-    public function checkLabAvailability(string $labId, string $date, ?string $excludePractical = null): bool {
+    public function checkLabAvailability(string $labId, string $date, ?string $startTime = null, ?string $endTime = null, ?string $excludePractical = null): bool {
         try {
             $sql = "SELECT COUNT(*) as conflicts 
                     FROM practicals p 
@@ -162,6 +182,20 @@ class PracticalModel {
                     AND p.status IN ('published', 'completed')";
             
             $params = [$labId, $date];
+            
+            if ($startTime && $endTime) {
+                $sql .= " AND (
+                    (p.start_time < ? AND p.end_time > ?) OR
+                    (p.start_time >= ? AND p.start_time < ?) OR
+                    (p.end_time > ? AND p.end_time <= ?)
+                )";
+                $params[] = $endTime;
+                $params[] = $startTime;
+                $params[] = $startTime;
+                $params[] = $endTime;
+                $params[] = $startTime;
+                $params[] = $endTime;
+            }
             
             if ($excludePractical) {
                 $sql .= " AND p.id != ?";
