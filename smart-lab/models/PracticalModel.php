@@ -189,10 +189,12 @@ class PracticalModel {
     
     public function checkLabAvailability(string $labId, string $date, ?string $startTime = null, ?string $endTime = null, ?string $excludePractical = null): bool {
         try {
+            // Only check for conflicts with 'published' and 'ongoing' practicals
+            // Draft practicals don't block the lab since they're not confirmed
             $sql = "SELECT COUNT(*) as conflicts 
                     FROM practicals p 
                     WHERE p.lab_id = ? AND p.scheduled_date = ? 
-                    AND p.status IN ('published', 'completed')";
+                    AND p.status IN ('published', 'ongoing')";
             
             $params = [$labId, $date];
             
