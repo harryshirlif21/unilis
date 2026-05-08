@@ -5,7 +5,7 @@
  * Description: Add fields for results template and calculations template to support TinyMCE rich text editing
  */
 
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/database_production.php';
 
 try {
     $db = getDB();
