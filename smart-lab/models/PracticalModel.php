@@ -199,11 +199,14 @@ class PracticalModel {
             $params = [$labId, $date];
             
             if ($startTime && $endTime) {
-                // Simplified time overlap check:
-                // New practical conflicts if: new_start < existing_end AND new_end > existing_start
-                $sql .= " AND (? < p.end_time AND ? > p.start_time)";
-                $params[] = $startTime;
+                // Check for time overlap: conflicts if the new time range intersects with existing
+                // New practical (start1, end1) conflicts with existing (start2, end2) if:
+                // start1 < end2 AND end1 > start2
+                $sql .= " AND (
+                    (p.start_time < ? AND p.end_time > ?)
+                )";
                 $params[] = $endTime;
+                $params[] = $startTime;
             }
             
             if ($excludePractical) {
@@ -215,7 +218,12 @@ class PracticalModel {
             $stmt->execute($params);
             $result = $stmt->fetch();
             
-            return $result['conflicts'] == 0;
+            $isAvailable = $result['conflicts'] == 0;
+            
+            // Debug logging
+            error_log("Lab Availability Check - Lab: $labId, Date: $date, Start: $startTime, End: $endTime, Conflicts: {$result['conflicts']}, Available: " . ($isAvailable ? 'Yes' : 'No'));
+            
+            return $isAvailable;
         } catch (Exception $e) {
             error_log("PracticalModel::checkLabAvailability Error: " . $e->getMessage());
             return false;
