@@ -110,8 +110,37 @@
                 
                 <div class="form-group">
                     <label class="form-label">Results Table Template</label>
-                    <div id="results-template" class="quill-editor"></div>
-                    <textarea name="results_template" style="display:none;"><?= htmlspecialchars($data['results_template'] ?? '') ?></textarea>
+                    <div class="table-builder-container">
+                        <div class="table-toolbar">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="addTableRow()">Add Row</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="addTableColumn()">Add Column</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="removeLastRow()">Remove Last Row</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="removeLastColumn()">Remove Last Column</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="clearTable()">Clear Table</button>
+                        </div>
+                        <div class="table-preview">
+                            <table id="results-table-builder" class="table-builder">
+                                <thead>
+                                    <tr>
+                                        <th contenteditable="true">Column 1</th>
+                                        <th contenteditable="true">Column 2</th>
+                                        <th contenteditable="true">Column 3</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td contenteditable="true"></td>
+                                        <td contenteditable="true"></td>
+                                        <td contenteditable="true"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-html-preview">
+                            <label class="form-label">Table HTML Preview</label>
+                            <textarea id="table-html-output" name="results_template" rows="6" class="form-control" style="display:none;"></textarea>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -160,7 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 [{ 'header': [1, 2, 3, false] }],
                 ['bold', 'italic', 'underline', 'strike'],
                 [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                ['table'],
                 ['link', 'image'],
                 ['clean']
             ]
@@ -248,11 +276,104 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Sync content to hidden textarea before form submission
     const form = document.querySelector('form');
-    form.addEventListener('submit', function() {
-        document.querySelector('textarea[name="description"]').value = descriptionEditor.root.innerHTML;
-        document.querySelector('textarea[name="results_template"]').value = resultsTemplateEditor.root.innerHTML;
-        document.querySelector('textarea[name="calculations_template"]').value = calculationsTemplateEditor.root.innerHTML;
+    form.addEventListener('submit', function(e) {
+        // Sync Quill content to hidden textareas
+        const descTextarea = document.querySelector('textarea[name="description"]');
+        const calcTextarea = document.querySelector('textarea[name="calculations_template"]');
+        
+        if (descTextarea && descriptionEditor) {
+            descTextarea.value = descriptionEditor.root.innerHTML;
+        }
+        if (calcTextarea && calculationsTemplateEditor) {
+            calcTextarea.value = calculationsTemplateEditor.root.innerHTML;
+        }
+        
+        // Sync table HTML
+        syncTableHTML();
+        
+        // Allow form to submit normally
+        return true;
     });
+
+    // Table builder functions
+    function addTableRow() {
+        const table = document.getElementById('results-table-builder');
+        const tbody = table.querySelector('tbody');
+        const colCount = table.rows[0].cells.length;
+        
+        const newRow = tbody.insertRow();
+        for (let i = 0; i < colCount; i++) {
+            const cell = newRow.insertCell(i);
+            cell.contentEditable = true;
+        }
+        syncTableHTML();
+    }
+
+    function addTableColumn() {
+        const table = document.getElementById('results-table-builder');
+        const rows = table.rows;
+        
+        for (let i = 0; i < rows.length; i++) {
+            const cell = i === 0 ? document.createElement('th') : document.createElement('td');
+            cell.contentEditable = true;
+            cell.textContent = i === 0 ? 'New Column' : '';
+            rows[i].appendChild(cell);
+        }
+        syncTableHTML();
+    }
+
+    function removeLastRow() {
+        const table = document.getElementById('results-table-builder');
+        const tbody = table.querySelector('tbody');
+        if (tbody.rows.length > 1) {
+            tbody.deleteRow(tbody.rows.length - 1);
+            syncTableHTML();
+        }
+    }
+
+    function removeLastColumn() {
+        const table = document.getElementById('results-table-builder');
+        const rows = table.rows;
+        if (rows[0].cells.length > 1) {
+            for (let i = 0; i < rows.length; i++) {
+                rows[i].deleteCell(rows[i].cells.length - 1);
+            }
+            syncTableHTML();
+        }
+    }
+
+    function clearTable() {
+        if (confirm('Are you sure you want to clear the table?')) {
+            const table = document.getElementById('results-table-builder');
+            const tbody = table.querySelector('tbody');
+            tbody.innerHTML = '<tr><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td></tr>';
+            const thead = table.querySelector('thead');
+            thead.innerHTML = '<tr><th contenteditable="true">Column 1</th><th contenteditable="true">Column 2</th><th contenteditable="true">Column 3</th></tr>';
+            syncTableHTML();
+        }
+    }
+
+    function syncTableHTML() {
+        const table = document.getElementById('results-table-builder');
+        const textarea = document.getElementById('table-html-output');
+        textarea.value = table.outerHTML;
+    }
+
+    // Load existing table HTML if available
+    const existingTableHTML = document.querySelector('textarea[name="results_template"]').value;
+    if (existingTableHTML) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(existingTableHTML, 'text/html');
+        const existingTable = doc.querySelector('table');
+        if (existingTable) {
+            document.getElementById('results-table-builder').outerHTML = existingTable.outerHTML;
+            document.getElementById('results-table-builder').id = 'results-table-builder';
+            document.getElementById('results-table-builder').classList.add('table-builder');
+        }
+    }
+
+    // Sync table HTML on any content change
+    document.getElementById('results-table-builder').addEventListener('input', syncTableHTML);
 });
 </script>
 
@@ -348,5 +469,48 @@ document.addEventListener('DOMContentLoaded', function() {
     border-bottom-right-radius: var(--radius-md);
     background: var(--surface);
     min-height: 200px;
+}
+
+.table-builder-container {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    padding: 1rem;
+}
+
+.table-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.table-preview {
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.table-builder {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-builder th,
+.table-builder td {
+    border: 1px solid var(--border);
+    padding: 0.75rem;
+    min-width: 100px;
+    text-align: center;
+}
+
+.table-builder th {
+    background: var(--surface-darker);
+    font-weight: 600;
+}
+
+.table-builder td:focus,
+.table-builder th:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
 }
 </style>
