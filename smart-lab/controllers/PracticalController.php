@@ -70,39 +70,48 @@ class PracticalController {
                 empty($data['scheduled_date']) || empty($data['start_time']) || 
                 empty($data['end_time'])) {
                 $error = 'Title, lab, date, and times are required.';
-            } elseif ($data['start_time'] >= $data['end_time']) {
-                $error = 'End time must be after start time.';
             } else {
-                // Check lab availability
-                $isAvailable = $this->model->checkLabAvailability(
-                    $data['lab_id'], 
-                    $data['scheduled_date'], 
-                    $data['start_time'], 
+                // Validate date and times first
+                $dateTimeErrors = $this->model->validateDateTime(
+                    $data['scheduled_date'],
+                    $data['start_time'],
                     $data['end_time']
                 );
                 
-                if (!$isAvailable) {
-                    // Get available slots for better error message
-                    $availableSlots = $this->model->getAvailableSlots($data['lab_id'], $data['scheduled_date']);
-                    $freeSlots = array_filter($availableSlots, fn($slot) => $slot['available']);
-                    
-                    if (!empty($freeSlots)) {
-                        $slotList = array_slice($freeSlots, 0, 3);
-                        $slotTimes = implode(', ', array_map(fn($s) => substr($s['start'], 0, 5) . '-' . substr($s['end'], 0, 5), $slotList));
-                        $error = "Lab is not available at the requested time. Available slots: $slotTimes";
-                    } else {
-                        $error = 'Lab is not available at the requested time. No slots available on this date.';
-                    }
-                } elseif ($this->model->create($data)) {
-                    logActivity(Auth::id(), 'practical_created', 'practicals');
-                    $success = 'Practical created successfully!';
-                    
-                    // Clear form for new entry
-                    $data = array_fill_keys(array_keys($data), '');
-                    $data['max_students'] = 30;
-                    $data['status'] = 'draft';
+                if (!empty($dateTimeErrors)) {
+                    $error = implode(' ', $dateTimeErrors);
                 } else {
-                    $error = 'Failed to create practical.';
+                    // Check lab availability
+                    $isAvailable = $this->model->checkLabAvailability(
+                        $data['lab_id'], 
+                        $data['scheduled_date'], 
+                        $data['start_time'], 
+                        $data['end_time']
+                    );
+                    
+                    if (!$isAvailable) {
+                        // Get available slots for better error message
+                        $availableSlots = $this->model->getAvailableSlots($data['lab_id'], $data['scheduled_date']);
+                        $freeSlots = array_filter($availableSlots, fn($slot) => $slot['available']);
+                        
+                        if (!empty($freeSlots)) {
+                            $slotList = array_slice($freeSlots, 0, 3);
+                            $slotTimes = implode(', ', array_map(fn($s) => substr($s['start'], 0, 5) . '-' . substr($s['end'], 0, 5), $slotList));
+                            $error = "Lab is not available at the requested time. Available slots: $slotTimes";
+                        } else {
+                            $error = 'Lab is not available at the requested time. No slots available on this date. Please select a different date or time.';
+                        }
+                    } elseif ($this->model->create($data)) {
+                        logActivity(Auth::id(), 'practical_created', 'practicals');
+                        $success = 'Practical created successfully!';
+                        
+                        // Clear form for new entry
+                        $data = array_fill_keys(array_keys($data), '');
+                        $data['max_students'] = 30;
+                        $data['status'] = 'draft';
+                    } else {
+                        $error = 'Failed to create practical.';
+                    }
                 }
             }
         }
@@ -245,46 +254,55 @@ class PracticalController {
                 empty($data['scheduled_date']) || empty($data['start_time']) || 
                 empty($data['end_time'])) {
                 $error = 'Title, lab, date, and times are required.';
-            } elseif ($data['start_time'] >= $data['end_time']) {
-                $error = 'End time must be after start time.';
             } else {
-                // Check lab availability (skip if same lab and time)
-                $isSameTime = ($data['lab_id'] == $practical['lab_id'] && 
-                               $data['scheduled_date'] == $practical['scheduled_date'] && 
-                               $data['start_time'] == $practical['start_time'] && 
-                               $data['end_time'] == $practical['end_time']);
+                // Validate date and times first
+                $dateTimeErrors = $this->model->validateDateTime(
+                    $data['scheduled_date'],
+                    $data['start_time'],
+                    $data['end_time']
+                );
                 
-                if (!$isSameTime) {
-                    $isAvailable = $this->model->checkLabAvailability(
-                        $data['lab_id'], 
-                        $data['scheduled_date'], 
-                        $data['start_time'], 
-                        $data['end_time'],
-                        $practicalId // exclude current practical from check
-                    );
+                if (!empty($dateTimeErrors)) {
+                    $error = implode(' ', $dateTimeErrors);
+                } else {
+                    // Check lab availability (skip if same lab and time)
+                    $isSameTime = ($data['lab_id'] == $practical['lab_id'] && 
+                                   $data['scheduled_date'] == $practical['scheduled_date'] && 
+                                   $data['start_time'] == $practical['start_time'] && 
+                                   $data['end_time'] == $practical['end_time']);
                     
-                    if (!$isAvailable) {
-                        // Get available slots for better error message
-                        $availableSlots = $this->model->getAvailableSlots($data['lab_id'], $data['scheduled_date']);
-                        $freeSlots = array_filter($availableSlots, fn($slot) => $slot['available']);
+                    if (!$isSameTime) {
+                        $isAvailable = $this->model->checkLabAvailability(
+                            $data['lab_id'], 
+                            $data['scheduled_date'], 
+                            $data['start_time'], 
+                            $data['end_time'],
+                            $practicalId // exclude current practical from check
+                        );
                         
-                        if (!empty($freeSlots)) {
-                            $slotList = array_slice($freeSlots, 0, 3);
-                            $slotTimes = implode(', ', array_map(fn($s) => substr($s['start'], 0, 5) . '-' . substr($s['end'], 0, 5), $slotList));
-                            $error = "Lab is not available at the requested time. Available slots: $slotTimes";
-                        } else {
-                            $error = 'Lab is not available at the requested time. No slots available on this date.';
+                        if (!$isAvailable) {
+                            // Get available slots for better error message
+                            $availableSlots = $this->model->getAvailableSlots($data['lab_id'], $data['scheduled_date']);
+                            $freeSlots = array_filter($availableSlots, fn($slot) => $slot['available']);
+                            
+                            if (!empty($freeSlots)) {
+                                $slotList = array_slice($freeSlots, 0, 3);
+                                $slotTimes = implode(', ', array_map(fn($s) => substr($s['start'], 0, 5) . '-' . substr($s['end'], 0, 5), $slotList));
+                                $error = "Lab is not available at the requested time. Available slots: $slotTimes";
+                            } else {
+                                $error = 'Lab is not available at the requested time. No slots available on this date. Please select a different date or time.';
+                            }
                         }
                     }
-                }
-                
-                if (empty($error)) {
-                    if ($this->model->update($practicalId, $data)) {
-                        logActivity(Auth::id(), 'practical_updated', 'practicals');
-                        $success = 'Practical updated successfully!';
-                        $practical = array_merge($practical, $data);
-                    } else {
-                        $error = 'Failed to update practical.';
+                    
+                    if (empty($error)) {
+                        if ($this->model->update($practicalId, $data)) {
+                            logActivity(Auth::id(), 'practical_updated', 'practicals');
+                            $success = 'Practical updated successfully!';
+                            $practical = array_merge($practical, $data);
+                        } else {
+                            $error = 'Failed to update practical.';
+                        }
                     }
                 }
             }

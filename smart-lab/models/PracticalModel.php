@@ -187,6 +187,33 @@ class PracticalModel {
         return $stmt->fetchAll();
     }
     
+    public function validateDateTime(string $date, ?string $startTime = null, ?string $endTime = null): array {
+        $errors = [];
+        
+        // Validate date format and check if past
+        $selectedDate = DateTime::createFromFormat('Y-m-d', $date);
+        if (!$selectedDate) {
+            $errors[] = 'Invalid date format. Please use YYYY-MM-DD format.';
+        } else {
+            $today = new DateTime();
+            $today->setTime(0, 0, 0);
+            if ($selectedDate < $today) {
+                $errors[] = 'Cannot schedule practicals in the past. Please select a future date.';
+            }
+        }
+        
+        // Validate time format and order
+        if ($startTime && $endTime) {
+            if (strlen($startTime) !== 5 || strlen($endTime) !== 5) {
+                $errors[] = 'Invalid time format. Please use HH:MM format.';
+            } elseif ($startTime >= $endTime) {
+                $errors[] = 'End time must be after start time.';
+            }
+        }
+        
+        return $errors;
+    }
+    
     public function checkLabAvailability(string $labId, string $date, ?string $startTime = null, ?string $endTime = null, ?string $excludePractical = null): bool {
         try {
             // Only check for conflicts with 'published' and 'ongoing' practicals

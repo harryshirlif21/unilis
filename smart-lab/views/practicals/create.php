@@ -80,7 +80,8 @@
                     <div class="form-group">
                         <label class="form-label">Scheduled Date *</label>
                         <input type="date" name="scheduled_date" class="form-control" 
-                            value="<?= htmlspecialchars($data['scheduled_date'] ?? '') ?>" required>
+                            value="<?= htmlspecialchars($data['scheduled_date'] ?? '') ?>" 
+                            min="<?= date('Y-m-d') ?>" required>
                     </div>
                     
                     <div class="form-group">

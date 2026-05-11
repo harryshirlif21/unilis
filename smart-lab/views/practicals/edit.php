@@ -58,7 +58,7 @@
                 <div class="grid grid-three">
                     <div class="form-group">
                         <label class="form-label">Scheduled Date *</label>
-                        <input type="date" name="scheduled_date" class="form-control" value="<?= htmlspecialchars($practical['scheduled_date']) ?>" required>
+                        <input type="date" name="scheduled_date" class="form-control" value="<?= htmlspecialchars($practical['scheduled_date']) ?>" min="<?= date('Y-m-d') ?>" required>
                     </div>
                     
                     <div class="form-group">
