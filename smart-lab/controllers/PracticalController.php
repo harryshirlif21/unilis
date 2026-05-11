@@ -116,8 +116,15 @@ class PracticalController {
                         $data['max_students'] = 30;
                         $data['status'] = 'draft';
                     } else {
+                        // Get the actual error from the logs or model
                         $error = 'Database error: Failed to create practical. Please check the error logs for details.';
                         error_log("PracticalController::create - Model create returned false for data: " . json_encode($data, JSON_UNESCAPED_SLASHES));
+                        
+                        // Check if lab exists
+                        if (!$this->model->labExists($data['lab_id'])) {
+                            $error = 'Invalid lab selected. Please choose a valid lab.';
+                            error_log("Lab ID {$data['lab_id']} does not exist");
+                        }
                     }
                 }
             }

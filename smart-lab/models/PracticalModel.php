@@ -8,9 +8,30 @@ class PracticalModel {
         $this->db = getDB();
     }
     
+    public function labExists(string $labId): bool {
+        try {
+            $stmt = $this->db->prepare("SELECT COUNT(*) as count FROM labs WHERE id = ?");
+            $stmt->execute([$labId]);
+            $result = $stmt->fetch();
+            return $result['count'] > 0;
+        } catch (Exception $e) {
+            error_log("PracticalModel::labExists Error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
     public function create(array $data): bool {
         try {
             error_log("PracticalModel::create - Attempting to create practical with data: " . json_encode($data, JSON_UNESCAPED_SLASHES));
+            
+            // Validate required fields
+            $required = ['id', 'title', 'lab_id', 'lecturer_id', 'scheduled_date', 'max_students'];
+            foreach ($required as $field) {
+                if (empty($data[$field])) {
+                    error_log("PracticalModel::create - Missing required field: $field");
+                    return false;
+                }
+            }
             
             $stmt = $this->db->prepare(
                 "INSERT INTO practicals 
@@ -45,6 +66,7 @@ class PracticalModel {
                 error_log("PracticalModel::create - Successfully created practical with ID: {$data['id']}");
             } else {
                 error_log("PracticalModel::create - Failed to execute statement");
+                error_log("PracticalModel::create - Statement error info: " . json_encode($stmt->errorInfo()));
             }
             
             return $result;
@@ -55,6 +77,7 @@ class PracticalModel {
             return false;
         } catch (Exception $e) {
             error_log("PracticalModel::create Error: " . $e->getMessage());
+            error_log("PracticalModel::create Error Trace: " . $e->getTraceAsString());
             return false;
         }
     }

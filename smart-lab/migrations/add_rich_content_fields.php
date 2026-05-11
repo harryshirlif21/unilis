@@ -38,6 +38,19 @@ try {
         echo "⊘ calculations_template column already exists, skipping\n";
     }
     
+    // Check if duration_hours column exists
+    $checkDuration = $db->query("SHOW COLUMNS FROM practicals LIKE 'duration_hours'");
+    $hasDurationHours = $checkDuration->rowCount() > 0;
+    
+    // Add duration_hours column if it doesn't exist
+    if (!$hasDurationHours) {
+        echo "Adding duration_hours column...\n";
+        $db->exec("ALTER TABLE practicals ADD COLUMN duration_hours INT DEFAULT 2 COMMENT 'Duration of practical in hours'");
+        echo "✓ duration_hours column added successfully\n";
+    } else {
+        echo "⊘ duration_hours column already exists, skipping\n";
+    }
+    
     echo "\n------------------------------------------------------------\n";
     echo "Migration completed successfully!\n";
     
