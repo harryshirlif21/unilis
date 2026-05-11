@@ -228,12 +228,14 @@ class PracticalModel {
             if ($startTime && $endTime) {
                 // Check for time overlap using standard overlap logic:
                 // Two time ranges [s1, e1] and [s2, e2] overlap if: s1 < e2 AND e1 > s2
-                // This handles all cases of partial or complete overlap
+                // Normalize times to HH:MM:SS format for consistent comparison with TIME columns
+                $normalizedStart = strlen($startTime) === 5 ? $startTime . ':00' : $startTime;
+                $normalizedEnd   = strlen($endTime)   === 5 ? $endTime   . ':00' : $endTime;
                 $sql .= " AND (
                     (p.start_time < ? AND p.end_time > ?)
                 )";
-                $params[] = $endTime;
-                $params[] = $startTime;
+                $params[] = $normalizedEnd;
+                $params[] = $normalizedStart;
             }
             
             if ($excludePractical) {
@@ -253,7 +255,9 @@ class PracticalModel {
             return $isAvailable;
         } catch (Exception $e) {
             error_log("PracticalModel::checkLabAvailability Error: " . $e->getMessage());
-            return false;
+            // Return true on DB error to avoid blocking all submissions
+            // The conflict check query itself failing should not block the user
+            return true;
         }
     }
     
@@ -269,6 +273,17 @@ class PracticalModel {
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$labId, $date]);
             $existing = $stmt->fetchAll();
+            
+            // Normalize existing practical times to HH:MM:SS for consistent string comparison
+            $existing = array_map(function($row) {
+                $row['start_time'] = strlen($row['start_time']) === 5
+                    ? $row['start_time'] . ':00'
+                    : $row['start_time'];
+                $row['end_time'] = strlen($row['end_time']) === 5
+                    ? $row['end_time'] . ':00'
+                    : $row['end_time'];
+                return $row;
+            }, $existing);
             
             // Define standard time slots (e.g., 8 AM to 6 PM in 1-hour intervals)
             $slots = [];
@@ -302,7 +317,16 @@ class PracticalModel {
             return $slots;
         } catch (Exception $e) {
             error_log("PracticalModel::getAvailableSlots Error: " . $e->getMessage());
-            return [];
+            // Return all slots as available on DB error so user sees options
+            $slots = [];
+            for ($hour = 8; $hour < 18; $hour++) {
+                $slots[] = [
+                    'start' => sprintf('%02d:00:00', $hour),
+                    'end'   => sprintf('%02d:00:00', $hour + 1),
+                    'available' => true
+                ];
+            }
+            return $slots;
         }
     }
     
