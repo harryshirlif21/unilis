@@ -94,10 +94,16 @@ class PracticalController {
                         $availableSlots = $this->model->getAvailableSlots($data['lab_id'], $data['scheduled_date']);
                         $freeSlots = array_filter($availableSlots, fn($slot) => $slot['available']);
                         
-                        if (!empty($freeSlots)) {
+                        // Check if it's a daily limit issue or time conflict
+                        $totalCount = $this->model->getDailyPracticalCount($data['lab_id'], $data['scheduled_date']);
+                        error_log("Daily practical count for error message: $totalCount");
+                        
+                        if ($totalCount >= 3) {
+                            $error = 'Lab fully booked - Maximum of 3 practicals per day allowed. Please select a different date.';
+                        } elseif (!empty($freeSlots)) {
                             $slotList = array_slice($freeSlots, 0, 3);
                             $slotTimes = implode(', ', array_map(fn($s) => substr($s['start'], 0, 5) . '-' . substr($s['end'], 0, 5), $slotList));
-                            $error = "Lab is not available at the requested time. Available slots: $slotTimes";
+                            $error = "Time slot conflict. Available slots: $slotTimes";
                         } else {
                             $error = 'Lab is not available at the requested time. No slots available on this date. Please select a different date or time.';
                         }
@@ -110,7 +116,8 @@ class PracticalController {
                         $data['max_students'] = 30;
                         $data['status'] = 'draft';
                     } else {
-                        $error = 'Failed to create practical.';
+                        $error = 'Database error: Failed to create practical. Please check the error logs for details.';
+                        error_log("PracticalController::create - Model create returned false for data: " . json_encode($data, JSON_UNESCAPED_SLASHES));
                     }
                 }
             }

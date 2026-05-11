@@ -10,6 +10,8 @@ class PracticalModel {
     
     public function create(array $data): bool {
         try {
+            error_log("PracticalModel::create - Attempting to create practical with data: " . json_encode($data, JSON_UNESCAPED_SLASHES));
+            
             $stmt = $this->db->prepare(
                 "INSERT INTO practicals 
                  (id, title, description, lab_id, lecturer_id, scheduled_date, 
@@ -19,7 +21,7 @@ class PracticalModel {
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             
-            return $stmt->execute([
+            $result = $stmt->execute([
                 $data['id'],
                 $data['title'],
                 $data['description'] ?? null,
@@ -38,6 +40,19 @@ class PracticalModel {
                 $data['results_template'] ?? null,
                 $data['calculations_template'] ?? null
             ]);
+            
+            if ($result) {
+                error_log("PracticalModel::create - Successfully created practical with ID: {$data['id']}");
+            } else {
+                error_log("PracticalModel::create - Failed to execute statement");
+            }
+            
+            return $result;
+        } catch (PDOException $e) {
+            error_log("PracticalModel::create PDO Error: " . $e->getMessage());
+            error_log("PracticalModel::create PDO Error Code: " . $e->getCode());
+            error_log("PracticalModel::create PDO Error Info: " . json_encode($e->errorInfo ?? []));
+            return false;
         } catch (Exception $e) {
             error_log("PracticalModel::create Error: " . $e->getMessage());
             return false;
@@ -214,32 +229,16 @@ class PracticalModel {
         return $errors;
     }
     
-    public function checkLabAvailability(string $labId, string $date, ?string $startTime = null, ?string $endTime = null, ?string $excludePractical = null): bool {
+    public function getDailyPracticalCount(string $labId, string $date, ?string $excludePractical = null): int {
         try {
-            // Only check for conflicts with 'published' and 'ongoing' practicals
-            // Draft practicals don't block the lab since they're not confirmed
-            $sql = "SELECT COUNT(*) as conflicts 
-                    FROM practicals p 
-                    WHERE p.lab_id = ? AND p.scheduled_date = ? 
-                    AND p.status IN ('published', 'ongoing')";
+            $sql = "SELECT COUNT(*) as total 
+                    FROM practicals 
+                    WHERE lab_id = ? AND scheduled_date = ?";
             
             $params = [$labId, $date];
             
-            if ($startTime && $endTime) {
-                // Check for time overlap using standard overlap logic:
-                // Two time ranges [s1, e1] and [s2, e2] overlap if: s1 < e2 AND e1 > s2
-                // Normalize times to HH:MM:SS format for consistent comparison with TIME columns
-                $normalizedStart = strlen($startTime) === 5 ? $startTime . ':00' : $startTime;
-                $normalizedEnd   = strlen($endTime)   === 5 ? $endTime   . ':00' : $endTime;
-                $sql .= " AND (
-                    (p.start_time < ? AND p.end_time > ?)
-                )";
-                $params[] = $normalizedEnd;
-                $params[] = $normalizedStart;
-            }
-            
             if ($excludePractical) {
-                $sql .= " AND p.id != ?";
+                $sql .= " AND id != ?";
                 $params[] = $excludePractical;
             }
             
@@ -247,16 +246,63 @@ class PracticalModel {
             $stmt->execute($params);
             $result = $stmt->fetch();
             
-            $isAvailable = $result['conflicts'] == 0;
+            return (int) $result['total'];
+        } catch (Exception $e) {
+            error_log("PracticalModel::getDailyPracticalCount Error: " . $e->getMessage());
+            return 0;
+        }
+    }
+    
+    public function checkLabAvailability(string $labId, string $date, ?string $startTime = null, ?string $endTime = null, ?string $excludePractical = null): bool {
+        try {
+            error_log("checkLabAvailability - Lab: $labId, Date: $date, Start: $startTime, End: $endTime, Exclude: $excludePractical");
             
-            // Debug logging
-            error_log("Lab Availability Check - Lab: $labId, Date: $date, Start: $startTime, End: $endTime, Conflicts: {$result['conflicts']}, Available: " . ($isAvailable ? 'Yes' : 'No'));
+            // Step 1: Check daily limit (max 3 practicals per lab per day)
+            $totalCount = $this->getDailyPracticalCount($labId, $date, $excludePractical);
+            error_log("Daily practical count: $totalCount");
             
-            return $isAvailable;
+            if ($totalCount >= 3) {
+                error_log("Lab fully booked - daily limit reached (3 practicals)");
+                return false;
+            }
+            
+            // Step 2: Check time overlap (only if times are provided)
+            if ($startTime && $endTime) {
+                // Normalize times to HH:MM:SS format for consistent comparison with TIME columns
+                $normalizedStart = strlen($startTime) === 5 ? $startTime . ':00' : $startTime;
+                $normalizedEnd = strlen($endTime) === 5 ? $endTime . ':00' : $endTime;
+                
+                $sql = "SELECT COUNT(*) as conflicts 
+                        FROM practicals p 
+                        WHERE p.lab_id = ? AND p.scheduled_date = ? 
+                        AND p.status IN ('published', 'ongoing')
+                        AND (p.start_time < ? AND p.end_time > ?)";
+                
+                $params = [$labId, $date, $normalizedEnd, $normalizedStart];
+                
+                if ($excludePractical) {
+                    $sql .= " AND p.id != ?";
+                    $params[] = $excludePractical;
+                }
+                
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute($params);
+                $result = $stmt->fetch();
+                
+                $conflictCount = $result['conflicts'];
+                error_log("Time overlap conflicts: $conflictCount");
+                
+                if ($conflictCount > 0) {
+                    error_log("Time slot conflict detected");
+                    return false;
+                }
+            }
+            
+            error_log("Lab is available");
+            return true;
         } catch (Exception $e) {
             error_log("PracticalModel::checkLabAvailability Error: " . $e->getMessage());
             // Return true on DB error to avoid blocking all submissions
-            // The conflict check query itself failing should not block the user
             return true;
         }
     }
