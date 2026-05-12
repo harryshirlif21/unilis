@@ -338,4 +338,128 @@ class PracticalController {
             'userRole' => $userRole
         ]);
     }
-}
+    
+    public function startPractical() {
+        header('Content-Type: application/json');
+        Auth::guard();
+
+        $studentId = sanitize($_POST['student_id'] ?? '');
+        $practicalId = sanitize($_POST['practical_id'] ?? '');
+
+        if (empty($studentId) || empty($practicalId)) {
+            echo json_encode(['status' => 'error', 'message' => 'Student ID and Practical ID are required']);
+            exit;
+        }
+
+        // Check if attendance exists
+        if (!$this->model->attendanceExists($studentId, $practicalId)) {
+            echo json_encode(['status' => 'error', 'message' => 'Attendance not found']);
+            exit;
+        }
+
+        // Check if a report already exists
+        $report = $this->model->getReport($studentId, $practicalId);
+
+        if ($report) {
+            echo json_encode([
+                'status' => 'success',
+                'report_id' => $report['id'],
+                'practical' => $this->model->getPracticalDetails($practicalId)
+            ]);
+            exit;
+        }
+
+        // Create a new report
+        $reportId = $this->model->createReport([
+            'student_id' => $studentId,
+            'practical_id' => $practicalId,
+            'status' => 'in_progress',
+            'verified' => 1,
+            'started_at' => date('Y-m-d H:i:s')
+        ]);
+
+        if ($reportId) {
+            echo json_encode([
+                'status' => 'success',
+                'report_id' => $reportId,
+                'practical' => $this->model->getPracticalDetails($practicalId)
+            ]);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Failed to create report']);
+        }
+    }
+
+    public function markAttendance() {
+        header('Content-Type: application/json');
+        Auth::guard();
+        
+        $practicalId = sanitize($_POST['practical_id'] ?? '');
+        $verificationMethod = sanitize($_POST['verification_method'] ?? 'qr'); // qr, rfid, fingerprint
+        
+        if (empty($practicalId)) {
+            echo json_encode(['status' => 'error', 'message' => 'Practical ID is required']);
+            exit;
+        }
+        
+        $studentId = Auth::id();
+        
+        // Check if practical exists and is published
+        $practical = $this->model->getById($practicalId);
+        if (!$practical || $practical['status'] !== 'published') {
+            echo json_encode(['status' => 'error', 'message' => 'Practical not found or not available']);
+            exit;
+        }
+        
+        // Check if attendance already exists
+        if ($this->model->attendanceExists($studentId, $practicalId)) {
+            echo json_encode(['status' => 'error', 'message' => 'Attendance already marked']);
+            exit;
+        }
+        
+        // Mark attendance
+        if ($this->model->markAttendance($studentId, $practicalId, $verificationMethod)) {
+            logActivity($studentId, 'practical_attendance_marked', 'practicals', $practicalId);
+            
+            // Now start the practical session
+            $startResult = $this->startPracticalSession($studentId, $practicalId);
+            
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Attendance marked and practical started',
+                'report_id' => $startResult['report_id'] ?? null,
+                'practical' => $startResult['practical'] ?? null
+            ]);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Failed to mark attendance']);
+        }
+    }
+    
+    private function startPracticalSession($studentId, $practicalId) {
+        // Check if a report already exists
+        $report = $this->model->getReport($studentId, $practicalId);
+        
+        if ($report) {
+            return [
+                'report_id' => $report['id'],
+                'practical' => $this->model->getPracticalDetails($practicalId)
+            ];
+        }
+        
+        // Create a new report
+        $reportId = $this->model->createReport([
+            'student_id' => $studentId,
+            'practical_id' => $practicalId,
+            'status' => 'in_progress',
+            'verified' => 1,
+            'started_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        if ($reportId) {
+            return [
+                'report_id' => $reportId,
+                'practical' => $this->model->getPracticalDetails($practicalId)
+            ];
+        }
+        
+        return null;
+    }

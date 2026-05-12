@@ -236,6 +236,19 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_user_time ON activity_log(user_id, c
 ALTER TABLE lab_attendance ADD CONSTRAINT fk_lab_attendance_schedule 
 FOREIGN KEY (schedule_id) REFERENCES lab_schedules(id) ON DELETE SET NULL;
 
+-- Practical Attendance table
+CREATE TABLE IF NOT EXISTS attendance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    practical_id VARCHAR(32) NOT NULL,
+    verification_method ENUM('qr', 'rfid', 'fingerprint', 'manual') DEFAULT 'qr',
+    marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_student_practical (student_id, practical_id),
+    INDEX idx_marked_at (marked_at)
+);
+
 ALTER TABLE otp_codes ADD CONSTRAINT fk_otp_codes_schedule 
 FOREIGN KEY (schedule_id) REFERENCES lab_schedules(id) ON DELETE CASCADE;
 

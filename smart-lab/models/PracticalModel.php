@@ -594,4 +594,109 @@ class PracticalModel {
             $deadlineModel->createDeadlineForPractical($practicalId, $studentId);
         }
     }
+
+    public function attendanceExists(string $studentId, string $practicalId): bool {
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) as count FROM attendance 
+                 WHERE student_id = ? AND practical_id = ?"
+            );
+            $stmt->execute([$studentId, $practicalId]);
+            $result = $stmt->fetch();
+            return $result['count'] > 0;
+        } catch (Exception $e) {
+            error_log("PracticalModel::attendanceExists Error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getReport(string $studentId, string $practicalId): ?array {
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT * FROM lab_reports 
+                 WHERE practical_id = ? AND student_id = ?"
+            );
+            $stmt->execute([$practicalId, $studentId]);
+            $result = $stmt->fetch();
+            return $result ?: null;
+        } catch (Exception $e) {
+            error_log("PracticalModel::getReport Error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function createReport(array $data): ?string {
+        try {
+            $stmt = $this->db->prepare(
+                "INSERT INTO lab_reports
+                 (id, practical_id, student_id, status, created_at) 
+                 VALUES (?, ?, ?, ?, ?)"
+            );
+            $result = $stmt->execute([
+                bin2hex(random_bytes(16)),
+                $data['practical_id'],
+                $data['student_id'],
+                $data['status'],
+                $data['started_at']
+            ]);
+            if ($result) {
+                return $this->db->lastInsertId();
+            }
+            return null;
+        } catch (Exception $e) {
+            error_log("PracticalModel::createReport Error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function getPracticalDetails(string $practicalId): ?array {
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT * FROM practicals WHERE id = ?"
+            );
+            $stmt->execute([$practicalId]);
+            $result = $stmt->fetch();
+            if ($result) {
+                // Parse JSON fields
+                $result['materials'] = json_decode($result['required_equipment'] ?? '[]', true) ?: [];
+                $result['procedure'] = json_decode($result['procedure_json'] ?? '[]', true) ?: [];
+                $result['data_table'] = json_decode($result['observations_table_structure'] ?? '[]', true) ?: [];
+                $result['questions'] = []; // Assuming questions are not stored yet
+                $result['aim'] = $result['objective'];
+            }
+            return $result ?: null;
+        } catch (Exception $e) {
+            error_log("PracticalModel::getPracticalDetails Error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function getReportById(string $reportId): ?array {
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT * FROM lab_reports WHERE id = ?"
+            );
+            $stmt->execute([$reportId]);
+            $result = $stmt->fetch();
+            return $result ?: null;
+        } catch (Exception $e) {
+            error_log("PracticalModel::getReportById Error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function markAttendance(string $studentId, string $practicalId, string $verificationMethod): bool {
+        try {
+            $stmt = $this->db->prepare(
+                "INSERT INTO attendance 
+                 (student_id, practical_id, verification_method, marked_at) 
+                 VALUES (?, ?, ?, NOW())"
+            );
+            $result = $stmt->execute([$studentId, $practicalId, $verificationMethod]);
+            return $result;
+        } catch (Exception $e) {
+            error_log("PracticalModel::markAttendance Error: " . $e->getMessage());
+            return false;
+        }
+    }
 }
