@@ -52,54 +52,207 @@ if ($method === 'GET' && isset($_GET['id'])) {
     }
 }
 
-// POST /api/v1/practicals/:id/reports - Submit student lab report
-elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'submit-report') {
+// POST /api/v1/practicals/:id/start - Start practical attempt
+elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'start') {
     Auth::guard('student');
-    
+
     $practicalId = sanitize($_GET['id']);
     $studentId = Auth::id();
-    
+
     try {
         $db = getDB();
-        
+
         // Validate practical exists and is published
         $stmt = $db->prepare("SELECT id FROM practicals WHERE id = ? AND status = 'published'");
         $stmt->execute([$practicalId]);
         if (!$stmt->fetch()) {
             jsonResponse(['error' => 'Practical not found or not available'], 404);
         }
-        
-        // Check if student already submitted
-        $stmt = $db->prepare("SELECT id FROM lab_reports WHERE practical_id = ? AND student_id = ?");
+
+        // Check if student already has a submitted report
+        $stmt = $db->prepare("SELECT id FROM lab_reports WHERE practical_id = ? AND student_id = ? AND status = 'submitted'");
         $stmt->execute([$practicalId, $studentId]);
         if ($stmt->fetch()) {
-            jsonResponse(['error' => 'Report already submitted for this practical'], 400);
+            jsonResponse(['error' => 'You have already submitted a report for this practical'], 400);
         }
-        
-        // Insert report
+
+        // Check if student already has an in-progress report
+        $stmt = $db->prepare("SELECT id FROM lab_reports WHERE practical_id = ? AND student_id = ? AND status = 'in_progress'");
+        $stmt->execute([$practicalId, $studentId]);
+        $existingReport = $stmt->fetch();
+
+        if ($existingReport) {
+            // Return existing in-progress report
+            jsonResponse([
+                'success' => true,
+                'report_id' => $existingReport['id'],
+                'message' => 'Continuing existing practical attempt'
+            ]);
+        } else {
+            // Create new in-progress report
+            $stmt = $db->prepare("
+                INSERT INTO lab_reports
+                (id, practical_id, student_id, status, created_at)
+                VALUES (?, ?, ?, 'in_progress', NOW())
+            ");
+
+            $reportId = bin2hex(random_bytes(16));
+            $stmt->execute([$reportId, $practicalId, $studentId]);
+
+            jsonResponse([
+                'success' => true,
+                'report_id' => $reportId,
+                'message' => 'Practical attempt started successfully'
+            ]);
+        }
+
+    } catch (Exception $e) {
+        error_log("API Error: " . $e->getMessage());
+        jsonResponse(['error' => 'Database error'], 500);
+    }
+}
+
+// GET /api/v1/practicals/:id/report - Get student's report for this practical
+elseif ($method === 'GET' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'report') {
+    Auth::guard('student');
+
+    $practicalId = sanitize($_GET['id']);
+    $studentId = Auth::id();
+
+    try {
+        $db = getDB();
+
+        // Get student's report
         $stmt = $db->prepare("
-            INSERT INTO lab_reports 
-            (id, practical_id, student_id, observations_json, calculations, result, conclusion, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            SELECT * FROM lab_reports
+            WHERE practical_id = ? AND student_id = ?
+            ORDER BY created_at DESC LIMIT 1
         ");
-        
-        $reportId = bin2hex(random_bytes(16));
+        $stmt->execute([$practicalId, $studentId]);
+        $report = $stmt->fetch();
+
+        if ($report) {
+            $report['observations'] = json_decode($report['observations_json'] ?? '[]', true);
+            unset($report['observations_json']);
+
+            jsonResponse([
+                'report' => $report
+            ]);
+        } else {
+            jsonResponse(['error' => 'No report found'], 404);
+        }
+
+    } catch (Exception $e) {
+        error_log("API Error: " . $e->getMessage());
+        jsonResponse(['error' => 'Database error'], 500);
+    }
+}
+
+// POST /api/v1/practicals/:id/save-draft - Save draft report
+elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'save-draft') {
+    Auth::guard('student');
+
+    $practicalId = sanitize($_GET['id']);
+    $studentId = Auth::id();
+
+    try {
+        $db = getDB();
+
+        // Check if student has an in-progress report
+        $stmt = $db->prepare("SELECT id FROM lab_reports WHERE practical_id = ? AND student_id = ? AND status = 'in_progress'");
+        $stmt->execute([$practicalId, $studentId]);
+        $existingReport = $stmt->fetch();
+
+        if (!$existingReport) {
+            jsonResponse(['error' => 'No in-progress report found. Please start the practical first.'], 400);
+        }
+
+        // Update draft data (don't change status)
+        $stmt = $db->prepare("
+            UPDATE lab_reports
+            SET observations_json = ?, calculations = ?, result = ?, conclusion = ?, updated_at = NOW()
+            WHERE id = ? AND practical_id = ? AND student_id = ? AND status = 'in_progress'
+        ");
+
         $stmt->execute([
-            $reportId,
-            $practicalId,
-            $studentId,
             json_encode($request['observations'] ?? []),
             $request['calculations'] ?? '',
             $request['result'] ?? '',
-            $request['conclusion'] ?? ''
+            $request['conclusion'] ?? '',
+            $existingReport['id'],
+            $practicalId,
+            $studentId
         ]);
-        
+
+        if ($stmt->rowCount() === 0) {
+            jsonResponse(['error' => 'Failed to save draft'], 400);
+        }
+
         jsonResponse([
             'success' => true,
-            'report_id' => $reportId,
+            'message' => 'Draft saved successfully'
+        ]);
+
+    } catch (Exception $e) {
+        error_log("API Error: " . $e->getMessage());
+        jsonResponse(['error' => 'Database error'], 500);
+    }
+}
+
+// POST /api/v1/practicals/:id/submit-report - Submit student lab report
+elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'submit-report') {
+    Auth::guard('student');
+
+    $practicalId = sanitize($_GET['id']);
+    $studentId = Auth::id();
+
+    try {
+        $db = getDB();
+
+        // Validate practical exists and is published
+        $stmt = $db->prepare("SELECT id FROM practicals WHERE id = ? AND status = 'published'");
+        $stmt->execute([$practicalId]);
+        if (!$stmt->fetch()) {
+            jsonResponse(['error' => 'Practical not found or not available'], 404);
+        }
+
+        // Check if student has an in-progress report
+        $stmt = $db->prepare("SELECT id FROM lab_reports WHERE practical_id = ? AND student_id = ? AND status = 'in_progress'");
+        $stmt->execute([$practicalId, $studentId]);
+        $existingReport = $stmt->fetch();
+
+        if (!$existingReport) {
+            jsonResponse(['error' => 'No in-progress report found. Please start the practical first.'], 400);
+        }
+
+        // Update report with submission data and change status to submitted
+        $stmt = $db->prepare("
+            UPDATE lab_reports
+            SET observations_json = ?, calculations = ?, result = ?, conclusion = ?,
+                status = 'submitted', submitted_at = NOW(), updated_at = NOW()
+            WHERE id = ? AND practical_id = ? AND student_id = ? AND status = 'in_progress'
+        ");
+
+        $stmt->execute([
+            json_encode($request['observations'] ?? []),
+            $request['calculations'] ?? '',
+            $request['result'] ?? '',
+            $request['conclusion'] ?? '',
+            $existingReport['id'],
+            $practicalId,
+            $studentId
+        ]);
+
+        if ($stmt->rowCount() === 0) {
+            jsonResponse(['error' => 'Failed to submit report'], 400);
+        }
+
+        jsonResponse([
+            'success' => true,
+            'report_id' => $existingReport['id'],
             'message' => 'Lab report submitted successfully'
         ]);
-        
+
     } catch (Exception $e) {
         error_log("API Error: " . $e->getMessage());
         jsonResponse(['error' => 'Database error'], 500);

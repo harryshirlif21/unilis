@@ -457,6 +457,8 @@ class StudentPracticalController {
         Auth::guard('student');
 
         $practical_id = $param;
+        $student_id = Auth::id();
+
         if (!$practical_id) {
             header('Location: ' . APP_URL . '/student/dashboard');
             exit;
@@ -486,8 +488,23 @@ class StudentPracticalController {
         $practical['apparatus'] = array_filter(explode("\n", $practical['required_equipment'] ?? ''));
         $practical['chemicals'] = array_filter(explode("\n", $practical['required_chemicals'] ?? ''));
 
+        // Check student's report status
+        $stmt = $this->db->prepare("
+            SELECT status FROM lab_reports
+            WHERE practical_id = ? AND student_id = ?
+            ORDER BY created_at DESC LIMIT 1
+        ");
+        $stmt->execute([$practical_id, $student_id]);
+        $report = $stmt->fetch();
+
+        $report_status = 'not_started';
+        if ($report) {
+            $report_status = $report['status']; // 'in_progress' or 'submitted'
+        }
+
         renderView('student/view_practical', [
-            'practical' => $practical
+            'practical' => $practical,
+            'report_status' => $report_status
         ]);
     }
 }

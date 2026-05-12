@@ -3,8 +3,27 @@
         <div class="page-overline">Practical Session</div>
         <h1 class="page-title"><?= htmlspecialchars($practical['title']) ?></h1>
         <div class="page-subtitle">
-            <?= htmlspecialchars($practical['course_code']) ?> - 
+            <?= htmlspecialchars($practical['course_code']) ?> -
             <?= htmlspecialchars($practical['lab_name']) ?> (<?= htmlspecialchars($practical['lab_code']) ?>)
+        </div>
+
+        <!-- Take Practical Button -->
+        <div class="practical-actions">
+            <?php if ($report_status === 'not_started'): ?>
+                <button id="take-practical-btn" onclick="takePractical()" class="btn btn-primary btn-lg">
+                    <i class="icon-flask"></i> Take Practical
+                </button>
+            <?php elseif ($report_status === 'in_progress'): ?>
+                <button id="continue-practical-btn" onclick="continuePractical()" class="btn btn-success btn-lg">
+                    <i class="icon-play"></i> Continue Practical
+                </button>
+                <span class="status-text">In Progress</span>
+            <?php elseif ($report_status === 'submitted'): ?>
+                <button disabled class="btn btn-secondary btn-lg">
+                    <i class="icon-check"></i> Report Submitted
+                </button>
+                <span class="status-text">Completed</span>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -285,7 +304,7 @@ function saveDraft() {
         result: formData.get('result'),
         conclusion: formData.get('conclusion')
     };
-    
+
     // Collect observations
     const observationInputs = document.querySelectorAll('#observations-table input');
     observationInputs.forEach(input => {
@@ -299,10 +318,33 @@ function saveDraft() {
             data.observations[rowIndex][columnName] = input.value;
         }
     });
-    
-    // Save to localStorage for now (in production, save to server)
+
+    // Save to localStorage as backup
     localStorage.setItem('practical_<?= $practical['id'] ?>_draft', JSON.stringify(data));
-    alert('Draft saved successfully!');
+
+    // If there's an in-progress report, also save to server
+    <?php if ($report_status === 'in_progress'): ?>
+    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/save-draft', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Draft saved successfully!');
+        } else {
+            alert('Draft saved locally, but server save failed: ' + (result.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Draft saved locally. Server save failed: ' + error.message);
+    });
+    <?php else: ?>
+    alert('Draft saved locally!');
+    <?php endif; ?>
 }
 
 // Submit report
@@ -345,7 +387,10 @@ function submitReport() {
     .then(result => {
         if (result.success) {
             alert('Report submitted successfully!');
-            window.location.href = '<?= APP_URL ?>/student/dashboard';
+            // Clear draft from localStorage
+            localStorage.removeItem('practical_<?= $practical['id'] ?>_draft');
+            // Reload page to update button state
+            window.location.reload();
         } else {
             alert('Error: ' + (result.error || 'Unknown error'));
         }
@@ -357,10 +402,54 @@ function submitReport() {
 
 // Load draft on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // First check if there's an existing in-progress report on the server
+    <?php if ($report_status === 'in_progress'): ?>
+    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/report')
+    .then(response => response.json())
+    .then(result => {
+        if (result.report) {
+            const report = result.report;
+
+            // Load observations
+            if (report.observations && Array.isArray(report.observations)) {
+                report.observations.forEach((rowData, rowIndex) => {
+                    if (observationRowCount <= rowIndex) {
+                        addObservationRow();
+                    }
+                    Object.keys(rowData).forEach(columnName => {
+                        const input = document.querySelector(`input[name="observations[${rowIndex}][${columnName}]"]`);
+                        if (input) {
+                            input.value = rowData[columnName];
+                        }
+                    });
+                });
+            }
+
+            // Load other fields
+            if (report.calculations) document.getElementById('calculations').value = report.calculations;
+            if (report.result) document.getElementById('result').value = report.result;
+            if (report.conclusion) document.getElementById('conclusion').value = report.conclusion;
+        } else {
+            // Fallback to localStorage draft
+            loadLocalDraft();
+        }
+    })
+    .catch(error => {
+        console.error('Error loading report:', error);
+        loadLocalDraft();
+    });
+    <?php else: ?>
+    // Load local draft if no server-side report
+    loadLocalDraft();
+    <?php endif; ?>
+});
+
+// Load draft from localStorage
+function loadLocalDraft() {
     const draft = localStorage.getItem('practical_<?= $practical['id'] ?>_draft');
     if (draft) {
         const data = JSON.parse(draft);
-        
+
         // Load observations
         if (data.observations) {
             Object.keys(data.observations).forEach(rowIndex => {
@@ -376,7 +465,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
         }
-        
+
         // Load other fields
         if (data.calculations) document.getElementById('calculations').value = data.calculations;
         if (data.result) document.getElementById('result').value = data.result;
@@ -385,13 +474,97 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add one empty row by default
         addObservationRow();
     }
-});
+}
+
+// Take Practical - Start new attempt
+function takePractical() {
+    const btn = document.getElementById('take-practical-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="icon-spinner"></i> Starting...';
+
+    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/start', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            // Switch to report tab and show success message
+            showTab('report');
+            alert('Practical started! You can now fill in your lab report.');
+            // Reload page to update button state
+            window.location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Failed to start practical'));
+            btn.disabled = false;
+            btn.innerHTML = '<i class="icon-flask"></i> Take Practical';
+        }
+    })
+    .catch(error => {
+        alert('Error starting practical: ' + error.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="icon-flask"></i> Take Practical';
+    });
+}
+
+// Continue Practical - Load existing attempt
+function continuePractical() {
+    // Switch to report tab
+    showTab('report');
+
+    // Load existing report data
+    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/report')
+    .then(response => response.json())
+    .then(result => {
+        if (result.report) {
+            const report = result.report;
+
+            // Load observations
+            if (report.observations && Array.isArray(report.observations)) {
+                report.observations.forEach((rowData, rowIndex) => {
+                    if (observationRowCount <= rowIndex) {
+                        addObservationRow();
+                    }
+                    Object.keys(rowData).forEach(columnName => {
+                        const input = document.querySelector(`input[name="observations[${rowIndex}][${columnName}]"]`);
+                        if (input) {
+                            input.value = rowData[columnName];
+                        }
+                    });
+                });
+            }
+
+            // Load other fields
+            if (report.calculations) document.getElementById('calculations').value = report.calculations;
+            if (report.result) document.getElementById('result').value = report.result;
+            if (report.conclusion) document.getElementById('conclusion').value = report.conclusion;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading report:', error);
+    });
+}
 </script>
 
 <style>
 .practical-view {
     max-width: 1200px;
     margin: 0 auto;
+}
+
+.practical-actions {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.status-text {
+    font-size: 14px;
+    color: #6b7280;
+    font-weight: 500;
 }
 
 .tabs {
