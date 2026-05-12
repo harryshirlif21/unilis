@@ -9,16 +9,18 @@
 
         <!-- Take Practical Button -->
         <div class="practical-actions">
-            <?php if ($report_status === 'not_started'): ?>
+            <?php $currentReportStatus = $report_status ?? 'not_started'; ?>
+
+            <?php if ($currentReportStatus === 'not_started'): ?>
                 <button id="take-practical-btn" onclick="takePractical()" class="btn btn-primary btn-lg">
                     <i class="icon-flask"></i> Take Practical
                 </button>
-            <?php elseif ($report_status === 'in_progress'): ?>
+            <?php elseif ($currentReportStatus === 'in_progress'): ?>
                 <button id="continue-practical-btn" onclick="continuePractical()" class="btn btn-success btn-lg">
                     <i class="icon-play"></i> Continue Practical
                 </button>
                 <span class="status-text">In Progress</span>
-            <?php elseif ($report_status === 'submitted'): ?>
+            <?php elseif ($currentReportStatus === 'submitted'): ?>
                 <button disabled class="btn btn-secondary btn-lg">
                     <i class="icon-check"></i> Report Submitted
                 </button>
