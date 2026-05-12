@@ -449,4 +449,45 @@ class StudentPracticalController {
         
         return $data;
     }
+
+    /**
+     * View a published practical (new practicals system)
+     */
+    public function view_practical($param = null) {
+        Auth::guard('student');
+
+        $practical_id = $param;
+        if (!$practical_id) {
+            header('Location: ' . APP_URL . '/student/dashboard');
+            exit;
+        }
+
+        // Get practical details
+        $stmt = $this->db->prepare("
+            SELECT p.*, l.name as lab_name, l.lab_code,
+                   u.full_name as lecturer_name
+            FROM practicals p
+            LEFT JOIN labs l ON p.lab_id = l.id
+            LEFT JOIN users u ON p.lecturer_id = u.id
+            WHERE p.id = ? AND p.status = 'published'
+        ");
+        $stmt->execute([$practical_id]);
+        $practical = $stmt->fetch();
+
+        if (!$practical) {
+            $_SESSION['error'] = 'Practical not found or not available';
+            header('Location: ' . APP_URL . '/student/dashboard');
+            exit;
+        }
+
+        // Parse JSON fields
+        $practical['procedure'] = json_decode($practical['procedure_json'] ?? '[]', true);
+        $practical['observations_table'] = json_decode($practical['observations_table_structure'] ?? '[]', true);
+        $practical['apparatus'] = array_filter(explode("\n", $practical['required_equipment'] ?? ''));
+        $practical['chemicals'] = array_filter(explode("\n", $practical['required_chemicals'] ?? ''));
+
+        renderView('student/view_practical', [
+            'practical' => $practical
+        ]);
+    }
 }

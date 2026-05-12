@@ -35,16 +35,19 @@ class PracticalModel {
             
             $stmt = $this->db->prepare(
                 "INSERT INTO practicals 
-                 (id, title, description, lab_id, lecturer_id, scheduled_date, 
+                 (id, title, objective, theory, description, lab_id, lecturer_id, scheduled_date, 
                   duration_hours, max_students, status, course_code, 
                   start_time, end_time, required_equipment, required_chemicals, 
-                  safety_notes, results_template, calculations_template)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                  procedure_json, observations_table_structure, safety_notes, 
+                  results_template, calculations_template)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             
             $result = $stmt->execute([
                 $data['id'],
                 $data['title'],
+                $data['objective'] ?? null,
+                $data['theory'] ?? null,
                 $data['description'] ?? null,
                 $data['lab_id'],
                 $data['lecturer_id'],
@@ -57,6 +60,8 @@ class PracticalModel {
                 $data['end_time'] ?? null,
                 $data['required_equipment'] ?? null,
                 $data['required_chemicals'] ?? null,
+                $data['procedure_json'] ?? null,
+                $data['observations_table_structure'] ?? null,
                 $data['safety_notes'] ?? null,
                 $data['results_template'] ?? null,
                 $data['calculations_template'] ?? null
@@ -147,18 +152,21 @@ class PracticalModel {
         try {
             $stmt = $this->db->prepare(
                 "UPDATE practicals 
-                 SET title = ?, description = ?, lab_id = ?, 
+                 SET title = ?, objective = ?, theory = ?, description = ?, lab_id = ?, 
                      scheduled_date = ?, duration_hours = ?, 
                      max_students = ?, status = ?,
                      course_code = ?, start_time = ?, end_time = ?,
-                     required_equipment = ?, required_chemicals = ?, safety_notes = ?,
+                     required_equipment = ?, required_chemicals = ?, 
+                     procedure_json = ?, observations_table_structure = ?, safety_notes = ?,
                      results_template = ?, calculations_template = ?
                  WHERE id = ?"
             );
             
             return $stmt->execute([
                 $data['title'],
-                $data['description'],
+                $data['objective'] ?? null,
+                $data['theory'] ?? null,
+                $data['description'] ?? null,
                 $data['lab_id'],
                 $data['scheduled_date'],
                 $data['duration_hours'] ?? 2,
@@ -169,6 +177,8 @@ class PracticalModel {
                 $data['end_time'] ?? null,
                 $data['required_equipment'] ?? null,
                 $data['required_chemicals'] ?? null,
+                $data['procedure_json'] ?? null,
+                $data['observations_table_structure'] ?? null,
                 $data['safety_notes'] ?? null,
                 $data['results_template'] ?? null,
                 $data['calculations_template'] ?? null,

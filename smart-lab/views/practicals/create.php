@@ -42,6 +42,18 @@
                 </div>
                 
                 <div class="form-group">
+                    <label class="form-label">Objective</label>
+                    <div id="objective-editor" class="quill-editor"></div>
+                    <textarea name="objective" style="display:none;"><?= htmlspecialchars($data['objective'] ?? '') ?></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Theory</label>
+                    <div id="theory-editor" class="quill-editor"></div>
+                    <textarea name="theory" style="display:none;"><?= htmlspecialchars($data['theory'] ?? '') ?></textarea>
+                </div>
+                
+                <div class="form-group">
                     <label class="form-label">Description</label>
                     <div id="description-editor" class="quill-editor"></div>
                     <textarea name="description" style="display:none;"><?= htmlspecialchars($data['description'] ?? '') ?></textarea>
@@ -121,6 +133,64 @@
             </div>
 
             <div class="form-section">
+                <h3 class="section-title">Procedure</h3>
+                <p class="section-desc">Define the step-by-step procedure for this practical</p>
+                
+                <div id="procedure-steps-container">
+                    <div class="procedure-step">
+                        <div class="form-group">
+                            <label class="form-label">Step 1</label>
+                            <textarea name="procedure_steps[0]" class="form-control" rows="2" 
+                                placeholder="Describe the first step..."></textarea>
+                        </div>
+                        <button type="button" onclick="removeProcedureStep(this)" class="btn btn-danger btn-sm">Remove</button>
+                    </div>
+                </div>
+                
+                <button type="button" onclick="addProcedureStep()" class="btn btn-outline">Add Step</button>
+                
+                <textarea name="procedure_json" id="procedure-json" style="display:none;"></textarea>
+            </div>
+
+            <div class="form-section">
+                <h3 class="section-title">Observations Table Structure</h3>
+                <p class="section-desc">Define the structure of the observations table that students will fill</p>
+                
+                <div id="observations-columns-container">
+                    <div class="observations-column">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Column Name</label>
+                                <input type="text" name="observations_columns[0][name]" class="form-control" 
+                                    placeholder="e.g., Trial" value="Trial">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Column Type</label>
+                                <select name="observations_columns[0][type]" class="form-control">
+                                    <option value="text">Text</option>
+                                    <option value="number">Number</option>
+                                    <option value="calculation">Calculation</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Formula (for calculation columns)</label>
+                            <input type="text" name="observations_columns[0][formula]" class="form-control" 
+                                placeholder="e.g., col1 + col2">
+                        </div>
+                        
+                        <button type="button" onclick="removeObservationsColumn(this)" class="btn btn-danger btn-sm">Remove</button>
+                    </div>
+                </div>
+                
+                <button type="button" onclick="addObservationsColumn()" class="btn btn-outline">Add Column</button>
+                
+                <textarea name="observations_table_structure" id="observations-structure-json" style="display:none;"></textarea>
+            </div>
+
+            <div class="form-section">
                 <h3 class="section-title">Student Submission Templates</h3>
                 <p class="section-desc">Provide templates for students to fill in their results and calculations</p>
                 
@@ -186,6 +256,52 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Quill editors
+    const objectiveEditor = new Quill('#objective-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'image'],
+                ['clean']
+            ],
+            clipboard: {
+                matchVisual: false,
+                matchers: [
+                    ['b', 'strong'],
+                    ['i', 'em'],
+                    ['u', 'underline'],
+                    ['s', 'strike']
+                ]
+            }
+        },
+        placeholder: 'State the learning objectives for this practical...'
+    });
+
+    const theoryEditor = new Quill('#theory-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'image'],
+                ['clean']
+            ],
+            clipboard: {
+                matchVisual: false,
+                matchers: [
+                    ['b', 'strong'],
+                    ['i', 'em'],
+                    ['u', 'underline'],
+                    ['s', 'strike']
+                ]
+            }
+        },
+        placeholder: 'Provide the theoretical background and principles...'
+    });
+
     const descriptionEditor = new Quill('#description-editor', {
         theme: 'snow',
         modules: {
@@ -208,8 +324,6 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         placeholder: 'Describe the practical objectives and procedures...'
     });
-
-
 
     const calculationsTemplateEditor = new Quill('#calculations-template', {
         theme: 'snow',
@@ -235,17 +349,62 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Load existing content from hidden textareas
+    const objectiveContent = document.querySelector('textarea[name="objective"]').value;
+    if (objectiveContent) {
+        objectiveEditor.root.innerHTML = objectiveContent;
+    }
+
+    const theoryContent = document.querySelector('textarea[name="theory"]').value;
+    if (theoryContent) {
+        theoryEditor.root.innerHTML = theoryContent;
+    }
+
     const descriptionContent = document.querySelector('textarea[name="description"]').value;
     if (descriptionContent) {
         descriptionEditor.root.innerHTML = descriptionContent;
     }
 
-
-
     const calculationsContent = document.querySelector('textarea[name="calculations_template"]').value;
     if (calculationsContent) {
         calculationsTemplateEditor.root.innerHTML = calculationsContent;
     }
+
+    // Sync editors to hidden textareas on form submit
+    document.querySelector('form').addEventListener('submit', function() {
+        document.querySelector('textarea[name="objective"]').value = objectiveEditor.root.innerHTML;
+        document.querySelector('textarea[name="theory"]').value = theoryEditor.root.innerHTML;
+        document.querySelector('textarea[name="description"]').value = descriptionEditor.root.innerHTML;
+        document.querySelector('textarea[name="calculations_template"]').value = calculationsTemplateEditor.root.innerHTML;
+        
+        // Build procedure JSON
+        const procedureSteps = [];
+        document.querySelectorAll('#procedure-steps-container textarea').forEach((textarea, index) => {
+            if (textarea.value.trim()) {
+                procedureSteps.push({
+                    step_number: index + 1,
+                    step_description: textarea.value.trim()
+                });
+            }
+        });
+        document.getElementById('procedure-json').value = JSON.stringify(procedureSteps);
+        
+        // Build observations structure JSON
+        const observationsColumns = [];
+        document.querySelectorAll('#observations-columns-container .observations-column').forEach((columnDiv, index) => {
+            const nameInput = columnDiv.querySelector('input[name*="name"]');
+            const typeSelect = columnDiv.querySelector('select[name*="type"]');
+            const formulaInput = columnDiv.querySelector('input[name*="formula"]');
+            
+            if (nameInput && nameInput.value.trim()) {
+                observationsColumns.push({
+                    name: nameInput.value.trim(),
+                    type: typeSelect ? typeSelect.value : 'text',
+                    formula: formulaInput ? formulaInput.value.trim() : ''
+                });
+            }
+        });
+        document.getElementById('observations-structure-json').value = JSON.stringify(observationsColumns);
+    });
 
     // Handle image uploads
     const toolbar = descriptionEditor.getModule('toolbar');
@@ -473,6 +632,98 @@ document.addEventListener('DOMContentLoaded', function() {
     if (startTimeInput) startTimeInput.addEventListener('change', checkAvailability);
     if (endTimeInput) endTimeInput.addEventListener('change', checkAvailability);
 });
+
+// Procedure step management functions
+let procedureStepCount = 1;
+
+function addProcedureStep() {
+    const container = document.getElementById('procedure-steps-container');
+    const stepDiv = document.createElement('div');
+    stepDiv.className = 'procedure-step';
+    stepDiv.innerHTML = `
+        <div class="form-group">
+            <label class="form-label">Step ${procedureStepCount + 1}</label>
+            <textarea name="procedure_steps[${procedureStepCount}]" class="form-control" rows="2" placeholder="Describe this step..."></textarea>
+        </div>
+        <button type="button" onclick="removeProcedureStep(this)" class="btn btn-danger btn-sm">Remove</button>
+    `;
+    container.appendChild(stepDiv);
+    procedureStepCount++;
+}
+
+function removeProcedureStep(button) {
+    button.parentElement.remove();
+    updateProcedureStepNumbers();
+}
+
+function updateProcedureStepNumbers() {
+    const steps = document.querySelectorAll('#procedure-steps-container .procedure-step');
+    steps.forEach((step, index) => {
+        const label = step.querySelector('.form-label');
+        if (label) {
+            label.textContent = `Step ${index + 1}`;
+        }
+        const textarea = step.querySelector('textarea');
+        if (textarea) {
+            textarea.name = `procedure_steps[${index}]`;
+        }
+    });
+    procedureStepCount = steps.length;
+}
+
+// Observations column management functions
+let observationsColumnCount = 1;
+
+function addObservationsColumn() {
+    const container = document.getElementById('observations-columns-container');
+    const columnDiv = document.createElement('div');
+    columnDiv.className = 'observations-column';
+    columnDiv.innerHTML = `
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Column Name</label>
+                <input type="text" name="observations_columns[${observationsColumnCount}][name]" class="form-control" placeholder="e.g., Trial">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Column Type</label>
+                <select name="observations_columns[${observationsColumnCount}][type]" class="form-control">
+                    <option value="text">Text</option>
+                    <option value="number">Number</option>
+                    <option value="calculation">Calculation</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Formula (for calculation columns)</label>
+            <input type="text" name="observations_columns[${observationsColumnCount}][formula]" class="form-control" placeholder="e.g., col1 + col2">
+        </div>
+        
+        <button type="button" onclick="removeObservationsColumn(this)" class="btn btn-danger btn-sm">Remove</button>
+    `;
+    container.appendChild(columnDiv);
+    observationsColumnCount++;
+}
+
+function removeObservationsColumn(button) {
+    button.parentElement.remove();
+    updateObservationsColumnNames();
+}
+
+function updateObservationsColumnNames() {
+    const columns = document.querySelectorAll('#observations-columns-container .observations-column');
+    columns.forEach((column, index) => {
+        const nameInput = column.querySelector('input[name*="[name]"]');
+        const typeSelect = column.querySelector('select[name*="[type]"]');
+        const formulaInput = column.querySelector('input[name*="[formula]"]');
+        
+        if (nameInput) nameInput.name = `observations_columns[${index}][name]`;
+        if (typeSelect) typeSelect.name = `observations_columns[${index}][type]`;
+        if (formulaInput) formulaInput.name = `observations_columns[${index}][formula]`;
+    });
+    observationsColumnCount = columns.length;
+}
 </script>
 
 <style>
