@@ -62,7 +62,7 @@ if ($method === 'GET' && isset($_GET['id'])) {
     }
 }
 
-// POST /api/v1/practicals/:id/start - Start practical attempt
+// POST /api/v1/practicals/:id/start - Confirm attendance and allow practical access
 elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'start') {
     ensureStudentAuth();
 
@@ -79,42 +79,17 @@ elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_
             jsonResponse(['error' => 'Practical not found or not available'], 404);
         }
 
-        // Check if student already has a submitted report
-        $stmt = $db->prepare("SELECT id FROM lab_reports WHERE practical_id = ? AND student_id = ? AND status = 'submitted'");
-        $stmt->execute([$practicalId, $studentId]);
-        if ($stmt->fetch()) {
-            jsonResponse(['error' => 'You have already submitted a report for this practical'], 400);
+        // Ensure attendance has been marked first
+        $stmt = $db->prepare("SELECT id FROM attendance WHERE student_id = ? AND practical_id = ?");
+        $stmt->execute([$studentId, $practicalId]);
+        if (!$stmt->fetch()) {
+            jsonResponse(['error' => 'Attendance not found. Please verify your attendance first.'], 400);
         }
 
-        // Check if student already has an in-progress report
-        $stmt = $db->prepare("SELECT id FROM lab_reports WHERE practical_id = ? AND student_id = ? AND status = 'in_progress'");
-        $stmt->execute([$practicalId, $studentId]);
-        $existingReport = $stmt->fetch();
-
-        if ($existingReport) {
-            // Return existing in-progress report
-            jsonResponse([
-                'success' => true,
-                'report_id' => $existingReport['id'],
-                'message' => 'Continuing existing practical attempt'
-            ]);
-        } else {
-            // Create new in-progress report
-            $stmt = $db->prepare("
-                INSERT INTO lab_reports
-                (id, practical_id, student_id, status, created_at)
-                VALUES (?, ?, ?, 'in_progress', NOW())
-            ");
-
-            $reportId = bin2hex(random_bytes(16));
-            $stmt->execute([$reportId, $practicalId, $studentId]);
-
-            jsonResponse([
-                'success' => true,
-                'report_id' => $reportId,
-                'message' => 'Practical attempt started successfully'
-            ]);
-        }
+        jsonResponse([
+            'success' => true,
+            'message' => 'Attendance confirmed. You can proceed to the practical session.'
+        ]);
 
     } catch (Exception $e) {
         error_log("API Error: " . $e->getMessage());
@@ -174,7 +149,11 @@ elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_
         $existingReport = $stmt->fetch();
 
         if (!$existingReport) {
-            jsonResponse(['error' => 'No in-progress report found. Please start the practical first.'], 400);
+            // Create a new report record only when a draft is being saved
+            $newReportId = bin2hex(random_bytes(16));
+            $stmt = $db->prepare("INSERT INTO lab_reports (id, practical_id, student_id, status, created_at) VALUES (?, ?, ?, 'in_progress', NOW())");
+            $stmt->execute([$newReportId, $practicalId, $studentId]);
+            $existingReport = ['id' => $newReportId];
         }
 
         // Update draft data (don't change status)
@@ -232,7 +211,11 @@ elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_
         $existingReport = $stmt->fetch();
 
         if (!$existingReport) {
-            jsonResponse(['error' => 'No in-progress report found. Please start the practical first.'], 400);
+            // Create a new in-progress report if one does not exist
+            $newReportId = bin2hex(random_bytes(16));
+            $stmt = $db->prepare("INSERT INTO lab_reports (id, practical_id, student_id, status, created_at) VALUES (?, ?, ?, 'in_progress', NOW())");
+            $stmt->execute([$newReportId, $practicalId, $studentId]);
+            $existingReport = ['id' => $newReportId];
         }
 
         // Update report with submission data and change status to submitted

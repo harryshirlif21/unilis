@@ -7,12 +7,18 @@
             <?= htmlspecialchars($practical['lab_name']) ?> (<?= htmlspecialchars($practical['lab_code']) ?>)
         </div>
 
+        <?php if (isset($_GET['attendance_marked']) && $_GET['attendance_marked'] == '1'): ?>
+            <div class="alert alert-success" style="margin-top: 1rem; padding: 1rem; border-radius: 12px; background: #ecfdf5; color: #166534; border: 1px solid #d1fae5;">
+                Attendance marked successfully. Proceed to complete your lab report.
+            </div>
+        <?php endif; ?>
+
         <!-- Take Practical Button -->
         <div class="practical-actions">
             <?php $currentReportStatus = $report_status ?? 'not_started'; ?>
 
             <?php if ($currentReportStatus === 'not_started'): ?>
-                <button id="take-practical-btn" onclick="takePractical()" class="btn btn-primary btn-lg">
+                <button id="take-practical-btn" onclick="openTakePracticalModal('<?= $practical['id'] ?>')" class="btn btn-primary btn-lg">
                     <i class="icon-flask"></i> Take Practical
                 </button>
             <?php elseif ($currentReportStatus === 'in_progress'): ?>
@@ -480,41 +486,7 @@ function loadLocalDraft() {
 
 // Take Practical - Start new attempt
 function takePractical() {
-    const btn = document.getElementById('take-practical-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="icon-spinner"></i> Starting...';
-
-    fetch('<?= APP_URL ?>/api/v1/practicals.php?id=<?= $practical['id'] ?>&action=start', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            // Switch to report tab and show success message
-            showTab('report');
-            alert('Practical started! You can now fill in your lab report.');
-            // Reload page to update button state
-            window.location.reload();
-        } else {
-            // Check if authentication is required
-            if (result.error && result.error.includes('Authentication required')) {
-                // Open authentication popup window
-                window.open('/login.php', 'authPopup', 'width=400,height=600,scrollbars=yes,resizable=yes');
-            } else {
-                alert('Error: ' + (result.error || 'Failed to start practical'));
-            }
-            btn.disabled = false;
-            btn.innerHTML = '<i class="icon-flask"></i> Take Practical';
-        }
-    })
-    .catch(error => {
-        alert('Error starting practical: ' + error.message);
-        btn.disabled = false;
-        btn.innerHTML = '<i class="icon-flask"></i> Take Practical';
-    });
+    openTakePracticalModal('<?= $practical['id'] ?>');
 }
 
 // Continue Practical - Load existing attempt
@@ -560,6 +532,8 @@ if ('<?= $report_status ?>' === 'in_progress') {
     continuePractical();
 }
 </script>
+
+<?php require_once __DIR__.'/take_practical_modal.php'; ?>
 
 <style>
 .practical-view {
