@@ -483,23 +483,27 @@ class StudentPracticalController {
         }
 
         // Parse JSON fields
-        $practical['procedure'] = json_decode($practical['procedure_json'] ?? '[]', true);
-        $practical['observations_table'] = json_decode($practical['observations_table_structure'] ?? '[]', true);
+        $practical['procedure'] = json_decode($practical['procedure_json'] ?? '[]', true) ?: [];
+        $practical['observations_table'] = json_decode($practical['observations_table_structure'] ?? '[]', true) ?: [];
         $practical['apparatus'] = array_filter(explode("\n", $practical['required_equipment'] ?? ''));
         $practical['chemicals'] = array_filter(explode("\n", $practical['required_chemicals'] ?? ''));
 
         // Check student's report status
-        $stmt = $this->db->prepare("
+        $report_status = 'not_started';
+        try {
+            $stmt = $this->db->prepare("
             SELECT status FROM lab_reports
             WHERE practical_id = ? AND student_id = ?
             ORDER BY created_at DESC LIMIT 1
         ");
-        $stmt->execute([$practical_id, $student_id]);
-        $report = $stmt->fetch();
+            $stmt->execute([$practical_id, $student_id]);
+            $report = $stmt->fetch();
 
-        $report_status = 'not_started';
-        if ($report) {
-            $report_status = $report['status']; // 'in_progress' or 'submitted'
+            if ($report) {
+                $report_status = $report['status']; // 'in_progress' or 'submitted'
+            }
+        } catch (PDOException $e) {
+            error_log("StudentPracticalController::view_practical - lab_reports query failed: " . $e->getMessage());
         }
 
         renderView('student/view_practical', [
