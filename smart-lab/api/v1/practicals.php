@@ -8,9 +8,19 @@ header('Content-Type: application/json');
 $method = $_SERVER['REQUEST_METHOD'];
 $request = json_decode(file_get_contents('php://input'), true) ?? [];
 
+function ensureStudentAuth(): void {
+    if (!Auth::check()) {
+        jsonResponse(['error' => 'Authentication required'], 401);
+    }
+    if (Auth::role() !== 'student') {
+        jsonResponse(['error' => 'Forbidden'], 403);
+    }
+}
+
+
 // GET /api/v1/practicals/:id - Get practical details for students
 if ($method === 'GET' && isset($_GET['id'])) {
-    Auth::guard('student');
+    ensureStudentAuth();
     
     $practicalId = sanitize($_GET['id']);
     
@@ -54,7 +64,7 @@ if ($method === 'GET' && isset($_GET['id'])) {
 
 // POST /api/v1/practicals/:id/start - Start practical attempt
 elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'start') {
-    Auth::guard('student');
+    ensureStudentAuth();
 
     $practicalId = sanitize($_GET['id']);
     $studentId = Auth::id();
@@ -114,7 +124,7 @@ elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_
 
 // GET /api/v1/practicals/:id/report - Get student's report for this practical
 elseif ($method === 'GET' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'report') {
-    Auth::guard('student');
+    ensureStudentAuth();
 
     $practicalId = sanitize($_GET['id']);
     $studentId = Auth::id();
@@ -150,7 +160,7 @@ elseif ($method === 'GET' && isset($_GET['id']) && isset($_GET['action']) && $_G
 
 // POST /api/v1/practicals/:id/save-draft - Save draft report
 elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'save-draft') {
-    Auth::guard('student');
+    ensureStudentAuth();
 
     $practicalId = sanitize($_GET['id']);
     $studentId = Auth::id();
@@ -201,7 +211,7 @@ elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_
 
 // POST /api/v1/practicals/:id/submit-report - Submit student lab report
 elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_GET['action'] === 'submit-report') {
-    Auth::guard('student');
+    ensureStudentAuth();
 
     $practicalId = sanitize($_GET['id']);
     $studentId = Auth::id();

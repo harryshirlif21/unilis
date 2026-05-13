@@ -326,7 +326,7 @@ function saveDraft() {
 
     // If there's an in-progress report, also save to server
     <?php if ($report_status === 'in_progress'): ?>
-    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/save-draft', {
+    fetch('<?= APP_URL ?>/api/v1/practicals.php?id=<?= $practical['id'] ?>&action=save-draft', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -378,7 +378,7 @@ function submitReport() {
     });
     
     // Submit via API
-    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/submit-report', {
+    fetch('<?= APP_URL ?>/api/v1/practicals.php?id=<?= $practical['id'] ?>&action=submit-report', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -406,7 +406,7 @@ function submitReport() {
 document.addEventListener('DOMContentLoaded', function() {
     // First check if there's an existing in-progress report on the server
     <?php if ($report_status === 'in_progress'): ?>
-    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/report')
+    fetch('<?= APP_URL ?>/api/v1/practicals.php?id=<?= $practical['id'] ?>&action=report')
     .then(response => response.json())
     .then(result => {
         if (result.report) {
@@ -484,7 +484,7 @@ function takePractical() {
     btn.disabled = true;
     btn.innerHTML = '<i class="icon-spinner"></i> Starting...';
 
-    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/start', {
+    fetch('<?= APP_URL ?>/api/v1/practicals.php?id=<?= $practical['id'] ?>&action=start', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -517,7 +517,7 @@ function continuePractical() {
     showTab('report');
 
     // Load existing report data
-    fetch('<?= APP_URL ?>/api/v1/practicals/<?= $practical['id'] ?>/report')
+    fetch('<?= APP_URL ?>/api/v1/practicals.php?id=<?= $practical['id'] ?>&action=report')
     .then(response => response.json())
     .then(result => {
         if (result.report) {
