@@ -511,4 +511,87 @@ class StudentPracticalController {
             'report_status' => $report_status
         ]);
     }
+
+    /**
+     * Start practical session after attendance verification
+     */
+    public function startPractical($practicalId = null) {
+        Auth::guard('student');
+
+        if (!$practicalId) {
+            $practicalId = sanitize($_GET['practical_id'] ?? '');
+        }
+
+        if (empty($practicalId)) {
+            http_response_code(400);
+            echo 'Practical ID is required';
+            exit;
+        }
+
+        $studentId = Auth::id();
+
+        try {
+            $db = getDB();
+
+            // Check attendance exists
+            $stmt = $db->prepare("SELECT id FROM attendance WHERE student_id = ? AND practical_id = ?");
+            $stmt->execute([$studentId, $practicalId]);
+            if (!$stmt->fetch()) {
+                http_response_code(400);
+                echo 'Attendance not found. Please verify your attendance first.';
+                exit;
+            }
+
+            // Get practical details
+            $stmt = $db->prepare("
+                SELECT p.*, l.name as lab_name, l.lab_code,
+                       u.full_name as lecturer_name
+                FROM practicals p
+                LEFT JOIN labs l ON p.lab_id = l.id
+                LEFT JOIN users u ON p.lecturer_id = u.id
+                WHERE p.id = ? AND p.status = 'published'
+            ");
+            $stmt->execute([$practicalId]);
+            $practical = $stmt->fetch();
+
+            if (!$practical) {
+                http_response_code(404);
+                echo 'Practical not found or not available';
+                exit;
+            }
+
+            // Check if report already exists
+            $stmt = $db->prepare("SELECT id, status FROM lab_reports WHERE practical_id = ? AND student_id = ? ORDER BY created_at DESC LIMIT 1");
+            $stmt->execute([$practicalId, $studentId]);
+            $existingReport = $stmt->fetch();
+
+            if ($existingReport) {
+                if ($existingReport['status'] === 'submitted') {
+                    http_response_code(400);
+                    echo 'You have already submitted a report for this practical';
+                    exit;
+                }
+
+                $reportId = $existingReport['id'];
+            } else {
+                // Create new report
+                $reportId = bin2hex(random_bytes(16));
+                $stmt = $db->prepare("
+                    INSERT INTO lab_reports
+                    (id, practical_id, student_id, status, created_at)
+                    VALUES (?, ?, ?, 'in_progress', NOW())
+                ");
+                $stmt->execute([$reportId, $practicalId, $studentId]);
+            }
+
+            // Redirect to the practical page
+            header('Location: ' . APP_URL . '/student/view_practical/' . $practicalId . '?report_id=' . $reportId);
+            exit;
+
+        } catch (Exception $e) {
+            error_log("StudentPracticalController::startPractical - Error: " . $e->getMessage());
+            http_response_code(500);
+            echo 'Internal server error';
+        }
+    }
 }

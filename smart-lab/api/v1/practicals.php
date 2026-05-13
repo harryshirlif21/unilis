@@ -269,6 +269,89 @@ elseif ($method === 'POST' && isset($_GET['id']) && isset($_GET['action']) && $_
     }
 }
 
-else {
-    jsonResponse(['error' => 'Invalid request'], 400);
+// POST /api/v1/practicals/start - Initialize practical session after attendance
+elseif ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'start') {
+    ensureStudentAuth();
+
+    $studentId = Auth::id();
+    $practicalId = sanitize($request['practical_id'] ?? '');
+
+    if (empty($practicalId)) {
+        jsonResponse(['error' => 'Practical ID is required'], 400);
+    }
+
+    try {
+        $db = getDB();
+
+        // Check attendance exists
+        $stmt = $db->prepare("SELECT id FROM attendance WHERE student_id = ? AND practical_id = ?");
+        $stmt->execute([$studentId, $practicalId]);
+        if (!$stmt->fetch()) {
+            jsonResponse(['error' => 'Attendance not found. Please verify your attendance first.'], 400);
+        }
+
+        // Get practical details
+        $stmt = $db->prepare("
+            SELECT p.*, l.name as lab_name, l.lab_code,
+                   u.full_name as lecturer_name
+            FROM practicals p
+            LEFT JOIN labs l ON p.lab_id = l.id
+            LEFT JOIN users u ON p.lecturer_id = u.id
+            WHERE p.id = ? AND p.status = 'published'
+        ");
+        $stmt->execute([$practicalId]);
+        $practical = $stmt->fetch();
+
+        if (!$practical) {
+            jsonResponse(['error' => 'Practical not found or not available'], 404);
+        }
+
+        // Parse JSON fields
+        $practical['procedure'] = json_decode($practical['procedure_json'] ?? '[]', true);
+        $practical['observations_table'] = json_decode($practical['observations_table_structure'] ?? '[]', true);
+        $practical['apparatus'] = array_filter(explode("\n", $practical['required_equipment'] ?? ''));
+        $practical['chemicals'] = array_filter(explode("\n", $practical['required_chemicals'] ?? ''));
+
+        // Remove raw JSON fields
+        unset($practical['procedure_json'], $practical['observations_table_structure']);
+
+        // Check if report already exists
+        $stmt = $db->prepare("SELECT id, status FROM lab_reports WHERE practical_id = ? AND student_id = ? ORDER BY created_at DESC LIMIT 1");
+        $stmt->execute([$practicalId, $studentId]);
+        $existingReport = $stmt->fetch();
+
+        if ($existingReport) {
+            if ($existingReport['status'] === 'submitted') {
+                jsonResponse(['error' => 'You have already submitted a report for this practical'], 400);
+            }
+
+            // Return existing in-progress report
+            jsonResponse([
+                'success' => true,
+                'report_id' => $existingReport['id'],
+                'practical' => $practical,
+                'message' => 'Continuing existing practical attempt'
+            ]);
+        } else {
+            // Create new report
+            $reportId = bin2hex(random_bytes(16));
+            $stmt = $db->prepare("
+                INSERT INTO lab_reports
+                (id, practical_id, student_id, status, created_at)
+                VALUES (?, ?, ?, 'in_progress', NOW())
+            ");
+            $stmt->execute([$reportId, $practicalId, $studentId]);
+
+            jsonResponse([
+                'success' => true,
+                'report_id' => $reportId,
+                'practical' => $practical,
+                'message' => 'Practical session started successfully'
+            ]);
+        }
+
+    } catch (Exception $e) {
+        error_log("API Error: " . $e->getMessage());
+        jsonResponse(['error' => 'Database error'], 500);
+    }
 }

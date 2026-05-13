@@ -28,7 +28,7 @@ $map = [
     'qr'                 => 'QrAuthController',
     'experiments'        => 'ExperimentController',
     'schedules'          => 'ScheduleController',
-    'student'            => 'StudentPracticalController',
+    'start-practical'    => 'StudentPracticalController',
     'users'              => 'UsersController',
 ];
 

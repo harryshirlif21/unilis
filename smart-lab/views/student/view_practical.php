@@ -499,7 +499,13 @@ function takePractical() {
             // Reload page to update button state
             window.location.reload();
         } else {
-            alert('Error: ' + (result.error || 'Failed to start practical'));
+            // Check if authentication is required
+            if (result.error && result.error.includes('Authentication required')) {
+                // Open authentication popup window
+                window.open('/login.php', 'authPopup', 'width=400,height=600,scrollbars=yes,resizable=yes');
+            } else {
+                alert('Error: ' + (result.error || 'Failed to start practical'));
+            }
             btn.disabled = false;
             btn.innerHTML = '<i class="icon-flask"></i> Take Practical';
         }
@@ -547,6 +553,11 @@ function continuePractical() {
     .catch(error => {
         console.error('Error loading report:', error);
     });
+}
+
+// Auto load report if in progress
+if ('<?= $report_status ?>' === 'in_progress') {
+    continuePractical();
 }
 </script>
 
