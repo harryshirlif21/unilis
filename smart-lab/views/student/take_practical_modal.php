@@ -220,7 +220,7 @@ function startAttendanceQR() {
     document.getElementById('qrScanStatus').textContent = 'Generating QR code…';
     document.getElementById('qrDisplay').innerHTML = '<span class="qr-placeholder">Generating QR code...</span>';
 
-    fetch(`${takePracticalApiUrl}/attendance-qr/generate?practical_id=${selectedPracticalId}`)
+    fetch(`${takePracticalApiUrl}/attendance-qr/attendance-generate?practical_id=${selectedPracticalId}`)
         .then(response => response.json())
         .then(data => {
             if (data.error) {
@@ -255,7 +255,7 @@ function pollAttendanceQr(token) {
         return;
     }
 
-    fetch(`${takePracticalApiUrl}/attendance-qr/poll?token=${token}`)
+    fetch(`${takePracticalApiUrl}/attendance-qr/attendance-poll?token=${token}`)
         .then(response => response.json())
         .then(data => {
             if (data.status === 'claimed') {
