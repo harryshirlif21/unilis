@@ -26,6 +26,7 @@ $map = [
     'blockchain'         => 'BlockchainController',
     'dbtest'             => 'DbtestController',
     'qr'                 => 'QrAuthController',
+    'attendance-qr'      => 'QrAuthController',
     'experiments'        => 'ExperimentController',
     'schedules'          => 'ScheduleController',
     'student'            => 'StudentPracticalController',

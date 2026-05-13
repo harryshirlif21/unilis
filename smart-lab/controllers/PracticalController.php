@@ -419,15 +419,10 @@ class PracticalController {
         // Mark attendance
         if ($this->model->markAttendance($studentId, $practicalId, $verificationMethod)) {
             logActivity($studentId, 'practical_attendance_marked', 'practicals', $practicalId);
-            
-            // Now start the practical session
-            $startResult = $this->startPracticalSession($studentId, $practicalId);
-            
             echo json_encode([
                 'status' => 'success',
-                'message' => 'Attendance marked and practical started',
-                'report_id' => $startResult['report_id'] ?? null,
-                'practical' => $startResult['practical'] ?? null
+                'message' => 'Attendance marked successfully',
+                'practical_id' => $practicalId
             ]);
         } else {
             echo json_encode(['status' => 'error', 'message' => 'Failed to mark attendance']);

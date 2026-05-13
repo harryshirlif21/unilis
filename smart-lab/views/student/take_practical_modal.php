@@ -31,6 +31,20 @@
                 </div>
             </div>
 
+            <div id="qrVerificationPanel" class="field-group hidden">
+                <label class="field-label">QR Verification</label>
+                <div class="qr-card">
+                    <div id="qrDisplay" class="qr-display">
+                        <span class="qr-placeholder">Generating QR code...</span>
+                    </div>
+                    <div class="qr-meta">
+                        <div id="qrInstructions" class="input-note">Scan this QR code with your phone to confirm attendance.</div>
+                        <div id="qrScanStatus" class="status-panel" style="margin-top:0.75rem;">Waiting for student scan…</div>
+                        <button id="qrRefreshBtn" type="button" class="btn btn-outline" onclick="startAttendanceQR()">Refresh QR</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="takePracticalStatus" class="status-panel">Verify to continue.</div>
         </div>
 
@@ -68,63 +82,283 @@
 .btn-secondary { background: #e5e7eb; color: #111827; }
 .btn-outline { background: transparent; border: 1px solid #2563eb; color: #2563eb; }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .qr-card { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; align-items: center; padding: 1rem; border: 1px solid #d1d5db; border-radius: 14px; background: #f8fafc; }
+    .qr-display { display: grid; place-items: center; width: 220px; min-height: 220px; border-radius: 18px; background: white; box-shadow: inset 0 0 0 1px #e2e8f0; }
+    .qr-placeholder { color: #6b7280; text-align: center; font-size: 0.95rem; padding: 1rem; }
+    .qr-meta { display: flex; flex-direction: column; gap: 0.75rem; }
 </style>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 const takePracticalApiUrl = '<?= APP_URL ?>';
 let selectedPracticalId = null;
 let selectedVerificationMethod = 'qr';
 let verifiedStudentId = null;
 let attendanceMarked = false;
+let attendanceQrToken = null;
+let attendanceQrInterval = null;
 
 function openTakePracticalModal(practicalId) {
     selectedPracticalId = practicalId;
     selectedVerificationMethod = 'qr';
     verifiedStudentId = null;
     attendanceMarked = false;
+    attendanceQrToken = null;
 
     document.querySelector('input[name="verificationMethod"][value="qr"]').checked = true;
     document.getElementById('verificationInput').value = '';
     document.getElementById('verificationInput').placeholder = 'Enter QR token or scan QR data';
     document.getElementById('verificationInput').closest('.field-group').style.display = 'block';
+    document.getElementById('qrVerificationPanel').classList.add('hidden');
     document.getElementById('takePracticalStatus').textContent = 'Verify to continue.';
     document.getElementById('takePracticalStatus').style.color = '#111827';
     document.getElementById('verifyMethodBtn').disabled = false;
     document.getElementById('proceedPracticalBtn').disabled = true;
     document.getElementById('takePracticalModal').classList.remove('hidden');
+    updateVerificationMethod({ target: { value: 'qr' } });
 }
 
 function closeTakePracticalModal() {
     document.getElementById('takePracticalModal').classList.add('hidden');
+    if (attendanceQrInterval) {
+        clearInterval(attendanceQrInterval);
+        attendanceQrInterval = null;
+    }
 }
 
 function updateVerificationMethod(event) {
     selectedVerificationMethod = event.target.value;
+    const inputGroup = document.getElementById('verificationInputContainer');
+    const qrPanel = document.getElementById('qrVerificationPanel');
     const input = document.getElementById('verificationInput');
-    switch (selectedVerificationMethod) {
-        case 'qr':
-            input.placeholder = 'Enter QR token or scan QR data';
-            input.value = '';
-            input.closest('.field-group').style.display = 'block';
-            break;
-        case 'fingerprint':
-            input.placeholder = 'Enter fingerprint capture string';
-            input.value = '';
-            input.closest('.field-group').style.display = 'block';
-            break;
-        case 'rfid':
-            input.placeholder = 'Enter RFID UID from Arduino';
-            input.value = '';
-            input.closest('.field-group').style.display = 'block';
-            break;
-        case 'admin_code':
-            input.placeholder = 'Enter temporary admin code';
-            input.value = '';
-            input.closest('.field-group').style.display = 'block';
-            break;
+
+    if (selectedVerificationMethod === 'qr') {
+        inputGroup.style.display = 'none';
+        qrPanel.classList.remove('hidden');
+        document.getElementById('qrScanStatus').textContent = 'Waiting for student scan…';
+        document.getElementById('verifyMethodBtn').textContent = 'Refresh QR';
+        startAttendanceQR();
+    } else {
+        qrPanel.classList.add('hidden');
+        inputGroup.style.display = 'block';
+        document.getElementById('verifyMethodBtn').textContent = 'Verify';
+
+        switch (selectedVerificationMethod) {
+            case 'fingerprint':
+                input.placeholder = 'Enter fingerprint capture string';
+                break;
+            case 'rfid':
+                input.placeholder = 'Enter RFID UID from Arduino';
+                break;
+            case 'admin_code':
+                input.placeholder = 'Enter temporary admin code';
+                break;
+        }
     }
+
     setStatus('Verify to continue.', false);
 }
+
+function runVerification() {
+    if (!selectedPracticalId) {
+        setStatus('Practical ID is missing.', true);
+        return;
+    }
+
+    if (selectedVerificationMethod === 'qr') {
+        startAttendanceQR();
+        return;
+    }
+
+    setStatus('Verifying identity...', false);
+    document.getElementById('verifyMethodBtn').disabled = true;
+
+    let verifyPromise;
+    switch (selectedVerificationMethod) {
+        case 'fingerprint':
+            verifyPromise = verifyFingerprint();
+            break;
+        case 'rfid':
+            verifyPromise = verifyRFID();
+            break;
+        case 'admin_code':
+            verifyPromise = verifyCode();
+            break;
+        default:
+            verifyPromise = Promise.reject(new Error('Unsupported verification method'));
+    }
+
+    verifyPromise
+        .then(data => {
+            verifiedStudentId = data.student_id;
+            setStatus('Identity verified. Marking attendance...', false);
+            return markAttendance();
+        })
+        .then(() => {
+            attendanceMarked = true;
+            setStatus('Verification successful. Attendance marked.', false);
+            document.getElementById('proceedPracticalBtn').disabled = false;
+        })
+        .catch(error => {
+            setStatus(error.message || error, true);
+            document.getElementById('verifyMethodBtn').disabled = false;
+        });
+}
+
+function startAttendanceQR() {
+    if (!selectedPracticalId) {
+        setStatus('Practical ID is missing.', true);
+        return;
+    }
+
+    if (attendanceQrInterval) {
+        clearInterval(attendanceQrInterval);
+        attendanceQrInterval = null;
+    }
+
+    setStatus('Preparing QR verification...', false);
+    document.getElementById('qrScanStatus').textContent = 'Generating QR code…';
+    document.getElementById('qrDisplay').innerHTML = '<span class="qr-placeholder">Generating QR code...</span>';
+
+    fetch(`${takePracticalApiUrl}/attendance-qr/generate?practical_id=${selectedPracticalId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            attendanceQrToken = data.token;
+            renderAttendanceQr(data.url);
+            document.getElementById('qrScanStatus').textContent = 'Waiting for student scan…';
+            setStatus('Scan the QR code to mark attendance.', false);
+            attendanceQrInterval = setInterval(() => pollAttendanceQr(attendanceQrToken), 2000);
+        })
+        .catch(error => {
+            setStatus(error.message || 'Failed to generate QR code', true);
+            document.getElementById('qrScanStatus').textContent = 'Unable to generate QR code.';
+        });
+}
+
+function renderAttendanceQr(url) {
+    const qrContainer = document.getElementById('qrDisplay');
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
+        text: url,
+        width: 200,
+        height: 200,
+        colorDark: '#1e293b',
+        colorLight: '#ffffff'
+    });
+}
+
+function pollAttendanceQr(token) {
+    if (!token) {
+        return;
+    }
+
+    fetch(`${takePracticalApiUrl}/attendance-qr/poll?token=${token}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'claimed') {
+                attendanceMarked = true;
+                document.getElementById('proceedPracticalBtn').disabled = false;
+                document.getElementById('qrScanStatus').textContent = `✅ Attendance marked for ${data.student_name || 'student'}. Generating next QR...`;
+                setStatus('Attendance confirmed. You may proceed, or scan another student.', false);
+                if (attendanceQrInterval) {
+                    clearInterval(attendanceQrInterval);
+                    attendanceQrInterval = null;
+                }
+                setTimeout(() => {
+                    if (document.getElementById('takePracticalModal').classList.contains('hidden')) return;
+                    startAttendanceQR();
+                }, 1400);
+            } else if (data.status === 'expired') {
+                document.getElementById('qrScanStatus').textContent = '⚠️ QR expired. Refreshing...';
+                if (attendanceQrInterval) {
+                    clearInterval(attendanceQrInterval);
+                    attendanceQrInterval = null;
+                }
+                setTimeout(startAttendanceQR, 1200);
+            }
+        })
+        .catch(error => {
+            console.error('QR poll error:', error);
+        });
+}
+
+function verifyFingerprint() {
+    const fingerprintData = document.getElementById('verificationInput').value.trim();
+    if (!fingerprintData) {
+        return Promise.reject(new Error('Please enter fingerprint data.'));
+    }
+
+    return fetch(`${takePracticalApiUrl}/api/verify/fingerprint.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprint_data: fingerprintData })
+    })
+    .then(handleJsonResponse);
+}
+
+function verifyRFID() {
+    const uid = document.getElementById('verificationInput').value.trim();
+    if (!uid) {
+        return Promise.reject(new Error('Please enter the RFID UID.'));
+    }
+
+    return fetch(`${takePracticalApiUrl}/api/verify/rfid.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid })
+    })
+    .then(handleJsonResponse);
+}
+
+function verifyCode() {
+    const adminCode = document.getElementById('verificationInput').value.trim();
+    if (!adminCode) {
+        return Promise.reject(new Error('Please enter the admin code.'));
+    }
+
+    return fetch(`${takePracticalApiUrl}/api/verify/code.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_code: adminCode })
+    })
+    .then(handleJsonResponse);
+}
+
+function markAttendance() {
+    return fetch(`${takePracticalApiUrl}/api/attendance/mark.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ practical_id: selectedPracticalId, verification_method: selectedVerificationMethod })
+    })
+    .then(handleJsonResponse);
+}
+
+function goToPracticalSession() {
+    if (!attendanceMarked) {
+        setStatus('Please verify and mark attendance before proceeding.', true);
+        return;
+    }
+    const destination = `${takePracticalApiUrl}/student/view_practical/${selectedPracticalId}?attendance_marked=1`;
+    window.location.href = destination;
+}
+
+function handleJsonResponse(response) {
+    return response.json().then(data => {
+        if (!response.ok || data.error || data.success === false) {
+            const message = data.error || data.message || 'Verification failed';
+            throw new Error(message);
+        }
+        return data;
+    });
+}
+
+function setStatus(message, isError = false) {
+    const statusEl = document.getElementById('takePracticalStatus');
+    statusEl.textContent = message;
+    statusEl.style.color = isError ? '#b91c1c' : '#111827';
 
 function runVerification() {
     if (!selectedPracticalId) {
