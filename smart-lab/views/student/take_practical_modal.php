@@ -355,18 +355,6 @@ function handleJsonResponse(response) {
     });
 }
 
-}
-
-function handleJsonResponse(response) {
-    return response.json().then(data => {
-        if (!response.ok || data.error || data.success === false) {
-            const message = data.error || data.message || 'Verification failed';
-            throw new Error(message);
-        }
-        return data;
-    });
-}
-
 function setStatus(message, isError = false) {
     const statusEl = document.getElementById('takePracticalStatus');
     statusEl.textContent = message;
