@@ -220,7 +220,7 @@ function startAttendanceQR() {
     document.getElementById('qrScanStatus').textContent = 'Generating QR code…';
     document.getElementById('qrDisplay').innerHTML = '<span class="qr-placeholder">Generating QR code...</span>';
 
-    fetch(`${takePracticalApiUrl}/attendance-qr/attendance-generate?practical_id=${selectedPracticalId}`)
+    fetch(`${takePracticalApiUrl}/attendance-qr/attendanceGenerate?practical_id=${selectedPracticalId}`)
         .then(response => response.json())
         .then(data => {
             if (data.error) {
@@ -255,7 +255,7 @@ function pollAttendanceQr(token) {
         return;
     }
 
-    fetch(`${takePracticalApiUrl}/attendance-qr/attendance-poll?token=${token}`)
+    fetch(`${takePracticalApiUrl}/attendance-qr/attendancePoll?token=${token}`)
         .then(response => response.json())
         .then(data => {
             if (data.status === 'claimed') {
@@ -291,7 +291,7 @@ function verifyFingerprint() {
         return Promise.reject(new Error('Please enter fingerprint data.'));
     }
 
-    return fetch(`${takePracticalApiUrl}/api/verify/fingerprint.php`, {
+    return fetch(`${takePracticalApiUrl}/attendance-qr/verifyFingerprint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fingerprint_data: fingerprintData })
@@ -305,7 +305,7 @@ function verifyRFID() {
         return Promise.reject(new Error('Please enter the RFID UID.'));
     }
 
-    return fetch(`${takePracticalApiUrl}/api/verify/rfid.php`, {
+    return fetch(`${takePracticalApiUrl}/attendance-qr/verifyRFID`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uid })
@@ -319,19 +319,23 @@ function verifyCode() {
         return Promise.reject(new Error('Please enter the admin code.'));
     }
 
-    return fetch(`${takePracticalApiUrl}/api/verify/code.php`, {
+    return fetch(`${takePracticalApiUrl}/attendance-qr/verifyCode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_code: adminCode })
+        body: JSON.stringify({ practical_id: selectedPracticalId, admin_code: adminCode })
     })
     .then(handleJsonResponse);
 }
 
 function markAttendance() {
-    return fetch(`${takePracticalApiUrl}/api/attendance/mark.php`, {
+    return fetch(`${takePracticalApiUrl}/practicals/markAttendance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ practical_id: selectedPracticalId, verification_method: selectedVerificationMethod })
+        body: JSON.stringify({
+            practical_id: selectedPracticalId,
+            verification_method: selectedVerificationMethod,
+            student_id: verifiedStudentId || null
+        })
     })
     .then(handleJsonResponse);
 }
@@ -341,7 +345,7 @@ function goToPracticalSession() {
         setStatus('Please verify and mark attendance before proceeding.', true);
         return;
     }
-    const destination = `${takePracticalApiUrl}/student/view_practical/${selectedPracticalId}?attendance_marked=1`;
+    const destination = `${takePracticalApiUrl}/start-practical/${selectedPracticalId}`;
     window.location.href = destination;
 }
 

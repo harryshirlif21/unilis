@@ -8,6 +8,7 @@ if ($is_production) {
     require_once __DIR__.'/../auth/Auth.php';
     require_once __DIR__.'/../utils/helpers.php';
 } else {
+    require_once __DIR__.'/../auth/Auth.php';
     // For local development, use standalone approach
     if (!defined('APP_URL')) {
         define('APP_URL', 'http://localhost/smart-lab');
@@ -169,6 +170,93 @@ class QrAuthController {
         }
 
         echo json_encode(['status' => $session['status']]);
+    }
+
+    public function verifyFingerprint($param = null) {
+        header('Content-Type: application/json');
+        Auth::guard();
+
+        $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+        $fingerprintData = trim($payload['fingerprint_data'] ?? '');
+
+        if (empty($fingerprintData)) {
+            echo json_encode(['success' => false, 'error' => 'Fingerprint data is required']);
+            return;
+        }
+
+        $biometricHash = hash('sha256', $fingerprintData . BIOMETRIC_SALT);
+        $db = getDB();
+        $stmt = $db->prepare("SELECT id FROM users WHERE biometric_hash = ? AND is_active = 1 LIMIT 1");
+        $stmt->execute([$biometricHash]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            echo json_encode(['success' => false, 'error' => 'Fingerprint verification failed']);
+            return;
+        }
+
+        echo json_encode(['success' => true, 'student_id' => $user['id']]);
+    }
+
+    public function verifyRFID($param = null) {
+        header('Content-Type: application/json');
+        Auth::guard();
+
+        $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+        $uid = trim($payload['uid'] ?? '');
+
+        if (empty($uid)) {
+            echo json_encode(['success' => false, 'error' => 'RFID UID is required']);
+            return;
+        }
+
+        $db = getDB();
+        $stmt = $db->prepare(
+            "SELECT u.id FROM users u
+             JOIN rfid_cards r ON r.student_id = u.id
+             WHERE r.uid = ? AND u.role = 'student' AND u.is_active = 1
+             LIMIT 1"
+        );
+        $stmt->execute([$uid]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            echo json_encode(['success' => false, 'error' => 'RFID verification failed']);
+            return;
+        }
+
+        echo json_encode(['success' => true, 'student_id' => $user['id']]);
+    }
+
+    public function verifyCode($param = null) {
+        header('Content-Type: application/json');
+        Auth::guard();
+
+        $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+        $practicalId = sanitize($payload['practical_id'] ?? '');
+        $adminCode = strtoupper(trim($payload['admin_code'] ?? ''));
+
+        if (empty($practicalId) || empty($adminCode)) {
+            echo json_encode(['success' => false, 'error' => 'Practical ID and admin code are required']);
+            return;
+        }
+
+        $db = getDB();
+        $stmt = $db->prepare(
+            "SELECT id FROM lab_sessions
+             WHERE practical_id = ? AND confirmation_code = ?
+             AND status IN ('open', 'active')
+             LIMIT 1"
+        );
+        $stmt->execute([$practicalId, $adminCode]);
+        $session = $stmt->fetch();
+
+        if (!$session) {
+            echo json_encode(['success' => false, 'error' => 'Invalid or expired admin code']);
+            return;
+        }
+
+        echo json_encode(['success' => true, 'student_id' => Auth::id()]);
     }
 
     public function scan($param = null) {

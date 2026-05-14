@@ -393,15 +393,14 @@ class PracticalController {
         header('Content-Type: application/json');
         Auth::guard();
         
-        $practicalId = sanitize($_POST['practical_id'] ?? '');
-        $verificationMethod = sanitize($_POST['verification_method'] ?? 'qr'); // qr, rfid, fingerprint
-        
-        if (empty($practicalId)) {
-            echo json_encode(['status' => 'error', 'message' => 'Practical ID is required']);
-            exit;
+        $payload = [];
+        if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false) {
+            $payload = json_decode(file_get_contents('php://input'), true) ?? [];
         }
-        
-        $studentId = Auth::id();
+
+        $practicalId = sanitize($_POST['practical_id'] ?? $payload['practical_id'] ?? '');
+        $verificationMethod = sanitize($_POST['verification_method'] ?? $payload['verification_method'] ?? 'qr'); // qr, rfid, fingerprint
+        $studentId = sanitize($_POST['student_id'] ?? $payload['student_id'] ?? Auth::id());
         
         // Check if practical exists and is published
         $practical = $this->model->getById($practicalId);
