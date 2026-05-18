@@ -1649,7 +1649,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         function loadActiveAttendanceSessions() {
             showAttendanceLoading();
             
-            fetch('includes/get_attendance_sessions.php')
+            fetch('get_attendance_sessions.php')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {

@@ -295,10 +295,10 @@ function validateStudentAttendanceCode($conn, $student_id, $code, $session_id) {
     try {
         // Check if code exists and is valid
         $stmt = $conn->prepare("
-            SELECT sac.*, as.attended, as.attended_at
+            SELECT sac.*, ats.attended, ats.attended_at
             FROM student_attendance_codes sac
             LEFT JOIN attendance_records asr ON sac.session_id = asr.session_id AND sac.student_id = asr.student_id
-            LEFT JOIN attendance_sessions as ON sac.session_id = as.id
+            LEFT JOIN attendance_sessions ats ON sac.session_id = ats.id
             WHERE sac.student_id = ? 
             AND sac.code = ? 
             AND sac.session_id = ?
@@ -366,23 +366,23 @@ function getStudentActiveAttendanceSessions($conn, $student_id) {
     try {
         $stmt = $conn->prepare("
             SELECT 
-                as.id as session_id,
-                as.session_code as main_code,
+                ats.id as session_id,
+                ats.session_code as main_code,
                 u.name as unit_name,
-                as.deadline,
-                as.created_at,
+                ats.deadline,
+                ats.created_at,
                 sac.code as student_code,
                 sac.expires_at,
                 sac.used_at,
                 ar.attended,
                 ar.attended_at
-            FROM attendance_sessions as
-            JOIN units u ON as.unit_id = u.id
-            JOIN student_attendance_codes sac ON as.id = sac.session_id AND sac.student_id = ?
-            LEFT JOIN attendance_records ar ON as.id = ar.session_id AND sac.student_id = ar.student_id
-            WHERE as.deadline > NOW()
+            FROM attendance_sessions ats
+            JOIN units u ON ats.unit_id = u.id
+            JOIN student_attendance_codes sac ON ats.id = sac.session_id AND sac.student_id = ?
+            LEFT JOIN attendance_records ar ON ats.id = ar.session_id AND sac.student_id = ar.student_id
+            WHERE ats.deadline > NOW()
             AND sac.expires_at > NOW()
-            ORDER BY as.deadline ASC
+            ORDER BY ats.deadline ASC
         ");
         $stmt->bind_param("i", $student_id);
         $stmt->execute();
@@ -479,8 +479,8 @@ function requestNewAttendanceCode($conn, $student_id, $session_id) {
         // Get unit details
         $unit_stmt = $conn->prepare("
             SELECT u.name FROM units u 
-            JOIN attendance_sessions as ON u.id = as.unit_id 
-            WHERE as.id = ?
+            JOIN attendance_sessions ats ON u.id = ats.unit_id 
+            WHERE ats.id = ?
         ");
         $unit_stmt->bind_param("i", $session_id);
         $unit_stmt->execute();

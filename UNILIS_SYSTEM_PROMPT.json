@@ -1,0 +1,1141 @@
+{
+  "system_name": "UNILIS - Unified Learning and Innovation Lab Information System",
+  "version": "2.0.0",
+  "last_updated": "2026-05-14",
+  "description": "Comprehensive system analysis and implementation checklist for full UNILIS system functionality",
+  "architecture": {
+    "type": "Dual-Module LMS",
+    "primary_modules": [
+      "Traditional LMS (Student/Lecturer/Admin dashboards)",
+      "Smart Lab (Advanced MVC-based lab management system)"
+    ],
+    "tech_stack": {
+      "language": "PHP 8.2",
+      "database": "MySQL 8.0",
+      "orm_pattern": "PDO with MySQLi fallback",
+      "frontend": "Vanilla JavaScript, HTML5, CSS3",
+      "containerization": "Docker, Docker Compose",
+      "messaging": "WebRTC, WebSocket signaling",
+      "blockchain": "SHA256 hashing (asset immutability)",
+      "email": "PHPMailer"
+    },
+    "routing": {
+      "traditional_lms": "Direct .php file routing (index.php, login.php, admin/*, lecturer/*, student/*)",
+      "smart_lab": "Custom MVC router (routes/web.php) mapping URL segments to controllers"
+    }
+  },
+
+  "database_architecture": {
+    "primary_databases": [
+      {
+        "name": "university_system",
+        "purpose": "Traditional LMS core data",
+        "tables": [
+          "users (id, email, password_hash, full_name, role, institution_id, department_id, is_active)",
+          "universities (id, name, abbreviation, country)",
+          "departments (id, university_id, name, head_id)",
+          "courses (id, department_id, name, code, credits)",
+          "units (id, course_id, name, code, credits, semester)",
+          "assignments (id, unit_id, title, description, deadline, rubric, instructions)",
+          "assignment_submissions (id, assignment_id, student_id, submission_text, file_path, submitted_at, grade)",
+          "attendance (id, student_id, unit_id, session_date, status, method, verified_by)",
+          "notifications (id, user_id, title, message, type, is_read, created_at)",
+          "email_logs (id, recipient, subject, body, status, sent_at)"
+        ]
+      },
+      {
+        "name": "unilis_smartlab",
+        "purpose": "Smart Lab advanced features and lab management",
+        "tables": [
+          "lab_sessions (id, practical_id, instructor_id, session_code, confirmation_code, start_time, end_time, status)",
+          "practicals (id, unit_id, title, description, objectives, lab_id, duration, max_students, prerequisites)",
+          "student_practicals (id, student_id, practical_id, enrollment_date, completion_date, grade, status)",
+          "lab_notebooks (id, practical_id, student_id, title, version, content, created_at, updated_at)",
+          "notebook_revisions (id, notebook_id, version, content, changes_summary, created_at)",
+          "qr_sessions (id, token, status, user_id, device_fingerprint, claimed_at, expires_at)",
+          "rfid_cards (id, student_id, uid, assigned_date, is_active)",
+          "biometric_records (id, student_id, biometric_hash, biometric_type, created_at)",
+          "blockchain_assets (id, asset_hash, practical_id, student_id, asset_type, data, chain_hash, prev_hash, timestamp)",
+          "asset_audit_log (id, asset_id, action, user_id, timestamp, ip_address)",
+          "meeting_recordings (id, meeting_id, file_path, duration, upload_date)",
+          "lecturer_file_requests (id, lecturer_id, unit_id, file_type, status, requested_date, deadline)"
+        ]
+      }
+    ]
+  },
+
+  "modules": {
+    "1_student_module": {
+      "purpose": "Primary interface for students to access courses, submit work, view grades, and participate in practicals",
+      "entry_point": "index.php (authenticated redirect to student/dashboard.php)",
+      "key_features": [
+        {
+          "feature": "Dashboard",
+          "file": "student/dashboard.php",
+          "functionality": "View enrolled units, announcements, upcoming deadlines, grades summary",
+          "data_source": "users, units, assignments, grades",
+          "dependencies": ["Auth system", "Notification system"]
+        },
+        {
+          "feature": "View Units/Courses",
+          "file": "student/view_units.php",
+          "functionality": "Browse enrolled courses with course outline, materials, assignments",
+          "controllers": ["No dedicated controller (direct PHP file)"],
+          "data_source": "units, courses, assignments",
+          "todo": "Implement AJAX pagination for unit listings"
+        },
+        {
+          "feature": "View Content",
+          "file": "student/view_content.php",
+          "functionality": "Access course notes, lecture recordings, slides, learning materials",
+          "data_source": "lecturers course_notes, meeting_recordings",
+          "dependencies": ["File serving", "Video playback"]
+        },
+        {
+          "feature": "Assignments",
+          "file": "student/view_assignments.php",
+          "functionality": "View assignment details, submit work, track submission status",
+          "implementation_flow": [
+            "1. Display assignment list with deadlines and submission status",
+            "2. Open assignment details view with full rubric and instructions",
+            "3. Click 'Submit Assignment' → open submission form",
+            "4. POST to includes/assignment_handler.php",
+            "5. Handler validates file/text, saves to database and file system",
+            "6. Return success/error response",
+            "7. Update UI to show submission status"
+          ],
+          "database": "assignments, assignment_submissions",
+          "file_handling": "assets/uploads/ directory with student-unit subdirectories",
+          "validation": "File size, type restrictions; submission deadline check; plagiarism detection (basic)",
+          "todo": [
+            "Implement plagiarism detection API integration",
+            "Add submission draft saving",
+            "Add submission edit/resubmit before deadline"
+          ]
+        },
+        {
+          "feature": "View Grades",
+          "file": "student/view_grades.php",
+          "functionality": "See graded assignments, unit grades, GPA, detailed feedback",
+          "implementation": "Query assignment_submissions, aggregate by unit, calculate GPA",
+          "todo": "Implement detailed grade analytics and grade appeal workflow"
+        },
+        {
+          "feature": "Attendance Tracking",
+          "file": "student/attendance.php",
+          "functionality": "View attendance record per unit, mark present via QR/RFID/code",
+          "controllers": ["QrAuthController (smart-lab)"],
+          "implementation_flow": [
+            "1. Display attendance table: date, status, method, time",
+            "2. Provide QR scanner button → opens scan UI",
+            "3. RFID reader listens for card tap",
+            "4. Biometric scanner reads fingerprint",
+            "5. Manual code entry for late arrivals",
+            "6. Each method calls verification endpoint",
+            "7. On success, mark_attendance() records in database",
+            "8. Refresh UI with updated status"
+          ],
+          "todo": "Add attendance analytics and exemption requests"
+        },
+        {
+          "feature": "Lab Practicals",
+          "file": "smart-lab/views/student/view_practical.php",
+          "functionality": "Enroll in practicals, view practical details, attend lab session, submit lab notebook",
+          "implementation_flow": [
+            "1. List available practicals: title, schedule, max capacity, enrollment status",
+            "2. Click practical → view_practical.php with objectives, materials, schedule",
+            "3. Enroll button → add student to practical",
+            "4. On session start: 'Take Practical' button opens attendance modal",
+            "5. Attend practical: mark attendance via QR/RFID/biometric/code",
+            "6. Transition to practical session view → see lab notebook editor",
+            "7. Complete practical, submit notebook",
+            "8. View practical grade and feedback"
+          ],
+          "controllers": [
+            "PracticalController (list, get, enroll, grade, submit)",
+            "StudentPracticalController (session management)",
+            "QrAuthController (attendance verification)"
+          ],
+          "models": ["PracticalModel", "StudentPracticalModel"],
+          "database": "practicals, student_practicals, lab_sessions, lab_notebooks",
+          "todo": "Complete practical session flow and notebook versioning"
+        },
+        {
+          "feature": "Lab Notebook",
+          "file": "smart-lab/views/student/lab_notebook.php",
+          "functionality": "Create, edit, submit lab notebook with version control",
+          "implementation": "Monaco editor with auto-save and versioning support",
+          "todo": "Implement revision history UI and diff viewer"
+        },
+        {
+          "feature": "Notifications",
+          "file": "student/notifications.php",
+          "functionality": "View announcements, assignment reminders, grade notifications, meeting invitations",
+          "implementation": "Real-time notification system via AJAX polling or WebSocket",
+          "todo": "Implement WebSocket real-time notifications"
+        },
+        {
+          "feature": "Profile Management",
+          "file": "profile.php",
+          "functionality": "Update personal info, change password, manage notifications preferences, enroll biometric",
+          "todo": "Add biometric enrollment flow and RFID card registration"
+        }
+      ],
+      "critical_endpoints": [
+        {
+          "method": "GET",
+          "endpoint": "/student/dashboard.php",
+          "response": "Student dashboard with enrolled units and recent activity"
+        },
+        {
+          "method": "POST",
+          "endpoint": "/includes/assignment_handler.php",
+          "params": ["assignment_id", "submission_type (text/file)", "content"],
+          "response": "submission_id, success/error"
+        },
+        {
+          "method": "GET",
+          "endpoint": "/student/view_grades.php",
+          "response": "List of grades by assignment and unit"
+        },
+        {
+          "method": "GET/POST",
+          "endpoint": "/smart-lab/routes/web.php → practicals (list/get/enroll)",
+          "response": "JSON practical data and enrollment confirmation"
+        },
+        {
+          "method": "POST",
+          "endpoint": "/smart-lab/routes/web.php → attendance-qr/attendanceGenerate",
+          "response": "QR token and expiration"
+        },
+        {
+          "method": "GET",
+          "endpoint": "/smart-lab/routes/web.php → attendance-qr/attendancePoll",
+          "response": "QR scan status (pending/claimed/expired)"
+        },
+        {
+          "method": "POST",
+          "endpoint": "/smart-lab/routes/web.php → practicals/markAttendance",
+          "response": "Attendance confirmation and session token"
+        }
+      ],
+      "current_status": "Partially functional - Attendance modal in progress, practical session flow needs completion",
+      "blockers": [
+        "Practical attendance modal QR scanning not fully tested",
+        "Lab session start and notebook editor integration missing",
+        "WebSocket notifications not implemented (using AJAX polling)"
+      ]
+    },
+
+    "2_lecturer_module": {
+      "purpose": "Interface for instructors to manage courses, create content, set assignments, grade work, manage meetings, track attendance",
+      "entry_point": "lecturer/dashboard.php (authenticated redirect)",
+      "key_features": [
+        {
+          "feature": "Dashboard",
+          "file": "lecturer/dashboard.php",
+          "functionality": "Overview of teaching load, recent submissions, upcoming assessments, class announcements",
+          "todo": "Implement real-time submission alerts"
+        },
+        {
+          "feature": "Manage Units/Courses",
+          "file": "lecturer/course_builder.php",
+          "functionality": "Create/edit courses, add units, set unit schedules, enroll students",
+          "implementation": "Multi-form wizard for course setup",
+          "database": "courses, units, course_enrollments",
+          "todo": "Implement bulk enrollment via CSV import"
+        },
+        {
+          "feature": "Course Content Management",
+          "file": "lecturer/coursenotes.php",
+          "functionality": "Upload lecture slides, recordings, notes; organize by week/topic; manage file versions",
+          "file_system": "assets/uploads/course_materials/",
+          "todo": "Implement drag-drop reordering and folder organization"
+        },
+        {
+          "feature": "Create Assignments",
+          "file": "lecturer/create_assignment.php",
+          "functionality": "Create assignments with rubric, instructions, deadlines; set submission requirements; configure grading",
+          "implementation_flow": [
+            "1. Form: title, description, due date, point value",
+            "2. Add rubric criteria with weights",
+            "3. Set submission type (text, file, both)",
+            "4. Configure file restrictions (type, size)",
+            "5. Enable/disable plagiarism detection",
+            "6. Set AI grading templates",
+            "7. Save and publish to students"
+          ],
+          "database": "assignments, assignment_rubrics",
+          "todo": "Implement reusable assignment templates library"
+        },
+        {
+          "feature": "Grade Assignments",
+          "file": "lecturer/grade_assignments.php",
+          "functionality": "View submissions, enter grades, provide feedback, batch operations",
+          "implementation_flow": [
+            "1. View submissions list: student, submission date, status",
+            "2. Click submission → view_submission.php with file/text preview",
+            "3. Enter grade and feedback",
+            "4. Option to use AI grading assistant (includes/ai_grading.php)",
+            "5. Save grade → update database and send notification",
+            "6. Support batch grading for large classes"
+          ],
+          "database": "assignment_submissions",
+          "integration": "includes/ai_grading.php for AI-assisted grading",
+          "todo": "Implement rubric-based grading UI and grade appeal workflow"
+        },
+        {
+          "feature": "Manage Practicals",
+          "file": "lecturer/practicals.php (to be created)",
+          "functionality": "Create practicals, schedule lab sessions, set objectives/materials, manage student enrollment, grade practical notebooks",
+          "controllers": ["PracticalController"],
+          "implementation_flow": [
+            "1. Create practical: title, objectives, materials, schedule",
+            "2. Set prerequisites and capacity",
+            "3. Configure authentication method (QR/RFID/biometric/code)",
+            "4. Schedule sessions with session codes",
+            "5. View enrolled students",
+            "6. During session: monitor attendance, view live notebooks",
+            "7. After session: grade notebooks, provide feedback"
+          ],
+          "todo": "Create lecturer practicals management interface"
+        },
+        {
+          "feature": "Online Meetings",
+          "file": "lecturer/online_meetings.php or meetings/",
+          "functionality": "Schedule meetings, start WebRTC sessions, record meetings, share screen, manage participant list",
+          "implementation": "WebRTC signaling (signaling-server.js), meeting recordings stored in assets/meetings/",
+          "todo": "Implement browser-based WebRTC meeting UI"
+        },
+        {
+          "feature": "Attendance Management",
+          "file": "lecturer/attendance.php",
+          "functionality": "View unit attendance reports by student and session, export attendance records, set exemptions",
+          "database": "attendance table",
+          "todo": "Implement advanced attendance analytics and exemption workflow"
+        },
+        {
+          "feature": "File Requests",
+          "file": "lecturer/file_requests.php",
+          "functionality": "Request student files for grading/archival, set deadline, track submission",
+          "database": "lecturer_file_requests",
+          "todo": "Implement file request notification and tracking"
+        },
+        {
+          "feature": "Announcements",
+          "file": "lecturer/announcements.php or integrated in dashboard",
+          "functionality": "Post class announcements visible to enrolled students",
+          "todo": "Create announcements management interface"
+        }
+      ],
+      "critical_endpoints": [
+        {
+          "method": "GET",
+          "endpoint": "/lecturer/dashboard.php",
+          "response": "Dashboard data: courses taught, recent submissions, pending grading"
+        },
+        {
+          "method": "POST",
+          "endpoint": "/lecturer/create_assignment.php",
+          "params": ["unit_id", "title", "description", "deadline", "rubric"],
+          "response": "assignment_id"
+        },
+        {
+          "method": "GET",
+          "endpoint": "/lecturer/grade_assignments.php?assignment_id=X",
+          "response": "Submission list for assignment"
+        },
+        {
+          "method": "POST",
+          "endpoint": "/lecturer/grade_assignments.php",
+          "params": ["submission_id", "grade", "feedback"],
+          "response": "Grade confirmation"
+        },
+        {
+          "method": "GET/POST",
+          "endpoint": "/smart-lab/routes/web.php → practicals (create/list/get/update)",
+          "response": "JSON practical data"
+        }
+      ],
+      "current_status": "Partially functional - Core teaching features exist, practicals integration incomplete",
+      "blockers": [
+        "Practicals management interface missing",
+        "WebRTC meeting implementation incomplete",
+        "Real-time grading notifications not implemented"
+      ]
+    },
+
+    "3_admin_module": {
+      "purpose": "System administration, institution and user management, system oversight, request handling",
+      "entry_point": "admin/dashboard.php (authenticated redirect with admin role check)",
+      "key_features": [
+        {
+          "feature": "Dashboard",
+          "file": "admin/dashboard.php",
+          "functionality": "System overview: user counts, active courses, system health, pending requests",
+          "todo": "Add system health monitoring and alerts"
+        },
+        {
+          "feature": "User Management",
+          "file": "admin/manage_users.php or admin/users/",
+          "functionality": "Add/edit/delete users (students, lecturers), manage roles, enable/disable accounts, reset passwords",
+          "implementation": [
+            "List users with filters: role, department, status",
+            "Create user form with email, name, role, department",
+            "Send welcome email with credentials",
+            "Edit user details and role assignments",
+            "Bulk import via CSV file"
+          ],
+          "database": "users",
+          "todo": "Implement bulk user import with email verification"
+        },
+        {
+          "feature": "Institution Management",
+          "file": "admin/add_university.php, admin/manage_departments.php",
+          "functionality": "Add universities, manage departments, assign department heads",
+          "database": "universities, departments",
+          "implementation": "CRUD forms for institutions and departments",
+          "todo": "Implement hierarchical institution structure"
+        },
+        {
+          "feature": "Course & Unit Management",
+          "file": "admin/add_course.php",
+          "functionality": "Add courses, configure units, assign lecturers, manage prerequisites",
+          "database": "courses, units",
+          "implementation": "Forms to add courses and units with lecturer assignment",
+          "todo": "Implement prerequisite chain management"
+        },
+        {
+          "feature": "Pending Requests",
+          "file": "admin/pendingreq.php",
+          "functionality": "Review and approve/reject team membership requests, file access requests, student appeals",
+          "database": "team_membership_requests, lecturer_file_requests",
+          "implementation_flow": [
+            "1. Display pending requests: type, requester, details, date",
+            "2. Click request → view details and approval form",
+            "3. Approve/reject with optional reason",
+            "4. Send notification to requester"
+          ],
+          "todo": "Implement unified request management system"
+        },
+        {
+          "feature": "System Settings",
+          "file": "admin/settings.php or config/",
+          "functionality": "Configure system settings: email, authentication, file storage, notifications",
+          "implementation": "Config file management and database settings table",
+          "todo": "Create admin settings UI for environment configuration"
+        },
+        {
+          "feature": "Audit Logs",
+          "file": "admin/audit_logs.php",
+          "functionality": "View system audit logs: user actions, logins, data changes, errors",
+          "database": "asset_audit_log, email_logs and proposed audit_trail table",
+          "todo": "Implement comprehensive audit logging across system"
+        },
+        {
+          "feature": "Reports",
+          "file": "admin/reports.php",
+          "functionality": "Generate reports: user statistics, course performance, system usage, asset tracking",
+          "todo": "Implement reporting dashboard with export capabilities"
+        }
+      ],
+      "critical_endpoints": [
+        {
+          "method": "GET/POST",
+          "endpoint": "/admin/add_university.php",
+          "response": "University creation confirmation"
+        },
+        {
+          "method": "GET/POST",
+          "endpoint": "/admin/add_course.php",
+          "response": "Course creation confirmation"
+        },
+        {
+          "method": "GET",
+          "endpoint": "/admin/pendingreq.php",
+          "response": "List of pending requests"
+        },
+        {
+          "method": "POST",
+          "endpoint": "/admin/pendingreq.php",
+          "params": ["request_id", "action (approve/reject)", "reason"],
+          "response": "Action confirmation"
+        }
+      ],
+      "current_status": "Partially functional - Core CRUD operations exist, unified request management and audit logging incomplete",
+      "blockers": [
+        "Request management system not unified",
+        "Audit logging not comprehensive",
+        "Reports interface not implemented"
+      ]
+    },
+
+    "4_smart_lab_module": {
+      "purpose": "Advanced laboratory management system with practicals, notebooks, asset tracking, biometric authentication, and blockchain audit trail",
+      "architecture": "Custom MVC with router (smart-lab/routes/web.php) mapping URL segments to controllers",
+      "entry_point": "smart-lab/views/student/dashboard.php (student) or lecturer/dashboard.php (lecturer)",
+      "key_features": [
+        {
+          "feature": "Practical Management",
+          "file": "smart-lab/controllers/PracticalController.php",
+          "models": ["PracticalModel"],
+          "database": "practicals, student_practicals, lab_sessions",
+          "functionality": "Create/manage practicals, list available practicals, enroll students, grade submissions",
+          "implementation_flow": [
+            "1. Lecturer creates practical with objectives, materials, schedule",
+            "2. System generates QR code and session code",
+            "3. Students view practical list and details",
+            "4. Students enroll in practical",
+            "5. On session date: 'Take Practical' button available",
+            "6. Click 'Take Practical' → attendance modal (4 verification methods)",
+            "7. After attendance marked → transition to practical session",
+            "8. Student accesses lab notebook and session materials",
+            "9. After practical: grade notebooks and provide feedback"
+          ],
+          "controllers_methods": [
+            "PracticalController::list() - GET /practicals - list all practicals",
+            "PracticalController::get() - GET /practicals/{id} - get practical details",
+            "PracticalController::enroll() - POST /practicals/enroll - enroll student",
+            "PracticalController::grade() - POST /practicals/grade - grade practical",
+            "PracticalController::markAttendance() - POST /practicals/markAttendance - record attendance"
+          ],
+          "current_status": "In progress - attendance modal logic completed, session flow needs testing",
+          "todo": [
+            "Complete practical session start flow",
+            "Implement live notebook monitoring",
+            "Add practical grading rubric UI"
+          ]
+        },
+        {
+          "feature": "Attendance Verification (Multi-Method)",
+          "file": "smart-lab/controllers/QrAuthController.php",
+          "database": "qr_sessions, rfid_cards, biometric_records, attendance",
+          "functionality": "Mark attendance via QR code, RFID card, biometric fingerprint, or admin confirmation code",
+          "implementation_details": {
+            "method_1_qr": {
+              "flow": "QR code scanning for contactless attendance",
+              "steps": [
+                "1. attendanceGenerate() creates QR session with token, sets 10min expiry",
+                "2. Return QR token to frontend",
+                "3. attendancePoll() checks every 2 seconds for scan completion",
+                "4. When scanner claims QR → update qr_session status to 'claimed' with user_id",
+                "5. Poll returns success with student name",
+                "6. Frontend calls markAttendance() with student_id and verification_method='qr'",
+                "7. markAttendance() creates attendance record in database"
+              ],
+              "endpoint": "/attendance-qr/attendanceGenerate, /attendance-qr/attendancePoll",
+              "current_status": "Implemented, needs browser testing"
+            },
+            "method_2_rfid": {
+              "flow": "RFID card tap for quick attendance marking",
+              "steps": [
+                "1. RFID reader continuously listens for card taps",
+                "2. On card tap event → send card UID to /attendance-qr/verifyRFID",
+                "3. verifyRFID() queries rfid_cards table to find student",
+                "4. Return success with student_id",
+                "5. Frontend calls markAttendance() with student_id and verification_method='rfid'"
+              ],
+              "endpoint": "/attendance-qr/verifyRFID",
+              "current_status": "Implemented, needs RFID hardware integration",
+              "todo": "Add RFID hardware integration test"
+            },
+            "method_3_biometric": {
+              "flow": "Fingerprint/biometric scanning for secure attendance",
+              "steps": [
+                "1. Biometric scanner captures fingerprint",
+                "2. Hash fingerprint with SHA256 + BIOMETRIC_SALT constant",
+                "3. Send hashed data to /attendance-qr/verifyFingerprint",
+                "4. verifyFingerprint() queries users table for matching biometric_hash",
+                "5. Return success with student_id",
+                "6. Frontend calls markAttendance() with student_id and verification_method='biometric'"
+              ],
+              "endpoint": "/attendance-qr/verifyFingerprint",
+              "current_status": "Implemented, needs biometric hardware and enrollment flow",
+              "todo": [
+                "Implement biometric enrollment in profile.php",
+                "Integrate with biometric scanner hardware API"
+              ]
+            },
+            "method_4_confirmation_code": {
+              "flow": "Manual code entry for late arrivals or as fallback",
+              "steps": [
+                "1. Lecturer provides confirmation code at session start",
+                "2. Student enters code in modal",
+                "3. Send to /attendance-qr/verifyCode with practical_id and code",
+                "4. verifyCode() queries lab_sessions table for matching code",
+                "5. Verify code is for correct practical and session is active",
+                "6. Return success with student_id",
+                "7. Frontend calls markAttendance() with student_id and verification_method='code'"
+              ],
+              "endpoint": "/attendance-qr/verifyCode",
+              "current_status": "Implemented, needs testing"
+            }
+          },
+          "current_status": "All methods implemented, needs integration testing",
+          "todo": "Create comprehensive attendance verification test suite"
+        },
+        {
+          "feature": "Lab Session Management",
+          "file": "smart-lab/controllers/LabSessionController.php",
+          "models": ["LabSessionModel"],
+          "database": "lab_sessions",
+          "functionality": "Manage lab sessions: create, start, monitor, end sessions",
+          "implementation_flow": [
+            "1. Lecturer schedules lab session for practical",
+            "2. System generates session code and confirmation code",
+            "3. On session start: system opens session (status='active')",
+            "4. Students can attend and mark attendance during session",
+            "5. System tracks real-time student count and notebook submissions",
+            "6. On session end: close session (status='closed')"
+          ],
+          "todo": "Implement real-time session monitoring dashboard"
+        },
+        {
+          "feature": "Lab Notebook",
+          "file": "smart-lab/controllers/NotebookController.php, smart-lab/views/student/lab_notebook.php",
+          "models": ["NotebookModel"],
+          "database": "lab_notebooks, notebook_revisions",
+          "functionality": "Create and edit lab notebooks with rich text editor, auto-save, version control",
+          "implementation_details": {
+            "editor": "Monaco Editor (VS Code-like editor)",
+            "storage": "Auto-save every 30 seconds to lab_notebooks table",
+            "versioning": [
+              "1. Each significant change creates notebook_revision entry",
+              "2. Track version history with timestamps and change summaries",
+              "3. Allow rollback to previous versions"
+            ],
+            "features": [
+              "Syntax highlighting for code blocks",
+              "Markdown support",
+              "Real-time preview",
+              "Collaborative editing placeholder (for future)"
+            ]
+          },
+          "current_status": "Editor UI created, needs version control UI",
+          "todo": [
+            "Implement revision history sidebar",
+            "Add diff viewer for version comparison",
+            "Implement rollback functionality"
+          ]
+        },
+        {
+          "feature": "Asset Management & Blockchain Tracking",
+          "file": "smart-lab/controllers/AssetController.php",
+          "models": ["AssetModel", "BlockchainModel"],
+          "database": "blockchain_assets, asset_audit_log",
+          "functionality": "Track lab equipment and assets with immutable blockchain audit trail",
+          "implementation_flow": [
+            "1. Register asset: name, description, serial number, location",
+            "2. System creates blockchain entry with SHA256 hash",
+            "3. Every asset action (check-out, check-in, maintenance) logged",
+            "4. Create new blockchain entry linking to previous entry (chain)",
+            "5. Maintains immutable audit trail (cannot modify past entries)",
+            "6. Hash = SHA256(asset_data + prev_hash + timestamp)",
+            "7. Any tampering breaks the chain (hash mismatch detected)"
+          ],
+          "blockchain_structure": {
+            "fields": ["id", "asset_hash", "practical_id", "student_id", "asset_type", "data (JSON)", "chain_hash", "prev_hash", "timestamp"],
+            "example_data": "{'action':'check-out','serial':'EQ-001','timestamp':'2026-05-14 10:30:00','student_id':123}"
+          },
+          "current_status": "Implemented, needs testing and audit log integration",
+          "todo": [
+            "Implement asset check-out/check-in UI",
+            "Create blockchain verification endpoint",
+            "Add audit trail visualization"
+          ]
+        },
+        {
+          "feature": "Lab Reports & Analytics",
+          "file": "smart-lab/controllers/ReportController.php",
+          "models": ["ReportModel"],
+          "database": "All tables for data aggregation",
+          "functionality": "Generate reports: student performance, attendance, asset usage, practical statistics",
+          "implementation": "Aggregate data by practical, unit, student; generate PDF/CSV exports",
+          "todo": "Implement comprehensive reporting dashboard"
+        },
+        {
+          "feature": "Instructor Dashboard",
+          "file": "smart-lab/views/lecturer/dashboard.php",
+          "functionality": "Overview of labs taught, upcoming sessions, student progress, grading queue",
+          "todo": "Create instructor-specific smart-lab dashboard"
+        },
+        {
+          "feature": "Student Dashboard",
+          "file": "smart-lab/views/student/dashboard.php",
+          "functionality": "List of enrolled practicals, upcoming sessions, completed practicals, grades",
+          "todo": "Create student-specific smart-lab dashboard"
+        }
+      ],
+      "controllers_summary": {
+        "PracticalController": "list, get, create, update, enroll, grade, markAttendance",
+        "StudentPracticalController": "list, get, submitNotebook, getGrade",
+        "QrAuthController": "attendanceGenerate, attendancePoll, verifyFingerprint, verifyRFID, verifyCode, scan",
+        "LabSessionController": "create, start, end, getActive, getStudents",
+        "NotebookController": "create, get, update, getRevisions, rollbackVersion",
+        "AssetController": "register, checkOut, checkIn, getAuditTrail, verifyChain",
+        "ReportController": "generateStudentReport, generatePracticalReport, generateAssetReport"
+      },
+      "routing": {
+        "method": "URL segment mapping in smart-lab/routes/web.php",
+        "pattern": "/segment1/segment2/segment3 → maps to SegmentController::segment2(segment3)",
+        "examples": [
+          "/practicals/list → PracticalController::list()",
+          "/practicals/get/5 → PracticalController::get(5)",
+          "/practicals/enroll → PracticalController::enroll()",
+          "/attendance-qr/attendanceGenerate → QrAuthController::attendanceGenerate()",
+          "/attendance-qr/verifyRFID → QrAuthController::verifyRFID()",
+          "/start-practical/5 → StudentPracticalController::startSession(5)"
+        ]
+      },
+      "current_status": "Advanced system with most features implemented, needs integration testing and UI completion",
+      "blockers": [
+        "Practical session start and notebook editor integration",
+        "RFID and biometric hardware integration",
+        "Real-time monitoring and collaboration features",
+        "Reporting dashboard"
+      ]
+    }
+  },
+
+  "authentication_system": {
+    "type": "Session-based with multi-factor options",
+    "primary_method": "Email/password with hashed storage (BCRYPT or similar)",
+    "mfa_methods": [
+      "QR code scan (QrAuthController)",
+      "RFID card tap",
+      "Biometric fingerprint",
+      "Email verification codes"
+    ],
+    "session_management": {
+      "implementation": "PHP sessions with Auth guard pattern",
+      "guard_class": "includes/Auth.php with Auth::guard(), Auth::id(), Auth::user()",
+      "role_check": "Middleware checks user role (student/lecturer/admin)",
+      "device_fingerprint": "Stored in $_COOKIE['sl_device'] for device tracking"
+    },
+    "password_reset": {
+      "flow": "forgot_password.php → verify token → update_password.php",
+      "implementation": "Email link with time-limited token"
+    },
+    "current_status": "Functional for basic auth, MFA methods need verification",
+    "todo": [
+      "Implement session timeout and refresh",
+      "Add rate limiting to login attempts",
+      "Implement CSRF protection across all forms"
+    ]
+  },
+
+  "notification_system": {
+    "implementation": "includes/notifications.php with multiple channels",
+    "channels": [
+      "In-app notifications (database stored, UI shown)",
+      "Email notifications (PHPMailer via includes/mailer.php)",
+      "SMS notifications (placeholder for integration)",
+      "Push notifications (placeholder for browser API integration)"
+    ],
+    "triggers": [
+      "Assignment deadline approaching",
+      "Assignment grades released",
+      "Meeting invitation",
+      "Unit announcement",
+      "Practical enrollment confirmation",
+      "Attendance marked",
+      "Request status change",
+      "Password reset"
+    ],
+    "database": "notifications table",
+    "current_status": "Email and in-app notifications functional, real-time updates not implemented",
+    "todo": [
+      "Implement WebSocket for real-time notifications",
+      "Add SMS integration",
+      "Implement push notifications",
+      "Add notification preferences UI"
+    ]
+  },
+
+  "email_system": {
+    "implementation": "PHPMailer configuration in includes/mailer.php and includes/email_system.php",
+    "config_file": "config/email.php",
+    "features": [
+      "Bulk email sending",
+      "Email templates (welcome, password reset, grades, announcements)",
+      "Email logging (email_logs table)",
+      "Retry mechanism for failed sends"
+    ],
+    "current_status": "Implemented but needs template library expansion",
+    "todo": [
+      "Create comprehensive email template library",
+      "Implement email queue system for high-volume sends",
+      "Add email preview functionality"
+    ]
+  },
+
+  "file_handling": {
+    "directories": {
+      "assets/uploads/": "User-uploaded files (assignments, practicals, etc)",
+      "assets/assignments/": "Assignment submissions",
+      "assets/meetings/": "Meeting recordings",
+      "assets/requested_files/": "Requested file storage"
+    },
+    "validation": "File type, size restrictions enforced in upload handlers",
+    "security": "Uploaded files stored outside web root (to be implemented)",
+    "todo": [
+      "Move upload directory outside webroot",
+      "Implement virus scanning for uploads",
+      "Add file encryption for sensitive uploads"
+    ]
+  },
+
+  "api_endpoints": {
+    "note": "Mix of traditional .php files and smart-lab JSON API",
+    "traditional": [
+      "GET /index.php - Redirect to appropriate dashboard",
+      "POST /login.php - User authentication",
+      "POST /forgot_password.php - Password reset request",
+      "POST /includes/assignment_handler.php - Submit assignment",
+      "GET/POST /lecturer/grade_assignments.php - Grade view/submission"
+    ],
+    "smart_lab_json": [
+      "GET /practicals/list - List practicals (JSON)",
+      "GET /practicals/get/{id} - Get practical details (JSON)",
+      "POST /practicals/enroll - Enroll in practical (JSON)",
+      "POST /practicals/markAttendance - Mark attendance (JSON)",
+      "GET /attendance-qr/attendanceGenerate - Generate QR session (JSON)",
+      "GET /attendance-qr/attendancePoll - Poll QR status (JSON)",
+      "POST /attendance-qr/verifyFingerprint - Verify biometric (JSON)",
+      "POST /attendance-qr/verifyRFID - Verify RFID card (JSON)",
+      "POST /attendance-qr/verifyCode - Verify admin code (JSON)",
+      "POST /start-practical/{id} - Start practical session (JSON)"
+    ]
+  },
+
+  "critical_flows": {
+    "student_assignment_submission": {
+      "steps": [
+        "1. Student navigates to student/view_assignments.php",
+        "2. Click on assignment → view details with rubric and instructions",
+        "3. Click 'Submit Assignment' button",
+        "4. Form appears: select file or enter text, add comments",
+        "5. Submit form (POST to includes/assignment_handler.php)",
+        "6. Handler validates: deadline, file type/size, student enrollment",
+        "7. Save submission to database and file system",
+        "8. Create notification for lecturer",
+        "9. Return success response, update UI"
+      ],
+      "database_tables": "assignments, assignment_submissions, notifications",
+      "error_cases": [
+        "Deadline passed → show error",
+        "File too large → show error",
+        "Invalid file type → show error",
+        "Not enrolled in unit → show error"
+      ]
+    },
+    "practical_attendance_marking": {
+      "steps": [
+        "1. Practical session is active (status='active' in lab_sessions)",
+        "2. Student clicks 'Take Practical' button on practical details page",
+        "3. Modal opens with 4 verification method tabs",
+        "4. Student selects method:",
+        "   QR: scanner captures code → polls for completion → shows result",
+        "   RFID: holds card near reader → system captures UID → verifies",
+        "   Biometric: places finger on scanner → system captures data → verifies",
+        "   Code: student enters admin-provided code → system verifies code active",
+        "5. On successful verification → student_id returned",
+        "6. Frontend calls markAttendance() with student_id and method",
+        "7. PracticalController::markAttendance() creates attendance record",
+        "8. Return success with session token",
+        "9. Transition to practical session: show lab notebook editor",
+        "10. Student completes practical work",
+        "11. Submit notebook → system grades and stores submission"
+      ],
+      "database_tables": "qr_sessions, rfid_cards, biometric_records, lab_sessions, attendance, lab_notebooks, student_practicals",
+      "current_implementation": "Most steps implemented, needs end-to-end testing"
+    },
+    "lecturer_grading_assignment": {
+      "steps": [
+        "1. Lecturer navigates to lecturer/grade_assignments.php?assignment_id=X",
+        "2. View list of submissions: student name, submission date, status",
+        "3. Click on submission → open submission details page",
+        "4. View student work (text or file preview)",
+        "5. Enter grade and feedback in form",
+        "6. Option: click 'Use AI Grading' → shows AI-generated feedback suggestions",
+        "7. Click 'Save Grade' → POST to grade handler",
+        "8. Grade saved to assignment_submissions table",
+        "9. Create notification sent to student",
+        "10. Return to list with updated status"
+      ],
+      "database_tables": "assignment_submissions, users, assignments",
+      "integration": "includes/ai_grading.php for AI suggestions"
+    },
+    "admin_approve_membership_request": {
+      "steps": [
+        "1. Admin navigates to admin/pendingreq.php",
+        "2. View list of pending requests (team memberships, file access, appeals)",
+        "3. Click on request → view details",
+        "4. Enter approval decision: Approve or Reject",
+        "5. Optionally enter reason for rejection",
+        "6. Submit decision → database updated",
+        "7. Notification sent to requester",
+        "8. If approved: grant access or add to team"
+      ],
+      "database_tables": "team_membership_requests, lecturer_file_requests, notifications"
+    }
+  },
+
+  "data_validation": {
+    "validation_framework": "includes/validation.php",
+    "common_rules": [
+      "required: field must not be empty",
+      "email: must be valid email format",
+      "min_length: minimum character length",
+      "max_length: maximum character length",
+      "numeric: must be numeric value",
+      "file_type: must match allowed types",
+      "date: must be valid date",
+      "deadline: date must be in future"
+    ],
+    "implementation": "Validation on both client-side (JavaScript) and server-side (PHP)",
+    "sanitization": "sanitize() function for XSS prevention, prepared statements for SQL injection",
+    "todo": "Create centralized validation rules engine"
+  },
+
+  "security_measures": {
+    "implemented": [
+      "Password hashing (BCRYPT or similar)",
+      "SQL injection prevention (prepared statements)",
+      "XSS prevention (HTML escaping, sanitization)",
+      "Session-based authentication",
+      "Role-based access control"
+    ],
+    "todo": [
+      "Implement CSRF token protection",
+      "Add rate limiting (login, API endpoints)",
+      "Implement HTTPS enforcement",
+      "Add security headers (CSP, X-Frame-Options, etc)",
+      "Implement audit logging for sensitive operations",
+      "Add two-factor authentication support",
+      "Implement API key authentication for smart-lab endpoints"
+    ]
+  },
+
+  "deployment": {
+    "containerization": {
+      "type": "Docker & Docker Compose",
+      "dockerfile": "Dockerfile",
+      "compose_file": "docker-compose.yml",
+      "services": ["PHP application", "MySQL database", "Optional: WebSocket server (signaling-server.js)"]
+    },
+    "configuration": {
+      "environment_detection": "config/database.php detects local vs production",
+      "database_setup": "database_setup/ directory with SQL initialization scripts",
+      "initialization": "docker/init.sh for container startup"
+    },
+    "deployment_checklist": [
+      "Update .env with production database credentials",
+      "Enable HTTPS and configure SSL certificates",
+      "Configure email system for production SMTP",
+      "Set up database backups",
+      "Configure log rotation",
+      "Set up monitoring and alerting",
+      "Create user accounts and seed initial data",
+      "Test all critical flows in production environment"
+    ]
+  },
+
+  "integration_checklist": {
+    "smart_lab_integration": [
+      {
+        "component": "Student attendance modal",
+        "status": "✅ Implemented",
+        "todo": "Test in browser with actual QR/RFID/biometric readers",
+        "files": ["smart-lab/views/student/take_practical_modal.php", "smart-lab/controllers/QrAuthController.php"]
+      },
+      {
+        "component": "Practical session flow",
+        "status": "⚠️ In progress",
+        "todo": "Complete session start, notebook editor integration, session monitoring",
+        "files": ["smart-lab/controllers/StudentPracticalController.php", "smart-lab/views/student/lab_session.php"]
+      },
+      {
+        "component": "Notebook versioning",
+        "status": "⚠️ Partial",
+        "todo": "Implement revision history UI, diff viewer, rollback",
+        "files": ["smart-lab/controllers/NotebookController.php", "smart-lab/views/student/lab_notebook.php"]
+      },
+      {
+        "component": "Biometric enrollment",
+        "status": "❌ Not started",
+        "todo": "Add biometric enrollment in profile, fingerprint scanner integration",
+        "files": ["profile.php", "smart-lab/controllers/QrAuthController.php"]
+      },
+      {
+        "component": "RFID card management",
+        "status": "❌ Not started",
+        "todo": "Add RFID card registration, reader integration",
+        "files": ["profile.php", "smart-lab/controllers/QrAuthController.php"]
+      },
+      {
+        "component": "Blockchain asset tracking",
+        "status": "⚠️ Partial",
+        "todo": "Test blockchain chain verification, implement asset checkout UI",
+        "files": ["smart-lab/controllers/AssetController.php", "smart-lab/models/BlockchainModel.php"]
+      },
+      {
+        "component": "Lecturer practicals management",
+        "status": "❌ Not started",
+        "todo": "Create lecturer UI for practical management and session monitoring",
+        "files": ["smart-lab/views/lecturer/practicals.php"]
+      },
+      {
+        "component": "Lab session monitoring",
+        "status": "❌ Not started",
+        "todo": "Create real-time session monitoring dashboard for lecturers",
+        "files": ["smart-lab/views/lecturer/session_monitor.php"]
+      }
+    ],
+    "traditional_lms_integration": [
+      {
+        "component": "Student dashboard",
+        "status": "✅ Implemented",
+        "todo": "Add widgets for recent grades, upcoming deadlines, announcements"
+      },
+      {
+        "component": "Assignment workflow",
+        "status": "✅ Implemented",
+        "todo": "Add plagiarism detection, draft saving, late submission handling"
+      },
+      {
+        "component": "Grading workflow",
+        "status": "✅ Implemented",
+        "todo": "Add rubric-based grading, grade appeals workflow"
+      },
+      {
+        "component": "Attendance tracking",
+        "status": "⚠️ Partial",
+        "todo": "Complete QR/RFID/biometric/code verification methods"
+      },
+      {
+        "component": "Notifications system",
+        "status": "⚠️ Partial",
+        "todo": "Implement real-time notifications via WebSocket"
+      },
+      {
+        "component": "Online meetings",
+        "status": "⚠️ Partial",
+        "todo": "Complete WebRTC meeting implementation"
+      },
+      {
+        "component": "File management",
+        "status": "⚠️ Partial",
+        "todo": "Move uploads outside webroot, implement virus scanning"
+      }
+    ],
+    "admin_features": [
+      {
+        "component": "User management",
+        "status": "⚠️ Partial",
+        "todo": "Implement bulk import, improve search and filtering"
+      },
+      {
+        "component": "Request management",
+        "status": "⚠️ Partial",
+        "todo": "Unify request handling, implement approval workflows"
+      },
+      {
+        "component": "Audit logging",
+        "status": "❌ Not comprehensive",
+        "todo": "Implement system-wide audit trail"
+      },
+      {
+        "component": "Reports",
+        "status": "❌ Not started",
+        "todo": "Create reporting dashboard with export capabilities"
+      }
+    ]
+  },
+
+  "testing_requirements": {
+    "unit_tests": [
+      "Database models (queries, relationships)",
+      "Validation functions",
+      "Authentication logic",
+      "Authorization (role checks)",
+      "Notification triggers"
+    ],
+    "integration_tests": [
+      "Assignment submission workflow (upload, validation, grading)",
+      "Practical attendance flow (all 4 methods)",
+      "Grading workflow",
+      "Request approval workflow",
+      "Email notification system"
+    ],
+    "ui_tests": [
+      "Student dashboard functionality",
+      "Lecturer dashboard functionality",
+      "Admin dashboard functionality",
+      "Assignment submission form",
+      "Practical attendance modal",
+      "Lab notebook editor"
+    ],
+    "api_tests": [
+      "Practical listing and details",
+      "Attendance endpoints (QR, RFID, biometric, code)",
+      "Session management",
+      "Notebook operations"
+    ],
+    "current_status": "No automated tests present",
+    "recommendation": "Implement PHPUnit for unit tests, Playwright for UI tests"
+  },
+
+  "performance_considerations": {
+    "database_optimization": [
+      "Add indexes on frequently queried columns (user_id, unit_id, practical_id)",
+      "Implement database connection pooling",
+      "Optimize JOIN queries (check for N+1 queries)"
+    ],
+    "caching": [
+      "Implement caching for frequently accessed data (practicals, courses, user roles)",
+      "Use Redis for session caching",
+      "Cache static content (CSS, JavaScript, images)"
+    ],
+    "api_optimization": [
+      "Implement pagination for list endpoints",
+      "Add response compression (gzip)",
+      "Implement rate limiting to prevent abuse"
+    ],
+    "frontend_optimization": [
+      "Minify CSS and JavaScript",
+      "Optimize images",
+      "Implement lazy loading for content",
+      "Use async/defer for script loading"
+    ]
+  },
+
+  "known_issues": [
+    "Practical attendance modal QR scanning not tested in browser",
+    "Lab session start flow incomplete",
+    "Biometric enrollment not implemented",
+    "RFID card registration not implemented",
+    "WebRTC meeting system partially implemented",
+    "Real-time notifications use AJAX polling instead of WebSocket",
+    "Audit logging not comprehensive",
+    "No automated test suite",
+    "File uploads not secured (stored in webroot)",
+    "API endpoints lack rate limiting and CSRF protection",
+    "Two separate authentication systems (traditional LMS and smart-lab)"
+  ],
+
+  "recommended_next_steps": [
+    "1. Test practical attendance modal in browser (QR code, RFID, biometric, code)",
+    "2. Complete practical session flow (session start, notebook editor, grading)",
+    "3. Implement biometric and RFID enrollment flows",
+    "4. Integrate WebRTC meeting system",
+    "5. Implement real-time WebSocket notifications",
+    "6. Create comprehensive test suite (unit, integration, UI, API)",
+    "7. Implement security hardening (CSRF, rate limiting, HTTPS, headers)",
+    "8. Optimize database queries and add caching layer",
+    "9. Implement comprehensive audit logging",
+    "10. Complete admin reporting dashboard",
+    "11. Deploy to production with proper configuration",
+    "12. Set up monitoring, logging, and alerting"
+  ]
+}
