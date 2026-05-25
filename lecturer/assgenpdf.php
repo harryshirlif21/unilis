@@ -53,14 +53,26 @@ if ($university_id) {
     if ($uniInfo) $university_name = $uniInfo['name'];
 }
 
-/* FETCH STUDENTS */
-$studentQuery = $conn->prepare("
-    SELECT id, name, reg_no
-    FROM students
-    WHERE course_id = ?
-    ORDER BY reg_no ASC
+/* Verify lecturer teaches this unit */
+$authQuery = $conn->prepare("
+    SELECT 1 FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ? LIMIT 1
 ");
-$studentQuery->bind_param("i", $course_id);
+$authQuery->bind_param("ii", $lecturer_id, $unit_id);
+$authQuery->execute();
+if (!$authQuery->get_result()->fetch_assoc()) {
+    die("Unauthorized access to this unit.");
+}
+$authQuery->close();
+
+/* FETCH STUDENTS enrolled in this unit only */
+$studentQuery = $conn->prepare("
+    SELECT s.id, s.name, s.reg_no
+    FROM student_unit_enrollments sue
+    JOIN students s ON s.id = sue.student_id
+    WHERE sue.unit_id = ?
+    ORDER BY s.reg_no ASC
+");
+$studentQuery->bind_param("i", $unit_id);
 $studentQuery->execute();
 $students = $studentQuery->get_result()->fetch_all(MYSQLI_ASSOC);
 $studentQuery->close();

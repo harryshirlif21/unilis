@@ -1,6 +1,9 @@
 <?php
 session_start();
 require_once '../config/db.php';
+require_once '../includes/ensure_assignment_submission_schema.php';
+
+ensure_assignment_submission_schema($conn);
 
 /* ============================================================
    AUTHENTICATION
@@ -24,6 +27,17 @@ if (isset($_GET['ajax'])) {
     if ($action === "get_assignments" && isset($_GET['unit_id'])) {
         $unit_id = intval($_GET['unit_id']);
 
+        $auth = $conn->prepare("
+            SELECT 1 FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ? LIMIT 1
+        ");
+        $auth->bind_param("ii", $lecturer_id, $unit_id);
+        $auth->execute();
+        if (!$auth->get_result()->fetch_assoc()) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            exit;
+        }
+        $auth->close();
+
         $sql = "
             SELECT 
                 a.id,
@@ -32,10 +46,9 @@ if (isset($_GET['ajax'])) {
                 a.deadline,
                 (SELECT COUNT(*) FROM submissions s WHERE s.assignment_id = a.id) AS submissions_count,
                 (SELECT COUNT(*) FROM submissions s WHERE s.assignment_id = a.id AND s.submitted_at > a.deadline) AS late_count,
-                (SELECT COUNT(*) 
-                    FROM students st 
-                    JOIN student_units su ON su.student_id = st.id 
-                    WHERE su.unit_id = ?
+                (SELECT COUNT(DISTINCT sue.student_id)
+                    FROM student_unit_enrollments sue
+                    WHERE sue.unit_id = ?
                 ) AS expected_students
             FROM assignments a
             WHERE a.unit_id = ?
@@ -81,20 +94,26 @@ if (isset($_GET['ajax'])) {
 
         $sql = "
             SELECT 
-                s.id AS submission_id,
+                sub.id AS submission_id,
                 st.name AS student_name,
                 st.reg_no,
-                s.file_path,
-                s.marks,
-                s.is_graded,
-                s.comment AS ai_feedback,
-                s.submitted_at,
-                CASE WHEN s.submitted_at > a.deadline THEN 1 ELSE 0 END AS is_lated,
+                sub.file_path,
+                sub.marks,
+                COALESCE(sub.is_graded, 0) AS is_graded,
+                sub.comment AS ai_feedback,
+                sub.submitted_at,
+                CASE
+                    WHEN sub.id IS NULL THEN 0
+                    WHEN sub.is_late = 1 THEN 1
+                    WHEN sub.submitted_at > a.deadline THEN 1
+                    ELSE 0
+                END AS is_lated,
                 a.title AS assignment_title
-            FROM submissions s
-            JOIN students st ON st.id = s.student_id
-            JOIN assignments a ON a.id = s.assignment_id
-            WHERE s.assignment_id = ?
+            FROM student_unit_enrollments sue
+            JOIN students st ON st.id = sue.student_id
+            JOIN assignments a ON a.id = ? AND a.unit_id = sue.unit_id
+            LEFT JOIN submissions sub ON sub.assignment_id = a.id AND sub.student_id = st.id
+            WHERE a.id = ?
             ORDER BY st.name ASC
         ";
         $st = $conn->prepare($sql);
@@ -117,6 +136,23 @@ if (isset($_GET['ajax'])) {
         $marks = floatval($_POST['marks']);
         $ai_feedback = $_POST['ai_feedback'] ?? '';
 
+        $aidStmt = $conn->prepare("
+            SELECT s.assignment_id
+            FROM submissions s
+            JOIN assignments a ON a.id = s.assignment_id
+            JOIN lecturer_units lu ON lu.unit_id = a.unit_id AND lu.lecturer_id = ?
+            WHERE s.id = ?
+        ");
+        $aidStmt->bind_param("ii", $lecturer_id, $submission_id);
+        $aidStmt->execute();
+        $aidRow = $aidStmt->get_result()->fetch_assoc();
+        $aidStmt->close();
+
+        if (!$aidRow) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized or submission not found']);
+            exit;
+        }
+
         $stmt = $conn->prepare("
             UPDATE submissions 
             SET marks = ?, comment = ?, is_graded = 1 
@@ -125,8 +161,7 @@ if (isset($_GET['ajax'])) {
         $stmt->bind_param("dsi", $marks, $ai_feedback, $submission_id);
 
         if ($stmt->execute()) {
-            $assignment_id = $conn->query("SELECT assignment_id FROM submissions WHERE id = $submission_id")->fetch_assoc()['assignment_id'];
-            echo json_encode(['status' => 'ok', 'assignment_id' => $assignment_id]);
+            echo json_encode(['status' => 'ok', 'assignment_id' => (int)$aidRow['assignment_id']]);
         } else {
             echo json_encode(['status' => 'error', 'message' => 'Failed to save grade']);
         }
@@ -154,7 +189,7 @@ $sql = "
         ) AS submissions_count,
         (SELECT MAX(created_at) FROM assignments a WHERE a.unit_id = u.id) AS last_sent,
         (SELECT MIN(deadline) FROM assignments a WHERE a.unit_id = u.id AND deadline >= NOW()) AS nearest_deadline,
-        (SELECT COUNT(*) FROM student_units su WHERE su.unit_id = u.id) AS expected_students
+        (SELECT COUNT(DISTINCT sue.student_id) FROM student_unit_enrollments sue WHERE sue.unit_id = u.id) AS expected_students
     FROM units u
     JOIN lecturer_units lu ON lu.unit_id = u.id
     WHERE lu.lecturer_id = ?
@@ -218,9 +253,7 @@ tr.graded { background:#d4edda; }
         <div class="modal-content">
             <span class="close-modal">&times;</span>
             <h3>Assignments</h3>
-       <a href="assgenpdf.php?unit_id=<?= $selected_unit ?>" target="_blank">
-    <button id="generateAssignmentsPDF" class="btn-pdf">Generate PDF</button>
-</a>
+            <button type="button" id="generateAssignmentsPDF" class="btn-pdf">Generate PDF</button>
 
 
             <table id="assignmentsTable" class="display" width="100%">
@@ -291,8 +324,10 @@ tr.graded { background:#d4edda; }
 
 <script>
 $(document).ready(function() {
-    // --- GLOBAL VARIABLE ---
-    let selectedUnitId = null; // stores currently selected unit
+    // --- GLOBAL VARIABLES ---
+    let selectedUnitId = null;
+    let currentSubmissions = [];
+    let currentAssignmentId = null;
 
     // --- MODAL HELPERS ---
     function openModal(id) { $('#' + id).fadeIn(); }
@@ -335,22 +370,25 @@ $(document).ready(function() {
     // --- VIEW SUBMISSIONS ---
     $(document).on('click','.btn-view-submissions',function(){
         const assignment_id = $(this).data('assignment-id');
+        currentAssignmentId = assignment_id;
         $.getJSON('?ajax=get_submissions&assignment_id=' + assignment_id, function(res){
             if(res.status==='ok'){
+                currentSubmissions = res.items;
                 const tbody = $('#submissionsTable tbody'); 
                 tbody.empty();
                 res.items.forEach(s=>{
+                    const hasSubmission = s.submission_id != null && s.submission_id !== '';
                     tbody.append(`
-                        <tr class="${s.is_graded?'graded':''}">
+                        <tr class="${s.is_graded == 1 ? 'graded' : ''}">
                             <td>${s.student_name}</td>
                             <td>${s.reg_no}</td>
-                            <td>${s.submitted_at}</td>
+                            <td>${s.submitted_at || '—'}</td>
                             <td>${s.file_path ? `<a href="${s.file_path}" target="_blank">Download</a>` : '—'}</td>
-                            <td>${s.is_lated?'Yes':'No'}</td>
-                            <td>${s.is_graded?'Yes':'No'}</td>
-                            <td>${s.marks || '—'}</td>
+                            <td>${s.is_lated == 1 ? 'Yes' : 'No'}</td>
+                            <td>${s.is_graded == 1 ? 'Yes' : 'No'}</td>
+                            <td>${s.marks != null ? s.marks : '—'}</td>
                             <td>${s.ai_feedback || '—'}</td>
-                            <td><button class="btn-grade-submission" data-submission='${JSON.stringify(s)}'>Grade</button></td>
+                            <td>${hasSubmission ? `<button class="btn-grade-submission" data-submission-id="${s.submission_id}">Grade</button>` : '—'}</td>
                         </tr>
                     `);
                 });
@@ -363,7 +401,9 @@ $(document).ready(function() {
 
     // --- GRADING MODAL ---
     $(document).on('click','.btn-grade-submission',function(){
-        const s = $(this).data('submission');
+        const sid = $(this).data('submission-id');
+        const s = currentSubmissions.find(x => String(x.submission_id) === String(sid));
+        if (!s) return;
         $('#studentName').text(s.student_name);
         $('#assignmentTitle').text(s.assignment_title || '');
         $('#submittedAt').text(s.submitted_at);
@@ -380,7 +420,9 @@ $(document).ready(function() {
             if(res.status==='ok'){
                 alert('Grade saved successfully!');
                 closeModal('gradingModal');
-                $('.btn-view-submissions[data-assignment-id=' + res.assignment_id + ']').click();
+                if (currentAssignmentId) {
+                    $('.btn-view-submissions[data-assignment-id="' + currentAssignmentId + '"]').first().click();
+                }
             } else alert('Error: '+res.message);
         },'json');
     });

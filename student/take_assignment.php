@@ -1,9 +1,12 @@
 <?php
 require_once '../config/db.php';
+require_once '../includes/ensure_assignment_submission_schema.php';
 require_once '../vendor/autoload.php'; // Dompdf autoload
 use Dompdf\Dompdf;
 
 session_start();
+
+ensure_assignment_submission_schema($conn);
 
 // Redirect if not logged in or not a student
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
@@ -33,7 +36,7 @@ if (isset($_POST['generate_pdf'])) {
 
         // Fetch submitted assignments
         $sub_query = $conn->prepare("
-            SELECT s.file_path, s.submitted_at, s.comment, s.marks, a.title, u.name AS unit_name
+            SELECT s.file_path, s.submitted_at, s.is_late, s.comment, s.marks, a.title, u.name AS unit_name
             FROM submissions s
             JOIN assignments a ON s.assignment_id = a.id
             JOIN units u ON a.unit_id = u.id
@@ -70,6 +73,7 @@ if (isset($_POST['generate_pdf'])) {
                     <th>Unit</th>
                     <th>Title</th>
                     <th>Date Submitted</th>
+                    <th>Status</th>
                     <th>Marks</th>
                     <th>Comment</th>
                 </tr>
@@ -78,15 +82,17 @@ if (isset($_POST['generate_pdf'])) {
         ";
 
         if ($subs->num_rows === 0) {
-            $html .= "<tr><td colspan='5'>No assignments submitted yet.</td></tr>";
+            $html .= "<tr><td colspan='6'>No assignments submitted yet.</td></tr>";
         } else {
             while ($s = $subs->fetch_assoc()) {
                 $marks = is_null($s['marks']) ? "Not graded" : htmlspecialchars($s['marks']);
                 $comment = !empty($s['comment']) ? htmlspecialchars($s['comment']) : "No comment";
+                $status = !empty($s['is_late']) ? 'Late' : 'On time';
                 $html .= "<tr>
                             <td>" . htmlspecialchars($s['unit_name']) . "</td>
                             <td>" . htmlspecialchars($s['title']) . "</td>
                             <td>" . date('d M Y, h:i A', strtotime($s['submitted_at'])) . "</td>
+                            <td>$status</td>
                             <td>$marks</td>
                             <td>$comment</td>
                           </tr>";
@@ -137,6 +143,20 @@ if (isset($_POST['generate_pdf'])) {
 </header>
 
 <div class="container">
+
+<?php if (!empty($_SESSION['submission_success'])): ?>
+    <div class="alert alert-success" style="background:#d4edda;color:#155724;padding:12px 16px;border-radius:8px;margin-bottom:16px;">
+        <?= htmlspecialchars($_SESSION['submission_success']) ?>
+    </div>
+    <?php unset($_SESSION['submission_success']); ?>
+<?php endif; ?>
+<?php if (!empty($_SESSION['submission_error'])): ?>
+    <div class="alert alert-error" style="background:#f8d7da;color:#721c24;padding:12px 16px;border-radius:8px;margin-bottom:16px;">
+        <?= htmlspecialchars($_SESSION['submission_error']) ?>
+    </div>
+    <?php unset($_SESSION['submission_error']); ?>
+<?php endif; ?>
+
 <!-- ================= Interactive Assignments ================= -->
 <section class="card interactive-assignments">
     <h2>Interactive Assignments / CATs</h2>
@@ -247,6 +267,7 @@ if (isset($_POST['generate_pdf'])) {
                     <th>Unit</th>
                     <th>Title</th>
                     <th>Date Submitted</th>
+                    <th>Status</th>
                     <th>Marks</th>
                     <th>Comment</th>
                 </tr>
@@ -255,7 +276,7 @@ if (isset($_POST['generate_pdf'])) {
             <?php
             try {
                 $sub_query = $conn->prepare("
-                    SELECT s.file_path, s.submitted_at, s.comment, s.marks, a.title, u.name AS unit_name
+                    SELECT s.file_path, s.submitted_at, s.is_late, s.comment, s.marks, a.title, u.name AS unit_name
                     FROM submissions s
                     JOIN assignments a ON s.assignment_id = a.id
                     JOIN units u ON a.unit_id = u.id
@@ -267,15 +288,19 @@ if (isset($_POST['generate_pdf'])) {
                 $subs = $sub_query->get_result();
 
                 if ($subs->num_rows === 0) {
-                    echo "<tr><td colspan='5'>No assignments submitted yet.</td></tr>";
+                    echo "<tr><td colspan='6'>No assignments submitted yet.</td></tr>";
                 } else {
                     while ($s = $subs->fetch_assoc()) {
                         $marks = is_null($s['marks']) ? "<em>Not graded</em>" : htmlspecialchars($s['marks']);
                         $comment = !empty($s['comment']) ? htmlspecialchars($s['comment']) : "<em>No comment</em>";
+                        $status = !empty($s['is_late'])
+                            ? "<span style='color:#b45309;font-weight:600;'>Late</span>"
+                            : "<span style='color:#166534;'>On time</span>";
                         echo "<tr>
                             <td>" . htmlspecialchars($s['unit_name']) . "</td>
                             <td>" . htmlspecialchars($s['title']) . "</td>
                             <td>" . date('d M Y, h:i A', strtotime($s['submitted_at'])) . "</td>
+                            <td>$status</td>
                             <td>$marks</td>
                             <td>$comment</td>
                         </tr>";
@@ -299,7 +324,7 @@ if (isset($_POST['generate_pdf'])) {
         <?php
         try {
             $a_query = $conn->prepare("
-                SELECT a.id, a.title, a.deadline, a.file_path, u.name AS unit_name
+                SELECT a.id, a.title, a.deadline, a.file_path, a.allow_late_submission, u.name AS unit_name
                 FROM assignments a
                 JOIN units u ON a.unit_id = u.id
                 WHERE u.course_id = ? AND u.year = ?
@@ -333,6 +358,7 @@ if (isset($_POST['generate_pdf'])) {
                                         <tr>
                                             <th>Title</th>
                                             <th>Deadline</th>
+                                            <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -342,49 +368,67 @@ if (isset($_POST['generate_pdf'])) {
                         $fullPath = "../assets/uploads/assignments/" . htmlspecialchars($filePath);
 
                         $deadline = new DateTime($a['deadline']);
-$passed = $now > $deadline;
+                        $passed = $now > $deadline;
+                        $allowLate = (int)($a['allow_late_submission'] ?? 1) === 1;
 
-// Check if already submitted
-$submissionQuery = $conn->prepare("SELECT file_path FROM submissions WHERE assignment_id = ? AND student_id = ?");
-$submissionQuery->bind_param("ii", $a['id'], $student_id);
-$submissionQuery->execute();
-$submissionResult = $submissionQuery->get_result()->fetch_assoc();
-$submissionQuery->close();
+                        $submissionQuery = $conn->prepare("
+                            SELECT file_path, is_late, submitted_at
+                            FROM submissions
+                            WHERE assignment_id = ? AND student_id = ?
+                        ");
+                        $submissionQuery->bind_param("ii", $a['id'], $student_id);
+                        $submissionQuery->execute();
+                        $submissionResult = $submissionQuery->get_result()->fetch_assoc();
+                        $submissionQuery->close();
 
-$alreadySubmitted = !empty($submissionResult['file_path']);
+                        $alreadySubmitted = !empty($submissionResult['file_path']);
+                        $blockedByDeadline = $passed && !$allowLate;
+                        $disabledAttr = $blockedByDeadline ? "disabled" : "";
 
-// Disable if deadline passed OR already submitted
-$disabledAttr = ($passed || $alreadySubmitted) ? "disabled" : "";
+                        if ($blockedByDeadline) {
+                            $statusLabel = "<span style='color:#991b1b;font-weight:600;'>Closed</span>";
+                        } elseif ($passed) {
+                            $statusLabel = "<span style='color:#b45309;font-weight:600;'>Late submissions allowed</span>";
+                        } else {
+                            $statusLabel = "<span style='color:#166534;'>Open</span>";
+                        }
 
+                        if ($alreadySubmitted && !empty($submissionResult['is_late'])) {
+                            $statusLabel .= " <small>(submitted late)</small>";
+                        }
 
                         $actions = '';
                         if (!empty($filePath) && file_exists($fullPath)) {
                             $actions .= "<a href='$fullPath' target='_blank' class='action-btn'>View</a> | <a href='$fullPath' download class='action-btn'>Download</a><br>";
                         }
 
-                        $actions .= "<form method='POST' enctype='multipart/form-data' action='submit_assignment.php'>
-                            <input type='hidden' name='assignment_id' value='{$a['id']}'>
-                            <input type='file' name='file' accept='.pdf,.doc,.docx' required $disabledAttr>
-                            <button type='submit' $disabledAttr class='btn-submit'>Submit</button>
-                        </form>";
+                        if (!$blockedByDeadline) {
+                            $submitLabel = $passed ? 'Submit (Late)' : 'Submit';
+                            $actions .= "<form method='POST' enctype='multipart/form-data' action='submit_assignment.php'>
+                                <input type='hidden' name='assignment_id' value='{$a['id']}'>
+                                <input type='file' name='file' accept='.pdf,.doc,.docx' required>
+                                <button type='submit' class='btn-submit'>$submitLabel</button>
+                            </form>";
+                        }
 
-                        // Already submitted file
-                        $submissionQuery = $conn->prepare("SELECT file_path FROM submissions WHERE assignment_id = ? AND student_id = ?");
-                        $submissionQuery->bind_param("ii", $a['id'], $student_id);
-                        $submissionQuery->execute();
-                        $submissionResult = $submissionQuery->get_result()->fetch_assoc();
-                        $submissionQuery->close();
-
-                        if (!empty($submissionResult['file_path'])) {
+                        if ($alreadySubmitted) {
                             $submittedFile = "../assets/uploads/submissions/" . htmlspecialchars($submissionResult['file_path']);
                             if (file_exists($submittedFile)) {
-                                $actions .= "<br><strong>Your Submission:</strong> <a href='$submittedFile' target='_blank'>View</a> | <a href='$submittedFile' download>Download</a>";
+                                $submittedWhen = !empty($submissionResult['submitted_at'])
+                                    ? date('d M Y, h:i A', strtotime($submissionResult['submitted_at']))
+                                    : '';
+                                $actions .= "<br><strong>Your Submission" . ($submittedWhen ? " ($submittedWhen)" : '') . ":</strong> "
+                                    . "<a href='$submittedFile' target='_blank'>View</a> | <a href='$submittedFile' download>Download</a>";
+                                if (!$blockedByDeadline) {
+                                    $actions .= "<br><em>You may upload again to replace your submission.</em>";
+                                }
                             }
                         }
 
                         echo "<tr>
                                 <td>" . htmlspecialchars($a['title']) . "</td>
                                 <td>" . date("d M Y, h:i A", strtotime($a['deadline'])) . "</td>
+                                <td>$statusLabel</td>
                                 <td>$actions</td>
                               </tr>";
                     }
