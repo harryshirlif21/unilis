@@ -9,6 +9,9 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION[
 }
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../includes/ensure_team_marks.php';
+
+ensure_team_marks_table($conn);
 
 try {
     $teamId = (int)($_GET['team_id'] ?? 0);

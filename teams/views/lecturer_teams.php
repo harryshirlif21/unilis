@@ -5,10 +5,13 @@ session_start();
    DATABASE CONNECTION
 ========================= */
 require_once '../../config/db.php';
+require_once '../includes/ensure_team_marks.php';
 
 if (!isset($conn) || !$conn) {
     die("Database connection failed.");
 }
+
+ensure_team_marks_table($conn);
 
 /* =========================
    AUTH CHECK
@@ -38,6 +41,7 @@ SELECT
     t.created_at AS team_created,
     t.assessment_type,
     t.description,
+    u.id AS unit_id,
     u.name AS unit_name,
     u.code AS unit_code,
     COUNT(tm.student_id) AS member_count
@@ -63,6 +67,21 @@ while ($row = $result->fetch_assoc()) {
     $teams[] = $row;
 }
 $stmt->close();
+
+/* Group teams by unit for peer evaluation picker */
+$teamsByUnit = [];
+foreach ($teams as $team) {
+    $unitKey = (int)($team['unit_id'] ?? 0);
+    if (!isset($teamsByUnit[$unitKey])) {
+        $teamsByUnit[$unitKey] = [
+            'unit_id'   => $unitKey,
+            'unit_name' => $team['unit_name'],
+            'unit_code' => $team['unit_code'],
+            'teams'     => [],
+        ];
+    }
+    $teamsByUnit[$unitKey]['teams'][] = $team;
+}
 ?>
 
 <!DOCTYPE html>
@@ -508,6 +527,65 @@ $stmt->close();
             border-radius: 8px;
         }
         
+        /* Peer evaluation unit tiles */
+        .peer-eval-units {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .peer-eval-unit-tile {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            text-align: left;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+        .peer-eval-unit-tile:hover {
+            border-color: #93c5fd;
+            background: #eff6ff;
+        }
+        .peer-eval-unit-tile.active {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .peer-eval-unit-tile .unit-code {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .peer-eval-unit-tile .unit-name {
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0.25rem 0;
+        }
+        .peer-eval-unit-tile .unit-team-count {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+        .peer-eval-team-picker {
+            display: none;
+            margin-top: 0.5rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        .peer-eval-team-picker.visible {
+            display: block;
+        }
+        .peer-eval-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            margin-top: 1rem;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             body { padding: 1rem; }
@@ -558,22 +636,48 @@ $stmt->close();
             <small style="color:#666;">View team-level peer evaluation performance summary.</small>
         </div>
     </div>
-    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
-        <div>
-            <label style="display:block;font-size:0.8rem;color:#555;margin-bottom:0.25rem;">Team</label>
-            <select id="peerEvalTeamSelect" style="padding:0.5rem;border:1px solid #d1d5db;border-radius:6px;min-width:260px;">
-                <option value="">-- Select Team --</option>
-                <?php foreach ($teams as $team): ?>
-                    <option value="<?= (int)$team['team_id']; ?>">
-                        <?= htmlspecialchars($team['team_title']); ?> (<?= htmlspecialchars($team['unit_name']); ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
+    <?php if (empty($teamsByUnit)): ?>
+        <p style="color:#666;">No units with teams available for peer evaluation.</p>
+    <?php else: ?>
+        <p style="margin:0 0 0.75rem 0;color:#666;font-size:0.9rem;">Choose a unit, then select a team from the dropdown.</p>
+        <div class="peer-eval-units" id="peerEvalUnitTiles">
+            <?php foreach ($teamsByUnit as $unitKey => $unit): ?>
+                <button type="button"
+                        class="peer-eval-unit-tile"
+                        data-unit-key="<?= (int)$unitKey; ?>"
+                        aria-expanded="false">
+                    <div class="unit-code"><?= htmlspecialchars($unit['unit_code']); ?></div>
+                    <div class="unit-name"><?= htmlspecialchars($unit['unit_name']); ?></div>
+                    <div class="unit-team-count">
+                        <?= count($unit['teams']); ?> team<?= count($unit['teams']) === 1 ? '' : 's'; ?>
+                    </div>
+                </button>
+            <?php endforeach; ?>
         </div>
-        <button type="button" class="submit-btn" id="loadPeerEvalInsightsBtn" style="padding:0.6rem 1rem;">Load Insights</button>
-        <button type="button" class="global-export-btn export-all-excel" id="exportPeerCsvBtn" style="padding:0.6rem 1rem;">Export CSV</button>
-    </div>
-    <p id="peerEvalInsightsStatus" style="margin:0.75rem 0 0.5rem 0;color:#666;">Select a team to load peer evaluation summary.</p>
+
+        <?php foreach ($teamsByUnit as $unitKey => $unit): ?>
+            <div class="peer-eval-team-picker" id="peerEvalTeams-<?= (int)$unitKey; ?>" data-unit-key="<?= (int)$unitKey; ?>">
+                <label style="display:block;font-size:0.8rem;color:#555;margin-bottom:0.25rem;">
+                    Teams in <?= htmlspecialchars($unit['unit_name']); ?>
+                </label>
+                <select class="peer-eval-team-select" style="padding:0.5rem;border:1px solid #d1d5db;border-radius:6px;min-width:280px;width:100%;max-width:480px;">
+                    <option value="">-- Select Team --</option>
+                    <?php foreach ($unit['teams'] as $team): ?>
+                        <option value="<?= (int)$team['team_id']; ?>">
+                            <?= htmlspecialchars($team['team_title']); ?>
+                            (<?= (int)$team['member_count']; ?> member<?= (int)$team['member_count'] === 1 ? '' : 's'; ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        <?php endforeach; ?>
+
+        <div class="peer-eval-actions">
+            <button type="button" class="submit-btn" id="loadPeerEvalInsightsBtn" style="padding:0.6rem 1rem;">Load Insights</button>
+            <button type="button" class="global-export-btn export-all-excel" id="exportPeerCsvBtn" style="padding:0.6rem 1rem;">Export CSV</button>
+        </div>
+    <?php endif; ?>
+    <p id="peerEvalInsightsStatus" style="margin:0.75rem 0 0.5rem 0;color:#666;">Select a unit and team to load peer evaluation summary.</p>
     <div id="peerEvalInsightsBody"></div>
 </div>
 
@@ -1388,21 +1492,62 @@ async function loadPeerEvalInsights(teamId) {
     }
 }
 
+function getSelectedPeerEvalTeamId() {
+    const visiblePicker = document.querySelector('.peer-eval-team-picker.visible .peer-eval-team-select');
+    return visiblePicker?.value || '';
+}
+
+function initPeerEvalUnitTiles() {
+    const tiles = document.querySelectorAll('.peer-eval-unit-tile');
+    const pickers = document.querySelectorAll('.peer-eval-team-picker');
+
+    tiles.forEach(tile => {
+        tile.addEventListener('click', () => {
+            const unitKey = tile.dataset.unitKey;
+            const isActive = tile.classList.contains('active');
+
+            tiles.forEach(t => {
+                t.classList.remove('active');
+                t.setAttribute('aria-expanded', 'false');
+            });
+            pickers.forEach(p => p.classList.remove('visible'));
+
+            if (isActive) {
+                const statusEl = document.getElementById('peerEvalInsightsStatus');
+                if (statusEl) statusEl.textContent = 'Select a unit and team to load peer evaluation summary.';
+                return;
+            }
+
+            tile.classList.add('active');
+            tile.setAttribute('aria-expanded', 'true');
+
+            const picker = document.getElementById('peerEvalTeams-' + unitKey);
+            if (picker) {
+                picker.classList.add('visible');
+                const select = picker.querySelector('.peer-eval-team-select');
+                if (select) select.focus();
+            }
+        });
+    });
+}
+
+initPeerEvalUnitTiles();
+
 document.getElementById('loadPeerEvalInsightsBtn')?.addEventListener('click', () => {
-    const teamId = document.getElementById('peerEvalTeamSelect')?.value;
+    const teamId = getSelectedPeerEvalTeamId();
     if (!teamId) {
         const statusEl = document.getElementById('peerEvalInsightsStatus');
-        if (statusEl) statusEl.textContent = 'Please select a team first.';
+        if (statusEl) statusEl.textContent = 'Please select a unit, then choose a team.';
         return;
     }
     loadPeerEvalInsights(teamId);
 });
 
 document.getElementById('exportPeerCsvBtn')?.addEventListener('click', () => {
-    const teamId = document.getElementById('peerEvalTeamSelect')?.value;
+    const teamId = getSelectedPeerEvalTeamId();
     if (!teamId) {
         const statusEl = document.getElementById('peerEvalInsightsStatus');
-        if (statusEl) statusEl.textContent = 'Please select a team first.';
+        if (statusEl) statusEl.textContent = 'Please select a unit, then choose a team.';
         return;
     }
     window.open(`../../teams/api/peer_evaluation_report.php?team_id=${encodeURIComponent(teamId)}&format=csv`, '_blank');
