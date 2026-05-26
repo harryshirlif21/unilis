@@ -910,7 +910,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 ['dashboard.php', 'dashboard', 'Dashboard'],
                 ['course_view.php', 'school', 'Training'],
                 ['take_assessment.php', 'assignment', 'Exams'],
-                ['lesson_view.php', 'menu_book', 'Lessons'],
+                ['course_view.php', 'menu_book', 'Lessons'],
+                ['take_assignment.php', 'upload_file', 'Assignments'],
                 ['profile.php', 'person', 'Profile'],
                 ['my_progress.php', 'trending_up', 'My Progress'],
             ];

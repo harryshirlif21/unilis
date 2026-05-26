@@ -4,6 +4,7 @@
 /** @var array $lesson_assessments, $completed_lessons, $lesson_chart */
 /** @var int $module_progress_pct, $completed_count, $total_module_lessons */
 $has_assessments = !empty($lesson_assessments);
+$asset_base = $student_web_root ?? (rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/student')), '/') . '/');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -14,7 +15,7 @@ $has_assessments = !empty($lesson_assessments);
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="css/lesson-dashboard.css">
+<link rel="stylesheet" href="<?= htmlspecialchars($asset_base) ?>css/lesson-dashboard.css">
 </head>
 <body>
 <div class="bg-mesh" aria-hidden="true"></div>
@@ -44,6 +45,8 @@ $has_assessments = !empty($lesson_assessments);
             </div>
         </div>
         <div class="nav-actions">
+            <a href="<?= htmlspecialchars($asset_base) ?>dashboard.php" class="btn btn-ghost" title="Dashboard">Home</a>
+            <a href="<?= htmlspecialchars($asset_base) ?>course_view.php?unit_id=<?= $unit_id ?>" class="btn btn-ghost" title="Course">Course</a>
             <button type="button" id="voice-narrate" class="btn btn-ghost btn-icon" title="Voice narration">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
             </button>
@@ -102,6 +105,28 @@ $has_assessments = !empty($lesson_assessments);
                 <?= $completed_count ?> / <?= $total_module_lessons ?> lessons complete
             </p>
         </div>
+
+        <span class="sidebar-label" style="margin-top:12px">Quick links</span>
+        <a href="<?= htmlspecialchars($asset_base) ?>dashboard.php" class="lesson-link">
+            <span class="lesson-link-icon">⌂</span>
+            <span class="lesson-link-title">Dashboard</span>
+        </a>
+        <a href="<?= htmlspecialchars($asset_base) ?>take_assignment.php" class="lesson-link">
+            <span class="lesson-link-icon">📝</span>
+            <span class="lesson-link-title">Assignments</span>
+        </a>
+        <a href="<?= htmlspecialchars($asset_base) ?>take_assessment.php" class="lesson-link">
+            <span class="lesson-link-icon">✓</span>
+            <span class="lesson-link-title">Exams &amp; CATs</span>
+        </a>
+        <a href="<?= htmlspecialchars($asset_base) ?>my_progress.php?unit_id=<?= $unit_id ?>" class="lesson-link">
+            <span class="lesson-link-icon">📈</span>
+            <span class="lesson-link-title">My Progress</span>
+        </a>
+        <a href="<?= htmlspecialchars($asset_base) ?>my_units.php" class="lesson-link">
+            <span class="lesson-link-icon">📚</span>
+            <span class="lesson-link-title">My Units</span>
+        </a>
     </aside>
 
     <!-- Main -->
@@ -317,7 +342,7 @@ let hasScrolled = false;
 const pageLoadTime = Date.now();
 const MIN_READ_MS = 3000;
 </script>
-<script src="js/lesson-dashboard.js"></script>
+<script src="<?= htmlspecialchars($asset_base) ?>js/lesson-dashboard.js"></script>
 <script>
 // Lesson completion logic (uses window.lessonContentScroll from lesson-dashboard.js)
 const contentArea = window.lessonContentScroll || document.getElementById('content-scroll');

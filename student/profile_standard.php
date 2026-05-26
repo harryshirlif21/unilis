@@ -814,9 +814,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 ['dashboard.php', 'dashboard', 'Dashboard'],
                 ['course_view.php', 'school', 'Training'],
                 ['take_assessment.php', 'assignment', 'Exams'],
-                ['lesson_view.php', 'menu_book', 'Lessons'],
-                ['profile.php', 'person', 'Profile'],
+                ['take_assignment.php', 'upload_file', 'Assignments'],
                 ['my_progress.php', 'trending_up', 'My Progress'],
+                ['my_units.php', 'book', 'My Units'],
+                ['profile.php', 'person', 'Profile'],
             ];
         } elseif ($user_role === 'lecturer') {
             $sidebar_links = [

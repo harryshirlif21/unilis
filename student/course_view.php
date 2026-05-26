@@ -419,6 +419,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             <i class="fas fa-bars"></i> Units
         </button>
         <span class="student-name"><i class="fas fa-user-graduate"></i> <?= htmlspecialchars($student_name) ?></span>
+        <a href="take_assignment.php" class="btn-nav"><i class="fas fa-file-upload"></i> Assignments</a>
+        <a href="take_assessment.php" class="btn-nav"><i class="fas fa-clipboard-check"></i> Exams</a>
         <a href="my_progress.php?unit_id=<?= $unit_id ?>" class="btn-nav"><i class="fas fa-chart-line"></i> My Progress</a>
         <a href="dashboard.php" class="btn-nav"><i class="fas fa-home"></i> Dashboard</a>
     </div>

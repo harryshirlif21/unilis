@@ -96,11 +96,20 @@ $stmt->close();
     </li>
     <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
     <li class="golden">
-        <a href="../lecturer/lesson_editor.php" style="color:inherit;text-decoration:none;">
+        <a href="lesson_editor.php" style="color:inherit;text-decoration:none;">
             <i class="fas fa-chalkboard-teacher"></i><span>Lessons</span>
         </a>
     </li>
-    <li class="brown"><i class="fas fa-chart-line"></i><span>My Progress</span></li>
+    <li class="blue">
+        <a href="assignment_submissions.php" style="color:inherit;text-decoration:none;">
+            <i class="fas fa-inbox"></i><span>Assignment Submissions</span>
+        </a>
+    </li>
+    <li class="brown">
+        <a href="submissions.php" style="color:inherit;text-decoration:none;">
+            <i class="fas fa-chart-line"></i><span>Assessment Submissions</span>
+        </a>
+    </li>
     <li class="teal"><i class="fas fa-users"></i><span>Create Team</span></li>
     <li class="purple">
         <a href="../teams/views/lecturer_teams.php" style="color:inherit;text-decoration:none;">

@@ -139,7 +139,12 @@ if (isset($_POST['generate_pdf'])) {
 
 <header class="header">
     <h1>Assignments Dashboard</h1>
-    <a href="dashboard.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+    <nav class="header-nav" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <a href="dashboard.php" class="back-btn"><i class="fas fa-home"></i> Dashboard</a>
+        <a href="course_view.php" class="back-btn"><i class="fas fa-book-open"></i> Lessons</a>
+        <a href="take_assessment.php" class="back-btn"><i class="fas fa-clipboard-check"></i> Exams</a>
+        <a href="my_progress.php" class="back-btn"><i class="fas fa-chart-line"></i> Progress</a>
+    </nav>
 </header>
 
 <div class="container">

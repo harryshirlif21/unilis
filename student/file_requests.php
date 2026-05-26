@@ -374,7 +374,7 @@ try {
                 </a>
             </li>
             <li class="golden">
-                <a href="lesson_view.php">
+                <a href="course_view.php">
                     <i class="fas fa-book"></i><span>Lessons</span>
                 </a>
             </li>

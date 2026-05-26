@@ -1374,6 +1374,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     </a>
                 </div>
                 <div class="sidebar-nav-item">
+                    <a href="course_view.php" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">
+                            <span class="material-symbols-outlined">menu_book</span>
+                        </span>
+                        <span>Lessons</span>
+                    </a>
+                </div>
+                <div class="sidebar-nav-item">
+                    <a href="take_assignment.php" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">
+                            <span class="material-symbols-outlined">upload_file</span>
+                        </span>
+                        <span>Assignments</span>
+                    </a>
+                </div>
+                <div class="sidebar-nav-item">
+                    <a href="take_assessment.php" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">
+                            <span class="material-symbols-outlined">assignment</span>
+                        </span>
+                        <span>Exams</span>
+                    </a>
+                </div>
+                <div class="sidebar-nav-item">
+                    <a href="my_progress.php" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">
+                            <span class="material-symbols-outlined">trending_up</span>
+                        </span>
+                        <span>My Progress</span>
+                    </a>
+                </div>
+                <div class="sidebar-nav-item">
                     <a href="profile.php" class="sidebar-nav-link active">
                         <span class="sidebar-nav-icon">
                             <span class="material-symbols-outlined">person</span>

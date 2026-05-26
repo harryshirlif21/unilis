@@ -811,20 +811,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $sidebar_links = [];
         if ($user_role === 'student') {
             $sidebar_links = [
-                ['dashboard.php', 'dashboard', 'Dashboard'],
-                ['course_view.php', 'school', 'Training'],
-                ['take_assessment.php', 'assignment', 'Exams'],
-                ['lesson_view.php', 'menu_book', 'Lessons'],
-                ['profile.php', 'person', 'Profile'],
-                ['my_progress.php', 'trending_up', 'My Progress'],
+                ['../student/dashboard.php', 'dashboard', 'Dashboard'],
+                ['../student/course_view.php', 'school', 'Training'],
+                ['../student/take_assessment.php', 'assignment', 'Exams'],
+                ['../student/take_assignment.php', 'upload_file', 'Assignments'],
+                ['../student/my_progress.php', 'trending_up', 'My Progress'],
+                ['../student/profile.php', 'person', 'Profile'],
             ];
         } elseif ($user_role === 'lecturer') {
             $sidebar_links = [
                 ['dashboard.php', 'dashboard', 'Dashboard'],
-                ['course_view.php', 'school', 'Courses'],
+                ['course_builder.php', 'school', 'Course Builder'],
+                ['lesson_editor.php', 'menu_book', 'Lesson Editor'],
+                ['assignment_submissions.php', 'inbox', 'Assignment Submissions'],
+                ['submissions.php', 'assignment', 'Assessment Submissions'],
+                ['../teams/views/lecturer_teams.php', 'groups', 'Lecturer Teams'],
+                ['request_files.php', 'folder', 'Request Files'],
                 ['attendance.php', 'check_circle', 'Attendance'],
                 ['profile.php', 'person', 'Profile'],
-                ['reports.php', 'bar_chart', 'Reports'],
             ];
         } elseif ($user_role === 'admin') {
             $sidebar_links = [

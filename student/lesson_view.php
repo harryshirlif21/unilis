@@ -153,4 +153,6 @@ foreach ($module_lessons as $ml) {
     ];
 }
 
+$student_web_root = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/student')), '/') . '/';
+
 include __DIR__ . '/views/lesson_dashboard_shell.php';
