@@ -91,13 +91,7 @@ try {
             SELECT lesson_id FROM student_progress
             WHERE student_id = ? AND lesson_id IN ($ph) AND event_type = 'lesson_completed'
         ");
-        $types  = 'i' . str_repeat('i', count($mids));
-        $params = array_merge([$student_id], $mids);
-        $bind   = [$types];
-        foreach ($params as $k => $v) {
-            $bind[$k + 1] = &$params[$k];
-        }
-        call_user_func_array([$stmt, 'bind_param'], $bind);
+        $stmt->bind_param('i' . str_repeat('i', count($mids)), $student_id, ...$mids);
         $stmt->execute();
         $r = $stmt->get_result();
         while ($row = $r->fetch_assoc()) {
@@ -149,7 +143,7 @@ try {
         ORDER BY a.type ASC, a.created_at ASC
     ");
     $module_id = (int)$lesson['module_id'];
-    $stmt->bind_param('iiiii', $student_id, $unit_id, $lesson_id, $module_id);
+    $stmt->bind_param('iiii', $student_id, $unit_id, $lesson_id, $module_id);
     $stmt->execute();
     $r = $stmt->get_result();
     while ($row = $r->fetch_assoc()) {

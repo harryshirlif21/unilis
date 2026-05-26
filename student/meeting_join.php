@@ -1,9 +1,9 @@
 <?php
 session_start();
-require_once '../config/database.php';
+require_once '../config/db.php';
 
 // Check if user is logged in and is a student
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
     header('Location: ../login.php');
     exit;
 }
@@ -22,13 +22,17 @@ $sql = "SELECT m.*, u.name as unit_name, l.name as lecturer_name
         JOIN lecturers l ON m.lecturer_id = l.id 
         JOIN student_unit su ON su.unit_id = u.id 
         WHERE m.id = ? AND su.student_id = ? AND m.meeting_status = 'active'";
-$meeting = executeQuery($sql, [$meeting_id, $user_id], "ii");
 
-if (empty($meeting)) {
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ii", $meeting_id, $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$meeting = $result->fetch_assoc();
+
+if (!$meeting) {
     die('Meeting not found, access denied, or meeting is not active');
 }
 
-$meeting = $meeting[0];
 $lecturer_id = $meeting['lecturer_id'];
 ?>
 <!DOCTYPE html>
