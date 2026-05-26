@@ -1376,9 +1376,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 <div class="sidebar-nav-item">
                     <a href="course_view.php" class="sidebar-nav-link">
                         <span class="sidebar-nav-icon">
-                            <span class="material-symbols-outlined">menu_book</span>
+                            <span class="material-symbols-outlined">school</span>
                         </span>
-                        <span>Lessons</span>
+                        <span>Training</span>
                     </a>
                 </div>
                 <div class="sidebar-nav-item">

@@ -53,7 +53,6 @@ body {
     background: var(--bg-base);
     color: var(--text);
     min-height: 100vh;
-    overflow: hidden;
 }
 
 .bg-mesh {

@@ -375,7 +375,7 @@ try {
             </li>
             <li class="golden">
                 <a href="course_view.php">
-                    <i class="fas fa-book"></i><span>Lessons</span>
+                    <i class="fas fa-book"></i><span>Training</span>
                 </a>
             </li>
             <li class="purple">

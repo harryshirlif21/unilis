@@ -929,10 +929,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <span class="material-symbols-outlined">assignment</span>
                 <span>Exams</span>
             </a>
-            <a href="course_view.php" class="sidebar-item">
-                <span class="material-symbols-outlined">menu_book</span>
-                <span>Lessons</span>
-            </a>
             <a href="take_assignment.php" class="sidebar-item">
                 <span class="material-symbols-outlined">upload_file</span>
                 <span>Assignments</span>
