@@ -131,16 +131,31 @@
     const aiToggle = document.getElementById('ai-toggle');
     const aiPanel = document.getElementById('ai-panel');
     const appShell = document.querySelector('.app-shell');
+
+    // Ensure the content spans the full width after the sidebar by starting in collapsed mode on desktop
+    if (appShell && !window.matchMedia('(max-width: 1200px)').matches) {
+        appShell.classList.add('ai-collapsed');
+    }
+
+    function handleLayoutChange() {
+        // The prose-card width changes when the AI panel is toggled.
+        // We re-render the chart after the CSS transition finishes (~300-400ms).
+        setTimeout(renderProgressChart, 400);
+    }
+
     aiToggle?.addEventListener('click', () => {
         if (window.matchMedia('(max-width: 1200px)').matches) {
             aiPanel?.classList.toggle('ai-mobile-open');
         } else {
             appShell?.classList.toggle('ai-collapsed');
+            handleLayoutChange();
         }
     });
+
     document.getElementById('ai-close')?.addEventListener('click', () => {
         appShell?.classList.add('ai-collapsed');
         aiPanel?.classList.remove('ai-mobile-open');
+        handleLayoutChange();
     });
 
     const aiForm = document.getElementById('ai-form');
@@ -174,6 +189,11 @@
     function generateAiReply(question) {
         const title = cfg.lessonTitle || 'this lesson';
         const lower = question.toLowerCase();
+
+        if (lower.includes('progress') || lower.includes('how far')) {
+            return `You have completed ${cfg.moduleProgress}% of the lessons in this module ("${cfg.moduleTitle}"). Keep it up!`;
+        }
+
         if (lower.includes('definition') || lower.includes('what is')) {
             return `In "${title}", focus on the core definition at the top of the lesson. Try relating it to a real-world example you already know — that helps memory stick.`;
         }

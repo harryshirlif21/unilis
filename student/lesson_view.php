@@ -177,4 +177,16 @@ if (!is_file($shell_path)) {
     die('Lesson page template is missing. Please contact support.');
 }
 
+// Inject configuration for the frontend JS assistant and progress bar
+echo "<script>
+window.LESSON_DASHBOARD = {
+    lessonId: $lesson_id,
+    lessonTitle: " . json_encode($lesson['title']) . ",
+    moduleTitle: " . json_encode($lesson['module_title']) . ",
+    moduleProgress: $module_progress_pct,
+    hasAssessments: " . (empty($lesson_assessments) ? 'false' : 'true') . ",
+    lessonChart: " . json_encode($lesson_chart) . "
+};
+</script>";
+
 include $shell_path;
