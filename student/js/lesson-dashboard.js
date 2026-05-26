@@ -131,16 +131,27 @@
     const aiToggle = document.getElementById('ai-toggle');
     const aiPanel = document.getElementById('ai-panel');
     const appShell = document.querySelector('.app-shell');
-
-    // Ensure the content spans the full width after the sidebar by starting in collapsed mode on desktop
-    if (appShell && !window.matchMedia('(max-width: 1200px)').matches) {
-        appShell.classList.add('ai-collapsed');
+    
+    function handleLayoutChange() {
+        const proseCard = document.querySelector('.prose-card');
+        if (appShell && proseCard) {
+            // If the AI assistant is collapsed, the prose-card should take full available width.
+            // We add an explicit class to handle any CSS-specific bento-grid expansions.
+            if (appShell.classList.contains('ai-collapsed')) {
+                proseCard.classList.add('is-expanded');
+            } else {
+                proseCard.classList.remove('is-expanded');
+            }
+        }
+        // Re-render the progress chart as its container width has changed
+        setTimeout(renderProgressChart, 400);
     }
 
-    function handleLayoutChange() {
-        // The prose-card width changes when the AI panel is toggled.
-        // We re-render the chart after the CSS transition finishes (~300-400ms).
-        setTimeout(renderProgressChart, 400);
+    // Default behavior: Assistant is closed on desktop view, content expands to fill space
+    if (appShell && !window.matchMedia('(max-width: 1200px)').matches) {
+        appShell.classList.add('ai-collapsed');
+        // Force immediate layout check for the prose-card
+        handleLayoutChange();
     }
 
     aiToggle?.addEventListener('click', () => {
@@ -153,9 +164,11 @@
     });
 
     document.getElementById('ai-close')?.addEventListener('click', () => {
-        appShell?.classList.add('ai-collapsed');
-        aiPanel?.classList.remove('ai-mobile-open');
-        handleLayoutChange();
+        if (appShell) {
+            appShell.classList.add('ai-collapsed');
+            aiPanel?.classList.remove('ai-mobile-open');
+            handleLayoutChange();
+        }
     });
 
     const aiForm = document.getElementById('ai-form');
