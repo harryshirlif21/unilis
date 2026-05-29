@@ -1,17 +1,7 @@
 ﻿<?php
-require_once __DIR__ . '/smart-lab/config/app.php';
+require_once __DIR__ . '/smart-lab/config/database_production.php';
 
-$hosts = ['localhost', '127.0.0.1', 'smart-labs-db'];
-$pdo   = null;
-foreach ($hosts as $host) {
-    try {
-        $pdo = new PDO("mysql:host=$host;dbname=unilis_smartlab;charset=utf8mb4",
-            'lab_admin', 'lab_password',
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        break;
-    } catch (PDOException $e) { continue; }
-}
-if (!$pdo) die("Cannot connect to unilis_smartlab");
+$pdo = getProductionDB();
 
 $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
 ?>
@@ -35,7 +25,7 @@ $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
 </head><body>
 
 <h1>unilis_smartlab — database tables</h1>
-<p><?= count($tables) ?> tables &nbsp;·&nbsp; <?= date('Y-m-d H:i:s') ?></p>
+<p><?= count($tables) ?> tables &nbsp;·&nbsp; <?= date('Y-m-d H:i:s') ?> &nbsp;·&nbsp; host: <?= defined('DB_HOST') ? DB_HOST : 'unknown' ?></p>
 
 <?php foreach ($tables as $table):
     $rows = $pdo->query("SELECT COUNT(*) FROM `$table`")->fetchColumn();
@@ -57,7 +47,7 @@ $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
       <td><?= htmlspecialchars($c['Type']) ?></td>
       <td class="null"><?= $c['Null'] ?></td>
       <td><?= $c['Key'] ?></td>
-      <td class="null"><?= $c['Default'] ?? '—' ?></td>
+      <td class="null"><?= htmlspecialchars($c['Default'] ?? '—') ?></td>
     </tr>
     <?php endforeach; ?>
   </table>
