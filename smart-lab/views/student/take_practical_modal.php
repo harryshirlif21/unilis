@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // Shared take practical verification modal for student pages.
 ?>
 <div id="takePracticalModal" class="modal-overlay hidden">
@@ -9,7 +9,7 @@
                 <h2>Verify to Start Practical</h2>
                 <p>Choose a verification method, confirm your identity, and mark attendance before proceeding.</p>
             </div>
-            <button class="modal-close" onclick="closeTakePracticalModal()" aria-label="Close">×</button>
+            <button class="modal-close" onclick="closeTakePracticalModal()" aria-label="Close">Ã—</button>
         </div>
 
         <div class="modal-body">
@@ -39,7 +39,7 @@
                     </div>
                     <div class="qr-meta">
                         <div id="qrInstructions" class="input-note">Scan this QR code with your phone to confirm attendance.</div>
-                        <div id="qrScanStatus" class="status-panel" style="margin-top:0.75rem;">Waiting for student scan…</div>
+                        <div id="qrScanStatus" class="status-panel" style="margin-top:0.75rem;">Waiting for student scanâ€¦</div>
                         <button id="qrRefreshBtn" type="button" class="btn btn-outline" onclick="startAttendanceQR()">Refresh QR</button>
                     </div>
                 </div>
@@ -94,6 +94,7 @@ const takePracticalApiUrl = '<?= APP_URL ?>';
 let selectedPracticalId = null;
 let selectedVerificationMethod = 'qr';
 let verifiedStudentId = null;
+let verifiedStudentName = '';
 let attendanceMarked = false;
 let attendanceQrToken = null;
 let attendanceQrInterval = null;
@@ -110,6 +111,8 @@ function openTakePracticalModal(practicalId) {
     document.getElementById('verificationInput').placeholder = 'Enter QR token or scan QR data';
     document.getElementById('verificationInput').closest('.field-group').style.display = 'block';
     document.getElementById('qrVerificationPanel').classList.add('hidden');
+    document.getElementById('qrVerificationPanel').style.display = 'none';
+    document.getElementById('verificationInputContainer').style.display = 'none';
     document.getElementById('takePracticalStatus').textContent = 'Verify to continue.';
     document.getElementById('takePracticalStatus').style.color = '#111827';
     document.getElementById('verifyMethodBtn').disabled = false;
@@ -135,7 +138,7 @@ function updateVerificationMethod(event) {
     if (selectedVerificationMethod === 'qr') {
         inputGroup.style.display = 'none';
         qrPanel.classList.remove('hidden');
-        document.getElementById('qrScanStatus').textContent = 'Waiting for student scan…';
+        document.getElementById('qrScanStatus').textContent = 'Waiting for student scanâ€¦';
         document.getElementById('verifyMethodBtn').textContent = 'Refresh QR';
         startAttendanceQR();
     } else {
@@ -217,7 +220,7 @@ function startAttendanceQR() {
     }
 
     setStatus('Preparing QR verification...', false);
-    document.getElementById('qrScanStatus').textContent = 'Generating QR code…';
+    document.getElementById('qrScanStatus').textContent = 'Generating QR codeâ€¦';
     document.getElementById('qrDisplay').innerHTML = '<span class="qr-placeholder">Generating QR code...</span>';
 
     fetch(`${takePracticalApiUrl}/attendance-qr/attendanceGenerate?practical_id=${selectedPracticalId}`)
@@ -228,7 +231,7 @@ function startAttendanceQR() {
             }
             attendanceQrToken = data.token;
             renderAttendanceQr(data.url);
-            document.getElementById('qrScanStatus').textContent = 'Waiting for student scan…';
+            document.getElementById('qrScanStatus').textContent = 'Waiting for student scanâ€¦';
             setStatus('Scan the QR code to mark attendance.', false);
             attendanceQrInterval = setInterval(() => pollAttendanceQr(attendanceQrToken), 2000);
         })
@@ -261,7 +264,7 @@ function pollAttendanceQr(token) {
             if (data.status === 'claimed') {
                 attendanceMarked = true;
                 document.getElementById('proceedPracticalBtn').disabled = false;
-                document.getElementById('qrScanStatus').textContent = `✅ Attendance marked for ${data.student_name || 'student'}. Generating next QR...`;
+                document.getElementById('qrScanStatus').textContent = `âœ… Attendance marked for ${data.student_name || 'student'}. Generating next QR...`;
                 setStatus('Attendance confirmed. You may proceed, or scan another student.', false);
                 if (attendanceQrInterval) {
                     clearInterval(attendanceQrInterval);
@@ -272,7 +275,7 @@ function pollAttendanceQr(token) {
                     startAttendanceQR();
                 }, 1400);
             } else if (data.status === 'expired') {
-                document.getElementById('qrScanStatus').textContent = '⚠️ QR expired. Refreshing...';
+                document.getElementById('qrScanStatus').textContent = 'âš ï¸ QR expired. Refreshing...';
                 if (attendanceQrInterval) {
                     clearInterval(attendanceQrInterval);
                     attendanceQrInterval = null;
@@ -365,3 +368,4 @@ function setStatus(message, isError = false) {
     statusEl.style.color = isError ? '#b91c1c' : '#111827';
 }
 </script>
+

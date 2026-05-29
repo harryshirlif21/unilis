@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // Environment detection and proper config loading
 $is_production = (strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false);
 
@@ -51,7 +51,7 @@ if ($is_production && defined('DB_HOST') && DB_HOST === 'smart-labs-db') {
 
 class QrAuthController {
 
-    // Called by login page via AJAX — generates a QR session token
+    // Called by login page via AJAX â€” generates a QR session token
     public function generate($param = null) {
         header('Content-Type: application/json');
         $db = getDB();
@@ -65,7 +65,7 @@ class QrAuthController {
         echo json_encode(['token' => $token, 'url' => $scanUrl, 'id' => $id]);
     }
 
-    // Called by login page AJAX — polls whether phone has claimed the session
+    // Called by login page AJAX â€” polls whether phone has claimed the session
     public function poll($param = null) {
         header('Content-Type: application/json');
         $token = sanitize($_GET['token'] ?? '');
@@ -268,7 +268,7 @@ class QrAuthController {
         $session = $stmt->fetch();
 
         if (!$session) {
-            die('<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Expired</title><style>body{font-family:sans-serif;text-align:center;padding:40px;background:#0f172a;color:#fff}</style></head><body><h2>❌ QR Code Expired</h2><p>Please refresh the login page and scan a new code.</p></body></html>');
+            die('<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Expired</title><style>body{font-family:sans-serif;text-align:center;padding:40px;background:#0f172a;color:#fff}</style></head><body><h2>âŒ QR Code Expired</h2><p>Please refresh the login page and scan a new code.</p></body></html>');
         }
 
         $deviceId = $_COOKIE['sl_device'] ?? '';
@@ -371,7 +371,7 @@ class QrAuthController {
 
     private function showAttendanceScanPage(string $token, string $practicalId, array $students): void {
         $appUrl = APP_URL;
-        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>UNILIS SmartLab — Attendance Scan</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f172a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px} .card{background:#1e293b;border-radius:20px;padding:32px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4)}h2{text-align:center;font-size:20px;margin-bottom:6px}p{text-align:center;color:#94a3b8;font-size:14px;margin-bottom:20px;line-height:1.5}select{width:100%;padding:14px;background:#0f172a;border:2px solid #334155;border-radius:12px;color:#fff;font-size:15px;margin-bottom:16px;outline:none;appearance:none}select:focus{border-color:#6366f1}button{width:100%;padding:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:opacity 0.2s}button:active{opacity:0.85}.badge{background:#1e3a5f;color:#6ee7b7;font-size:12px;padding:6px 12px;border-radius:20px;display:block;text-align:center;margin-bottom:20px}</style></head><body><div class="card"><h2>Confirm Attendance</h2><p>Select your name to complete attendance for this practical.</p><span class="badge">Scan successful — select yourself to finish</span><form method="POST" action="' . $appUrl . '/attendance-qr/claim"><input type="hidden" name="token" value="' . htmlspecialchars($token) . '"><input type="hidden" name="practical_id" value="' . htmlspecialchars($practicalId) . '"><select name="user_id" required><option value="">— Select your name —</option>';
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>UNILIS SmartLab â€” Attendance Scan</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f172a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px} .card{background:#1e293b;border-radius:20px;padding:32px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4)}h2{text-align:center;font-size:20px;margin-bottom:6px}p{text-align:center;color:#94a3b8;font-size:14px;margin-bottom:20px;line-height:1.5}select{width:100%;padding:14px;background:#0f172a;border:2px solid #334155;border-radius:12px;color:#fff;font-size:15px;margin-bottom:16px;outline:none;appearance:none}select:focus{border-color:#6366f1}button{width:100%;padding:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:opacity 0.2s}button:active{opacity:0.85}.badge{background:#1e3a5f;color:#6ee7b7;font-size:12px;padding:6px 12px;border-radius:20px;display:block;text-align:center;margin-bottom:20px}</style></head><body><div class="card"><h2>Confirm Attendance</h2><p>Select your name to complete attendance for this practical.</p><span class="badge">Scan successful â€” select yourself to finish</span><form method="POST" action="' . $appUrl . '/attendance-qr/claim"><input type="hidden" name="token" value="' . htmlspecialchars($token) . '"><input type="hidden" name="practical_id" value="' . htmlspecialchars($practicalId) . '"><select name="user_id" required><option value="">â€” Select your name â€”</option>';
         foreach ($students as $student) {
             echo '<option value="' . htmlspecialchars($student['id']) . '">' . htmlspecialchars($student['full_name']) . ' (' . htmlspecialchars($student['reg_number']) . ')</option>';
         }
@@ -379,7 +379,7 @@ class QrAuthController {
     }
 
     private function showAttendanceSuccess(string $fullName): void {
-        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Attendance Confirmed</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f172a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px} .card{background:#1e293b;border-radius:20px;padding:40px;max-width:360px;width:100%;text-align:center} .check{font-size:64px;margin-bottom:16px}h2{font-size:22px;margin-bottom:8px}p{color:#94a3b8;font-size:14px;line-height:1.6;margin-bottom:16px}.badge{background:#134e4a;color:#6ee7b7;padding:10px 16px;border-radius:10px;font-size:13px;display:block}</style></head><body><div class="card"><div class="check">✅</div><h2>Attendance Marked</h2><p>' . htmlspecialchars($fullName) . ' has been recorded for this practical.</p><span class="badge">You may now close this window and return to the lab screen.</span></div></body></html>';
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Attendance Confirmed</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f172a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px} .card{background:#1e293b;border-radius:20px;padding:40px;max-width:360px;width:100%;text-align:center} .check{font-size:64px;margin-bottom:16px}h2{font-size:22px;margin-bottom:8px}p{color:#94a3b8;font-size:14px;line-height:1.6;margin-bottom:16px}.badge{background:#134e4a;color:#6ee7b7;padding:10px 16px;border-radius:10px;font-size:13px;display:block}</style></head><body><div class="card"><div class="check">âœ…</div><h2>Attendance Marked</h2><p>' . htmlspecialchars($fullName) . ' has been recorded for this practical.</p><span class="badge">You may now close this window and return to the lab screen.</span></div></body></html>';
     }
 
     // Phone submits their identity
@@ -418,7 +418,7 @@ class QrAuthController {
         echo '<!DOCTYPE html><html><head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <title>UNILIS SmartLab — QR Login</title>
+        <title>UNILIS SmartLab â€” QR Login</title>
         <style>
             *{box-sizing:border-box;margin:0;padding:0}
             body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f172a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -437,18 +437,18 @@ class QrAuthController {
             <div class="logo-icon" style="text-align:center">SL</div>
             <h2>QR Login</h2>
             <p>Select your name to log in.<br>Your device will be remembered for future scans.</p>
-            <span class="badge">⚡ One-tap login after first use</span>
+            <span class="badge">âš¡ One-tap login after first use</span>
             <form method="POST" action="' . $appUrl . '/qr/claim">
                 <input type="hidden" name="token" value="' . htmlspecialchars($token) . '">
                 <select name="user_id" required>
-                    <option value="">— Select your name —</option>';
+                    <option value="">â€” Select your name â€”</option>';
         foreach ($users as $u) {
             echo '<option value="' . htmlspecialchars($u['id']) . '">'
                 . htmlspecialchars($u['full_name'])
                 . ' (' . htmlspecialchars($u['reg_number']) . ')</option>';
         }
         echo '      </select>
-                <button type="submit">✓ Confirm &amp; Log In</button>
+                <button type="submit">âœ“ Confirm &amp; Log In</button>
             </form>
         </div>
         </body></html>';
@@ -456,8 +456,8 @@ class QrAuthController {
 
     private function showSuccess(string $name, bool $autoLogin): void {
         $msg = $autoLogin
-            ? '⚡ Device recognised — auto-login!'
-            : '📱 Device saved — next scan will log you in instantly!';
+            ? 'âš¡ Device recognised â€” auto-login!'
+            : 'ðŸ“± Device saved â€” next scan will log you in instantly!';
         echo '<!DOCTYPE html><html><head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -472,7 +472,7 @@ class QrAuthController {
         </style>
         </head><body>
         <div class="card">
-            <div class="check">✅</div>
+            <div class="check">âœ…</div>
             <h2>Welcome, ' . htmlspecialchars($name) . '!</h2>
             <p>You are now logged in.<br>You can close this tab and return to the lab screen.</p>
             <span class="badge">' . $msg . '</span>
@@ -480,3 +480,4 @@ class QrAuthController {
         </body></html>';
     }
 }
+
