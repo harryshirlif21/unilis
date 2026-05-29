@@ -2,40 +2,33 @@
 require_once __DIR__ . '/smart-lab/config/database_production.php';
 $pdo = getProductionDB();
 
-// Drop and recreate with explicit charset matching users.id
+// Disable FK checks, force drop, re-enable, then create clean
+$pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+$pdo->exec("DROP TABLE IF EXISTS rfid_cards");
+$pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+echo "<p>Cleared rfid_cards</p>";
+
 try {
-    // First check if it exists already (partial from failed attempt)
-    $exists = $pdo->query("SHOW TABLES LIKE 'rfid_cards'")->rowCount() > 0;
-    if ($exists) {
-        $pdo->exec("DROP TABLE rfid_cards");
-        echo "<p style='color:#92400e'>Dropped existing rfid_cards table</p>";
-    }
-
-    // Get exact column definition of users.id to match it
-    $col = $pdo->query("SHOW FULL COLUMNS FROM users WHERE Field='id'")->fetch();
-    echo "<p>users.id — Type: <strong>{$col['Type']}</strong> | Collation: <strong>{$col['Collation']}</strong></p>";
-
     $pdo->exec("CREATE TABLE rfid_cards (
         id         INT AUTO_INCREMENT PRIMARY KEY,
-        student_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+        student_id VARCHAR(36) NOT NULL,
         uid        VARCHAR(100) NOT NULL,
         device_id  VARCHAR(100) DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY unique_uid (uid),
-        FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+        INDEX      idx_student (student_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    echo "<p style='color:#166534;font-weight:600'>✓ rfid_cards created successfully</p>";
-    echo "<p><a href='dbtables.php'>← view all tables</a></p>";
+    echo "<p style='color:#166534;font-weight:700'>✓ rfid_cards created successfully</p>";
+
+    $cols = $pdo->query("DESCRIBE rfid_cards")->fetchAll(PDO::FETCH_ASSOC);
+    echo "<table border=1 cellpadding=6 style='font-size:13px;border-collapse:collapse'>";
+    echo "<tr><th>Column</th><th>Type</th><th>Key</th></tr>";
+    foreach ($cols as $c)
+        echo "<tr><td>{$c['Field']}</td><td>{$c['Type']}</td><td>{$c['Key']}</td></tr>";
+    echo "</table><br><a href='dbtables.php'>← view all tables</a>";
 
 } catch (PDOException $e) {
-    echo "<p style='color:#dc2626'><strong>Error:</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
-    // Show users table collation info to diagnose
-    $info = $pdo->query("SELECT CCSA.character_set_name, CCSA.collation_name
-        FROM information_schema.TABLES T
-        JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
-            ON CCSA.collation_name = T.table_collation
-        WHERE T.table_schema = DATABASE() AND T.table_name = 'users'")->fetch();
-    echo "<p>users table charset: <strong>{$info['character_set_name']}</strong> collation: <strong>{$info['collation_name']}</strong></p>";
+    echo "<p style='color:#dc2626'>" . htmlspecialchars($e->getMessage()) . "</p>";
 }
