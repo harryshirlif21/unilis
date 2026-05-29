@@ -1,6 +1,12 @@
-<?php
-require_once __DIR__.'/../../config/database.php';
-require_once __DIR__.'/../../config/app.php';
+﻿<?php
+$_is_prod = (strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false);
+if ($_is_prod) {
+    require_once __DIR__.'/../../config/app_production.php';
+    require_once __DIR__.'/../../config/database_production.php';
+} else {
+    require_once __DIR__.'/../../config/app.php';
+    require_once __DIR__.'/../../config/database_production.php';
+}
 require_once __DIR__.'/../../utils/helpers.php';
 require_once __DIR__.'/../../auth/Auth.php';
 header('Content-Type: application/json');
@@ -338,3 +344,5 @@ elseif ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'sta
         jsonResponse(['error' => 'Database error'], 500);
     }
 }
+
+

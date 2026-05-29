@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__.'/../config/app.php';
 
 class PracticalModel {
@@ -700,3 +700,4 @@ class PracticalModel {
         }
     }
 }
+

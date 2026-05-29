@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // Environment detection
 $is_production = (strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false);
 
@@ -515,6 +515,7 @@ class StudentPracticalController {
     /**
      * Start practical session after attendance verification
      */
+    public function index($param = null) { $this->startPractical($param); }
     public function startPractical($practicalId = null) {
         Auth::guard('student');
 
@@ -595,3 +596,5 @@ class StudentPracticalController {
         }
     }
 }
+
+
