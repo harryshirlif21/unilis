@@ -379,22 +379,37 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
   const status = document.getElementById('rfid-status');
   const rfidUid = document.getElementById('rfid_uid');
   const scanBtn = document.getElementById('rfid-scan-btn');
+  const loginForm = document.getElementById('rfid-login-form');
 
   scanBtn.disabled = true;
   status.textContent = 'Waiting for RFID reader...';
   status.style.color = '#f59e0b';
 
+  let keepDisabled = false;
+  const controller = new AbortController();
+  const scanTimeout = setTimeout(() => controller.abort(), 30000);
+
   try {
     const response = await fetch(SENSOR_BASE_URL + '/scan', {
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: controller.signal
     });
+    clearTimeout(scanTimeout);
     const result = await response.json();
 
     if (result.success && result.uid) {
       rfidUid.value = result.uid;
-      status.textContent = 'Card detected. Signing in...';
+      status.textContent = `Card detected (${result.uid}). Verifying database access for 30 seconds...`;
       status.style.color = '#10b981';
-      document.getElementById('rfid-login-form').submit();
+      keepDisabled = true;
+
+      if (window.__rfidSubmitTimer) {
+        clearTimeout(window.__rfidSubmitTimer);
+      }
+
+      window.__rfidSubmitTimer = setTimeout(() => {
+        loginForm.submit();
+      }, 30000);
       return;
     }
 
@@ -402,12 +417,19 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
     status.style.color = '#ef4444';
     alert(result.error || 'RFID scan failed. Please try again.');
   } catch (error) {
+    clearTimeout(scanTimeout);
     console.error('RFID scan error:', error);
-    status.textContent = 'RFID reader unavailable';
+    status.textContent = error.name === 'AbortError'
+      ? 'RFID scan timed out after 30 seconds'
+      : 'RFID reader unavailable';
     status.style.color = '#ef4444';
-    alert('Unable to reach the RFID reader. Check the sensor server and try again.');
+    alert(error.name === 'AbortError'
+      ? 'RFID scan timed out after 30 seconds.'
+      : 'Unable to reach the RFID reader. Check the sensor server and try again.');
   } finally {
-    scanBtn.disabled = false;
+    if (!keepDisabled) {
+      scanBtn.disabled = false;
+    }
   }
 });
 

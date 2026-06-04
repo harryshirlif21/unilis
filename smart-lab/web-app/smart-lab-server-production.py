@@ -118,23 +118,22 @@ def get_db_connection():
         return None
 
 def log_rfid_scan(uid):
-    """Log RFID scan to database or JSON fallback."""
+    """Log RFID scan to JSON and database when available."""
     try:
         now = datetime.now()
         record = {
             "id": now.strftime("%Y%m%d%H%M%S%f"),
             "uid": uid,
             "scan_time": now.strftime("%H:%M:%S"),
-            "created_at": now.strftime("%Y-%m-%d %H:%M:%S")
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "db_logged": False
         }
 
         conn = get_db_connection()
         if not conn:
-            if append_json_log(RFID_LOG_PATH, record):
-                logger.info(f"RFID logged to JSON fallback: {uid}")
-                return True
-            logger.warning("Cannot log RFID - database unavailable")
-            return False
+            append_json_log(RFID_LOG_PATH, record)
+            logger.info(f"RFID logged to JSON: {uid}")
+            return True
         
         cursor = conn.cursor()
         cursor.execute("""
@@ -144,6 +143,8 @@ def log_rfid_scan(uid):
         conn.commit()
         cursor.close()
         conn.close()
+        record["db_logged"] = True
+        append_json_log(RFID_LOG_PATH, record)
         logger.info(f"RFID logged: {uid}")
         return True
     except Exception as e:
@@ -175,12 +176,15 @@ def log_co2_file_metadata(json_file_path, ppm_count):
         return False
 
 def get_latest_rfid_scans(limit=100):
-    """Fetch latest RFID scans from database or JSON fallback."""
+    """Fetch latest RFID scans from JSON or database."""
     try:
+        records = load_json_log(RFID_LOG_PATH)
+        if records:
+            return records[-limit:][::-1]
+
         conn = get_db_connection()
         if not conn:
-            records = load_json_log(RFID_LOG_PATH)
-            return records[-limit:][::-1]
+            return []
         
         cursor = conn.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute("""
@@ -485,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
             scan_result['uid'] = None
             scan_requested.set()
 
-            triggered = scan_done.wait(timeout=15)
+            triggered = scan_done.wait(timeout=30)
             if not triggered:
                 self.send_json({"success": False, "error": "Scan timed out"}, status=504)
                 return
