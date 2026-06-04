@@ -13,9 +13,13 @@ define('LOG_PATH',              __DIR__.'/../logs/');
 define('STAFF_REGISTRATION_KEY', 'UNILIS@Staff2025');
 
 // Sensor Server Configuration (RFID/CO2)
-// For local development, sensor server runs on localhost:8765
-define('SENSOR_SERVER_HOST',    'localhost');
-define('SENSOR_SERVER_PORT',    8765);
+// Prefer a full URL if the sensor server is proxied or hosted separately.
+$sensorServerUrl = getenv('SMART_LAB_SENSOR_URL') ?: '';
+$sensorServerHost = getenv('SMART_LAB_SENSOR_HOST') ?: 'localhost';
+$sensorServerPort = getenv('SMART_LAB_SENSOR_PORT') ?: 8765;
+define('SENSOR_SERVER_URL',     $sensorServerUrl ?: sprintf('http://%s:%s', $sensorServerHost, $sensorServerPort));
+define('SENSOR_SERVER_HOST',    $sensorServerHost);
+define('SENSOR_SERVER_PORT',    (int)$sensorServerPort);
 
 // CO2 JSON Storage Path
 // For local development, JSON files are stored relative to web-app

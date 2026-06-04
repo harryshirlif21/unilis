@@ -175,12 +175,12 @@ In your `smart-lab/config/app_production.php`:
 
 ```php
 <?php
-define('SENSOR_SERVER_HOST', 'localhost');  // If on same server
+define('SENSOR_SERVER_URL', 'https://sensor.yourdomain.com'); // preferred
+define('SENSOR_SERVER_HOST', 'sensor.yourdomain.com');
 define('SENSOR_SERVER_PORT', 8765);
-// OR for separate server:
-// define('SENSOR_SERVER_HOST', 'sensor.yourdomain.com');
-// define('SENSOR_SERVER_PORT', 8765);
 ```
+
+If you proxy the sensor server under the same domain, set `SMART_LAB_SENSOR_URL` in `.env.production` to the public proxy URL.
 
 ### 7.2 Update API Calls
 If you need API endpoints in your web app, update [includes/QrAuthController.php](includes/QrAuthController.php) or similar to use `SensorServerClient`:

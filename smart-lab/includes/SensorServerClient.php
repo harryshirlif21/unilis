@@ -21,7 +21,13 @@ class SensorServerClient {
     const CO2_POOR = 1501;  // Above FAIR is poor
     
     public function __construct($host = 'localhost', $port = 8765, $jsonPath = './co2_data') {
-        $this->serverUrl = "http://{$host}:{$port}";
+        if (defined('SENSOR_SERVER_URL') && SENSOR_SERVER_URL) {
+            $this->serverUrl = rtrim(SENSOR_SERVER_URL, '/');
+        } elseif (is_string($host) && preg_match('#^https?://#i', $host)) {
+            $this->serverUrl = rtrim($host, '/');
+        } else {
+            $this->serverUrl = "http://{$host}:{$port}";
+        }
         $this->jsonPath = $jsonPath;
         $this->db = $this->getDbConnection();
     }
