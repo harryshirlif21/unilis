@@ -105,6 +105,8 @@
       <div class="auth-method" id="method-rfid">
         <form method="POST" action="<?= APP_URL ?>/auth/login" id="rfid-login-form">
           <input type="hidden" name="auth_method" value="rfid">
+          <input type="hidden" name="action" value="login">
+          <input type="hidden" name="response_mode" value="json">
           <input type="hidden" id="rfid_uid" name="rfid_uid">
 
           <div class="biometric-container">
@@ -124,6 +126,28 @@
             </div>
           </div>
         </form>
+
+        <div id="rfid-register-panel" style="display:none;margin-top:16px;padding:16px;border:1px solid rgba(37,99,235,.18);border-radius:16px;background:rgba(37,99,235,.06);">
+          <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:6px;">Register this RFID card</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">
+            The card was detected but is not linked to any account. Enter the student's registration number or email to bind it.
+          </div>
+          <form id="rfid-register-form">
+            <input type="hidden" name="auth_method" value="rfid">
+            <input type="hidden" name="action" value="register_rfid">
+            <input type="hidden" name="response_mode" value="json">
+            <input type="hidden" id="rfid_register_uid" name="rfid_uid">
+            <div class="form-group">
+              <label class="form-label">Registration Number or Email</label>
+              <input type="text" name="rfid_identifier" id="rfid_identifier" class="form-control" placeholder="e.g. SCT/2021/001 or student@unilis.jhubafrica.com" required>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button type="submit" class="btn btn-primary" id="rfid-register-submit">Link Card and Continue</button>
+              <button type="button" class="btn btn-secondary" id="rfid-register-cancel">Use Another Card</button>
+            </div>
+            <div id="rfid-register-status" style="margin-top:10px;font-size:12px;color:var(--text2);"></div>
+          </form>
+        </div>
       </div>
 
       <!-- METHOD 2: Biometric -->
@@ -284,6 +308,120 @@ let qrToken = null, pollInterval = null, qrSeconds = 300;
 const timerEl = document.getElementById('qr-timer');
 const statusEl = document.getElementById('qr-status');
 const SENSOR_BASE_URL = <?= json_encode(rtrim(SENSOR_SERVER_URL, '/')) ?>;
+let rfidSubmitTimer = null;
+
+function showRfidRegisterPanel(uid, message) {
+    const panel = document.getElementById('rfid-register-panel');
+    const status = document.getElementById('rfid-register-status');
+    const uidInput = document.getElementById('rfid_register_uid');
+    const identifier = document.getElementById('rfid_identifier');
+
+    if (panel) panel.style.display = 'block';
+    if (status) status.textContent = message || 'Enter the registration number or email to link this card.';
+    if (uidInput) uidInput.value = uid || '';
+    if (identifier) identifier.focus();
+}
+
+function hideRfidRegisterPanel() {
+    const panel = document.getElementById('rfid-register-panel');
+    const status = document.getElementById('rfid-register-status');
+    const uidInput = document.getElementById('rfid_register_uid');
+    const identifier = document.getElementById('rfid_identifier');
+
+    if (panel) panel.style.display = 'none';
+    if (status) status.textContent = '';
+    if (uidInput) uidInput.value = '';
+    if (identifier) identifier.value = '';
+}
+
+async function submitRfidLogin() {
+    const form = document.getElementById('rfid-login-form');
+    const scanBtn = document.getElementById('rfid-scan-btn');
+    const status = document.getElementById('rfid-status');
+
+    try {
+        const formData = new FormData(form);
+        formData.set('response_mode', 'json');
+
+        const response = await fetch('<?= APP_URL ?>/auth/login', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.redirect) {
+            status.textContent = 'RFID login successful. Redirecting...';
+            status.style.color = '#10b981';
+            window.location.href = result.redirect;
+            return;
+        }
+
+        if (result.requires_registration) {
+            status.textContent = 'Card detected, but not linked to an account.';
+            status.style.color = '#f59e0b';
+            showRfidRegisterPanel(result.uid, 'Enter the student registration number or email to link this card.');
+            return;
+        }
+
+        status.textContent = result.error || 'RFID login failed';
+        status.style.color = '#ef4444';
+        if (result.error) {
+            alert(result.error);
+        }
+    } catch (error) {
+        console.error('RFID login submit error:', error);
+        status.textContent = 'RFID login request failed';
+        status.style.color = '#ef4444';
+        alert('Unable to complete RFID login. Please try again.');
+    } finally {
+        scanBtn.disabled = false;
+    }
+}
+
+async function submitRfidRegistration(e) {
+    e.preventDefault();
+
+    const form = document.getElementById('rfid-register-form');
+    const submitBtn = document.getElementById('rfid-register-submit');
+    const status = document.getElementById('rfid-register-status');
+
+    try {
+        submitBtn.disabled = true;
+        status.textContent = 'Linking card to account...';
+        status.style.color = '#2563eb';
+
+        const formData = new FormData(form);
+        formData.set('response_mode', 'json');
+
+        const response = await fetch('<?= APP_URL ?>/auth/login', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.redirect) {
+            status.textContent = 'Card linked successfully. Redirecting...';
+            status.style.color = '#10b981';
+            setTimeout(() => {
+                window.location.href = result.redirect;
+            }, 700);
+            return;
+        }
+
+        status.textContent = result.error || 'Unable to link RFID card.';
+        status.style.color = '#ef4444';
+        alert(result.error || 'Unable to link RFID card.');
+    } catch (error) {
+        console.error('RFID registration error:', error);
+        status.textContent = 'Registration request failed';
+        status.style.color = '#ef4444';
+        alert('Unable to register the RFID card. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+    }
+}
 
 async function generateQR() {
     document.getElementById('qr-img').innerHTML = '<span style="color:#94a3b8;font-size:13px">Generating...</span>';
@@ -379,11 +517,11 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
   const status = document.getElementById('rfid-status');
   const rfidUid = document.getElementById('rfid_uid');
   const scanBtn = document.getElementById('rfid-scan-btn');
-  const loginForm = document.getElementById('rfid-login-form');
 
   scanBtn.disabled = true;
   status.textContent = 'Waiting for RFID reader...';
   status.style.color = '#f59e0b';
+  hideRfidRegisterPanel();
 
   let keepDisabled = false;
   const controller = new AbortController();
@@ -403,13 +541,20 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
       status.style.color = '#10b981';
       keepDisabled = true;
 
-      if (window.__rfidSubmitTimer) {
-        clearTimeout(window.__rfidSubmitTimer);
+      if (rfidSubmitTimer) {
+        clearTimeout(rfidSubmitTimer);
       }
 
-      window.__rfidSubmitTimer = setTimeout(() => {
-        loginForm.submit();
+      rfidSubmitTimer = setTimeout(() => {
+        submitRfidLogin();
       }, 30000);
+      return;
+    }
+
+    if (result.requires_registration) {
+      status.textContent = 'Card detected but not linked to an account.';
+      status.style.color = '#f59e0b';
+      showRfidRegisterPanel(result.uid, 'Enter the student registration number or email to link this card.');
       return;
     }
 
@@ -431,6 +576,13 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
       scanBtn.disabled = false;
     }
   }
+});
+
+document.getElementById('rfid-register-form').addEventListener('submit', submitRfidRegistration);
+document.getElementById('rfid-register-cancel').addEventListener('click', function() {
+  hideRfidRegisterPanel();
+  document.getElementById('rfid-status').textContent = 'Ready to scan RFID card';
+  document.getElementById('rfid-status').style.color = '';
 });
 
 // Back button for auth code

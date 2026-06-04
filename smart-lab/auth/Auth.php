@@ -77,6 +77,83 @@ class Auth {
 
         return false;
     }
+
+    public static function findUserByIdentifier(string $identifier): ?array {
+        $identifier = trim($identifier);
+        if ($identifier === '') {
+            return null;
+        }
+
+        $db = getDB();
+        if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+            $stmt = $db->prepare("SELECT id, full_name, reg_number, email, role, lab_id, is_active FROM users WHERE email = ? LIMIT 1");
+            $stmt->execute([$identifier]);
+        } else {
+            $stmt = $db->prepare("SELECT id, full_name, reg_number, email, role, lab_id, is_active FROM users WHERE reg_number = ? LIMIT 1");
+            $stmt->execute([$identifier]);
+        }
+
+        $user = $stmt->fetch();
+        return $user ?: null;
+    }
+
+    public static function registerRFIDCard(string $uid, string $identifier): array {
+        $uid = strtoupper(trim($uid));
+        $user = self::findUserByIdentifier($identifier);
+
+        if (!$user) {
+            return ['success' => false, 'message' => 'No account found for that registration number or email.'];
+        }
+
+        if ((int)($user['is_active'] ?? 0) !== 1) {
+            return ['success' => false, 'message' => 'This account is inactive.'];
+        }
+
+        $db = getDB();
+        try {
+            $db->beginTransaction();
+
+            $existingUidStmt = $db->prepare("SELECT student_id FROM rfid_cards WHERE uid = ? LIMIT 1");
+            $existingUidStmt->execute([$uid]);
+            $existingUid = $existingUidStmt->fetch();
+            if ($existingUid && (int)$existingUid['student_id'] !== (int)$user['id']) {
+                $db->rollBack();
+                return ['success' => false, 'message' => 'That RFID card is already linked to another account.'];
+            }
+
+            $existingStudentStmt = $db->prepare("SELECT id FROM rfid_cards WHERE student_id = ? LIMIT 1");
+            $existingStudentStmt->execute([$user['id']]);
+            $existingStudent = $existingStudentStmt->fetch();
+
+            if ($existingStudent) {
+                $stmt = $db->prepare("UPDATE rfid_cards SET uid = ?, device_id = NULL, updated_at = NOW() WHERE student_id = ?");
+                $stmt->execute([$uid, $user['id']]);
+            } else {
+                $stmt = $db->prepare("INSERT INTO rfid_cards (student_id, uid, device_id) VALUES (?, ?, NULL)");
+                $stmt->execute([$user['id'], $uid]);
+            }
+
+            $db->commit();
+        } catch (Exception $e) {
+            if ($db && $db->inTransaction()) {
+                $db->rollBack();
+            }
+            return ['success' => false, 'message' => 'Unable to register RFID card: ' . $e->getMessage()];
+        }
+
+        $_SESSION['user_id']   = $user['id'];
+        $_SESSION['user_role'] = $user['role'];
+        $_SESSION['user_name'] = $user['full_name'];
+        $_SESSION['lab_id']    = $user['lab_id'] ?? '';
+        $_SESSION['auth_method'] = 'rfid';
+        $_SESSION['last_activity'] = time();
+
+        return [
+            'success' => true,
+            'user' => $user,
+            'message' => 'RFID card linked successfully.'
+        ];
+    }
     
     public static function loginByQR(string $qrToken, string $sessionId): bool {
         if (!self::verifyQR($qrToken, $sessionId)) {

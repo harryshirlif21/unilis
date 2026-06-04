@@ -74,21 +74,84 @@ class AuthController {
                 }
 
             } elseif ($method === 'rfid') {
+                $action = sanitize($_POST['action'] ?? 'login');
                 $rfidUid = sanitize($_POST['rfid_uid'] ?? '');
+                $responseMode = sanitize($_POST['response_mode'] ?? '');
+                $wantsJson = $responseMode === 'json' || (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest');
 
-                if (empty($rfidUid)) {
-                    $error = 'Please scan your RFID card first.';
-                } else {
-                    if (Auth::loginByRFID($rfidUid)) {
-                        if (Auth::requireMultiFactor()) {
-                            $mfaCode = Auth::initiateMultiFactor(Auth::id());
-                            $mfaRequired = true;
-                        } else {
-                            logActivity(Auth::id(), 'login_rfid', 'auth');
-                            redirect('dashboard');
+                $respondJson = function (array $payload, int $status = 200) {
+                    http_response_code($status);
+                    header('Content-Type: application/json');
+                    echo json_encode($payload);
+                    return;
+                };
+
+                if ($action === 'register_rfid') {
+                    $identifier = sanitize($_POST['rfid_identifier'] ?? '');
+
+                    if (empty($rfidUid) || empty($identifier)) {
+                        if ($wantsJson) {
+                            $respondJson(['success' => false, 'error' => 'RFID UID and registration number/email are required.'], 400);
+                            return;
                         }
+                        $error = 'RFID UID and registration number/email are required.';
                     } else {
-                        $error = 'RFID card not recognized or account inactive.';
+                        $result = Auth::registerRFIDCard($rfidUid, $identifier);
+                        if ($result['success']) {
+                            logActivity(Auth::id(), 'register_rfid_card', 'auth');
+                            if ($wantsJson) {
+                                $respondJson([
+                                    'success' => true,
+                                    'message' => $result['message'],
+                                    'redirect' => APP_URL . '/dashboard'
+                                ]);
+                                return;
+                            }
+                            redirect('dashboard');
+                        } else {
+                            if ($wantsJson) {
+                                $respondJson(['success' => false, 'error' => $result['message']], 422);
+                                return;
+                            }
+                            $error = $result['message'];
+                        }
+                    }
+                } else {
+                    if (empty($rfidUid)) {
+                        if ($wantsJson) {
+                            $respondJson(['success' => false, 'error' => 'Please scan your RFID card first.'], 400);
+                            return;
+                        }
+                        $error = 'Please scan your RFID card first.';
+                    } else {
+                        if (Auth::loginByRFID($rfidUid)) {
+                            if (Auth::requireMultiFactor()) {
+                                $mfaCode = Auth::initiateMultiFactor(Auth::id());
+                                $mfaRequired = true;
+                            } else {
+                                logActivity(Auth::id(), 'login_rfid', 'auth');
+                                if ($wantsJson) {
+                                    $respondJson([
+                                        'success' => true,
+                                        'redirect' => APP_URL . '/dashboard',
+                                        'message' => 'RFID login successful.'
+                                    ]);
+                                    return;
+                                }
+                                redirect('dashboard');
+                            }
+                        } else {
+                            if ($wantsJson) {
+                                $respondJson([
+                                    'success' => false,
+                                    'requires_registration' => true,
+                                    'uid' => $rfidUid,
+                                    'error' => 'RFID card not recognized or account inactive.'
+                                ], 404);
+                                return;
+                            }
+                            $error = 'RFID card not recognized or account inactive.';
+                        }
                     }
                 }
 
