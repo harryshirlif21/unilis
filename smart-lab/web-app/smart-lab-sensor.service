@@ -1,0 +1,23 @@
+[Unit]
+Description=Smart Lab RFID/CO2 Sensor Server
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/unilis/smart-lab/web-app
+ExecStart=/usr/bin/python3 /var/www/unilis/smart-lab/web-app/smart-lab-server-production.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables - set these before running
+EnvironmentFile=/var/www/unilis/smart-lab/web-app/.env.production
+
+# Permissions for serial port
+PermissionsStartOnly=true
+ExecStartPre=/bin/chmod 666 /dev/ttyUSB0
+
+[Install]
+WantedBy=multi-user.target

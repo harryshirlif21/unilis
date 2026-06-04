@@ -1,7 +1,7 @@
 <?php
 define('APP_NAME',              'UNILIS SmartLab');
 define('APP_VERSION',           '1.0.0');
-define('APP_URL',               'http://localhost/smart-lab');
+define('APP_URL',               sprintf('http://%s/smart-lab', $_SERVER['HTTP_HOST'] ?? 'localhost'));
 define('APP_ENV',               'development');
 define('SESSION_LIFETIME',      3600);
 define('BLOCKCHAIN_DIFFICULTY', 2);
@@ -11,3 +11,12 @@ define('BIOMETRIC_SALT',        'unilis_biometric_salt_2025');
 define('UPLOAD_PATH',           __DIR__.'/../public/uploads/');
 define('LOG_PATH',              __DIR__.'/../logs/');
 define('STAFF_REGISTRATION_KEY', 'UNILIS@Staff2025');
+
+// Sensor Server Configuration (RFID/CO2)
+// For local development, sensor server runs on localhost:8765
+define('SENSOR_SERVER_HOST',    'localhost');
+define('SENSOR_SERVER_PORT',    8765);
+
+// CO2 JSON Storage Path
+// For local development, JSON files are stored relative to web-app
+define('SENSOR_JSON_PATH',      __DIR__.'/../web-app/co2_data');

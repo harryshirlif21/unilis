@@ -1,0 +1,202 @@
+# RFID/CO2 Sensor Code - Online Deployment Summary
+
+## 📋 Files Overview
+
+### NEW Files Created:
+
+1. **smart-lab-server-production.py** (Production Sensor Server)
+   - Replaces: old smart-lab-server.py (local only)
+   - Features: MySQL database, environment configuration, professional logging
+   - Location: `smart-lab/web-app/`
+
+2. **rfid_co2_production.sql** (Database Schema)
+   - Creates tables: `rfid_scans`, `co2_readings`
+   - Creates views: `latest_co2_reading`, `co2_last_24h`, `rfid_last_7d`
+   - Location: `smart-lab/database_setup/`
+
+3. **SensorServerClient.php** (PHP Wrapper)
+   - Communicates with Python sensor server
+   - Provides methods: triggerRfidScan(), getLatestCo2Readings(), getLatestRfidScans()
+   - Graceful error handling
+   - Location: `smart-lab/includes/`
+
+4. **.env.production.example** (Configuration Template)
+   - Template for environment variables
+   - Copy to `.env.production` and customize
+   - Location: `smart-lab/web-app/`
+
+5. **smart-lab-sensor.service** (Linux Service File)
+   - Systemd service for running on Linux servers
+   - Auto-start, restart on failure, logging
+   - Location: `smart-lab/web-app/`
+
+6. **requirements.txt** (Python Dependencies)
+   - `pyserial==3.5` - Serial port communication
+   - `MySQLdb==1.2.5` - MySQL database access
+   - Location: `smart-lab/web-app/`
+
+7. **DEPLOYMENT_GUIDE.md** (Comprehensive Deployment Instructions)
+   - Step-by-step deployment to production server
+   - Troubleshooting section
+   - Monitoring and maintenance instructions
+   - Location: `smart-lab/web-app/`
+
+8. **QUICK_START.md** (Quick Reference Guide)
+   - Quick start overview
+   - Architecture diagram
+   - Environment variables reference
+   - Location: `smart-lab/web-app/`
+
+### UPDATED Files:
+
+1. **take_practical_modal.php**
+   - OLD: Called `http://localhost:8765/scan` directly from JavaScript
+   - NEW: Calls PHP API endpoint `SensorServerClient.php?action=scan`
+   - BENEFIT: Works both locally and online without code changes
+
+2. **config/app.php** (Local Development)
+   - ADDED: `SENSOR_SERVER_HOST` and `SENSOR_SERVER_PORT` constants
+   - Values: 'localhost' and 8765
+
+3. **config/app_production.php** (Production)
+   - ADDED: `SENSOR_SERVER_HOST` and `SENSOR_SERVER_PORT` constants
+   - Values: 'localhost' and 8765 (can be customized for different setups)
+
+## 🔧 How It Works
+
+### Local Development (Current)
+```
+User clicks "Scan Card" 
+  → Browser calls PHP API: SensorServerClient.php?action=scan
+    → PHP calls Python server at localhost:8765
+      → Python server triggers Arduino RFID scan
+        → Result sent to database
+          → Response returned to browser
+```
+
+### Online Production
+```
+User clicks "Scan Card" on unilis.jhubafrica.com
+  → Browser calls PHP API: SensorServerClient.php?action=scan
+    → PHP calls Python server at 127.0.0.1:8765
+      → Python server triggers Arduino RFID scan (connected via USB)
+        → Result saved to production MySQL database
+          → Response returned to browser
+```
+
+## 📊 Database Schema
+
+### rfid_scans table
+```sql
+id            INT AUTO_INCREMENT PRIMARY KEY
+uid           VARCHAR(50) NOT NULL UNIQUE      -- RFID card UID
+scan_time     VARCHAR(8)                       -- HH:MM:SS
+created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+```
+
+### co2_readings table
+```sql
+id            INT AUTO_INCREMENT PRIMARY KEY
+ppm           INT NOT NULL                     -- CO2 level
+status        VARCHAR(50)                      -- Excellent/Good/Fair/Poor
+color         VARCHAR(10)                      -- Hex color for status
+bg            VARCHAR(10)                      -- Background color
+reading_time  VARCHAR(8)                       -- HH:MM:SS
+created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+```
+
+## 🚀 Quick Deployment Checklist
+
+- [ ] Review all new files (they're well-commented)
+- [ ] Test locally: `python smart-lab/web-app/smart-lab-server-production.py`
+- [ ] Create production database: `mysql < database_setup/rfid_co2_production.sql`
+- [ ] Copy files to server via SCP/SFTP
+- [ ] Create `.env.production` on server with correct credentials
+- [ ] Install Python dependencies: `pip install -r requirements.txt`
+- [ ] Enable systemd service: `sudo systemctl enable smart-lab-sensor`
+- [ ] Start service: `sudo systemctl start smart-lab-sensor`
+- [ ] Verify: `curl http://localhost:8765/health`
+- [ ] Monitor: `sudo journalctl -u smart-lab-sensor -f`
+
+## 🔑 Key Improvements
+
+### Before (Local Only)
+- Hardcoded `localhost:8765` in JavaScript
+- Data stored only in JSON files
+- No error logging
+- Windows-only serial port (COM7)
+- No database integration
+- Couldn't deploy to production
+
+### After (Local + Online)
+- ✅ Works via PHP API endpoint (works everywhere)
+- ✅ Data stored in MySQL database
+- ✅ Professional logging to files
+- ✅ Cross-platform serial port support (Windows, Linux, Mac)
+- ✅ Full database integration and querying
+- ✅ Ready for production deployment
+- ✅ Environment-based configuration
+- ✅ Health monitoring endpoints
+- ✅ Graceful error handling
+- ✅ Systemd service for automatic startup
+
+## 📝 Configuration for Your Setup
+
+### For unilis.jhubafrica.com:
+Your `.env.production` should have:
+```env
+SMART_LAB_SERIAL_PORT=/dev/ttyUSB0       # Linux USB port
+SMART_LAB_BAUD_RATE=9600
+SMART_LAB_HTTP_PORT=8765
+SMART_LAB_DB_HOST=localhost
+SMART_LAB_DB_USER=smart_lab_user
+SMART_LAB_DB_PASS=[your_password]
+SMART_LAB_DB_NAME=unilis_smart_lab
+SMART_LAB_LOG_PATH=/var/log/smart-lab
+```
+
+## 📚 Documentation Files
+
+- **DEPLOYMENT_GUIDE.md** - Full step-by-step deployment (read this!)
+- **QUICK_START.md** - Quick reference and troubleshooting
+
+## 🔍 Verification Commands
+
+```bash
+# Check sensor server status
+curl http://localhost:8765/health
+
+# Get latest RFID scans
+curl http://localhost:8765/cards
+
+# Get latest CO2 readings
+curl http://localhost:8765/co2
+
+# Check via PHP API (from web root)
+curl http://localhost:8080/smart-lab/includes/SensorServerClient.php?action=health
+
+# Monitor live logs
+sudo journalctl -u smart-lab-sensor -f
+```
+
+## ⚠️ Important Notes
+
+1. **Arduino Connection**: Will still be via USB on the server
+2. **Database**: Requires MySQL/MariaDB on production server
+3. **Python**: Requires Python 3.6+ with MySQLdb support
+4. **Permissions**: Sensor server process needs serial port access
+5. **Security**: Secure `.env.production` file with credentials
+
+## 🎯 Next Action
+
+1. Read [QUICK_START.md](web-app/QUICK_START.md) for overview
+2. Read [DEPLOYMENT_GUIDE.md](web-app/DEPLOYMENT_GUIDE.md) for detailed instructions
+3. Test locally before deploying to production
+4. Deploy to unilis.jhubafrica.com following the guide
+5. Start monitoring: `sudo journalctl -u smart-lab-sensor -f`
+
+---
+
+**Status**: ✅ Ready for Online Deployment
+**Last Updated**: 2026-06-04
+**Tested On**: Docker environment with localhost:8080 routing

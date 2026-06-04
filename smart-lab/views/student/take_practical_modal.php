@@ -58,8 +58,12 @@
             <!-- RFID Panel -->
             <div id="panel-rfid" class="method-panel hidden">
                 <label class="field-label">RFID Card UID</label>
-                <input type="text" id="rfidInput" class="form-control" placeholder="Tap card or enter UID&hellip;" autocomplete="off" />
-                <p class="input-note" style="margin-top:.5rem;">Tap your student card on the reader, or type the UID manually.</p>
+                <div class="rfid-scan-grid">
+                    <input type="text" id="rfidInput" class="form-control" placeholder="Tap card or enter UID&hellip;" autocomplete="off" />
+                    <button type="button" id="rfidScanBtn" class="btn btn-secondary btn-sm" onclick="triggerRfidScan()">Scan Card</button>
+                </div>
+                <p class="input-note" style="margin-top:.5rem;">Tap your student card on the reader, or type the UID manually. The RFID scan server must be running.</p>
+                <div id="rfidScanStatus" class="status-panel" style="margin-top:.75rem;min-height:2.3rem;">Ready to scan.</div>
             </div>
 
             <!-- Confirmation Code Panel -->
@@ -146,12 +150,14 @@
 .btn-outline    { background:transparent;border:1.5px solid #2563eb;color:#2563eb; }
 .btn-outline:hover { background:#eff6ff; }
 .btn-sm         { padding:.5rem .9rem;font-size:.85rem; }
+    .rfid-scan-grid  { display:flex; gap:0.75rem; align-items:flex-start; }
+    .rfid-scan-grid .form-control { flex:1; }
+    .rfid-scan-grid .btn { white-space:nowrap; }
 @media(max-width:480px){
     .verification-options { grid-template-columns:1fr 1fr; }
     .qr-card { grid-template-columns:1fr; }
     .qr-display { width:100%;min-height:180px; }
-}
-</style>
+    .rfid-scan-grid { flex-direction:column; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
@@ -304,6 +310,50 @@
         var uid = document.getElementById('rfidInput').value.trim();
         if (!uid) return Promise.reject(new Error('Please enter or scan your RFID card UID.'));
         return apiPost('/attendance-qr/verifyRFID', { uid: uid });
+    }
+
+    function triggerRfidScan() {
+        var statusEl = document.getElementById('rfidScanStatus');
+        var scanBtn = document.getElementById('rfidScanBtn');
+        if (!statusEl || !scanBtn) return;
+
+        scanBtn.disabled = true;
+        scanBtn.textContent = 'Scanning...';
+        setRfidScanStatus('Requesting card scan from RFID server…', 'waiting');
+
+        // Call server-side API endpoint that communicates with sensor server
+        // This works both locally and online
+        fetch('<?= APP_URL ?>/includes/SensorServerClient.php?action=scan', { 
+            cache: 'no-store',
+            method: 'GET'
+        })
+            .then(function (r) {
+                if (!r.ok) throw new Error('Sensor server returned an error.');
+                return r.json();
+            })
+            .then(function (data) {
+                if (data.success && data.uid) {
+                    document.getElementById('rfidInput').value = data.uid;
+                    setRfidScanStatus('Card detected: ' + data.uid + '. You can now verify.', 'success');
+                    setStatus('RFID read successful. Press Verify to confirm attendance.', 'success');
+                    return;
+                }
+                throw new Error(data.error || 'Scan failed. Please try again.');
+            })
+            .catch(function (err) {
+                setRfidScanStatus(err.message || 'Cannot reach RFID server. Is the sensor server running?', 'error');
+            })
+            .finally(function () {
+                scanBtn.disabled = false;
+                scanBtn.textContent = 'Scan Card';
+            });
+    }
+
+    function setRfidScanStatus(msg, type) {
+        var el = document.getElementById('rfidScanStatus');
+        if (!el) return;
+        el.textContent = msg;
+        el.className = 'status-panel' + (type === 'error' ? ' is-error' : type === 'success' ? ' is-success' : '');
     }
 
     function doCode() {
