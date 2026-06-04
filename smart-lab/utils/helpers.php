@@ -27,6 +27,72 @@ function logActivity(string $userId, string $action, string $module): void {
     )->execute([$userId, $action, $module, $_SERVER['REMOTE_ADDR'] ?? '']);
 }
 
+function getPracticalAccessWindow(array $item, ?DateTimeInterface $now = null): array {
+    $date = trim((string)($item['scheduled_date'] ?? ''));
+    $startTime = trim((string)($item['start_time'] ?? ''));
+
+    if ($date === '' || $startTime === '') {
+        return [
+            'can_take' => false,
+            'is_upcoming' => false,
+            'is_expired' => true,
+            'window_starts_at' => null,
+            'window_ends_at' => null,
+            'minutes_to_start' => null,
+            'minutes_since_start' => null,
+            'label' => 'Schedule unavailable',
+            'description' => 'This practical has no valid start time.'
+        ];
+    }
+
+    $now = $now ? DateTimeImmutable::createFromInterface($now) : new DateTimeImmutable('now');
+
+    try {
+        $startAt = new DateTimeImmutable($date . ' ' . $startTime);
+    } catch (Exception $e) {
+        return [
+            'can_take' => false,
+            'is_upcoming' => false,
+            'is_expired' => true,
+            'window_starts_at' => null,
+            'window_ends_at' => null,
+            'minutes_to_start' => null,
+            'minutes_since_start' => null,
+            'label' => 'Invalid schedule',
+            'description' => 'Unable to parse the practical schedule time.'
+        ];
+    }
+
+    $windowStart = $startAt->modify('-30 minutes');
+    $windowEnd = $startAt->modify('+20 minutes');
+    $canTake = ($now >= $windowStart && $now <= $windowEnd);
+    $minutesToStart = (int)floor(($startAt->getTimestamp() - $now->getTimestamp()) / 60);
+    $minutesSinceStart = (int)floor(($now->getTimestamp() - $startAt->getTimestamp()) / 60);
+
+    if ($canTake) {
+        $label = 'Available now';
+        $description = 'You can start this practical now. Access closes 20 minutes after start time.';
+    } elseif ($now < $windowStart) {
+        $label = 'Upcoming';
+        $description = 'Available 30 minutes before the scheduled start time.';
+    } else {
+        $label = 'Closed';
+        $description = 'This practical is closed. Access ends 20 minutes after the scheduled start time.';
+    }
+
+    return [
+        'can_take' => $canTake,
+        'is_upcoming' => $now < $windowStart,
+        'is_expired' => $now > $windowEnd,
+        'window_starts_at' => $windowStart->format('Y-m-d H:i:s'),
+        'window_ends_at' => $windowEnd->format('Y-m-d H:i:s'),
+        'minutes_to_start' => $minutesToStart,
+        'minutes_since_start' => $minutesSinceStart,
+        'label' => $label,
+        'description' => $description
+    ];
+}
+
 function sanitizeHTML(string $html): string {
     // Allow only safe HTML tags and attributes
     $allowedTags = [

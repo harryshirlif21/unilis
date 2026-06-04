@@ -525,7 +525,7 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
 
   let keepDisabled = false;
   const controller = new AbortController();
-  const scanTimeout = setTimeout(() => controller.abort(), 30000);
+  const scanTimeout = setTimeout(() => controller.abort(), 10000);
 
   try {
     const response = await fetch(SENSOR_BASE_URL + '/scan', {
@@ -537,7 +537,7 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
 
     if (result.success && result.uid) {
       rfidUid.value = result.uid;
-      status.textContent = `Card detected (${result.uid}). Verifying database access for 30 seconds...`;
+      status.textContent = `Card detected (${result.uid}). Signing in...`;
       status.style.color = '#10b981';
       keepDisabled = true;
 
@@ -547,7 +547,7 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
 
       rfidSubmitTimer = setTimeout(() => {
         submitRfidLogin();
-      }, 30000);
+      }, 400);
       return;
     }
 
@@ -565,11 +565,11 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
     clearTimeout(scanTimeout);
     console.error('RFID scan error:', error);
     status.textContent = error.name === 'AbortError'
-      ? 'RFID scan timed out after 30 seconds'
+      ? 'RFID scan timed out after 10 seconds'
       : 'RFID reader unavailable';
     status.style.color = '#ef4444';
     alert(error.name === 'AbortError'
-      ? 'RFID scan timed out after 30 seconds.'
+      ? 'RFID scan timed out after 10 seconds.'
       : 'Unable to reach the RFID reader. Check the sensor server and try again.');
   } finally {
     if (!keepDisabled) {

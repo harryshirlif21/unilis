@@ -997,3 +997,329 @@
 2026-06-04 13:15:08,700 [INFO] CO2 logged: 486 PPM | Excellent
 2026-06-04 13:15:13,721 [WARNING] Cannot log CO2 file metadata - database unavailable
 2026-06-04 13:15:13,721 [INFO] CO2 logged: 485 PPM | Excellent
+2026-06-04 13:15:18,714 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:18,714 [INFO] CO2 logged: 485 PPM | Excellent
+2026-06-04 13:15:23,731 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:23,732 [INFO] CO2 logged: 484 PPM | Excellent
+2026-06-04 13:15:28,742 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:28,744 [INFO] CO2 logged: 483 PPM | Excellent
+2026-06-04 13:15:33,753 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:33,754 [INFO] CO2 logged: 482 PPM | Excellent
+2026-06-04 13:15:38,754 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:38,754 [INFO] CO2 logged: 481 PPM | Excellent
+2026-06-04 13:15:43,773 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:43,773 [INFO] CO2 logged: 480 PPM | Excellent
+2026-06-04 13:15:48,777 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:48,778 [INFO] CO2 logged: 479 PPM | Excellent
+2026-06-04 13:15:53,772 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:53,773 [INFO] CO2 logged: 479 PPM | Excellent
+2026-06-04 13:15:58,808 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:15:58,809 [INFO] CO2 logged: 478 PPM | Excellent
+2026-06-04 13:16:03,804 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:03,805 [INFO] CO2 logged: 477 PPM | Excellent
+2026-06-04 13:16:08,803 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:08,803 [INFO] CO2 logged: 477 PPM | Excellent
+2026-06-04 13:16:13,827 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:13,827 [INFO] CO2 logged: 476 PPM | Excellent
+2026-06-04 13:16:18,842 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:18,843 [INFO] CO2 logged: 475 PPM | Excellent
+2026-06-04 13:16:23,829 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:23,829 [INFO] CO2 logged: 474 PPM | Excellent
+2026-06-04 13:16:28,864 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:28,865 [INFO] CO2 logged: 474 PPM | Excellent
+2026-06-04 13:16:33,861 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:33,862 [INFO] CO2 logged: 473 PPM | Excellent
+2026-06-04 13:16:38,853 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:38,853 [INFO] CO2 logged: 472 PPM | Excellent
+2026-06-04 13:16:43,887 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:43,887 [INFO] CO2 logged: 471 PPM | Excellent
+2026-06-04 13:16:48,883 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:48,883 [INFO] CO2 logged: 470 PPM | Excellent
+2026-06-04 13:16:53,882 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:53,882 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:16:58,920 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:16:58,920 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:17:03,912 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:03,913 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:17:08,908 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:08,908 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:17:13,929 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:13,929 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:17:18,942 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:18,942 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:17:23,939 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:23,939 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:17:28,966 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:28,966 [INFO] CO2 logged: 466 PPM | Excellent
+2026-06-04 13:17:33,972 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:33,973 [INFO] CO2 logged: 466 PPM | Excellent
+2026-06-04 13:17:38,970 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:38,970 [INFO] CO2 logged: 466 PPM | Excellent
+2026-06-04 13:17:43,995 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:43,995 [INFO] CO2 logged: 466 PPM | Excellent
+2026-06-04 13:17:49,005 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:49,006 [INFO] CO2 logged: 466 PPM | Excellent
+2026-06-04 13:17:54,017 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:54,025 [INFO] CO2 logged: 466 PPM | Excellent
+2026-06-04 13:17:59,021 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:17:59,021 [INFO] CO2 logged: 466 PPM | Excellent
+2026-06-04 13:18:04,030 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:04,030 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:18:09,023 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:09,023 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:18:14,053 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:14,053 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:18:19,062 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:19,062 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:18:24,053 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:24,054 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:18:29,068 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:29,068 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:18:34,084 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:34,084 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:18:39,079 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:39,080 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:18:44,103 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:44,103 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:18:49,116 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:49,116 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:18:54,111 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:54,111 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:18:59,145 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:18:59,145 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:04,149 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:04,149 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:09,149 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:09,149 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:14,167 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:14,168 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:19,192 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:19,193 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:24,176 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:24,176 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:29,186 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:29,187 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:34,218 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:34,218 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:39,199 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:39,199 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:44,230 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:44,230 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:49,240 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:49,240 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:54,235 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:54,235 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:19:59,248 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:19:59,248 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:20:04,260 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:04,260 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:09,264 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:09,264 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:14,288 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:14,288 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:14,288 [INFO] RFID scan requested - sending command to Arduino...
+2026-06-04 13:20:15,686 [INFO] RFID logged to JSON fallback: 59144DE8
+2026-06-04 13:20:19,299 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:19,299 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:24,299 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:24,299 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:29,333 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:29,333 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:34,343 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:34,343 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:39,328 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:39,328 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:44,336 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:44,337 [INFO] CO2 logged: 469 PPM | Excellent
+2026-06-04 13:20:49,370 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:49,370 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:20:54,352 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:54,352 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:20:59,370 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:20:59,370 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:21:04,385 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:04,385 [INFO] CO2 logged: 468 PPM | Excellent
+2026-06-04 13:21:09,394 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:09,395 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:21:14,406 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:14,407 [INFO] CO2 logged: 467 PPM | Excellent
+2026-06-04 13:21:19,406 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:19,406 [INFO] CO2 logged: 466 PPM | Excellent
+2026-06-04 13:21:24,403 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:24,404 [INFO] CO2 logged: 465 PPM | Excellent
+2026-06-04 13:21:29,430 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:29,430 [INFO] CO2 logged: 463 PPM | Excellent
+2026-06-04 13:21:32,430 [INFO] RFID scan requested - sending command to Arduino...
+2026-06-04 13:21:34,432 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:34,432 [INFO] CO2 logged: 461 PPM | Excellent
+2026-06-04 13:21:39,429 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:39,429 [INFO] CO2 logged: 459 PPM | Excellent
+2026-06-04 13:21:39,648 [INFO] RFID logged to JSON fallback: 59144DE8
+2026-06-04 13:21:44,465 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:44,465 [INFO] CO2 logged: 457 PPM | Excellent
+2026-06-04 13:21:49,469 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:49,469 [INFO] CO2 logged: 455 PPM | Excellent
+2026-06-04 13:21:54,466 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:54,466 [INFO] CO2 logged: 453 PPM | Excellent
+2026-06-04 13:21:59,493 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:21:59,493 [INFO] CO2 logged: 452 PPM | Excellent
+2026-06-04 13:22:04,491 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:04,491 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:09,493 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:09,494 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:14,517 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:14,517 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:19,533 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:19,534 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:24,531 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:24,531 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:29,549 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:29,549 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:29,550 [INFO] RFID scan requested - sending command to Arduino...
+2026-06-04 13:22:30,585 [INFO] RFID logged to JSON fallback: 59144DE8
+2026-06-04 13:22:34,578 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:34,579 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:39,550 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:39,550 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:44,578 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:44,578 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:22:49,591 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:49,591 [INFO] CO2 logged: 452 PPM | Excellent
+2026-06-04 13:22:54,579 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:54,581 [INFO] CO2 logged: 454 PPM | Excellent
+2026-06-04 13:22:59,596 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:22:59,596 [INFO] CO2 logged: 455 PPM | Excellent
+2026-06-04 13:23:04,601 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:04,601 [INFO] CO2 logged: 457 PPM | Excellent
+2026-06-04 13:23:09,611 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:09,612 [INFO] CO2 logged: 458 PPM | Excellent
+2026-06-04 13:23:14,628 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:14,628 [INFO] CO2 logged: 460 PPM | Excellent
+2026-06-04 13:23:19,643 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:19,643 [INFO] CO2 logged: 461 PPM | Excellent
+2026-06-04 13:23:24,636 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:24,636 [INFO] CO2 logged: 462 PPM | Excellent
+2026-06-04 13:23:29,656 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:29,656 [INFO] CO2 logged: 463 PPM | Excellent
+2026-06-04 13:23:34,671 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:34,671 [INFO] CO2 logged: 464 PPM | Excellent
+2026-06-04 13:23:39,677 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:39,677 [INFO] CO2 logged: 464 PPM | Excellent
+2026-06-04 13:23:44,699 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:44,699 [INFO] CO2 logged: 464 PPM | Excellent
+2026-06-04 13:23:49,710 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:49,710 [INFO] CO2 logged: 464 PPM | Excellent
+2026-06-04 13:23:54,718 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:54,719 [INFO] CO2 logged: 464 PPM | Excellent
+2026-06-04 13:23:59,738 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:23:59,738 [INFO] CO2 logged: 464 PPM | Excellent
+2026-06-04 13:24:04,729 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:04,730 [INFO] CO2 logged: 464 PPM | Excellent
+2026-06-04 13:24:09,730 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:09,731 [INFO] CO2 logged: 464 PPM | Excellent
+2026-06-04 13:24:14,739 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:14,739 [INFO] CO2 logged: 463 PPM | Excellent
+2026-06-04 13:24:19,755 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:19,755 [INFO] CO2 logged: 462 PPM | Excellent
+2026-06-04 13:24:24,774 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:24,775 [INFO] CO2 logged: 461 PPM | Excellent
+2026-06-04 13:24:29,767 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:29,767 [INFO] CO2 logged: 460 PPM | Excellent
+2026-06-04 13:24:34,775 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:34,777 [INFO] CO2 logged: 459 PPM | Excellent
+2026-06-04 13:24:39,802 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:39,802 [INFO] CO2 logged: 457 PPM | Excellent
+2026-06-04 13:24:44,800 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:44,800 [INFO] CO2 logged: 455 PPM | Excellent
+2026-06-04 13:24:49,808 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:49,808 [INFO] CO2 logged: 453 PPM | Excellent
+2026-06-04 13:24:54,855 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:54,856 [INFO] CO2 logged: 451 PPM | Excellent
+2026-06-04 13:24:59,853 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:24:59,853 [INFO] CO2 logged: 449 PPM | Excellent
+2026-06-04 13:25:04,846 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:04,847 [INFO] CO2 logged: 446 PPM | Excellent
+2026-06-04 13:25:09,862 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:09,862 [INFO] CO2 logged: 443 PPM | Excellent
+2026-06-04 13:25:14,865 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:14,865 [INFO] CO2 logged: 440 PPM | Excellent
+2026-06-04 13:25:19,866 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:19,867 [INFO] CO2 logged: 438 PPM | Excellent
+2026-06-04 13:25:24,879 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:24,879 [INFO] CO2 logged: 435 PPM | Excellent
+2026-06-04 13:25:29,887 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:29,887 [INFO] CO2 logged: 433 PPM | Excellent
+2026-06-04 13:25:34,884 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:34,886 [INFO] CO2 logged: 431 PPM | Excellent
+2026-06-04 13:25:39,917 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:39,920 [INFO] CO2 logged: 429 PPM | Excellent
+2026-06-04 13:25:44,915 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:44,915 [INFO] CO2 logged: 428 PPM | Excellent
+2026-06-04 13:25:49,922 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:49,923 [INFO] CO2 logged: 427 PPM | Excellent
+2026-06-04 13:25:54,995 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:25:55,003 [INFO] CO2 logged: 426 PPM | Excellent
+2026-06-04 13:26:00,055 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:00,121 [INFO] CO2 logged: 426 PPM | Excellent
+2026-06-04 13:26:04,955 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:04,956 [INFO] CO2 logged: 426 PPM | Excellent
+2026-06-04 13:26:09,973 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:09,977 [INFO] CO2 logged: 426 PPM | Excellent
+2026-06-04 13:26:12,997 [INFO] RFID scan requested - sending command to Arduino...
+2026-06-04 13:26:14,988 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:14,988 [INFO] CO2 logged: 426 PPM | Excellent
+2026-06-04 13:26:18,921 [INFO] RFID logged to JSON fallback: 59144DE8
+2026-06-04 13:26:20,025 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:20,058 [INFO] CO2 logged: 426 PPM | Excellent
+2026-06-04 13:26:25,013 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:25,018 [INFO] CO2 logged: 427 PPM | Excellent
+2026-06-04 13:26:30,022 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:30,024 [INFO] CO2 logged: 428 PPM | Excellent
+2026-06-04 13:26:35,017 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:35,017 [INFO] CO2 logged: 429 PPM | Excellent
+2026-06-04 13:26:40,040 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:40,040 [INFO] CO2 logged: 432 PPM | Excellent
+2026-06-04 13:26:45,048 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:45,050 [INFO] CO2 logged: 434 PPM | Excellent
+2026-06-04 13:26:50,137 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:50,145 [INFO] CO2 logged: 436 PPM | Excellent
+2026-06-04 13:26:55,067 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:26:55,068 [INFO] CO2 logged: 438 PPM | Excellent
+2026-06-04 13:27:00,083 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:00,083 [INFO] CO2 logged: 439 PPM | Excellent
+2026-06-04 13:27:05,076 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:05,077 [INFO] CO2 logged: 440 PPM | Excellent
+2026-06-04 13:27:10,083 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:10,083 [INFO] CO2 logged: 440 PPM | Excellent
+2026-06-04 13:27:15,146 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:15,147 [INFO] CO2 logged: 440 PPM | Excellent
+2026-06-04 13:27:20,107 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:20,108 [INFO] CO2 logged: 440 PPM | Excellent
+2026-06-04 13:27:25,110 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:25,118 [INFO] CO2 logged: 440 PPM | Excellent
+2026-06-04 13:27:30,127 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:30,127 [INFO] CO2 logged: 440 PPM | Excellent
+2026-06-04 13:27:35,142 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:35,142 [INFO] CO2 logged: 440 PPM | Excellent
+2026-06-04 13:27:40,229 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:40,233 [INFO] CO2 logged: 439 PPM | Excellent
+2026-06-04 13:27:45,175 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:45,176 [INFO] CO2 logged: 438 PPM | Excellent
+2026-06-04 13:27:50,163 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:50,163 [INFO] CO2 logged: 437 PPM | Excellent
+2026-06-04 13:27:55,193 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:27:55,193 [INFO] CO2 logged: 437 PPM | Excellent
+2026-06-04 13:28:00,196 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:28:00,196 [INFO] CO2 logged: 436 PPM | Excellent
+2026-06-04 13:28:05,171 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:28:05,179 [INFO] CO2 logged: 436 PPM | Excellent
+2026-06-04 13:28:10,217 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:28:10,217 [INFO] CO2 logged: 436 PPM | Excellent
+2026-06-04 13:28:15,224 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:28:15,224 [INFO] CO2 logged: 436 PPM | Excellent
+2026-06-04 13:28:20,216 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:28:20,216 [INFO] CO2 logged: 436 PPM | Excellent
+2026-06-04 13:28:25,228 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:28:25,228 [INFO] CO2 logged: 436 PPM | Excellent
+2026-06-04 13:28:30,250 [WARNING] Cannot log CO2 file metadata - database unavailable
+2026-06-04 13:28:30,250 [INFO] CO2 logged: 436 PPM | Excellent

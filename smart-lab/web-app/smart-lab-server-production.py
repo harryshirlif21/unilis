@@ -489,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
             scan_result['uid'] = None
             scan_requested.set()
 
-            triggered = scan_done.wait(timeout=30)
+            triggered = scan_done.wait(timeout=10)
             if not triggered:
                 self.send_json({"success": False, "error": "Scan timed out"}, status=504)
                 return
@@ -899,7 +899,7 @@ class Handler(BaseHTTPRequestHandler):
             scan_result['uid'] = None
             scan_requested.set()
 
-            triggered = scan_done.wait(timeout=15)
+            triggered = scan_done.wait(timeout=10)
             if not triggered:
                 self.send_json({"success": False, "error": "Scan timed out"}, status=504)
                 return

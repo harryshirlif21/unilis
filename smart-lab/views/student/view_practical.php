@@ -6,6 +6,11 @@
             <?= htmlspecialchars($practical['course_code']) ?> -
             <?= htmlspecialchars($practical['lab_name']) ?> (<?= htmlspecialchars($practical['lab_code']) ?>)
         </div>
+        <?php $accessWindow = $practical['access_window'] ?? getPracticalAccessWindow($practical); ?>
+        <div class="alert alert-info" style="margin-top: 1rem; padding: .9rem 1rem; border-radius: 12px;">
+            Practical access: <strong><?= htmlspecialchars($accessWindow['label']) ?></strong>
+            <span style="display:block;margin-top:.25rem;opacity:.85;"><?= htmlspecialchars($accessWindow['description']) ?></span>
+        </div>
 
         <?php if (isset($_GET['attendance_marked']) && $_GET['attendance_marked'] == '1'): ?>
             <div class="alert alert-success" style="margin-top: 1rem; padding: 1rem; border-radius: 12px; background: #ecfdf5; color: #166534; border: 1px solid #d1fae5;">
@@ -17,20 +22,32 @@
         <div class="practical-actions">
             <?php $currentReportStatus = $report_status ?? 'not_started'; ?>
 
-            <?php if ($currentReportStatus === 'not_started'): ?>
-                <button id="take-practical-btn" onclick="openTakePracticalModal('<?= $practical['id'] ?>')" class="btn btn-primary btn-lg">
-                    <i class="icon-flask"></i> Take Practical
-                </button>
-            <?php elseif ($currentReportStatus === 'in_progress'): ?>
-                <button id="continue-practical-btn" onclick="continuePractical()" class="btn btn-success btn-lg">
-                    <i class="icon-play"></i> Continue Practical
-                </button>
-                <span class="status-text">In Progress</span>
+            <?php if ($accessWindow['can_take']): ?>
+                <?php if ($currentReportStatus === 'not_started'): ?>
+                    <button id="take-practical-btn" onclick="openTakePracticalModal('<?= $practical['id'] ?>')" class="btn btn-primary btn-lg">
+                        <i class="icon-flask"></i> Take Practical
+                    </button>
+                <?php elseif ($currentReportStatus === 'in_progress'): ?>
+                    <button id="continue-practical-btn" onclick="continuePractical()" class="btn btn-success btn-lg">
+                        <i class="icon-play"></i> Continue Practical
+                    </button>
+                    <span class="status-text">In Progress</span>
+                <?php elseif ($currentReportStatus === 'submitted'): ?>
+                    <button disabled class="btn btn-secondary btn-lg">
+                        <i class="icon-check"></i> Report Submitted
+                    </button>
+                    <span class="status-text">Completed</span>
+                <?php endif; ?>
             <?php elseif ($currentReportStatus === 'submitted'): ?>
                 <button disabled class="btn btn-secondary btn-lg">
                     <i class="icon-check"></i> Report Submitted
                 </button>
                 <span class="status-text">Completed</span>
+            <?php else: ?>
+                <button disabled class="btn btn-secondary btn-lg">
+                    <i class="icon-lock"></i> Practical Window Closed
+                </button>
+                <span class="status-text">Available 30 minutes before start until 20 minutes after start.</span>
             <?php endif; ?>
         </div>
     </div>

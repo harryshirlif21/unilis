@@ -43,6 +43,10 @@ class StudentPracticalController {
         ");
         $stmt->execute([$user_id, $user_id]);
         $today_schedules = $stmt->fetchAll();
+        foreach ($today_schedules as &$schedule) {
+            $schedule['access_window'] = getPracticalAccessWindow($schedule);
+        }
+        unset($schedule);
         
         // Get recent submissions
         $stmt = $this->db->prepare("
@@ -93,6 +97,13 @@ class StudentPracticalController {
         
         if (!$schedule) {
             $_SESSION['error'] = 'You do not have valid attendance for this schedule';
+            header('Location: '.APP_URL.'/student/dashboard');
+            exit;
+        }
+
+        $accessWindow = getPracticalAccessWindow($schedule);
+        if (!$accessWindow['can_take']) {
+            $_SESSION['error'] = $accessWindow['description'];
             header('Location: '.APP_URL.'/student/dashboard');
             exit;
         }
@@ -482,6 +493,8 @@ class StudentPracticalController {
             exit;
         }
 
+        $practical['access_window'] = getPracticalAccessWindow($practical);
+
         // Parse JSON fields
         $practical['procedure'] = json_decode($practical['procedure_json'] ?? '[]', true) ?: [];
         $practical['observations_table'] = json_decode($practical['observations_table_structure'] ?? '[]', true) ?: [];
@@ -558,6 +571,13 @@ class StudentPracticalController {
             if (!$practical) {
                 http_response_code(404);
                 echo 'Practical not found or not available';
+                exit;
+            }
+
+            $accessWindow = getPracticalAccessWindow($practical);
+            if (!$accessWindow['can_take']) {
+                http_response_code(403);
+                echo $accessWindow['description'];
                 exit;
             }
 

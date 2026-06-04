@@ -21,6 +21,11 @@ class PracticalController {
         } else {
             $practicals = $this->model->getAll();
         }
+
+        foreach ($practicals as &$practical) {
+            $practical['access_window'] = getPracticalAccessWindow($practical);
+        }
+        unset($practical);
         
         $stats = $this->model->getPracticalStats();
         

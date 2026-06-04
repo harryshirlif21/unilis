@@ -55,6 +55,7 @@
                     </thead>
                     <tbody>
                     <?php foreach ($practicals as $practical): ?>
+                        <?php $accessWindow = $practical['access_window'] ?? getPracticalAccessWindow($practical); ?>
                         <tr>
                             <td class="text-bold"><?= htmlspecialchars($practical['title']) ?></td>
                             <td><?= htmlspecialchars($practical['course_code'] ?? 'N/A') ?></td>
@@ -79,7 +80,11 @@
                                     <a href="<?= APP_URL ?>/practicals/view/<?= $practical['id'] ?>" class="btn btn-secondary btn-sm">View</a>
 
                                     <?php if ($userRole === 'student' && $practical['status'] === 'published'): ?>
-                                        <a href="<?= APP_URL ?>/student/view_practical/<?= $practical['id'] ?>" class="btn btn-accent btn-sm">Take Practical</a>
+                                        <?php if ($accessWindow['can_take']): ?>
+                                            <a href="<?= APP_URL ?>/student/view_practical/<?= $practical['id'] ?>" class="btn btn-accent btn-sm">Take Practical</a>
+                                        <?php else: ?>
+                                            <button class="btn btn-secondary btn-sm" disabled>Practical Closed</button>
+                                        <?php endif; ?>
                                     <?php elseif ($userRole === 'lecturer'): ?>
                                         <a href="<?= APP_URL ?>/practicals/edit/<?= $practical['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
                                         <?php if ($practical['status'] === 'published'): ?>

@@ -23,6 +23,7 @@
         <?php else: ?>
             <div class="schedules-grid">
                 <?php foreach ($today_schedules as $schedule): ?>
+                    <?php $accessWindow = $schedule['access_window'] ?? getPracticalAccessWindow($schedule); ?>
                     <div class="schedule-card <?= $schedule['attendance_id'] ? 'attended' : '' ?>">
                         <div class="schedule-header">
                             <h4><?= htmlspecialchars($schedule['experiment_title']) ?></h4>
@@ -48,19 +49,32 @@
                                     <span><?= date('h:i A', strtotime($schedule['attendance_time'])) ?></span>
                                 </div>
                             <?php endif; ?>
+
+                            <div class="detail-item">
+                                <span class="detail-label">Practical access:</span>
+                                <span><?= htmlspecialchars($accessWindow['label']) ?></span>
+                            </div>
                         </div>
                         
                         <div class="schedule-actions">
                             <?php if ($schedule['attendance_id']): ?>
-                                <?php if ($schedule['submission_status'] === 'draft'): ?>
-                                    <a href="<?= APP_URL ?>/student/practical/<?= $schedule['id'] ?>" class="btn btn-primary">Continue Practical</a>
-                                <?php elseif ($schedule['submission_status'] === 'submitted'): ?>
-                                    <button class="btn btn-success" disabled>Submitted</button>
+                                <?php if ($accessWindow['can_take']): ?>
+                                    <?php if ($schedule['submission_status'] === 'draft'): ?>
+                                        <a href="<?= APP_URL ?>/student/practical/<?= $schedule['id'] ?>" class="btn btn-primary">Continue Practical</a>
+                                    <?php elseif ($schedule['submission_status'] === 'submitted'): ?>
+                                        <button class="btn btn-success" disabled>Submitted</button>
+                                    <?php else: ?>
+                                        <a href="<?= APP_URL ?>/student/practical/<?= $schedule['id'] ?>" class="btn btn-primary">Start Practical</a>
+                                    <?php endif; ?>
                                 <?php else: ?>
-                                    <a href="<?= APP_URL ?>/student/practical/<?= $schedule['id'] ?>" class="btn btn-primary">Start Practical</a>
+                                    <button class="btn btn-outline" disabled>Practical Window Closed</button>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <button class="btn btn-outline" disabled>Attend Lab First</button>
+                                <?php if ($accessWindow['can_take']): ?>
+                                    <button class="btn btn-outline" disabled>Attend Lab First</button>
+                                <?php else: ?>
+                                    <button class="btn btn-outline" disabled>Window Closed</button>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </div>
