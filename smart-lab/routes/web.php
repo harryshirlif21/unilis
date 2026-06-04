@@ -9,6 +9,10 @@ if ($url === '' || $url === '/') {
     header('Location: '.APP_URL.'/auth/login'); exit;
 }
 
+if ($controller === 'login') {
+    header('Location: '.APP_URL.'/'); exit;
+}
+
 $map = [
     'auth'               => 'AuthController',
     'dashboard'          => 'DashboardController',

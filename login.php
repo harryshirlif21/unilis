@@ -141,8 +141,8 @@ unset($_SESSION['login_error']); // Clear after display
             <div class="mt-4 w-full max-w-sm bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
                 <div class="text-sm font-semibold text-blue-900 mb-1">SmartLab Access</div>
                 <p class="text-sm text-blue-800 mb-3">RFID attendance, CO2 monitoring, and lab analytics are available in the SmartLab portal.</p>
-                <a href="smart-lab/auth/login" class="inline-flex items-center justify-center w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200 font-medium">
-                    Open SmartLab Login
+                <a href="smart-lab/" class="inline-flex items-center justify-center w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200 font-medium">
+                    Open SmartLab
                 </a>
             </div>
 
