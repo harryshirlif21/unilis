@@ -73,6 +73,25 @@ class AuthController {
                     }
                 }
 
+            } elseif ($method === 'rfid') {
+                $rfidUid = sanitize($_POST['rfid_uid'] ?? '');
+
+                if (empty($rfidUid)) {
+                    $error = 'Please scan your RFID card first.';
+                } else {
+                    if (Auth::loginByRFID($rfidUid)) {
+                        if (Auth::requireMultiFactor()) {
+                            $mfaCode = Auth::initiateMultiFactor(Auth::id());
+                            $mfaRequired = true;
+                        } else {
+                            logActivity(Auth::id(), 'login_rfid', 'auth');
+                            redirect('dashboard');
+                        }
+                    } else {
+                        $error = 'RFID card not recognized or account inactive.';
+                    }
+                }
+
             } elseif ($method === 'qr') {
                 $qrToken = sanitize($_POST['qr_token'] ?? '');
                 $sessionId = sanitize($_POST['session_id'] ?? '');

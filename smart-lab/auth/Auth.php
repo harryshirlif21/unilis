@@ -52,6 +52,31 @@ class Auth {
         }
         return false;
     }
+
+    public static function loginByRFID(string $uid): bool {
+        $db = getDB();
+        $stmt = $db->prepare(
+            "SELECT u.*
+             FROM users u
+             JOIN rfid_cards r ON r.student_id = u.id
+             WHERE r.uid = ? AND u.role = 'student' AND u.is_active = 1
+             LIMIT 1"
+        );
+        $stmt->execute([strtoupper(trim($uid))]);
+        $user = $stmt->fetch();
+
+        if ($user) {
+            $_SESSION['user_id']   = $user['id'];
+            $_SESSION['user_role'] = $user['role'];
+            $_SESSION['user_name'] = $user['full_name'];
+            $_SESSION['lab_id']    = $user['lab_id'] ?? '';
+            $_SESSION['auth_method'] = 'rfid';
+            $_SESSION['last_activity'] = time();
+            return true;
+        }
+
+        return false;
+    }
     
     public static function loginByQR(string $qrToken, string $sessionId): bool {
         if (!self::verifyQR($qrToken, $sessionId)) {
@@ -159,7 +184,7 @@ class Auth {
     }
     
     public static function getAuthMethods(): array {
-        $methods = ['password', 'qr', 'code'];
+        $methods = ['password', 'qr', 'code', 'rfid'];
         
         // Check if biometric is available
         if (defined('BIOMETRIC_ENABLED') && BIOMETRIC_ENABLED) {

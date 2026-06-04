@@ -54,6 +54,8 @@ $activity = $activity ?? [];
       </div>
     </div>
 
+    <?php include __DIR__ . '/../../components/co2_monitor_widget.php'; ?>
+
     <!-- Live Monitoring + Analytics -->
     <div class="grid grid-two mb-4">
       <div class="panel hero-banner">

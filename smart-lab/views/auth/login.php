@@ -6,8 +6,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Login — UNILIS SmartLab</title>
+<title>Login - UNILIS SmartLab</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="<?= APP_URL ?>/public/css/app.css">
 </head>
 <body>
@@ -73,6 +74,7 @@
       <!-- Auth method tabs -->
       <div class="auth-tabs">
         <button class="auth-tab active" data-method="password">Password</button>
+        <button class="auth-tab" data-method="rfid">RFID</button>
         <button class="auth-tab" data-method="biometric">Biometric</button>
         <button class="auth-tab" data-method="qr">QR Code</button>
         <button class="auth-tab" data-method="code">Auth Code</button>
@@ -96,6 +98,31 @@
           <button type="submit" class="btn btn-primary btn-full" style="margin-top:8px;">
             Sign In
           </button>
+        </form>
+      </div>
+
+      <!-- METHOD 2: RFID -->
+      <div class="auth-method" id="method-rfid">
+        <form method="POST" action="<?= APP_URL ?>/auth/login" id="rfid-login-form">
+          <input type="hidden" name="auth_method" value="rfid">
+          <input type="hidden" id="rfid_uid" name="rfid_uid">
+
+          <div class="biometric-container">
+            <div class="biometric-scanner">
+              <div class="biometric-icon">
+                <i class="fas fa-id-card"></i>
+              </div>
+              <div class="biometric-status" id="rfid-status">
+                Ready to scan RFID card
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-full" id="rfid-scan-btn" style="margin-bottom:12px;">
+              <i class="fas fa-wave-square"></i> Scan RFID Card
+            </button>
+            <div class="alert alert-info" style="font-size:12px;">
+              Hold your RFID card near the reader. The system will sign you in automatically once the card is detected.
+            </div>
+          </div>
         </form>
       </div>
 
@@ -343,6 +370,43 @@ document.getElementById('code-otp-form').addEventListener('submit', async functi
   } catch (error) {
     console.error('Error:', error);
     alert('Network error. Please try again.');
+  }
+});
+
+// RFID flow
+document.getElementById('rfid-scan-btn').addEventListener('click', async function() {
+  const status = document.getElementById('rfid-status');
+  const rfidUid = document.getElementById('rfid_uid');
+  const scanBtn = document.getElementById('rfid-scan-btn');
+
+  scanBtn.disabled = true;
+  status.textContent = 'Waiting for RFID reader...';
+  status.style.color = '#f59e0b';
+
+  try {
+    const response = await fetch('<?= APP_URL ?>/includes/SensorServerClient.php?action=scan', {
+      cache: 'no-store'
+    });
+    const result = await response.json();
+
+    if (result.success && result.uid) {
+      rfidUid.value = result.uid;
+      status.textContent = 'Card detected. Signing in...';
+      status.style.color = '#10b981';
+      document.getElementById('rfid-login-form').submit();
+      return;
+    }
+
+    status.textContent = result.error || 'RFID card not detected';
+    status.style.color = '#ef4444';
+    alert(result.error || 'RFID scan failed. Please try again.');
+  } catch (error) {
+    console.error('RFID scan error:', error);
+    status.textContent = 'RFID reader unavailable';
+    status.style.color = '#ef4444';
+    alert('Unable to reach the RFID reader. Check the sensor server and try again.');
+  } finally {
+    scanBtn.disabled = false;
   }
 });
 

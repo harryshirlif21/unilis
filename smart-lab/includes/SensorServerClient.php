@@ -93,16 +93,16 @@ class SensorServerClient {
         try {
             // Get today's CO2 file path from database
             $filePath = $this->getTodaysCo2FilePath();
-            if (!$filePath) {
-                return null;
+            if ($filePath) {
+                // Load and return latest entry
+                $readings = $this->loadCo2JsonFile($filePath);
+                if (!empty($readings)) {
+                    return array_pop($readings);  // Get last entry
+                }
             }
-            
-            // Load and return latest entry
-            $readings = $this->loadCo2JsonFile($filePath);
-            if (!empty($readings)) {
-                return array_pop($readings);  // Get last entry
-            }
-            return null;
+
+            // Fallback to live sensor server response if file storage is unavailable
+            return $this->fetchLatestCo2FromServer();
         } catch (Exception $e) {
             error_log("CO2 fetch error: " . $e->getMessage());
             return null;
@@ -116,7 +116,7 @@ class SensorServerClient {
         try {
             $filePath = $this->getTodaysCo2FilePath();
             if (!$filePath) {
-                return [];
+                return $this->fetchCo2ReadingsFromServer();
             }
             return $this->loadCo2JsonFile($filePath);
         } catch (Exception $e) {
@@ -132,7 +132,7 @@ class SensorServerClient {
         try {
             $filePath = $this->getCo2FilePath($date);
             if (!$filePath || !file_exists($filePath)) {
-                return [];
+                return $this->fetchCo2ReadingsFromServer();
             }
             return $this->loadCo2JsonFile($filePath);
         } catch (Exception $e) {
@@ -189,9 +189,9 @@ class SensorServerClient {
             ];
         }
         
-        $ppm = $latest['ppm'];
-        $status = $latest['status'] ?? 'Unknown';
-        $color = $latest['color'] ?? '#64748b';
+        $ppm = (int)($latest['ppm'] ?? $latest['co2_ppm'] ?? 0);
+        $status = $latest['status'] ?? $this->deriveCo2Status($ppm);
+        $color = $latest['color'] ?? $this->deriveCo2Color($ppm);
         $isWarning = $ppm > self::CO2_FAIR;
         
         return [
@@ -210,6 +210,10 @@ class SensorServerClient {
     public function getLatestRfidScans($limit = 100) {
         try {
             $response = $this->makeRequest("/cards?limit={$limit}");
+            if (isset($response['success']) && isset($response['data']) && is_array($response['data'])) {
+                return $response['data'];
+            }
+
             return is_array($response) ? $response : [];
         } catch (Exception $e) {
             error_log("RFID fetch error: " . $e->getMessage());
@@ -244,10 +248,111 @@ class SensorServerClient {
             }
             $content = file_get_contents($filePath);
             $data = json_decode($content, true);
-            return is_array($data) ? $data : [];
+            if (!is_array($data)) {
+                return [];
+            }
+
+            $normalized = [];
+            foreach ($data as $reading) {
+                if (is_array($reading)) {
+                    $normalized[] = $this->normalizeCo2Reading($reading);
+                }
+            }
+
+            return $normalized;
         } catch (Exception $e) {
             throw new Exception("Failed to load CO2 file: {$filePath}");
         }
+    }
+
+    private function normalizeCo2Reading(array $reading) {
+        $ppm = (int)($reading['ppm'] ?? $reading['co2_ppm'] ?? $reading['value'] ?? 0);
+
+        return [
+            'date' => $reading['date'] ?? null,
+            'timestamp' => $reading['timestamp'] ?? $reading['reading_time'] ?? $reading['time'] ?? date('H:i:s'),
+            'ppm' => $ppm,
+            'status' => $reading['status'] ?? $this->deriveCo2Status($ppm),
+            'color' => $reading['color'] ?? $this->deriveCo2Color($ppm),
+            'bg' => $reading['bg'] ?? $this->deriveCo2Background($ppm),
+        ];
+    }
+
+    private function deriveCo2Status($ppm) {
+        if ($ppm <= self::CO2_EXCELLENT) return 'Excellent';
+        if ($ppm <= self::CO2_GOOD) return 'Good';
+        if ($ppm <= self::CO2_FAIR) return 'Fair (Stale)';
+        return 'Poor / Ventilation Required';
+    }
+
+    private function deriveCo2Color($ppm) {
+        if ($ppm <= self::CO2_EXCELLENT) return '#2E8B57';
+        if ($ppm <= self::CO2_GOOD) return '#1E6FBA';
+        if ($ppm <= self::CO2_FAIR) return '#D4AF37';
+        return '#DC3545';
+    }
+
+    private function deriveCo2Background($ppm) {
+        if ($ppm <= self::CO2_EXCELLENT) return '#EAF4EF';
+        if ($ppm <= self::CO2_GOOD) return '#E8F0F8';
+        if ($ppm <= self::CO2_FAIR) return '#FAF6E8';
+        return '#FDF2F3';
+    }
+
+    private function fetchLatestCo2FromServer() {
+        $response = $this->makeRequest('/co2');
+        if (!$response) {
+            return null;
+        }
+
+        if (isset($response['success']) && $response['success'] && isset($response['data']) && is_array($response['data'])) {
+            return $this->normalizeCo2Reading($response['data']);
+        }
+
+        if (isset($response['ppm']) || isset($response['co2_ppm'])) {
+            return $this->normalizeCo2Reading($response);
+        }
+
+        return null;
+    }
+
+    private function fetchCo2ReadingsFromServer() {
+        try {
+            $response = $this->makeRequest('/co2');
+            if (isset($response['success']) && $response['success'] && isset($response['data'])) {
+                if (is_array($response['data']) && array_keys($response['data']) === range(0, count($response['data']) - 1)) {
+                    $normalized = [];
+                    foreach ($response['data'] as $reading) {
+                        if (is_array($reading)) {
+                            $normalized[] = $this->normalizeCo2Reading($reading);
+                        }
+                    }
+                    return $normalized;
+                }
+
+                if (is_array($response['data'])) {
+                    return [$this->normalizeCo2Reading($response['data'])];
+                }
+            }
+
+            if (is_array($response) && array_keys($response) === range(0, count($response) - 1)) {
+                $normalized = [];
+                foreach ($response as $reading) {
+                    if (is_array($reading)) {
+                        $normalized[] = $this->normalizeCo2Reading($reading);
+                    }
+                }
+                return $normalized;
+            }
+
+            if (isset($response['ppm']) || isset($response['co2_ppm'])) {
+                return [$this->normalizeCo2Reading($response)];
+            }
+        } catch (Exception $e) {
+            error_log("CO2 live fallback error: " . $e->getMessage());
+        }
+
+        return [];
     }
     
     /**

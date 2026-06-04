@@ -47,9 +47,9 @@
                 <button type="button" class="btn btn-primary btn-sm" onclick="loadAnalyticsData()">Load Data</button>
             </div>
 
-            <!-- Chart placeholder -->
+            <!-- Chart -->
             <div id="analyticsChart" class="analytics-chart" style="margin-top: 1.5rem; height: 300px;">
-                <div class="chart-placeholder">Chart will load here...</div>
+                <canvas id="analyticsChartCanvas" height="240"></canvas>
             </div>
 
             <!-- Statistics -->
@@ -611,4 +611,155 @@ document.addEventListener('click', function(e) {
         closeLabAnalyticsModal();
     }
 });
+</script>
+
+<script>
+let analyticsChart = null;
+
+function ensureChartLibrary() {
+    if (typeof Chart !== 'undefined') {
+        return Promise.resolve();
+    }
+
+    if (!window.__smartlabChartLoader) {
+        window.__smartlabChartLoader = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Chart.js failed to load'));
+            document.head.appendChild(script);
+        });
+    }
+
+    return window.__smartlabChartLoader;
+}
+
+function renderAnalyticsChart(readings) {
+    const canvas = document.getElementById('analyticsChartCanvas');
+    if (!canvas || typeof Chart === 'undefined') {
+        return;
+    }
+
+    const context = canvas.getContext('2d');
+    if (analyticsChart) {
+        analyticsChart.destroy();
+    }
+
+    analyticsChart = new Chart(context, {
+        type: 'line',
+        data: {
+            labels: readings.map(reading => `${reading.date || ''} ${reading.timestamp || ''}`.trim()),
+            datasets: [{
+                label: 'CO2 (PPM)',
+                data: readings.map(reading => Number(reading.ppm) || 0),
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                tension: 0.35,
+                fill: true,
+                pointRadius: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(148, 163, 184, 0.16)' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+
+function openLabAnalyticsModal() {
+    const modal = document.getElementById('labAnalyticsModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    loadAnalyticsData();
+}
+
+function closeLabAnalyticsModal() {
+    const modal = document.getElementById('labAnalyticsModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function loadAnalyticsData() {
+    const startDate = document.getElementById('analyticsStartDate').value;
+    const endDate = document.getElementById('analyticsEndDate').value;
+    const tableBody = document.getElementById('dataTableBody');
+
+    if (!startDate || !endDate) {
+        alert('Please select a date range');
+        return;
+    }
+
+    if (tableBody) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Loading data...</td></tr>';
+    }
+
+    ensureChartLibrary()
+        .then(() => fetch(`<?= APP_URL ?>/includes/SensorServerClient.php?action=co2_range&start_date=${startDate}&end_date=${endDate}`, {
+            cache: 'no-store'
+        }))
+        .then(r => r.json())
+        .then(data => {
+            if (!Array.isArray(data) || data.length === 0) {
+                if (tableBody) {
+                    tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No data available</td></tr>';
+                }
+                if (analyticsChart) {
+                    analyticsChart.destroy();
+                    analyticsChart = null;
+                }
+                return;
+            }
+
+            const readings = data.map(reading => ({
+                date: reading.date || 'N/A',
+                timestamp: reading.timestamp || '--:--:--',
+                ppm: Number(reading.ppm || reading.co2_ppm || 0),
+                status: reading.status || 'Unknown',
+                color: reading.color || '#64748b'
+            }));
+
+            const ppms = readings.map(reading => reading.ppm);
+            const average = Math.round(ppms.reduce((sum, value) => sum + value, 0) / ppms.length);
+            const peak = Math.max(...ppms);
+            const min = Math.min(...ppms);
+            const goodCount = ppms.filter(value => value <= 1000).length;
+
+            document.getElementById('statAverage').textContent = average;
+            document.getElementById('statPeak').textContent = peak;
+            document.getElementById('statMin').textContent = min;
+            document.getElementById('statGoodHours').textContent = goodCount;
+
+            renderAnalyticsChart(readings);
+
+            if (tableBody) {
+                tableBody.innerHTML = readings.map(reading => `
+                    <tr>
+                        <td>${reading.date}</td>
+                        <td>${reading.timestamp}</td>
+                        <td><strong>${reading.ppm}</strong></td>
+                        <td><span style="color: ${reading.color};">●</span> ${reading.status}</td>
+                    </tr>
+                `).join('');
+            }
+        })
+        .catch(err => {
+            console.error('Analytics error:', err);
+            if (tableBody) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Error loading data</td></tr>';
+            }
+        });
+}
 </script>
