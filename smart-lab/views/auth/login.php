@@ -283,6 +283,7 @@
 let qrToken = null, pollInterval = null, qrSeconds = 300;
 const timerEl = document.getElementById('qr-timer');
 const statusEl = document.getElementById('qr-status');
+const SENSOR_BASE_URL = <?= json_encode(rtrim(SENSOR_SERVER_URL, '/')) ?>;
 
 async function generateQR() {
     document.getElementById('qr-img').innerHTML = '<span style="color:#94a3b8;font-size:13px">Generating...</span>';
@@ -384,7 +385,7 @@ document.getElementById('rfid-scan-btn').addEventListener('click', async functio
   status.style.color = '#f59e0b';
 
   try {
-    const response = await fetch('<?= APP_URL ?>/includes/SensorServerClient.php?action=scan', {
+    const response = await fetch(SENSOR_BASE_URL + '/scan', {
       cache: 'no-store'
     });
     const result = await response.json();

@@ -491,6 +491,7 @@
 <script>
 // CO2 Status Update on Page Load
 document.addEventListener('DOMContentLoaded', function() {
+    window.SMARTLAB_SENSOR_BASE_URL = window.SMARTLAB_SENSOR_BASE_URL || <?= json_encode(rtrim(SENSOR_SERVER_URL, '/')) ?>;
     updateCo2Status();
     // Refresh CO2 status every 30 seconds
     setInterval(updateCo2Status, 30000);
@@ -508,7 +509,7 @@ function updateCo2Status() {
     const statusEl = document.getElementById('co2Status');
     if (!statusEl) return;
     
-    fetch('<?= APP_URL ?>/includes/SensorServerClient.php?action=co2_status', {
+    fetch(window.SMARTLAB_SENSOR_BASE_URL + '/co2_status', {
         cache: 'no-store'
     })
     .then(r => r.json())
@@ -562,7 +563,7 @@ function loadAnalyticsData() {
         return;
     }
     
-    fetch(`<?= APP_URL ?>/includes/SensorServerClient.php?action=co2_range&start_date=${startDate}&end_date=${endDate}`, {
+    fetch(`${window.SMARTLAB_SENSOR_BASE_URL}/co2_range?start_date=${startDate}&end_date=${endDate}`, {
         cache: 'no-store'
     })
     .then(r => r.json())
@@ -707,7 +708,7 @@ function loadAnalyticsData() {
     }
 
     ensureChartLibrary()
-        .then(() => fetch(`<?= APP_URL ?>/includes/SensorServerClient.php?action=co2_range&start_date=${startDate}&end_date=${endDate}`, {
+        .then(() => fetch(`${window.SMARTLAB_SENSOR_BASE_URL}/co2_range?start_date=${startDate}&end_date=${endDate}`, {
             cache: 'no-store'
         }))
         .then(r => r.json())

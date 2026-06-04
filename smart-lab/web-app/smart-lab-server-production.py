@@ -27,11 +27,15 @@ import time
 import os
 import threading
 import logging
-import MySQLdb
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
+try:
+    import MySQLdb
+except ImportError:
+    MySQLdb = None
 
 # ── CONFIGURATION ───────────────────────────────────────────────────────────
 SERIAL_PORT    = os.getenv('SMART_LAB_SERIAL_PORT', 'COM7')
@@ -64,9 +68,42 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+RFID_LOG_PATH = os.path.join(DATA_DIR, 'cards_log.json')
+
+def load_json_log(path):
+    """Load a JSON array from disk."""
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, 'r', encoding='utf-8') as handle:
+            payload = json.load(handle)
+        return payload if isinstance(payload, list) else []
+    except Exception as exc:
+        logger.warning(f"Failed to read JSON log {path}: {exc}")
+        return []
+
+def save_json_log(path, data):
+    """Persist a JSON array to disk."""
+    try:
+        with open(path, 'w', encoding='utf-8') as handle:
+            json.dump(data, handle, indent=4, ensure_ascii=False)
+        return True
+    except Exception as exc:
+        logger.error(f"Failed to write JSON log {path}: {exc}")
+        return False
+
+def append_json_log(path, record):
+    """Append a record to a JSON array file."""
+    data = load_json_log(path)
+    data.append(record)
+    return save_json_log(path, data)
+
 # ── DATABASE HELPER ──────────────────────────────────────────────────────────
 def get_db_connection():
     """Create a new database connection"""
+    if MySQLdb is None:
+        return None
     try:
         conn = MySQLdb.connect(
             host=DB_HOST,
@@ -76,20 +113,30 @@ def get_db_connection():
             charset='utf8mb4'
         )
         return conn
-    except MySQLdb.Error as e:
+    except Exception as e:
         logger.error(f"Database connection failed: {e}")
         return None
 
 def log_rfid_scan(uid):
-    """Log RFID scan to database"""
+    """Log RFID scan to database or JSON fallback."""
     try:
+        now = datetime.now()
+        record = {
+            "id": now.strftime("%Y%m%d%H%M%S%f"),
+            "uid": uid,
+            "scan_time": now.strftime("%H:%M:%S"),
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
         conn = get_db_connection()
         if not conn:
+            if append_json_log(RFID_LOG_PATH, record):
+                logger.info(f"RFID logged to JSON fallback: {uid}")
+                return True
             logger.warning("Cannot log RFID - database unavailable")
             return False
         
         cursor = conn.cursor()
-        now = datetime.now()
         cursor.execute("""
             INSERT INTO rfid_scans (uid, scan_time, created_at)
             VALUES (%s, %s, %s)
@@ -99,7 +146,7 @@ def log_rfid_scan(uid):
         conn.close()
         logger.info(f"RFID logged: {uid}")
         return True
-    except MySQLdb.Error as e:
+    except Exception as e:
         logger.error(f"Failed to log RFID: {e}")
         return False
 
@@ -123,16 +170,17 @@ def log_co2_file_metadata(json_file_path, ppm_count):
         cursor.close()
         conn.close()
         return True
-    except MySQLdb.Error as e:
+    except Exception as e:
         logger.error(f"Failed to log CO2 file metadata: {e}")
         return False
 
 def get_latest_rfid_scans(limit=100):
-    """Fetch latest RFID scans from database"""
+    """Fetch latest RFID scans from database or JSON fallback."""
     try:
         conn = get_db_connection()
         if not conn:
-            return []
+            records = load_json_log(RFID_LOG_PATH)
+            return records[-limit:][::-1]
         
         cursor = conn.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute("""
@@ -145,7 +193,7 @@ def get_latest_rfid_scans(limit=100):
         cursor.close()
         conn.close()
         return [dict(row) for row in rows]
-    except MySQLdb.Error as e:
+    except Exception as e:
         logger.error(f"Failed to fetch RFID scans: {e}")
         return []
 
@@ -177,7 +225,10 @@ def write_co2_to_json(ppm):
         status, color, bg = co2_status(ppm)
         now = datetime.now()
         readings.append({
+            "date": now.strftime("%Y-%m-%d"),
             "timestamp": now.strftime("%H:%M:%S"),
+            "reading_time": now.strftime("%H:%M:%S"),
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "ppm": ppm,
             "status": status,
             "color": color,
@@ -213,6 +264,92 @@ def get_latest_co2_reading():
     except Exception as e:
         logger.error(f"Failed to read latest CO2: {e}")
         return None
+
+def get_latest_co2_readings(limit=100):
+    """Return latest CO2 readings from today's JSON file."""
+    try:
+        filepath = get_today_co2_file()
+        if not os.path.exists(filepath):
+            return []
+
+        with open(filepath, 'r', encoding='utf-8') as handle:
+            readings = json.load(handle)
+
+        if not isinstance(readings, list):
+            return []
+
+        return readings[-limit:][::-1]
+    except Exception as e:
+        logger.error(f"Failed to read CO2 readings: {e}")
+        return []
+
+def get_co2_readings_by_date(date_str):
+    """Load CO2 readings for a specific date."""
+    try:
+        filepath = os.path.join(JSON_PATH, f"co2_{date_str}.json")
+        if not os.path.exists(filepath):
+            return []
+
+        with open(filepath, 'r', encoding='utf-8') as handle:
+            readings = json.load(handle)
+
+        if not isinstance(readings, list):
+            return []
+
+        normalized = []
+        for reading in readings:
+            if isinstance(reading, dict):
+                item = dict(reading)
+                item.setdefault('date', date_str)
+                item.setdefault('timestamp', item.get('reading_time') or item.get('time') or '')
+                normalized.append(item)
+        return normalized
+    except Exception as e:
+        logger.error(f"Failed to read CO2 file for {date_str}: {e}")
+        return []
+
+def get_co2_readings_by_date_range(start_date, end_date):
+    """Load CO2 readings across a date range."""
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        return []
+
+    if end < start:
+        start, end = end, start
+
+    readings = []
+    cursor = start
+    while cursor <= end:
+        readings.extend(get_co2_readings_by_date(cursor.strftime("%Y-%m-%d")))
+        cursor += timedelta(days=1)
+
+    return readings
+
+def get_co2_status_payload():
+    """Build the CO2 status payload expected by the dashboard widget."""
+    readings = get_latest_co2_readings(limit=1)
+    if not readings:
+        return {
+            "has_reading": False,
+            "ppm": None,
+            "status": "No data",
+            "color": "#94a3b8",
+            "is_warning": False
+        }
+
+    latest = readings[0]
+    ppm = int(latest.get("ppm") or 0)
+    status, color, _bg = co2_status(ppm)
+    return {
+        "has_reading": True,
+        "ppm": ppm,
+        "timestamp": latest.get("timestamp") or latest.get("reading_time") or latest.get("created_at") or "",
+        "status": latest.get("status") or status,
+        "color": latest.get("color") or color,
+        "is_warning": ppm > CO2_FAIR
+    }
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────
 def co2_status(ppm):
@@ -373,6 +510,23 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"success": True, "data": reading})
             else:
                 self.send_json({"success": True, "data": None})
+
+        elif path == '/co2_status':
+            self.send_json(get_co2_status_payload())
+
+        elif path == '/co2_today':
+            self.send_json(get_latest_co2_readings(limit=100))
+
+        elif path == '/co2_date':
+            params = parse_qs(urlparse(self.path).query)
+            date_value = (params.get('date') or params.get('start_date') or [''])[0]
+            self.send_json(get_co2_readings_by_date(date_value))
+
+        elif path == '/co2_range':
+            params = parse_qs(urlparse(self.path).query)
+            start_date = (params.get('start_date') or [''])[0]
+            end_date = (params.get('end_date') or [start_date])[0]
+            self.send_json(get_co2_readings_by_date_range(start_date, end_date))
 
         elif path == '/cards':
             # Return latest RFID scans from database
@@ -546,6 +700,49 @@ def get_latest_co2_readings(limit=100):
         logger.error(f"Failed to fetch CO2 readings: {e}")
         return []
 
+def get_co2_status_payload():
+    readings = get_latest_co2_readings(limit=1)
+    if not readings:
+        return {
+            "has_reading": False,
+            "ppm": None,
+            "status": "No data",
+            "color": "#94a3b8",
+            "is_warning": False
+        }
+
+    latest = readings[0]
+    ppm = int(latest.get("ppm") or 0)
+    return {
+        "has_reading": True,
+        "ppm": ppm,
+        "timestamp": latest.get("reading_time") or latest.get("created_at") or "",
+        "status": latest.get("status") or co2_status(ppm)[0],
+        "color": latest.get("color") or co2_status(ppm)[1],
+        "is_warning": ppm > 1500
+    }
+
+def get_co2_readings_by_date_range(start_date, end_date):
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return []
+
+        cursor = conn.cursor(MySQLdb.cursors.DictCursor)
+        cursor.execute("""
+            SELECT id, ppm, status, color, bg, reading_time, created_at
+            FROM co2_readings
+            WHERE DATE(created_at) BETWEEN %s AND %s
+            ORDER BY created_at ASC
+        """, (start_date, end_date))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return [dict(row) for row in rows]
+    except MySQLdb.Error as e:
+        logger.error(f"Failed to fetch CO2 readings by range: {e}")
+        return []
+
 def get_latest_rfid_scans(limit=100):
     """Fetch latest RFID scans from database"""
     try:
@@ -717,9 +914,35 @@ class Handler(BaseHTTPRequestHandler):
                 }, status=404)
 
         elif path == '/co2':
-            # Return latest CO2 readings
-            data = get_latest_co2_readings(limit=100)
-            self.send_json(data)
+            # Return latest CO2 reading
+            reading = get_latest_co2_readings(limit=1)
+            self.send_json({
+                "success": True,
+                "data": reading[0] if reading else None
+            })
+
+        elif path == '/co2_status':
+            self.send_json(get_co2_status_payload())
+
+        elif path == '/co2_today':
+            self.send_json(get_latest_co2_readings(limit=288))
+
+        elif path == '/co2_date':
+            query = parse_qs(urlparse(self.path).query)
+            date_value = (query.get('date') or [''])[0]
+            if not date_value:
+                self.send_json({"error": "Missing date parameter"}, status=400)
+            else:
+                self.send_json(get_co2_readings_by_date_range(date_value, date_value))
+
+        elif path == '/co2_range':
+            query = parse_qs(urlparse(self.path).query)
+            start_date = (query.get('start_date') or [''])[0]
+            end_date = (query.get('end_date') or [''])[0]
+            if not start_date or not end_date:
+                self.send_json({"error": "Missing date parameters"}, status=400)
+            else:
+                self.send_json(get_co2_readings_by_date_range(start_date, end_date))
 
         elif path == '/cards':
             # Return latest RFID scans
