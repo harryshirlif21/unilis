@@ -20,18 +20,36 @@ class ReportSubmissionController {
         Auth::guard('student');
         
         $studentId = Auth::id();
+        error_log("ReportSubmissionController::index - studentId: $studentId");
         
-        // Get student's submitted reports
-        $reports = $this->reportModel->getStudentReports($studentId);
+        $error = '';
+        $reports = [];
+        $availablePracticals = [];
         
-        // Get available practicals for submission
-        $availablePracticals = $this->getAvailablePracticalsForSubmission($studentId);
+        try {
+            // Get student's submitted reports
+            $reports = $this->reportModel->getStudentReports($studentId);
+            error_log("ReportSubmissionController::index - loaded " . count($reports) . " reports");
+        } catch (Exception $e) {
+            error_log("ReportSubmissionController::index - getStudentReports failed: " . $e->getMessage());
+            $error = 'Failed to load reports: ' . htmlspecialchars($e->getMessage());
+        }
         
+        try {
+            // Get available practicals for submission
+            $availablePracticals = $this->getAvailablePracticalsForSubmission($studentId);
+            error_log("ReportSubmissionController::index - loaded " . count($availablePracticals) . " available practicals");
+        } catch (Exception $e) {
+            error_log("ReportSubmissionController::index - getAvailablePracticalsForSubmission failed: " . $e->getMessage());
+            $error = 'Failed to load available practicals: ' . htmlspecialchars($e->getMessage());
+        }
+        
+        error_log("ReportSubmissionController::index - about to render view");
         renderView('report-submission/index', [
             'reports' => $reports,
             'availablePracticals' => $availablePracticals,
             'userRole' => 'student',
-            'error' => '',
+            'error' => $error,
             'success' => ''
         ]);
     }

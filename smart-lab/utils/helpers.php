@@ -4,9 +4,41 @@ function redirect(string $path): void {
 }
 function renderView(string $template, array $data = []): void {
     extract($data);
-    require_once __DIR__.'/../views/layouts/header.php';
-    require_once __DIR__.'/../views/'.$template.'.php';
-    require_once __DIR__.'/../views/layouts/footer.php';
+    $viewPath = __DIR__.'/../views/'.$template.'.php';
+    
+    // Debug: Check if APP_URL is defined
+    if (!defined('APP_URL')) {
+        error_log("ERROR: APP_URL not defined in renderView for template: $template");
+    }
+    
+    // Include header
+    try {
+        require_once __DIR__.'/../views/layouts/header.php';
+    } catch (Exception $e) {
+        error_log("ERROR in header.php: " . $e->getMessage());
+        throw $e;
+    }
+    
+    // Ensure the view file exists before requiring
+    if (file_exists($viewPath)) {
+        try {
+            require $viewPath;
+        } catch (Exception $e) {
+            error_log("ERROR in view $template: " . $e->getMessage());
+            throw $e;
+        }
+    } else {
+        echo '<div class="alert alert-error">View file not found: ' . htmlspecialchars($viewPath) . '</div>';
+        error_log("View file not found: $viewPath");
+    }
+    
+    // Include footer
+    try {
+        require_once __DIR__.'/../views/layouts/footer.php';
+    } catch (Exception $e) {
+        error_log("ERROR in footer.php: " . $e->getMessage());
+        throw $e;
+    }
 }
 function sanitize(string $v): string {
     return htmlspecialchars(strip_tags(trim($v)), ENT_QUOTES, 'UTF-8');

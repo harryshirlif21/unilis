@@ -1,3 +1,12 @@
+<!-- DEBUG START -->
+<div style="position: fixed; top: 0; right: 0; background: red; color: white; padding: 10px; z-index: 9999; max-width: 400px; max-height: 200px; overflow: auto;">
+    <p>View loaded. APP_URL: <?= APP_URL ?? 'NOT SET' ?></p>
+    <p>Availables: <?= count($availablePracticals ?? []) ?></p>
+    <p>Reports: <?= count($reports ?? []) ?></p>
+    <p>Error: <?= ($error ?? 'none') ?></p>
+</div>
+<!-- DEBUG END -->
+
 <div class="card">
     <div class="card-header">
         <div class="card-header-content">
