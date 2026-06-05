@@ -5158,5 +5158,55 @@
         "status": "Excellent",
         "color": "#2E8B57",
         "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-05",
+        "timestamp": "11:47:59",
+        "reading_time": "11:47:59",
+        "created_at": "2026-06-05 11:47:59",
+        "ppm": 486,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-05",
+        "timestamp": "11:48:04",
+        "reading_time": "11:48:04",
+        "created_at": "2026-06-05 11:48:04",
+        "ppm": 486,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-05",
+        "timestamp": "11:48:09",
+        "reading_time": "11:48:09",
+        "created_at": "2026-06-05 11:48:09",
+        "ppm": 487,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-05",
+        "timestamp": "11:48:14",
+        "reading_time": "11:48:14",
+        "created_at": "2026-06-05 11:48:14",
+        "ppm": 491,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-05",
+        "timestamp": "11:48:19",
+        "reading_time": "11:48:19",
+        "created_at": "2026-06-05 11:48:19",
+        "ppm": 509,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
     }
 ]
