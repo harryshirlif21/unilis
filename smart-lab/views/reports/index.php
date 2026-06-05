@@ -2,7 +2,7 @@
     <div class="card-header">
         <h2 class="text-bold">Lab Reports</h2>
         <?php if ($userRole === 'student'): ?>
-            <a href="<?= APP_URL ?>/reports/create" class="btn btn-primary">Submit Report</a>
+            <a href="<?= APP_URL ?>/report-submission" class="btn btn-primary">Submit Report</a>
         <?php elseif ($userRole === 'lecturer'): ?>
             <a href="<?= APP_URL ?>/reports/pending" class="btn btn-warning">Pending Grading</a>
         <?php endif; ?>
@@ -32,7 +32,7 @@
     <?php if (empty($reports)): ?>
         <div class="alert alert-info">
             <?php if ($userRole === 'student'): ?>
-                You haven't submitted any reports yet. Complete a lab session first, then <a href="<?= APP_URL ?>/reports/create" class="text-accent-bold">submit your first report</a>.
+                You haven't submitted any reports yet. Complete a lab session first, then <a href="<?= APP_URL ?>/report-submission" class="text-accent-bold">submit your first report</a>.
             <?php elseif ($userRole === 'lecturer'): ?>
                 No reports have been submitted yet.
             <?php else: ?>

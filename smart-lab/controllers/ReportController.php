@@ -38,7 +38,7 @@ class ReportController {
         Auth::guard('student');
         
         if (!$practicalId) {
-            redirect('dashboard');
+            redirect('report-submission');
         }
         
         $error = '';
