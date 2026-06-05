@@ -470,13 +470,15 @@ class QrAuthController {
             p{color:#94a3b8;font-size:14px;line-height:1.6;margin-bottom:16px}
             .badge{background:#134e4a;color:#6ee7b7;padding:10px 16px;border-radius:10px;font-size:13px;display:block}
         </style>
+        <script src="' . htmlspecialchars(APP_URL) . '/public/js/auth-success-sound.js"></script>
         </head><body>
         <div class="card">
-            <div class="check">âœ…</div>
+            <div class="check">✅</div>
             <h2>Welcome, ' . htmlspecialchars($name) . '!</h2>
             <p>You are now logged in.<br>You can close this tab and return to the lab screen.</p>
             <span class="badge">' . $msg . '</span>
         </div>
+        <script>if (typeof playAuthSuccessSound === "function") { playAuthSuccessSound("qr"); }</script>
         </body></html>';
     }
 }

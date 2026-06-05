@@ -152,8 +152,9 @@
 
       <!-- METHOD 2: Biometric -->
       <div class="auth-method" id="method-biometric">
-        <form method="POST" action="<?= APP_URL ?>/auth/login">
+        <form method="POST" action="<?= APP_URL ?>/auth/login" id="biometric-login-form">
           <input type="hidden" name="auth_method" value="biometric">
+          <input type="hidden" name="response_mode" value="json">
           <input type="hidden" id="biometric_data" name="biometric_data">
           
           <div class="biometric-container">
@@ -302,6 +303,7 @@
 </div>
 
 
+<script src="<?= APP_URL ?>/public/js/auth-success-sound.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 let qrToken = null, pollInterval = null, qrSeconds = 300;
@@ -309,6 +311,15 @@ const timerEl = document.getElementById('qr-timer');
 const statusEl = document.getElementById('qr-status');
 const SENSOR_BASE_URL = <?= json_encode(rtrim(SENSOR_SERVER_URL, '/')) ?>;
 let rfidSubmitTimer = null;
+
+function redirectAfterSuccessSound(redirectUrl, method, delayMs) {
+    if (typeof playAuthSuccessSound === 'function') {
+        playAuthSuccessSound(method);
+    }
+    setTimeout(function () {
+        window.location.href = redirectUrl;
+    }, delayMs || 900);
+}
 
 function showRfidRegisterPanel(uid, message) {
     const panel = document.getElementById('rfid-register-panel');
@@ -353,7 +364,7 @@ async function submitRfidLogin() {
         if (result.success && result.redirect) {
             status.textContent = 'RFID login successful. Redirecting...';
             status.style.color = '#10b981';
-            window.location.href = result.redirect;
+            redirectAfterSuccessSound(result.redirect, 'rfid');
             return;
         }
 
@@ -404,9 +415,7 @@ async function submitRfidRegistration(e) {
         if (result.success && result.redirect) {
             status.textContent = 'Card linked successfully. Redirecting...';
             status.style.color = '#10b981';
-            setTimeout(() => {
-                window.location.href = result.redirect;
-            }, 700);
+            redirectAfterSuccessSound(result.redirect, 'rfid', 900);
             return;
         }
 
@@ -446,9 +455,9 @@ async function generateQR() {
         const d = await r.json();
         if (d.status === 'claimed') {
             clearInterval(pollInterval);
-            statusEl.textContent = '✅ Logged in! Redirecting...';
+            statusEl.textContent = 'Logged in! Redirecting...';
             statusEl.style.color = '#22c55e';
-            setTimeout(() => window.location.href = d.redirect, 1000);
+            redirectAfterSuccessSound(d.redirect, 'qr', 1000);
         } else if (d.status === 'expired') {
             clearInterval(pollInterval);
             statusEl.textContent = '⚠️ Expired — refreshing...';
@@ -672,6 +681,44 @@ function simulateBiometric() {
     }, 1500);
   }, 2000);
 }
+
+document.getElementById('biometric-login-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const form = this;
+  const submitBtn = document.getElementById('biometric-submit');
+  const status = document.getElementById('biometric-status');
+
+  try {
+    submitBtn.disabled = true;
+    status.textContent = 'Authenticating...';
+    status.style.color = '#3b82f6';
+
+    const response = await fetch('<?= APP_URL ?>/auth/login', {
+      method: 'POST',
+      body: new FormData(form)
+    });
+    const result = await response.json();
+
+    if (result.success && result.redirect) {
+      status.textContent = 'Biometric login successful. Redirecting...';
+      status.style.color = '#10b981';
+      redirectAfterSuccessSound(result.redirect, 'biometric');
+      return;
+    }
+
+    status.textContent = result.error || 'Biometric authentication failed';
+    status.style.color = '#ef4444';
+    alert(result.error || 'Biometric authentication failed.');
+  } catch (error) {
+    console.error('Biometric login error:', error);
+    status.textContent = 'Biometric login request failed';
+    status.style.color = '#ef4444';
+    alert('Unable to complete biometric login. Please try again.');
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
 
 // Auto-focus next OTP input
 document.querySelectorAll('.code-input').forEach((input, index) => {

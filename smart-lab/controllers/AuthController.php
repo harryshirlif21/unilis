@@ -55,8 +55,21 @@ class AuthController {
 
             } elseif ($method === 'biometric') {
                 $biometricData = $_POST['biometric_data'] ?? '';
+                $responseMode = sanitize($_POST['response_mode'] ?? '');
+                $wantsJson = $responseMode === 'json' || (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest');
+
+                $respondJson = function (array $payload, int $status = 200) {
+                    http_response_code($status);
+                    header('Content-Type: application/json');
+                    echo json_encode($payload);
+                    return;
+                };
                 
                 if (empty($biometricData)) {
+                    if ($wantsJson) {
+                        $respondJson(['success' => false, 'error' => 'Biometric authentication data is required.'], 400);
+                        return;
+                    }
                     $error = 'Biometric authentication data is required.';
                 } else {
                     $biometricHash = hash('sha256', $biometricData . BIOMETRIC_SALT);
@@ -66,9 +79,21 @@ class AuthController {
                             $mfaRequired = true;
                         } else {
                             logActivity(Auth::id(), 'login_biometric', 'auth');
+                            if ($wantsJson) {
+                                $respondJson([
+                                    'success' => true,
+                                    'redirect' => APP_URL . '/dashboard',
+                                    'message' => 'Biometric login successful.'
+                                ]);
+                                return;
+                            }
                             redirect('dashboard');
                         }
                     } else {
+                        if ($wantsJson) {
+                            $respondJson(['success' => false, 'error' => 'Biometric authentication failed.'], 401);
+                            return;
+                        }
                         $error = 'Biometric authentication failed.';
                     }
                 }

@@ -37,9 +37,18 @@ class NotebookController {
         
         $userRole = Auth::role();
         $userId = Auth::id();
+        $error = '';
+        $success = '';
+        $existingNotebooks = [];
+        $sessions = [];
         
-        // Get user's existing notebooks
-        $existingNotebooks = $this->model->getUserNotebooks($userId);
+        try {
+            $existingNotebooks = $this->model->getUserNotebooks($userId);
+            $sessions = $this->getAvailableSessions();
+        } catch (Exception $e) {
+            error_log('NotebookController::create load failed: ' . $e->getMessage());
+            $error = 'Failed to load notebooks: ' . $e->getMessage();
+        }
         
         if (!$sessionId) {
             // If no session ID provided, show available sessions or redirect
@@ -48,27 +57,23 @@ class NotebookController {
                 renderView('notebooks/manage', [
                     'notebooks' => $existingNotebooks,
                     'userRole' => $userRole,
-                    'sessions' => $this->getAvailableSessions(),
-                    'error' => '',
-                    'success' => ''
+                    'sessions' => $sessions,
+                    'error' => $error,
+                    'success' => $success
                 ]);
                 return;
             } else {
                 // For other roles, show available sessions to choose from
-                $availableSessions = $this->getAvailableSessions();
                 renderView('notebooks/select_session', [
-                    'sessions' => $availableSessions,
+                    'sessions' => $sessions,
                     'userRole' => $userRole,
                     'notebooks' => $existingNotebooks,
-                    'error' => '',
-                    'success' => ''
+                    'error' => $error,
+                    'success' => $success
                 ]);
                 return;
             }
         }
-        
-        $error = '';
-        $success = '';
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $title = sanitize($_POST['title'] ?? '');
@@ -124,7 +129,7 @@ class NotebookController {
         renderView('notebooks/manage', [
             'notebooks' => $existingNotebooks,
             'userRole' => $userRole,
-            'sessions' => $this->getAvailableSessions(),
+            'sessions' => $sessions,
             'error' => $error,
             'success' => $success
         ]);
@@ -420,38 +425,50 @@ class NotebookController {
         $db = getDB();
         
         if ($userRole === 'lecturer') {
-            // Lecturers see their own sessions
+            // Lecturers see their own closed sessions
             $stmt = $db->prepare(
                 "SELECT ls.*, p.title as practical_title, l.name as lab_name
                  FROM lab_sessions ls
                  JOIN practicals p ON ls.practical_id = p.id
                  JOIN labs l ON ls.lab_id = l.id
-                 WHERE p.lecturer_id = ? AND ls.status = 'completed'
+                 WHERE p.lecturer_id = ? AND ls.status = 'closed'
                  ORDER BY ls.started_at DESC"
             );
             $stmt->execute([$userId]);
         } elseif ($userRole === 'admin') {
-            // Admins see all sessions
+            // Admins see all closed sessions
             $stmt = $db->query(
                 "SELECT ls.*, p.title as practical_title, l.name as lab_name
                  FROM lab_sessions ls
                  JOIN practicals p ON ls.practical_id = p.id
                  JOIN labs l ON ls.lab_id = l.id
-                 WHERE ls.status = 'completed'
+                 WHERE ls.status = 'closed'
                  ORDER BY ls.started_at DESC"
             );
         } elseif ($userRole === 'technician') {
-            // Technicians see sessions in their lab
+            // Technicians see closed sessions in their lab
             $labId = $_SESSION['lab_id'] ?? '';
             $stmt = $db->prepare(
                 "SELECT ls.*, p.title as practical_title, l.name as lab_name
                  FROM lab_sessions ls
                  JOIN practicals p ON ls.practical_id = p.id
                  JOIN labs l ON ls.lab_id = l.id
-                 WHERE ls.lab_id = ? AND ls.status = 'completed'
+                 WHERE ls.lab_id = ? AND ls.status = 'closed'
                  ORDER BY ls.started_at DESC"
             );
             $stmt->execute([$labId]);
+        } elseif ($userRole === 'student') {
+            // Students see completed sessions they attended
+            $stmt = $db->prepare(
+                "SELECT ls.*, p.title as practical_title, l.name as lab_name
+                 FROM lab_sessions ls
+                 JOIN practicals p ON ls.practical_id = p.id
+                 JOIN labs l ON ls.lab_id = l.id
+                 JOIN student_practicals sp ON p.id = sp.practical_id
+                 WHERE sp.student_id = ? AND ls.status = 'closed'
+                 ORDER BY ls.started_at DESC"
+            );
+            $stmt->execute([$userId]);
         } else {
             return [];
         }

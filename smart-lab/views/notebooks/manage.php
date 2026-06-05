@@ -26,11 +26,11 @@
                         <div class="notebook-item-info">
                             <div class="info-row">
                                 <i class="fas fa-flask"></i>
-                                <span><?= htmlspecialchars($notebook['practical_title']) ?></span>
+                                <span><?= htmlspecialchars($notebook['practical_title'] ?? 'General notebook') ?></span>
                             </div>
                             <div class="info-row">
                                 <i class="fas fa-calendar"></i>
-                                <span><?= date('M j, Y', strtotime($notebook['session_date'])) ?></span>
+                                <span><?= !empty($notebook['session_date']) ? date('M j, Y', strtotime($notebook['session_date'])) : 'No session linked' ?></span>
                             </div>
                         </div>
                         

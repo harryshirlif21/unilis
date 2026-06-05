@@ -28,25 +28,30 @@ class NotebookModel {
     }
     
     public function getUserNotebooks(string $userId): array {
-        $stmt = $this->db->prepare(
-            "SELECT n.*, 
-                   p.title as practical_title,
-                   p.description as practical_description,
-                   l.name as lab_name,
-                   l.lab_code,
-                   ls.started_at as session_date,
-                   u.full_name as creator_name,
-                   u.role as creator_role
-             FROM notebooks n
-             JOIN lab_sessions ls ON n.session_id = ls.id
-             JOIN practicals p ON ls.practical_id = p.id
-             JOIN labs l ON p.lab_id = l.id
-             LEFT JOIN users u ON n.created_by = u.id
-             WHERE n.student_id = ? OR n.created_by = ?
-             ORDER BY n.created_at DESC"
-        );
-        $stmt->execute([$userId, $userId]);
-        return $stmt->fetchAll();
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT n.*, 
+                       p.title as practical_title,
+                       p.description as practical_description,
+                       l.name as lab_name,
+                       l.lab_code,
+                       ls.started_at as session_date,
+                       u.full_name as creator_name,
+                       u.role as creator_user_role
+                 FROM notebooks n
+                 LEFT JOIN lab_sessions ls ON n.session_id = ls.id
+                 LEFT JOIN practicals p ON ls.practical_id = p.id
+                 LEFT JOIN labs l ON p.lab_id = l.id
+                 LEFT JOIN users u ON n.created_by = u.id
+                 WHERE n.student_id = ? OR n.created_by = ?
+                 ORDER BY n.created_at DESC"
+            );
+            $stmt->execute([$userId, $userId]);
+            return $stmt->fetchAll();
+        } catch (PDOException $e) {
+            error_log('NotebookModel::getUserNotebooks failed: ' . $e->getMessage());
+            throw $e;
+        }
     }
     
     public function update(string $notebookId, string $title, string $content): bool {
