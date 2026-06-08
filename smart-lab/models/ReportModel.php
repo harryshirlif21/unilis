@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__.'/../config/app.php';
 
+if (!function_exists('getDB')) {
+    require_once __DIR__.'/../config/database_production.php';
+}
+
 class ReportModel {
     private PDO $db;
     
@@ -298,35 +302,19 @@ class ReportModel {
         $stmt->execute($params);
         return $stmt->fetchAll();
     }
-    
-    private function hasReportColumn(string $column): bool {
-        $stmt = $this->db->prepare("SHOW COLUMNS FROM reports LIKE ?");
-        $stmt->execute([$column]);
-        return (bool)$stmt->fetch();
-    }
 
     public function getStudentReports(string $studentId): array {
-        $hasGrader = $this->hasReportColumn('graded_by');
-        $select = "SELECT r.*, p.title as practical_title, p.description as practical_description,
-                   l.name as lab_name, l.lab_code,
-                   rd.deadline_date, rd.extended, rd.extended_until";
-
-        if ($hasGrader) {
-            $select .= ", u.full_name as grader_name, u.email as grader_email";
-        }
-
-        $sql = $select .
-               " FROM reports r
-                 JOIN practicals p ON r.practical_id = p.id
-                 JOIN labs l ON p.lab_id = l.id
-                 LEFT JOIN report_deadlines rd ON r.practical_id = rd.practical_id AND r.student_id = rd.student_id";
-
-        if ($hasGrader) {
-            $sql .= " LEFT JOIN users u ON r.graded_by = u.id";
-        }
-
-        $sql .= " WHERE r.student_id = ?
-                  ORDER BY r.submitted_at DESC";
+        $sql = "SELECT r.*, p.title as practical_title, p.description as practical_description,
+                       l.name as lab_name, l.lab_code,
+                       u.full_name as grader_name, u.email as grader_email,
+                       rd.deadline_date, rd.extended, rd.extended_until
+                FROM reports r
+                JOIN practicals p ON r.practical_id = p.id
+                JOIN labs l ON p.lab_id = l.id
+                LEFT JOIN users u ON r.graded_by = u.id
+                LEFT JOIN report_deadlines rd ON r.practical_id = rd.practical_id AND r.student_id = rd.student_id
+                WHERE r.student_id = ?
+                ORDER BY r.submitted_at DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$studentId]);

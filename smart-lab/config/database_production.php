@@ -2,12 +2,12 @@
 // Production Database Configuration with Docker Support
 
 // Try Docker container name first, fallback to localhost for local development
-$dockerHost = 'unilis-db';
-$localHost  = 'localhost';
-$dbName     = 'unilis_smartlab';
-$dbUser     = 'lab_admin';
-$dbPass     = 'lab_password';
-$dbCharset  = 'utf8mb4';
+$dockerHost = getenv('DB_HOST') ?: 'unilis-db';
+$localHost  = getenv('DB_LOCAL_HOST') ?: 'localhost';
+$dbName     = getenv('DB_NAME') ?: 'unilis_smartlab';
+$dbUser     = getenv('DB_USER') ?: 'lab_admin';
+$dbPass     = getenv('DB_PASS') ?: 'lab_password';
+$dbCharset  = getenv('DB_CHARSET') ?: 'utf8mb4';
 
 // Auto-detect if running in Docker or local development
 function getProductionDB(): PDO {

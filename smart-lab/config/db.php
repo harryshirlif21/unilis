@@ -10,6 +10,10 @@ $retryDelay = 3;
 
 // Smart Lab Database connection parameters (from docker-compose.yml)
 $host = getenv('SMART_LAB_DB_HOST') ?: 'smart-labs-db';
+if ($host === 'smart-labs-db' && gethostbyname($host) === $host) {
+    // Fallback for local CLI/dev environments where Docker host names are not resolvable.
+    $host = '127.0.0.1';
+}
 $user = getenv('SMART_LAB_DB_USER') ?: 'lab_admin';
 $password = getenv('SMART_LAB_DB_PASSWORD') ?: 'lab_password';
 $dbname = getenv('SMART_LAB_DB_NAME') ?: 'unilis_smartlab';
