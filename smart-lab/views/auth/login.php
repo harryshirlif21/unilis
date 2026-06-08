@@ -10,8 +10,65 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="<?= APP_URL ?>/public/css/app.css">
+<style>
+  #login-success-overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.92);
+    z-index: 9999;
+    padding: 24px;
+  }
+  #login-success-overlay.active {
+    display: flex;
+  }
+  #login-success-panel {
+    width: min(420px, 100%);
+    text-align: center;
+    border-radius: 24px;
+    padding: 32px 28px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
+  }
+  #login-success-panel .spinner {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 22px;
+    border-radius: 50%;
+    border: 6px solid rgba(148, 163, 184, 0.24);
+    border-top-color: #60a5fa;
+    animation: login-spin 1s linear infinite;
+  }
+  @keyframes login-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  #login-success-panel .success-title {
+    color: #f8fafc;
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  #login-success-panel .success-copy {
+    color: #cbd5e1;
+    font-size: 0.96rem;
+    line-height: 1.7;
+    margin-bottom: 0;
+  }
+</style>
 </head>
 <body>
+
+<div id="login-success-overlay" aria-live="polite" role="status">
+  <div id="login-success-panel">
+    <div class="spinner"></div>
+    <div class="success-title">Login successful</div>
+    <div class="success-copy">Please wait while we finish signing you into the SmartLab system.</div>
+  </div>
+</div>
 
 <div class="auth-page">
 
@@ -312,13 +369,26 @@ const statusEl = document.getElementById('qr-status');
 const SENSOR_BASE_URL = <?= json_encode(rtrim(SENSOR_SERVER_URL, '/')) ?>;
 let rfidSubmitTimer = null;
 
+function showAuthSuccessOverlay(message) {
+    const overlay = document.getElementById('login-success-overlay');
+    const title = overlay?.querySelector('.success-title');
+    const copy = overlay?.querySelector('.success-copy');
+
+    if (!overlay) return;
+
+    if (title) title.textContent = message || 'Login successful';
+    if (copy) copy.textContent = 'Please wait while we finish signing you into the SmartLab system.';
+    overlay.classList.add('active');
+}
+
 function redirectAfterSuccessSound(redirectUrl, method, delayMs) {
     if (typeof playAuthSuccessSound === 'function') {
         playAuthSuccessSound(method);
     }
+    showAuthSuccessOverlay('Login successful. Redirecting now...');
     setTimeout(function () {
         window.location.href = redirectUrl;
-    }, delayMs || 900);
+    }, delayMs || 5000);
 }
 
 function showRfidRegisterPanel(uid, message) {

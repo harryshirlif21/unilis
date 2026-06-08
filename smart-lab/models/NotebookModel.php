@@ -102,6 +102,20 @@ class NotebookModel {
         $stmt->execute([$studentId]);
         return $stmt->fetchAll();
     }
+
+    public function getByStudentAndPractical(string $studentId, string $practicalId): ?array {
+        $stmt = $this->db->prepare(
+            "SELECT n.*
+             FROM notebooks n
+             JOIN lab_sessions ls ON n.session_id = ls.id
+             WHERE n.student_id = ?
+               AND ls.practical_id = ?
+             ORDER BY n.created_at DESC
+             LIMIT 1"
+        );
+        $stmt->execute([$studentId, $practicalId]);
+        return $stmt->fetch() ?: null;
+    }
     
     public function getBySession(string $sessionId): array {
         $stmt = $this->db->prepare(

@@ -3,9 +3,9 @@
  */
 (function (global) {
     const MESSAGES = {
-        rfid: 'RFID login successful',
-        biometric: 'Biometric login successful',
-        qr: 'QR login successful'
+        rfid: 'RFID login successful. Welcome to UNILIS SmartLab. Please wait while we finish signing you in.',
+        biometric: 'Biometric login successful. Welcome to UNILIS SmartLab. Please wait while we finish signing you in.',
+        qr: 'QR login successful. Welcome to UNILIS SmartLab. Please wait while we finish signing you in.'
     };
 
     function playBeep() {

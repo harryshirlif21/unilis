@@ -79,6 +79,10 @@
                                 <div class="action-group">
                                     <a href="<?= APP_URL ?>/practicals/view/<?= $practical['id'] ?>" class="btn btn-secondary btn-sm">View</a>
 
+                                    <?php if ($userRole === 'student' && !empty($studentReportMap[$practical['id']])): ?>
+                                        <a href="<?= APP_URL ?>/report-submission/view/<?= $studentReportMap[$practical['id']]['id'] ?>" class="btn btn-primary btn-sm">View Datasheet</a>
+                                    <?php endif; ?>
+
                                     <?php if ($userRole === 'student' && $practical['status'] === 'published'): ?>
                                         <?php if ($accessWindow['can_take']): ?>
                                             <a href="<?= APP_URL ?>/student/view_practical/<?= $practical['id'] ?>" class="btn btn-accent btn-sm">Take Practical</a>

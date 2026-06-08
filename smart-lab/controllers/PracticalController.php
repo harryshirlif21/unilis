@@ -1,13 +1,16 @@
 <?php
 require_once __DIR__.'/../models/PracticalModel.php';
+require_once __DIR__.'/../models/ReportModel.php';
 require_once __DIR__.'/../auth/Auth.php';
 require_once __DIR__.'/../utils/helpers.php';
 
 class PracticalController {
     private PracticalModel $model;
+    private ReportModel $reportModel;
     
     public function __construct() {
         $this->model = new PracticalModel();
+        $this->reportModel = new ReportModel();
     }
     
     public function index($param = null) {
@@ -22,17 +25,29 @@ class PracticalController {
             $practicals = $this->model->getAll();
         }
 
-        foreach ($practicals as &$practical) {
-            $practical['access_window'] = getPracticalAccessWindow($practical);
+        $studentReportMap = [];
+
+        if ($userRole === 'student') {
+            foreach ($practicals as &$practical) {
+                $practical['access_window'] = getPracticalAccessWindow($practical);
+                $report = $this->reportModel->getStudentReportForPractical($userId, $practical['id']);
+                $studentReportMap[$practical['id']] = $report;
+            }
+            unset($practical);
+        } else {
+            foreach ($practicals as &$practical) {
+                $practical['access_window'] = getPracticalAccessWindow($practical);
+            }
+            unset($practical);
         }
-        unset($practical);
         
         $stats = $this->model->getPracticalStats();
         
         renderView('practicals/index', [
             'practicals' => $practicals,
             'stats' => $stats,
-            'userRole' => $userRole
+            'userRole' => $userRole,
+            'studentReportMap' => $studentReportMap
         ]);
     }
     

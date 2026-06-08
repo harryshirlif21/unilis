@@ -23,7 +23,7 @@
             </div>
         <?php endif; ?>
         
-        <form method="POST" action="<?= APP_URL ?>/report-submission/create" class="report-form">
+        <form method="POST" action="<?= APP_URL ?>/report-submission/create" class="report-form" enctype="multipart/form-data">
             <!-- Practical Selection -->
             <div class="form-section">
                 <h4><i class="fas fa-flask"></i> Practical Selection</h4>
@@ -34,7 +34,8 @@
                         <option value="">Choose a practical...</option>
                         <?php foreach ($availablePracticals as $practical): ?>
                             <?php if ($practical['can_submit']): ?>
-                                <option value="<?= $practical['id'] ?>" 
+                                <option value="<?= $practical['id'] ?>"
+                                        <?= (isset($_POST['practical_id']) ? $_POST['practical_id'] : ($_GET['practical'] ?? '')) === $practical['id'] ? 'selected' : '' ?>
                                         data-deadline="<?= $practical['deadline']['deadline_date'] ?? '' ?>"
                                         data-extended="<?= $practical['deadline']['extended_until'] ?? '' ?>"
                                         data-practical="<?= htmlspecialchars($practical['title']) ?>"
@@ -66,7 +67,8 @@
                 <div class="form-group">
                     <label for="title">Report Title *</label>
                     <input type="text" name="title" id="title" class="form-control" 
-                           placeholder="Enter a descriptive title for your report..." required>
+                           placeholder="Enter a descriptive title for your report..." required
+                           value="<?= htmlspecialchars($_POST['title'] ?? '') ?>">
                     <small class="form-help">Choose a clear title that describes your report content</small>
                 </div>
             </div>
@@ -78,7 +80,7 @@
                 <div class="form-group">
                     <label for="content">Main Content *</label>
                     <textarea name="content" id="content" class="form-control" rows="8" required
-                              placeholder="Enter the main content of your report..."></textarea>
+                              placeholder="Enter the main content of your report..."><?= htmlspecialchars($_POST['content'] ?? '') ?></textarea>
                     <small class="form-help">Provide detailed information about your practical work, observations, and findings</small>
                 </div>
                 
@@ -86,7 +88,7 @@
                     <div class="form-group">
                         <label for="summary">Executive Summary</label>
                         <textarea name="summary" id="summary" class="form-control" rows="4"
-                                  placeholder="Brief summary of your report..."></textarea>
+                                  placeholder="Brief summary of your report..."><?= htmlspecialchars($_POST['summary'] ?? '') ?></textarea>
                         <small class="form-help">A concise overview of your report (2-3 sentences)</small>
                     </div>
                     
@@ -101,25 +103,34 @@
                 <div class="form-group">
                     <label for="results">Results & Findings</label>
                     <textarea name="results" id="results" class="form-control" rows="6"
-                              placeholder="Present your results and findings..."></textarea>
+                              placeholder="Present your results and findings..."><?= htmlspecialchars($_POST['results'] ?? '') ?></textarea>
                     <small class="form-help">Include data, observations, and key findings</small>
                 </div>
                 
                 <div class="form-group">
                     <label for="conclusions">Conclusions & Analysis</label>
                     <textarea name="conclusions" id="conclusions" class="form-control" rows="6"
-                              placeholder="Analyze your results and draw conclusions..."></textarea>
+                              placeholder="Analyze your results and draw conclusions..."><?= htmlspecialchars($_POST['conclusions'] ?? '') ?></textarea>
                     <small class="form-help">Interpret your findings and provide conclusions</small>
                 </div>
                 
                 <div class="form-group">
                     <label for="references">References</label>
                     <textarea name="references" id="references" class="form-control" rows="4"
-                              placeholder="List any references or citations..."></textarea>
+                              placeholder="List any references or citations..."><?= htmlspecialchars($_POST['references'] ?? '') ?></textarea>
                     <small class="form-help">Include any sources, references, or citations</small>
                 </div>
             </div>
-            
+
+            <div class="form-section">
+                <h4><i class="fas fa-paperclip"></i> File Upload</h4>
+                <div class="form-group">
+                    <label for="report_file">Upload File (PDF, DOC, DOCX)</label>
+                    <input type="file" name="report_file" id="report_file" class="form-control" accept=".pdf,.doc,.docx">
+                    <small class="form-help">Optional: attach your report as a Word document or PDF.</small>
+                </div>
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-paper-plane"></i> Submit Report

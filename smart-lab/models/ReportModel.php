@@ -17,8 +17,8 @@ class ReportModel {
         $stmt = $this->db->prepare(
             "INSERT INTO reports 
              (id, notebook_id, student_id, practical_id, title, 
-              file_path, submission_notes, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', NOW())"
+              file_path, submission_notes, status, submitted_at, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
         );
         
         return $stmt->execute([
@@ -28,7 +28,9 @@ class ReportModel {
             $data['practical_id'],
             $data['title'],
             $data['file_path'],
-            $data['submission_notes']
+            $data['submission_notes'],
+            $data['status'] ?? 'draft',
+            $data['submitted_at'] ?? null
         ]);
     }
     
@@ -51,12 +53,14 @@ class ReportModel {
         $stmt = $this->db->prepare(
             "SELECT r.*, n.title as notebook_title, p.title as practical_title,
                    s.full_name as student_name, s.reg_number,
-                   l.full_name as lecturer_name, l.email as lecturer_email
+                   lec.full_name as lecturer_name, lec.email as lecturer_email,
+                   lab.name as lab_name, lab.lab_code as lab_code
              FROM reports r
              LEFT JOIN notebooks n ON r.notebook_id = n.id
              LEFT JOIN practicals p ON r.practical_id = p.id
              LEFT JOIN users s ON r.student_id = s.id
-             LEFT JOIN users l ON p.lecturer_id = l.id
+             LEFT JOIN users lec ON p.lecturer_id = lec.id
+             LEFT JOIN labs lab ON p.lab_id = lab.id
              WHERE r.id = ? LIMIT 1"
         );
         $stmt->execute([$reportId]);
@@ -295,26 +299,42 @@ class ReportModel {
         return $stmt->fetchAll();
     }
     
+    private function hasReportColumn(string $column): bool {
+        $stmt = $this->db->prepare("SHOW COLUMNS FROM reports LIKE ?");
+        $stmt->execute([$column]);
+        return (bool)$stmt->fetch();
+    }
+
     public function getStudentReports(string $studentId): array {
-        $stmt = $this->db->prepare(
-            "SELECT r.*, p.title as practical_title, p.description as practical_description,
+        $hasGrader = $this->hasReportColumn('graded_by');
+        $select = "SELECT r.*, p.title as practical_title, p.description as practical_description,
                    l.name as lab_name, l.lab_code,
-                   u.full_name as grader_name, u.email as grader_email,
-                   rd.deadline_date, rd.extended, rd.extended_until
-             FROM reports r
-             JOIN practicals p ON r.practical_id = p.id
-             JOIN labs l ON p.lab_id = l.id
-             LEFT JOIN users u ON r.graded_by = u.id
-             LEFT JOIN report_deadlines rd ON r.practical_id = rd.practical_id AND r.student_id = rd.student_id
-             WHERE r.student_id = ?
-             ORDER BY r.submitted_at DESC"
-        );
+                   rd.deadline_date, rd.extended, rd.extended_until";
+
+        if ($hasGrader) {
+            $select .= ", u.full_name as grader_name, u.email as grader_email";
+        }
+
+        $sql = $select .
+               " FROM reports r
+                 JOIN practicals p ON r.practical_id = p.id
+                 JOIN labs l ON p.lab_id = l.id
+                 LEFT JOIN report_deadlines rd ON r.practical_id = rd.practical_id AND r.student_id = rd.student_id";
+
+        if ($hasGrader) {
+            $sql .= " LEFT JOIN users u ON r.graded_by = u.id";
+        }
+
+        $sql .= " WHERE r.student_id = ?
+                  ORDER BY r.submitted_at DESC";
+
+        $stmt = $this->db->prepare($sql);
         $stmt->execute([$studentId]);
         $reports = $stmt->fetchAll();
         
         foreach ($reports as &$report) {
             // Add deadline status
-            if ($report['deadline_date']) {
+            if (!empty($report['deadline_date'])) {
                 $deadlineModel = new DeadlineModel();
                 $deadline = [
                     'deadline_date' => $report['deadline_date'],
