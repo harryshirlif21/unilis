@@ -21,8 +21,26 @@ if (isset($_SESSION['old_input'])) {
     $old_input = $_SESSION['old_input'];
     unset($_SESSION['old_input']);
 }
-?>
 
+// ── Fetch departments from DB ────────────────────────────────────────────────
+$departments = [];
+$deptResult = $conn->query("SELECT id, name FROM departments ORDER BY name");
+while ($d = $deptResult->fetch_assoc()) {
+    $departments[] = $d;
+}
+
+// ── Fetch courses grouped by department ──────────────────────────────────────
+$allCourses = [];
+$courseResult = $conn->query("SELECT id, name, department_id FROM courses ORDER BY name");
+while ($c = $courseResult->fetch_assoc()) {
+    $deptId = (int)$c['department_id'];
+    if (!isset($allCourses[$deptId])) {
+        $allCourses[$deptId] = [];
+    }
+    $allCourses[$deptId][] = $c;
+}
+$coursesJson = json_encode($allCourses);
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -80,7 +98,7 @@ if (isset($_SESSION['old_input'])) {
         <input type="hidden" name="action" value="signup_student">
         <input type="hidden" name="university" value="JKUAT">
 
-        <!-- Step 1 -->
+        <!-- Step 1: Personal Details -->
         <div class="form-step active">
           <div class="mb-6">
             <label class="block text-gray-700 text-sm font-semibold mb-2">
@@ -100,7 +118,7 @@ if (isset($_SESSION['old_input'])) {
           </div>
         </div>
 
-        <!-- Step 2 -->
+        <!-- Step 2: Contact Details -->
         <div class="form-step">
           <div class="mb-6">
             <label class="block text-gray-700 text-sm font-semibold mb-2">
@@ -120,65 +138,71 @@ if (isset($_SESSION['old_input'])) {
           </div>
         </div>
 
-        <!-- Step 3 -->
+        <!-- Step 3: Department & Course -->
         <div class="form-step">
           <div class="mb-6">
             <label class="block text-gray-700 text-sm font-semibold mb-2">
-              School/Faculty <span class="text-red-500">*</span>
+              Department <span class="text-red-500">*</span>
             </label>
-            <select name="school" required class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
-              <option value="">Select your school/faculty</option>
-              <option value="School of Engineering" <?= ($old_input['school'] ?? '') === 'School of Engineering' ? 'selected' : '' ?>>School of Engineering</option>
-              <option value="School of Business" <?= ($old_input['school'] ?? '') === 'School of Business' ? 'selected' : '' ?>>School of Business</option>
-              <option value="School of Computing" <?= ($old_input['school'] ?? '') === 'School of Computing' ? 'selected' : '' ?>>School of Computing</option>
-              <option value="School of Agriculture" <?= ($old_input['school'] ?? '') === 'School of Agriculture' ? 'selected' : '' ?>>School of Agriculture</option>
+            <select name="department" id="departmentSelect" required
+                    class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+              <option value="">Select your department</option>
+              <?php foreach ($departments as $dept):
+                $sel = (int)($old_input['department'] ?? 0) === (int)$dept['id'] ? 'selected' : ''; ?>
+                <option value="<?= (int)$dept['id'] ?>" <?= $sel ?>><?= htmlspecialchars($dept['name']) ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="mb-6">
             <label class="block text-gray-700 text-sm font-semibold mb-2">
               Course/Program <span class="text-red-500">*</span>
             </label>
-            <input type="text" name="course" required placeholder="e.g. Computer Science"
-                   value="<?= htmlspecialchars($old_input['course'] ?? '') ?>"
-                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+            <select name="course" id="courseSelect" required
+                    class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+              <option value="">First select a department</option>
+            </select>
           </div>
         </div>
 
-        <!-- Step 4 -->
+        <!-- Step 4: Year of Study & Year Joined -->
         <div class="form-step">
           <div class="mb-6">
             <label class="block text-gray-700 text-sm font-semibold mb-2">
               Year of Study <span class="text-red-500">*</span>
             </label>
-            <select name="year" required class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+            <select name="year_of_study" required
+                    class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
               <option value="">Select year</option>
-              <option value="1" <?= ($old_input['year'] ?? '') === '1' ? 'selected' : '' ?>>Year 1</option>
-              <option value="2" <?= ($old_input['year'] ?? '') === '2' ? 'selected' : '' ?>>Year 2</option>
-              <option value="3" <?= ($old_input['year'] ?? '') === '3' ? 'selected' : '' ?>>Year 3</option>
-              <option value="4" <?= ($old_input['year'] ?? '') === '4' ? 'selected' : '' ?>>Year 4</option>
-              <option value="5" <?= ($old_input['year'] ?? '') === '5' ? 'selected' : '' ?>>Year 5</option>
+              <?php for ($y = 1; $y <= 6; $y++):
+                $sel = ($old_input['year_of_study'] ?? '') === (string)$y ? 'selected' : ''; ?>
+                <option value="<?= $y ?>" <?= $sel ?>>Year <?= $y ?></option>
+              <?php endfor; ?>
             </select>
           </div>
           <div class="mb-6">
             <label class="block text-gray-700 text-sm font-semibold mb-2">
-              Semester <span class="text-red-500">*</span>
+              Year Joined <span class="text-red-500">*</span>
             </label>
-            <select name="semester" required class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
-              <option value="">Select semester</option>
-              <option value="1" <?= ($old_input['semester'] ?? '') === '1' ? 'selected' : '' ?>>Semester 1</option>
-              <option value="2" <?= ($old_input['semester'] ?? '') === '2' ? 'selected' : '' ?>>Semester 2</option>
+            <select name="year_joined" required
+                    class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
+              <option value="">Select year joined</option>
+              <?php $currentYear = (int)date('Y');
+              for ($y = $currentYear; $y >= $currentYear - 6; $y--):
+                $sel = ($old_input['year_joined'] ?? '') === (string)$y ? 'selected' : ''; ?>
+                <option value="<?= $y ?>" <?= $sel ?>><?= $y ?></option>
+              <?php endfor; ?>
             </select>
           </div>
         </div>
 
-        <!-- Step 5 -->
+        <!-- Step 5: Password -->
         <div class="form-step">
           <div class="mb-6">
             <label class="block text-gray-700 text-sm font-semibold mb-2">
               Password <span class="text-red-500">*</span>
             </label>
             <div class="relative">
-              <input type="password" name="password" id="password" required placeholder="Create a strong password"
+              <input type="password" name="password" id="password" required placeholder="Create a strong password (min 8 chars)"
                      class="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
               <i class="fas fa-eye absolute right-4 top-4 cursor-pointer text-gray-400 hover:text-gray-600" id="togglePassword"></i>
             </div>
@@ -265,13 +289,66 @@ if (isset($_SESSION['old_input'])) {
   </style>
 
   <script>
-    // Multi-step form logic
+    // ── Course data from PHP ──────────────────────────────────────────────
+    const allCourses = <?= $coursesJson ?>;
+    const oldCourse = "<?= htmlspecialchars($old_input['course'] ?? '') ?>";
+    const oldDept  = "<?= htmlspecialchars($old_input['department'] ?? '') ?>";
+
+    // ── Department → Course cascade ───────────────────────────────────────
+    const deptSelect = document.getElementById('departmentSelect');
+    const courseSelect = document.getElementById('courseSelect');
+
+    function updateCourses() {
+      const deptId = deptSelect.value;
+      courseSelect.innerHTML = '<option value="">Select your course/program</option>';
+
+      if (deptId && allCourses[deptId]) {
+        allCourses[deptId].forEach(function(c) {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.name;
+          if (oldCourse && oldDept === deptId && String(c.id) === oldCourse) {
+            opt.selected = true;
+          }
+          courseSelect.appendChild(opt);
+        });
+      }
+
+      // Also restore old selected course if department matches
+      if (oldCourse && deptId && allCourses[deptId]) {
+        const matching = allCourses[deptId].filter(function(c) {
+          return String(c.id) === oldCourse;
+        });
+        if (matching.length > 0) {
+          courseSelect.value = oldCourse;
+        }
+      }
+    }
+
+    // Restore old selections on page load
+    if (oldDept) {
+      deptSelect.value = oldDept;
+    }
+    updateCourses();
+
+    deptSelect.addEventListener('change', updateCourses);
+
+    // ── Multi-step form logic ─────────────────────────────────────────────
     const steps = document.querySelectorAll('.step');
     const formSteps = document.querySelectorAll('.form-step');
     const btnNext = document.querySelector('.btn-next');
     const btnBack = document.querySelector('.btn-back');
     const submitBtn = document.getElementById('submitBtn');
     let currentStep = 0;
+
+    // Map fields that must be filled before going to next step
+    const stepFields = [
+      ['reg_no', 'name'],
+      ['email', 'phone'],
+      ['department', 'course'],
+      ['year_of_study', 'year_joined'],
+      ['password', 'confirm_password'],
+    ];
 
     function updateSteps() {
       steps.forEach((step, index) => {
@@ -297,30 +374,46 @@ if (isset($_SESSION['old_input'])) {
       }
     }
 
-    btnNext.addEventListener('click', () => {
+    function validateStep(stepIndex) {
+      const fields = stepFields[stepIndex] || [];
+      for (let i = 0; i < fields.length; i++) {
+        const el = document.querySelector('[name="' + fields[i] + '"]');
+        if (el && !el.value.trim()) {
+          el.focus();
+          el.style.borderColor = '#ef4444';
+          setTimeout(function() { el.style.borderColor = ''; }, 2000);
+          return false;
+        }
+      }
+      return true;
+    }
+
+    btnNext.addEventListener('click', function() {
+      if (!validateStep(currentStep)) {
+        return;
+      }
       if (currentStep < steps.length - 1) {
         currentStep++;
         updateSteps();
       }
     });
 
-    btnBack.addEventListener('click', () => {
+    btnBack.addEventListener('click', function() {
       if (currentStep > 0) {
         currentStep--;
         updateSteps();
       }
     });
 
-    // Password strength checker
+    // ── Password strength checker ─────────────────────────────────────────
     const passwordInput = document.getElementById('password');
     const strengthBar = document.querySelector('.strength-bar');
     const strengthText = document.getElementById('strengthText');
     const passwordStrength = document.querySelector('.password-strength');
 
-    passwordInput.addEventListener('input', () => {
+    passwordInput.addEventListener('input', function() {
       const password = passwordInput.value;
       let strength = 0;
-      let feedback = [];
 
       if (password.length >= 8) strength++;
       if (/[a-z]/.test(password)) strength++;
@@ -344,9 +437,9 @@ if (isset($_SESSION['old_input'])) {
       }
     });
 
-    // Password toggle
+    // ── Password toggle ───────────────────────────────────────────────────
     const togglePassword = document.getElementById('togglePassword');
-    togglePassword.addEventListener('click', () => {
+    togglePassword.addEventListener('click', function() {
       const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
       passwordInput.setAttribute('type', type);
       togglePassword.classList.toggle('fa-eye');
