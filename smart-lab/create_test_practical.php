@@ -1,7 +1,7 @@
 <?php
 /**
  * Script to create a test practical for today (2026-06-10)
- * Time: 11:20 AM to 4:00 PM
+ * Time: 12:20 PM to 4:00 PM
  * Location: Engineering Workshop (lab-eng-001)
  * Lecturer: kamau john (71bf048cda937785152023a19f9e2ef2)
  * 
@@ -27,7 +27,7 @@ try {
     // Check for time conflicts
     $stmt = $pdo->prepare("SELECT COUNT(*) as c FROM practicals 
         WHERE lab_id = ? AND scheduled_date = '2026-06-10' 
-        AND start_time < '16:00:00' AND end_time > '11:20:00' 
+        AND start_time < '16:00:00' AND end_time > '12:20:00' 
         AND status IN ('published', 'ongoing')");
     $stmt->execute([$labId]);
     $conflicts = $stmt->fetch()['c'];
@@ -51,9 +51,9 @@ try {
         'lecturer_id' => $lecturerId,
         'course_code' => 'ENG101',
         'scheduled_date' => '2026-06-10',
-        'start_time' => '11:20:00',
+        'start_time' => '12:20:00',
         'end_time' => '16:00:00',
-        'duration_hours' => 5,
+        'duration_hours' => 4,
         'max_students' => 20,
         'required_equipment' => "Safety goggles (1 per student)\nLab coats (1 per student)\nMeasuring tapes (1 per workstation)\nVernier calipers (1 per workstation)\nHack saws (2)\nSteel rules (1 per workstation)\nCenter punches (1 per workstation)\nBall-peen hammers (2)\nFiles (assorted set per workstation)",
         'required_chemicals' => "Cutting oil\nLubricating oil\nCleaning solvent (isopropyl alcohol)",
@@ -109,7 +109,7 @@ try {
     echo "ID:          {$uuid}\n";
     echo "Title:       {$data['title']}\n";
     echo "Date:        2026-06-10\n";
-    echo "Time:        11:20 AM - 4:00 PM\n";
+    echo "Time:        12:20 PM - 4:00 PM\n";
     echo "Lab:         Engineering Workshop (lab-eng-001)\n";
     echo "Lecturer:    kamau john\n";
     echo "Status:      published\n\n";
