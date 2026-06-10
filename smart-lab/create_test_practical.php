@@ -5,19 +5,15 @@
  * Location: Engineering Workshop (lab-eng-001)
  * Lecturer: kamau john (71bf048cda937785152023a19f9e2ef2)
  * 
+ * Uses production database config: smart-lab/config/database_production.php
+ * 
  * Run: php smart-lab/create_test_practical.php
  */
 
-$host = '127.0.0.1';
-$user = 'root';
-$pass = '';
-$dbname = 'unilis_smartlab';
+require_once __DIR__ . '/config/database_production.php';
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    $pdo = getDB();
 
     // Generate UUID-format ID (same method as PracticalController)
     $rawId = random_bytes(16);
@@ -117,7 +113,7 @@ try {
     echo "Lab:         Engineering Workshop (lab-eng-001)\n";
     echo "Lecturer:    kamau john\n";
     echo "Status:      published\n\n";
-    echo "You can view it at: http://localhost/smart-lab/practicals/view/{$uuid}\n";
+    echo "View at:     http://localhost/smart-lab/practicals/view/{$uuid}\n";
 
 } catch (Exception $e) {
     echo "ERROR: " . $e->getMessage() . "\n";
