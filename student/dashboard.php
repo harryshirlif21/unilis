@@ -1295,7 +1295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 
                 <div class="card-actions">
-                    <a href="take_assessment.php" class="btn btn-danger flex-1">
+                    <a href="http://40.125.84.240" class="btn btn-danger flex-1">
                         <span class="material-symbols-outlined">play_arrow</span>
                         Take CAT
                     </a>

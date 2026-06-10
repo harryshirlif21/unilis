@@ -10848,5 +10848,1015 @@
         "status": "Excellent",
         "color": "#2E8B57",
         "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:33:58",
+        "reading_time": "11:33:58",
+        "created_at": "2026-06-10 11:33:58",
+        "ppm": 601,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:03",
+        "reading_time": "11:34:03",
+        "created_at": "2026-06-10 11:34:03",
+        "ppm": 605,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:08",
+        "reading_time": "11:34:08",
+        "created_at": "2026-06-10 11:34:08",
+        "ppm": 609,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:13",
+        "reading_time": "11:34:13",
+        "created_at": "2026-06-10 11:34:13",
+        "ppm": 610,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:18",
+        "reading_time": "11:34:18",
+        "created_at": "2026-06-10 11:34:18",
+        "ppm": 613,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:23",
+        "reading_time": "11:34:23",
+        "created_at": "2026-06-10 11:34:23",
+        "ppm": 615,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:28",
+        "reading_time": "11:34:28",
+        "created_at": "2026-06-10 11:34:28",
+        "ppm": 617,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:33",
+        "reading_time": "11:34:33",
+        "created_at": "2026-06-10 11:34:33",
+        "ppm": 618,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:38",
+        "reading_time": "11:34:38",
+        "created_at": "2026-06-10 11:34:38",
+        "ppm": 618,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:44",
+        "reading_time": "11:34:44",
+        "created_at": "2026-06-10 11:34:44",
+        "ppm": 619,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:49",
+        "reading_time": "11:34:49",
+        "created_at": "2026-06-10 11:34:49",
+        "ppm": 620,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:54",
+        "reading_time": "11:34:54",
+        "created_at": "2026-06-10 11:34:54",
+        "ppm": 620,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:34:59",
+        "reading_time": "11:34:59",
+        "created_at": "2026-06-10 11:34:59",
+        "ppm": 617,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:04",
+        "reading_time": "11:35:04",
+        "created_at": "2026-06-10 11:35:04",
+        "ppm": 613,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:09",
+        "reading_time": "11:35:09",
+        "created_at": "2026-06-10 11:35:09",
+        "ppm": 609,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:14",
+        "reading_time": "11:35:14",
+        "created_at": "2026-06-10 11:35:14",
+        "ppm": 607,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:19",
+        "reading_time": "11:35:19",
+        "created_at": "2026-06-10 11:35:19",
+        "ppm": 605,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:24",
+        "reading_time": "11:35:24",
+        "created_at": "2026-06-10 11:35:24",
+        "ppm": 601,
+        "status": "Good",
+        "color": "#1E6FBA",
+        "bg": "#E8F0F8"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:29",
+        "reading_time": "11:35:29",
+        "created_at": "2026-06-10 11:35:29",
+        "ppm": 598,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:34",
+        "reading_time": "11:35:34",
+        "created_at": "2026-06-10 11:35:34",
+        "ppm": 594,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:39",
+        "reading_time": "11:35:39",
+        "created_at": "2026-06-10 11:35:39",
+        "ppm": 591,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:44",
+        "reading_time": "11:35:44",
+        "created_at": "2026-06-10 11:35:44",
+        "ppm": 587,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:49",
+        "reading_time": "11:35:49",
+        "created_at": "2026-06-10 11:35:49",
+        "ppm": 584,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:54",
+        "reading_time": "11:35:54",
+        "created_at": "2026-06-10 11:35:54",
+        "ppm": 582,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:35:59",
+        "reading_time": "11:35:59",
+        "created_at": "2026-06-10 11:35:59",
+        "ppm": 583,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:04",
+        "reading_time": "11:36:04",
+        "created_at": "2026-06-10 11:36:04",
+        "ppm": 581,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:09",
+        "reading_time": "11:36:09",
+        "created_at": "2026-06-10 11:36:09",
+        "ppm": 577,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:14",
+        "reading_time": "11:36:14",
+        "created_at": "2026-06-10 11:36:14",
+        "ppm": 574,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:19",
+        "reading_time": "11:36:19",
+        "created_at": "2026-06-10 11:36:19",
+        "ppm": 570,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:24",
+        "reading_time": "11:36:24",
+        "created_at": "2026-06-10 11:36:24",
+        "ppm": 566,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:29",
+        "reading_time": "11:36:29",
+        "created_at": "2026-06-10 11:36:29",
+        "ppm": 562,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:34",
+        "reading_time": "11:36:34",
+        "created_at": "2026-06-10 11:36:34",
+        "ppm": 558,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:39",
+        "reading_time": "11:36:39",
+        "created_at": "2026-06-10 11:36:39",
+        "ppm": 552,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:44",
+        "reading_time": "11:36:44",
+        "created_at": "2026-06-10 11:36:44",
+        "ppm": 549,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:49",
+        "reading_time": "11:36:49",
+        "created_at": "2026-06-10 11:36:49",
+        "ppm": 549,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:54",
+        "reading_time": "11:36:54",
+        "created_at": "2026-06-10 11:36:54",
+        "ppm": 547,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:36:59",
+        "reading_time": "11:36:59",
+        "created_at": "2026-06-10 11:36:59",
+        "ppm": 542,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:04",
+        "reading_time": "11:37:04",
+        "created_at": "2026-06-10 11:37:04",
+        "ppm": 541,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:09",
+        "reading_time": "11:37:09",
+        "created_at": "2026-06-10 11:37:09",
+        "ppm": 542,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:14",
+        "reading_time": "11:37:14",
+        "created_at": "2026-06-10 11:37:14",
+        "ppm": 542,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:19",
+        "reading_time": "11:37:19",
+        "created_at": "2026-06-10 11:37:19",
+        "ppm": 543,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:24",
+        "reading_time": "11:37:24",
+        "created_at": "2026-06-10 11:37:24",
+        "ppm": 544,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:29",
+        "reading_time": "11:37:29",
+        "created_at": "2026-06-10 11:37:29",
+        "ppm": 547,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:34",
+        "reading_time": "11:37:34",
+        "created_at": "2026-06-10 11:37:34",
+        "ppm": 545,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:39",
+        "reading_time": "11:37:39",
+        "created_at": "2026-06-10 11:37:39",
+        "ppm": 544,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:44",
+        "reading_time": "11:37:44",
+        "created_at": "2026-06-10 11:37:44",
+        "ppm": 545,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:49",
+        "reading_time": "11:37:49",
+        "created_at": "2026-06-10 11:37:49",
+        "ppm": 550,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:54",
+        "reading_time": "11:37:54",
+        "created_at": "2026-06-10 11:37:54",
+        "ppm": 552,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:37:59",
+        "reading_time": "11:37:59",
+        "created_at": "2026-06-10 11:37:59",
+        "ppm": 555,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:04",
+        "reading_time": "11:38:04",
+        "created_at": "2026-06-10 11:38:04",
+        "ppm": 557,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:09",
+        "reading_time": "11:38:09",
+        "created_at": "2026-06-10 11:38:09",
+        "ppm": 560,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:14",
+        "reading_time": "11:38:14",
+        "created_at": "2026-06-10 11:38:14",
+        "ppm": 563,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:19",
+        "reading_time": "11:38:19",
+        "created_at": "2026-06-10 11:38:19",
+        "ppm": 566,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:24",
+        "reading_time": "11:38:24",
+        "created_at": "2026-06-10 11:38:24",
+        "ppm": 568,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:29",
+        "reading_time": "11:38:29",
+        "created_at": "2026-06-10 11:38:29",
+        "ppm": 567,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:34",
+        "reading_time": "11:38:34",
+        "created_at": "2026-06-10 11:38:34",
+        "ppm": 569,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:39",
+        "reading_time": "11:38:39",
+        "created_at": "2026-06-10 11:38:39",
+        "ppm": 570,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:44",
+        "reading_time": "11:38:44",
+        "created_at": "2026-06-10 11:38:44",
+        "ppm": 570,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:49",
+        "reading_time": "11:38:49",
+        "created_at": "2026-06-10 11:38:49",
+        "ppm": 566,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:54",
+        "reading_time": "11:38:54",
+        "created_at": "2026-06-10 11:38:54",
+        "ppm": 562,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:38:59",
+        "reading_time": "11:38:59",
+        "created_at": "2026-06-10 11:38:59",
+        "ppm": 560,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:04",
+        "reading_time": "11:39:04",
+        "created_at": "2026-06-10 11:39:04",
+        "ppm": 558,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:09",
+        "reading_time": "11:39:09",
+        "created_at": "2026-06-10 11:39:09",
+        "ppm": 558,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:14",
+        "reading_time": "11:39:14",
+        "created_at": "2026-06-10 11:39:14",
+        "ppm": 557,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:19",
+        "reading_time": "11:39:19",
+        "created_at": "2026-06-10 11:39:19",
+        "ppm": 555,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:24",
+        "reading_time": "11:39:24",
+        "created_at": "2026-06-10 11:39:24",
+        "ppm": 554,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:29",
+        "reading_time": "11:39:29",
+        "created_at": "2026-06-10 11:39:29",
+        "ppm": 551,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:34",
+        "reading_time": "11:39:34",
+        "created_at": "2026-06-10 11:39:34",
+        "ppm": 547,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:39",
+        "reading_time": "11:39:39",
+        "created_at": "2026-06-10 11:39:39",
+        "ppm": 543,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:44",
+        "reading_time": "11:39:44",
+        "created_at": "2026-06-10 11:39:44",
+        "ppm": 540,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:49",
+        "reading_time": "11:39:49",
+        "created_at": "2026-06-10 11:39:49",
+        "ppm": 541,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:54",
+        "reading_time": "11:39:54",
+        "created_at": "2026-06-10 11:39:54",
+        "ppm": 540,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:39:59",
+        "reading_time": "11:39:59",
+        "created_at": "2026-06-10 11:39:59",
+        "ppm": 535,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:05",
+        "reading_time": "11:40:05",
+        "created_at": "2026-06-10 11:40:05",
+        "ppm": 535,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:10",
+        "reading_time": "11:40:10",
+        "created_at": "2026-06-10 11:40:10",
+        "ppm": 536,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:15",
+        "reading_time": "11:40:15",
+        "created_at": "2026-06-10 11:40:15",
+        "ppm": 535,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:20",
+        "reading_time": "11:40:20",
+        "created_at": "2026-06-10 11:40:20",
+        "ppm": 532,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:25",
+        "reading_time": "11:40:25",
+        "created_at": "2026-06-10 11:40:25",
+        "ppm": 528,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:30",
+        "reading_time": "11:40:30",
+        "created_at": "2026-06-10 11:40:30",
+        "ppm": 529,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:35",
+        "reading_time": "11:40:35",
+        "created_at": "2026-06-10 11:40:35",
+        "ppm": 530,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:40",
+        "reading_time": "11:40:40",
+        "created_at": "2026-06-10 11:40:40",
+        "ppm": 526,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:45",
+        "reading_time": "11:40:45",
+        "created_at": "2026-06-10 11:40:45",
+        "ppm": 525,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:50",
+        "reading_time": "11:40:50",
+        "created_at": "2026-06-10 11:40:50",
+        "ppm": 523,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:40:55",
+        "reading_time": "11:40:55",
+        "created_at": "2026-06-10 11:40:55",
+        "ppm": 523,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:00",
+        "reading_time": "11:41:00",
+        "created_at": "2026-06-10 11:41:00",
+        "ppm": 521,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:05",
+        "reading_time": "11:41:05",
+        "created_at": "2026-06-10 11:41:05",
+        "ppm": 519,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:10",
+        "reading_time": "11:41:10",
+        "created_at": "2026-06-10 11:41:10",
+        "ppm": 520,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:15",
+        "reading_time": "11:41:15",
+        "created_at": "2026-06-10 11:41:15",
+        "ppm": 520,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:20",
+        "reading_time": "11:41:20",
+        "created_at": "2026-06-10 11:41:20",
+        "ppm": 521,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:25",
+        "reading_time": "11:41:25",
+        "created_at": "2026-06-10 11:41:25",
+        "ppm": 521,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:30",
+        "reading_time": "11:41:30",
+        "created_at": "2026-06-10 11:41:30",
+        "ppm": 519,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:35",
+        "reading_time": "11:41:35",
+        "created_at": "2026-06-10 11:41:35",
+        "ppm": 518,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:40",
+        "reading_time": "11:41:40",
+        "created_at": "2026-06-10 11:41:40",
+        "ppm": 517,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:45",
+        "reading_time": "11:41:45",
+        "created_at": "2026-06-10 11:41:45",
+        "ppm": 516,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:50",
+        "reading_time": "11:41:50",
+        "created_at": "2026-06-10 11:41:50",
+        "ppm": 513,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:41:55",
+        "reading_time": "11:41:55",
+        "created_at": "2026-06-10 11:41:55",
+        "ppm": 512,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:42:00",
+        "reading_time": "11:42:00",
+        "created_at": "2026-06-10 11:42:00",
+        "ppm": 513,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:42:05",
+        "reading_time": "11:42:05",
+        "created_at": "2026-06-10 11:42:05",
+        "ppm": 512,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:42:10",
+        "reading_time": "11:42:10",
+        "created_at": "2026-06-10 11:42:10",
+        "ppm": 508,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:42:15",
+        "reading_time": "11:42:15",
+        "created_at": "2026-06-10 11:42:15",
+        "ppm": 508,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
+    },
+    {
+        "date": "2026-06-10",
+        "timestamp": "11:42:20",
+        "reading_time": "11:42:20",
+        "created_at": "2026-06-10 11:42:20",
+        "ppm": 506,
+        "status": "Excellent",
+        "color": "#2E8B57",
+        "bg": "#EAF4EF"
     }
 ]
