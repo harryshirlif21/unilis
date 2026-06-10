@@ -174,30 +174,224 @@ function fetchUnits(mysqli $conn, int $courseId): array
     return $rows;
 }
 
+// ── New: DB Schema helpers ──────────────────────────────────────────────────
+
+function getAllTables(mysqli $conn): array
+{
+    $tables = [];
+    $res = $conn->query('SHOW TABLE STATUS');
+    while ($r = $res->fetch_assoc()) {
+        $tables[] = $r;
+    }
+    return $tables;
+}
+
+function getTableColumns(mysqli $conn, string $table): array
+{
+    $cols = [];
+    $res = $conn->query("DESCRIBE `{$table}`");
+    while ($r = $res->fetch_assoc()) {
+        $cols[] = $r;
+    }
+    return $cols;
+}
+
+function getTableIndexes(mysqli $conn, string $table): array
+{
+    $indexes = [];
+    $res = $conn->query("SHOW INDEX FROM `{$table}`");
+    while ($r = $res->fetch_assoc()) {
+        $indexes[] = $r;
+    }
+    return $indexes;
+}
+
+function getTableRowCount(mysqli $conn, string $table): int
+{
+    $res = $conn->query("SELECT COUNT(*) AS cnt FROM `{$table}`");
+    $row = $res->fetch_assoc();
+    return (int)$row['cnt'];
+}
+
+function formatBytes(?string $bytes): string
+{
+    if ($bytes === null || $bytes === '') return '—';
+    $b = (int)$bytes;
+    if ($b >= 1073741824) return round($b / 1073741824, 1) . ' GiB';
+    if ($b >= 1048576)    return round($b / 1048576, 1) . ' MiB';
+    if ($b >= 1024)       return round($b / 1024, 1) . ' KiB';
+    return $b . ' B';
+}
+
 // ── HTML ──────────────────────────────────────────────────────────────────────
 
-function page(string $body): void
+function page(string $body, string $activeTab = 'schema'): void
 {
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>dbalter</title><style>'
-        . 'body{font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;color:#111;padding:24px;max-width:1100px;margin:0 auto;}'
-        . 'h1{margin:0 0 16px;}h2{margin:20px 0 8px;font-size:14px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.5px;}'
-        . 'table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;}'
-        . 'th{background:#1e3a5f;color:#fff;padding:7px 10px;text-align:left;}'
-        . 'td{border-bottom:1px solid #e5e7eb;padding:6px 10px;}'
-        . 'tr:hover td{background:#eff6ff;}'
-        . '.ins td{background:#dcfce7;} .skip td{background:#fef9c3;} .fail td{background:#fee2e2;}'
-        . '.box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:20px;}'
-        . '.banner{padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:14px;}'
-        . '.ok{background:#dcfce7;color:#166534;border:1px solid #86efac;}'
-        . '.warn{background:#fef9c3;color:#92400e;border:1px solid #fde68a;}'
-        . '.err{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;}'
-        . 'button{background:#16a34a;color:#fff;padding:10px 24px;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;}'
-        . 'button:hover{background:#15803d;}'
-        . 'a{color:#2563eb;font-size:13px;}'
-        . '.stats{display:flex;gap:12px;margin-bottom:12px;}'
-        . '.stat{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;}'
-        . '.stat-green{background:#dcfce7;color:#166534;} .stat-yellow{background:#fef9c3;color:#92400e;} .stat-red{background:#fee2e2;color:#dc2626;} .stat-blue{background:#dbeafe;color:#1d4ed8;}'
-        . '</style></head><body>' . $body . '</body></html>';
+    $tabs = [
+        'schema' => 'DB Schema',
+        'bulk'   => 'Bulk Insert',
+    ];
+    $tabLinks = '';
+    foreach ($tabs as $key => $label) {
+        $active = $key === $activeTab ? ' style="background:#1e3a5f;color:#fff;"' : '';
+        $tabLinks .= '<a href="?tab=' . $key . '" class="tab"' . $active . '>' . escape($label) . '</a>';
+    }
+
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>dbalter — ' . escape($tabs[$activeTab] ?? '') . '</title>
+        <style>
+            *{box-sizing:border-box;margin:0;padding:0}
+            body{font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;color:#111;padding:24px;}
+            .container{max-width:1200px;margin:0 auto;}
+            h1{margin:0 0 8px;font-size:22px;}
+            .subtitle{color:#6b7280;font-size:13px;margin-bottom:16px;}
+            .tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #e5e7eb;}
+            .tab{display:inline-block;padding:8px 18px;font-size:13px;font-weight:600;
+                 text-decoration:none;color:#374151;border-radius:6px 6px 0 0;margin-bottom:-2px;
+                 border:1px solid transparent;transition:all .15s;}
+            .tab:hover{background:#e5e7eb;}
+            h2{margin:20px 0 8px;font-size:14px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.5px;}
+            table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;}
+            th{background:#1e3a5f;color:#fff;padding:7px 10px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.3px;}
+            td{border-bottom:1px solid #e5e7eb;padding:6px 10px;}
+            tr:hover td{background:#eff6ff;}
+            .ins td{background:#dcfce7;} .skip td{background:#fef9c3;} .fail td{background:#fee2e2;}
+            .box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:20px;}
+            .banner{padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:14px;}
+            .ok{background:#dcfce7;color:#166534;border:1px solid #86efac;}
+            .warn{background:#fef9c3;color:#92400e;border:1px solid #fde68a;}
+            .err{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;}
+            button{background:#16a34a;color:#fff;padding:10px 24px;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;}
+            button:hover{background:#15803d;}
+            a{color:#2563eb;font-size:13px;}
+            .stats{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+            .stat{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;}
+            .stat-green{background:#dcfce7;color:#166534;} .stat-yellow{background:#fef9c3;color:#92400e;}
+            .stat-red{background:#fee2e2;color:#dc2626;} .stat-blue{background:#dbeafe;color:#1d4ed8;}
+            /* Schema table styles */
+            .tbl-card{background:#fff;border:1px solid #ddd;border-radius:8px;margin-bottom:20px;overflow:hidden;}
+            .tbl-hdr{background:#1e3a5f;color:#fff;padding:10px 16px;font-size:14px;font-weight:600;
+                     display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+            .tbl-hdr span{font-weight:400;opacity:.7;font-size:12px;}
+            .tbl-meta{background:#f8fafc;padding:6px 16px;font-size:12px;color:#6b7280;border-bottom:1px solid #e5e7eb;
+                      display:flex;gap:16px;flex-wrap:wrap;}
+            .tbl-meta strong{color:#374151;}
+            .schema-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+            .schema-tbl th{background:#f0f4f8;padding:7px 14px;text-align:left;color:#374151;font-size:11px;
+                           text-transform:uppercase;letter-spacing:.4px;}
+            .schema-tbl td{padding:6px 14px;border-bottom:1px solid #f0f0f0;}
+            .schema-tbl tr:last-child td{border:none;}
+            .pk{color:#b45309;font-weight:600;}
+            .fk{color:#1d4ed8;}
+            .null{color:#9ca3af;font-size:11px;}
+            .key-icon{font-size:13px;}
+            .index-badge{display:inline-block;background:#e0e7ff;color:#3730a3;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px;}
+            .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
+            .summary-card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px 16px;text-align:center;}
+            .summary-card .num{font-size:24px;font-weight:700;color:#1e3a5f;}
+            .summary-card .lbl{font-size:12px;color:#6b7280;margin-top:2px;}
+        </style>
+    </head><body>
+    <div class="container">
+    <h1>dbalter</h1>
+    <div class="subtitle">Database: unilis &nbsp;·&nbsp; ' . date('Y-m-d H:i:s') . '</div>
+    <div class="tabs">' . $tabLinks . '</div>
+    ' . $body . '
+    </div></body></html>';
+}
+
+function schemaPage(mysqli $conn): string
+{
+    $tables = getAllTables($conn);
+    $totalRows = 0;
+    $totalSize = 0;
+
+    // Summary stats
+    $summaryRows = '';
+    $tableCards = '';
+    foreach ($tables as $t) {
+        $tableName = $t['Name'];
+        $engine    = $t['Engine'] ?? '?';
+        $collation = $t['Collation'] ?? '?';
+        $rowCount  = (int)$t['Rows'];
+        $dataLen   = (int)$t['Data_length'];
+        $indexLen  = (int)$t['Index_length'];
+        $createTime = $t['Create_time'] ?? '?';
+        $updateTime = $t['Update_time'] ?? '—';
+        $tableComment = $t['Comment'] ?? '';
+
+        $totalRows += $rowCount;
+        $totalSize += $dataLen + $indexLen;
+
+        // Get columns
+        $cols = getTableColumns($conn, $tableName);
+
+        $rows = '';
+        foreach ($cols as $c) {
+            $field   = escape($c['Field']);
+            $type    = escape($c['Type']);
+            $null    = $c['Null'];
+            $key     = $c['Key'];
+            $default = $c['Default'];
+            $extra   = $c['Extra'] ?? '';
+
+            $cls = '';
+            $icon = '';
+            if ($key === 'PRI') {
+                $cls = 'pk';
+                $icon = ' 🔑';
+            } elseif ($key === 'UNI') {
+                $cls = 'fk';
+                $icon = ' ◆';
+            } elseif ($key === 'MUL') {
+                $cls = 'fk';
+                $icon = ' ⌁';
+            }
+
+            $extraBadge = '';
+            if ($extra) {
+                $extraBadge = ' <span class="index-badge">' . escape($extra) . '</span>';
+            }
+
+            $rows .= '<tr>
+                <td class="' . $cls . '">' . $field . $icon . $extraBadge . '</td>
+                <td>' . $type . '</td>
+                <td class="null">' . $null . '</td>
+                <td>' . ($key ?: '—') . '</td>
+                <td class="null">' . ($default === null ? 'NULL' : ($default === '' ? "''" : escape($default))) . '</td>
+            </tr>';
+        }
+
+        $tableCards .= '<div class="tbl-card">
+            <div class="tbl-hdr">
+                ' . escape($tableName) . '
+                <span>' . number_format($rowCount) . ' rows &nbsp;·&nbsp; ' . formatBytes((string)($dataLen + $indexLen)) . '</span>
+            </div>
+            <div class="tbl-meta">
+                <span><strong>Engine:</strong> ' . escape($engine) . '</span>
+                <span><strong>Collation:</strong> ' . escape($collation) . '</span>
+                <span><strong>Created:</strong> ' . escape($createTime) . '</span>
+                <span><strong>Updated:</strong> ' . escape($updateTime) . '</span>
+                ' . ($tableComment ? '<span><strong>Comment:</strong> ' . escape($tableComment) . '</span>' : '') . '
+            </div>
+            <table class="schema-tbl">
+                <tr><th>Column</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th></tr>
+                ' . $rows . '
+            </table>
+        </div>';
+    }
+
+    $summaryRows = '<div class="summary-grid">
+        <div class="summary-card"><div class="num">' . count($tables) . '</div><div class="lbl">Tables</div></div>
+        <div class="summary-card"><div class="num">' . number_format($totalRows) . '</div><div class="lbl">Total Rows</div></div>
+        <div class="summary-card"><div class="num">' . formatBytes((string)$totalSize) . '</div><div class="lbl">Total Size (data + indexes)</div></div>
+        <div class="summary-card"><div class="num">' . formatBytes((string)$totalSize) . '</div><div class="lbl">Data + Index</div></div>
+    </div>';
+
+    $html = $summaryRows;
+    $html .= $tableCards;
+    return $html;
 }
 
 function coursesTable(mysqli $conn): string
@@ -231,13 +425,16 @@ function unitsTable(mysqli $conn, int $courseId): string
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 $TARGET_COURSE_ID = 6; // Bsc Business Computing
+$tab = $_GET['tab'] ?? 'schema';
+
+// ── Bulk Insert POST handler ──────────────────────────────────────────────────
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_insert') {
 
     $r = bulkInsert($conn, $TARGET_COURSE_ID);
 
     if (isset($r['error'])) {
-        page('<h1>dbalter</h1><div class="banner err">✗ ' . escape($r['error']) . '</div><p><a href="dbalter.php">← Back</a></p>');
+        page('<h1>dbalter</h1><div class="banner err">✗ ' . escape($r['error']) . '</div><p><a href="dbalter.php">← Back</a></p>', 'bulk');
         exit;
     }
 
@@ -247,8 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_
         ? "All {$r['skipped']} units already exist — nothing inserted."
         : "Done. Inserted {$r['inserted']} unit(s) into \"{$r['course_name']}\".";
 
-    $body  = '<h1>dbalter — Bulk Insert Result</h1>';
-    $body .= '<div class="banner ' . $bannerClass . '">' . escape($msg) . '</div>';
+    $body  = '<div class="banner ' . $bannerClass . '">' . escape($msg) . '</div>';
 
     // Stats
     $body .= '<div class="stats">'
@@ -275,23 +471,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_
     $body .= '<div class="box">' . unitsTable($conn, $TARGET_COURSE_ID) . '</div>';
     $body .= '<p><a href="dbalter.php">← Back</a></p>';
 
-    page($body);
+    page($body, 'bulk');
     exit;
 }
 
-// Default: show preview + form
-$previewUnits = getUnits();
-$body  = '<h1>dbalter</h1>';
-$body .= '<div class="box"><h2>Bulk Insert — Bsc Business Computing (course ID 6)</h2>';
-$body .= '<p style="font-size:13px;margin-bottom:14px;">This will insert all <strong>' . count($previewUnits) . ' units</strong> from SCT222.xls into course ID 6. Duplicates are skipped.</p>';
-$body .= '<form method="post"><button type="submit" name="action" value="bulk_insert">⬆ Insert All ' . count($previewUnits) . ' Units into Course ID 6</button></form>';
-$body .= '<h2 style="margin-top:16px;">Preview</h2>';
-$body .= '<table><thead><tr><th>code</th><th>name</th><th>year</th><th>semester</th></tr></thead><tbody>';
-foreach ($previewUnits as [$code, $name, $year, $semester]) {
-    $body .= '<tr><td>' . escape($code) . '</td><td>' . escape($name) . '</td><td>' . $year . '</td><td>' . $semester . '</td></tr>';
-}
-$body .= '</tbody></table></div>';
-$body .= '<div class="box">' . coursesTable($conn) . '</div>';
-$body .= '<div class="box">' . unitsTable($conn, $TARGET_COURSE_ID) . '</div>';
+// ── Render ────────────────────────────────────────────────────────────────────
 
-page($body);
+if ($tab === 'schema') {
+    $body = schemaPage($conn);
+    page($body, 'schema');
+} elseif ($tab === 'bulk') {
+    // Default: show preview + form
+    $previewUnits = getUnits();
+    $body  = '<div class="box"><h2>Bulk Insert — Bsc Business Computing (course ID 6)</h2>';
+    $body .= '<p style="font-size:13px;margin-bottom:14px;">This will insert all <strong>' . count($previewUnits) . ' units</strong> from SCT222.xls into course ID 6. Duplicates are skipped.</p>';
+    $body .= '<form method="post"><button type="submit" name="action" value="bulk_insert">⬆ Insert All ' . count($previewUnits) . ' Units into Course ID 6</button></form>';
+    $body .= '<div class="box"><h2 style="margin-top:16px;">Preview</h2>';
+    $body .= '<table><thead><tr><th>code</th><th>name</th><th>year</th><th>semester</th></tr></thead><tbody>';
+    foreach ($previewUnits as [$code, $name, $year, $semester]) {
+        $body .= '<tr><td>' . escape($code) . '</td><td>' . escape($name) . '</td><td>' . $year . '</td><td>' . $semester . '</td></tr>';
+    }
+    $body .= '</tbody></table></div>';
+    $body .= '<div class="box">' . coursesTable($conn) . '</div>';
+    $body .= '<div class="box">' . unitsTable($conn, $TARGET_COURSE_ID) . '</div>';
+
+    page($body, 'bulk');
+}
