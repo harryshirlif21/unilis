@@ -66,8 +66,14 @@ class PracticalController {
         $labs = $this->model->getLabs();
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Generate UUID-format ID (36 chars with dashes, matching char(36) column)
+            $rawId = random_bytes(16);
+            $rawId[6] = chr((ord($rawId[6]) & 0x0f) | 0x40);
+            $rawId[8] = chr((ord($rawId[8]) & 0x3f) | 0x80);
+            $uuid = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($rawId), 4));
+            
             $data = [
-                'id' => bin2hex(random_bytes(16)),
+                'id' => $uuid,
                 'title' => sanitize($_POST['title'] ?? ''),
                 'objective' => sanitizeHTML($_POST['objective'] ?? ''),
                 'theory' => sanitizeHTML($_POST['theory'] ?? ''),
