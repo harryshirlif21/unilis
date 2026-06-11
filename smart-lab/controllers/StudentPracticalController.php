@@ -519,9 +519,29 @@ class StudentPracticalController {
             error_log("StudentPracticalController::view_practical - lab_reports query failed: " . $e->getMessage());
         }
 
+        // Get report ID if a report exists for this practical
+        $report_id = '';
+        if ($report_status !== 'not_started') {
+            try {
+                $stmt = $this->db->prepare("
+                    SELECT id FROM lab_reports
+                    WHERE practical_id = ? AND student_id = ?
+                    ORDER BY created_at DESC LIMIT 1
+                ");
+                $stmt->execute([$practical_id, $student_id]);
+                $reportRow = $stmt->fetch();
+                if ($reportRow) {
+                    $report_id = $reportRow['id'];
+                }
+            } catch (PDOException $e) {
+                error_log("StudentPracticalController::view_practical - report query failed: " . $e->getMessage());
+            }
+        }
+
         renderView('student/view_practical', [
             'practical' => $practical,
-            'report_status' => $report_status
+            'report_status' => $report_status,
+            'report_id' => $report_id
         ]);
     }
 

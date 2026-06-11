@@ -97,6 +97,11 @@
                                             <a href="<?= APP_URL ?>/report-submission/view/<?= $studentReportMap[$practical['id']]['id'] ?>" class="btn btn-primary btn-sm">
                                                 <i class="icon-file-text"></i> View Datasheet
                                             </a>
+                                            <?php if ($reportStatus === 'submitted'): ?>
+                                            <a href="<?= APP_URL ?>/report-submission/view/<?= $studentReportMap[$practical['id']]['id'] ?>" class="btn btn-accent btn-sm">
+                                                <i class="icon-download"></i> Download Datasheet
+                                            </a>
+                                            <?php endif; ?>
                                         <?php endif; ?>
 
                                         <?php if ($practical['status'] === 'published'): ?>

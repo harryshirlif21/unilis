@@ -34,14 +34,20 @@
                     <span class="status-text">In Progress</span>
                 <?php elseif ($currentReportStatus === 'submitted'): ?>
                     <button disabled class="btn btn-secondary btn-lg">
-                        <i class="icon-check"></i> Report Submitted
+                        <i class="icon-check"></i> Datasheet Saved
                     </button>
+                    <a href="<?= APP_URL ?>/report-submission/view/<?= htmlspecialchars($report_id ?? '') ?>" class="btn btn-accent btn-lg">
+                        <i class="icon-download"></i> Download Datasheet
+                    </a>
                     <span class="status-text">Completed</span>
                 <?php endif; ?>
             <?php elseif ($currentReportStatus === 'submitted'): ?>
                 <button disabled class="btn btn-secondary btn-lg">
-                    <i class="icon-check"></i> Report Submitted
+                    <i class="icon-check"></i> Datasheet Saved
                 </button>
+                <a href="<?= APP_URL ?>/report-submission/view/<?= htmlspecialchars($report_id ?? '') ?>" class="btn btn-accent btn-lg">
+                    <i class="icon-download"></i> Download Datasheet
+                </a>
                 <span class="status-text">Completed</span>
             <?php else: ?>
                 <button disabled class="btn btn-secondary btn-lg">
@@ -198,7 +204,7 @@
 
                             <div class="report-actions">
                                 <button type="button" onclick="saveDraft()" class="btn btn-outline">Save Draft</button>
-                                <button type="button" onclick="submitReport()" class="btn btn-primary">Submit Report</button>
+                                <button type="button" onclick="submitReport()" class="btn btn-primary">Save Datasheet</button>
                             </div>
                         </form>
                     </div>
@@ -411,7 +417,7 @@ function submitReport() {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            alert('Report submitted successfully!');
+            alert('Datasheet saved successfully!');
             // Clear draft from localStorage
             localStorage.removeItem('practical_<?= $practical['id'] ?>_draft');
             // Reload page to update button state
