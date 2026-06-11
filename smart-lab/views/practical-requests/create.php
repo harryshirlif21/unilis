@@ -28,8 +28,11 @@
                 <label for="practical_id">Select Practical *</label>
                 <select name="practical_id" id="practical_id" class="form-control" required>
                     <option value="">Choose a practical to redo...</option>
-                    <?php foreach ($practicals as $practical): ?>
-                        <option value="<?= $practical['id'] ?>">
+                    <?php 
+                    $selectedId = $_POST['practical_id'] ?? ($preselected_practical_id ?? '');
+                    foreach ($practicals as $practical): 
+                    ?>
+                        <option value="<?= $practical['id'] ?>" <?= $practical['id'] === $selectedId ? 'selected' : '' ?>>
                             <?= htmlspecialchars($practical['title']) ?> 
                             (<?= htmlspecialchars($practical['lab_name']) ?>)
                         </option>

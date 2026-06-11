@@ -77,18 +77,57 @@
                             </td>
                             <td class="action-cell">
                                 <div class="action-group">
+                                    <!-- View button - always shown for everyone to see practical details -->
                                     <a href="<?= APP_URL ?>/practicals/view/<?= $practical['id'] ?>" class="btn btn-secondary btn-sm">View</a>
 
-                                    <?php if ($userRole === 'student' && !empty($studentReportMap[$practical['id']])): ?>
-                                        <a href="<?= APP_URL ?>/report-submission/view/<?= $studentReportMap[$practical['id']]['id'] ?>" class="btn btn-primary btn-sm">View Datasheet</a>
-                                    <?php endif; ?>
-
-                                    <?php if ($userRole === 'student' && $practical['status'] === 'published'): ?>
-                                        <?php if ($accessWindow['can_take']): ?>
-                                            <a href="<?= APP_URL ?>/student/view_practical/<?= $practical['id'] ?>" class="btn btn-accent btn-sm">Take Practical</a>
-                                        <?php else: ?>
-                                            <button class="btn btn-secondary btn-sm" disabled>Practical Closed</button>
+                                    <?php if ($userRole === 'student'): ?>
+                                        <?php
+                                        // Determine button states based on access window
+                                        $canTake = $accessWindow['can_take'] ?? false;
+                                        $isUpcoming = $accessWindow['is_upcoming'] ?? false;
+                                        $isExpired = $accessWindow['is_expired'] ?? false;
+                                        $minutesToStart = $accessWindow['minutes_to_start'] ?? null;
+                                        $minutesSinceStart = $accessWindow['minutes_since_start'] ?? null;
+                                        $reportExists = !empty($studentReportMap[$practical['id']]);
+                                        $reportStatus = $reportExists ? ($studentReportMap[$practical['id']]['status'] ?? '') : '';
+                                        ?>
+                                        
+                                        <!-- View Datasheet button - shown if student has a report -->
+                                        <?php if ($reportExists): ?>
+                                            <a href="<?= APP_URL ?>/report-submission/view/<?= $studentReportMap[$practical['id']]['id'] ?>" class="btn btn-primary btn-sm">
+                                                <i class="icon-file-text"></i> View Datasheet
+                                            </a>
                                         <?php endif; ?>
+
+                                        <?php if ($practical['status'] === 'published'): ?>
+                                            <?php if ($canTake): ?>
+                                                <!-- Within access window: Show Take Practical -->
+                                                <a href="<?= APP_URL ?>/student/view_practical/<?= $practical['id'] ?>" class="btn btn-accent btn-sm">
+                                                    <i class="icon-flask"></i> Take Practical
+                                                </a>
+                                            <?php elseif ($isUpcoming): ?>
+                                                <!-- More than 30 min before start: Show View Practical (just view details) -->
+                                                <a href="<?= APP_URL ?>/practicals/view/<?= $practical['id'] ?>" class="btn btn-outline btn-sm">
+                                                    <i class="icon-eye"></i> View Practical
+                                                </a>
+                                                <?php if ($minutesToStart !== null && $minutesToStart > 0): ?>
+                                                    <span class="time-indicator" title="Opens in <?= $minutesToStart ?> minutes">
+                                                        Available in <?= $minutesToStart ?> min
+                                                    </span>
+                                                <?php endif; ?>
+                                            <?php elseif ($isExpired): ?>
+                                                <!-- After access window closed: Show closed button + request admin entry -->
+                                                <button class="btn btn-secondary btn-sm" disabled title="Access window closed (available 30 min before to 20 min after start)">
+                                                    <i class="icon-lock"></i> Closed
+                                                </button>
+                                                <a href="<?= APP_URL ?>/practical-requests/create?practical_id=<?= $practical['id'] ?>" class="btn btn-warning btn-sm">
+                                                    <i class="icon-mail"></i> Request Entry
+                                                </a>
+                                            <?php endif; ?>
+                                        <?php elseif ($practical['status'] === 'draft'): ?>
+                                            <span class="badge badge-draft">Draft</span>
+                                        <?php endif; ?>
+                                        
                                     <?php elseif ($userRole === 'lecturer'): ?>
                                         <a href="<?= APP_URL ?>/practicals/edit/<?= $practical['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
                                         <?php if ($practical['status'] === 'published'): ?>
@@ -242,6 +281,38 @@
 .btn-success:hover,
 .btn-secondary:hover {
     opacity: 0.95;
+}
+
+.btn-warning {
+    background: #f59e0b;
+    color: #1e293b;
+    border: 1px solid transparent;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+    color: #ffffff;
+}
+
+.btn-outline {
+    background: transparent;
+    color: #2563eb;
+    border: 1.5px solid #2563eb;
+}
+
+.btn-outline:hover {
+    background: #eff6ff;
+}
+
+.time-indicator {
+    display: inline-block;
+    font-size: 0.7rem;
+    color: #64748b;
+    background: #f1f5f9;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-weight: 500;
 }
 
 @media (max-width: 980px) {

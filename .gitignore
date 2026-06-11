@@ -4,3 +4,4 @@ vendor/
 /vendor/
 /node_modules/
 .env
+smart-lab/web-app/logs/*.log

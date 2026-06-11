@@ -30,6 +30,9 @@ class PracticalRequestController {
     public function create($param = null) {
         Auth::guard('student');
         
+        // Support pre-selecting a practical via GET parameter (from closed practical "Request Entry" button)
+        $preselectedPracticalId = sanitize($_GET['practical_id'] ?? '');
+        
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $practicalId = sanitize($_POST['practical_id'] ?? '');
             $reason = sanitize($_POST['reason'] ?? '');
@@ -76,13 +79,15 @@ class PracticalRequestController {
             renderView('practical-requests/create', [
                 'error' => $error ?? '',
                 'success' => $success ?? '',
-                'practicals' => $this->practicalModel->getAvailablePracticals()
+                'practicals' => $this->practicalModel->getAvailablePracticals(),
+                'preselected_practical_id' => $practicalId ?? $preselectedPracticalId
             ]);
         } else {
             renderView('practical-requests/create', [
                 'practicals' => $this->practicalModel->getAvailablePracticals(),
                 'error' => '',
-                'success' => ''
+                'success' => '',
+                'preselected_practical_id' => $preselectedPracticalId
             ]);
         }
     }
