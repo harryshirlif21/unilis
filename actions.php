@@ -2120,4 +2120,48 @@ if ($action === 'bulk_delete_test_data') {
     exit;
 }
 
+// === NOTE STATUS ACTIONS (Hide / Delete / Unhide) ===
+if ($action === 'hide_note' || $action === 'delete_note' || $action === 'unhide_note') {
+    header('Content-Type: application/json');
+    
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+        exit;
+    }
+    
+    $note_id = (int)($_POST['note_id'] ?? 0);
+    if (!$note_id) {
+        echo json_encode(['success' => false, 'error' => 'Invalid note ID']);
+        exit;
+    }
+    
+    // Verify lecturer owns this note
+    $check = $conn->prepare("SELECT id FROM notes WHERE id = ? AND lecturer_id = ?");
+    $check->bind_param("ii", $note_id, $_SESSION['user_id']);
+    $check->execute();
+    $check->store_result();
+    
+    if ($check->num_rows === 0) {
+        $check->close();
+        echo json_encode(['success' => false, 'error' => 'Note not found or access denied']);
+        exit;
+    }
+    $check->close();
+    
+    $newStatus = '';
+    if ($action === 'hide_note') $newStatus = 'hidden';
+    elseif ($action === 'delete_note') $newStatus = 'deleted';
+    elseif ($action === 'unhide_note') $newStatus = 'active';
+    
+    $stmt = $conn->prepare("UPDATE notes SET status = ? WHERE id = ?");
+    $stmt->bind_param("si", $newStatus, $note_id);
+    
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true, 'status' => $newStatus]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Database error: ' . $stmt->error]);
+    }
+    $stmt->close();
+    exit;
+}
 ?>

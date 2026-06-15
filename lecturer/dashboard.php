@@ -31,7 +31,7 @@ $stmt->close();
 /* ================= FETCH NOTES ================= */
 $notesByUnit = [];
 $stmt = $conn->prepare("
-    SELECT n.file_path, n.unit_id, n.uploaded_at
+    SELECT n.id, n.file_path, n.unit_id, n.uploaded_at, n.status
     FROM notes n
     JOIN lecturer_units lu ON lu.unit_id = n.unit_id
     WHERE lu.lecturer_id = ?
@@ -45,8 +45,24 @@ while ($note = $res->fetch_assoc()) {
 }
 $stmt->close();
 
-?>
+/* ================= FETCH NOTES COUNT PER UNIT ================= */
+$notesCountByUnit = [];
+$stmt = $conn->prepare("
+    SELECT n.unit_id, COUNT(*) AS cnt
+    FROM notes n
+    JOIN lecturer_units lu ON lu.unit_id = n.unit_id
+    WHERE lu.lecturer_id = ? AND n.status = 'active'
+    GROUP BY n.unit_id
+");
+$stmt->bind_param("i", $lecturer_id);
+$stmt->execute();
+$res = $stmt->get_result();
+while ($row = $res->fetch_assoc()) {
+    $notesCountByUnit[$row['unit_id']] = (int)$row['cnt'];
+}
+$stmt->close();
 
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -59,6 +75,113 @@ $stmt->close();
     
     <!-- Your CSS -->
     <link rel="stylesheet" href="./css/styles.css">
+    <style>
+        /* ---------- Notes Sent specific styles ---------- */
+        .notes-sent-btn {
+            cursor: pointer;
+        }
+        .notes-sent-btn.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-left: 4px solid #3b82f6;
+        }
+        .notes-sent-tile {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 18px 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .notes-sent-tile:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59,130,246,0.15);
+            transform: translateY(-1px);
+        }
+        .notes-sent-tile .unit-name {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .notes-sent-tile .notes-badge {
+            background: #3b82f6;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+        .notes-sent-tile .notes-badge.zero {
+            background: #9ca3af;
+        }
+        .notes-sent-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .notes-sent-header h3 {
+            margin: 0;
+            font-size: 22px;
+            color: #111827;
+        }
+        .notes-sent-header h3 i {
+            color: #3b82f6;
+            margin-right: 10px;
+        }
+        .notes-sent-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .no-notes-msg {
+            text-align: center;
+            color: #9ca3af;
+            padding: 40px 20px;
+            font-size: 15px;
+        }
+        /* Notes detail modal (reuse existing) */
+        #notesSentModal .modal-content {
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #notesSentModal .modal-content table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #notesSentModal .modal-content th {
+            background: #f3f4f6;
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+        }
+        #notesSentModal .modal-content td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+        #notesSentModal .modal-content tr:hover td {
+            background: #f9fafb;
+        }
+        #notesSentModal .modal-unit-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        #notesSentModal .modal-unit-title i {
+            color: #3b82f6;
+            margin-right: 8px;
+        }
+    </style>
 </head>
 <body data-theme="light">
     <!-- Global Theme Manager -->
@@ -120,6 +243,10 @@ $stmt->close();
         <a href="request_files.php" style="color:inherit;text-decoration:none;">
             <i class="fas fa-file-contract"></i><span>📁 Request Files</span>
         </a>
+    </li>
+    <!-- NEW: Notes Sent sidebar item -->
+    <li class="notes-sent-btn" id="sidebarNotesSent">
+        <i class="fas fa-paper-plane" style="color:#6366f1;"></i><span>Notes Sent</span>
     </li>
 </ul>
     </div>
@@ -186,6 +313,7 @@ $stmt->close();
                             <thead>
                                 <tr>
                                     <th>File</th>
+                                    <th>Status</th>
                                     <th>Uploaded</th>
                                     <th>Actions</th>
                                 </tr>
@@ -194,13 +322,27 @@ $stmt->close();
                                 <?php foreach ($notes as $note):
                                     $file = htmlspecialchars($note['file_path']);
                                     $path = "../assets/uploads/" . $file;
+                                    $status = $note['status'] ?? 'active';
+                                    $statusLabel = $status === 'hidden' ? '🔶 Hidden' : ($status === 'deleted' ? '🗑️ Deleted' : '✅ Active');
                                 ?>
-                                <tr>
+                                <tr data-note-id="<?= $note['id'] ?>" data-note-status="<?= $status ?>">
                                     <td><?= $file ?></td>
+                                    <td><?= $statusLabel ?></td>
                                     <td><?= date("d M Y • h:i A", strtotime($note['uploaded_at'])) ?></td>
                                     <td>
-                                        <a href="<?= $path ?>" target="_blank">View</a> |
-                                        <a href="<?= $path ?>" download>Download</a>
+                                        <a href="<?= $path ?>" target="_blank" class="action-view" <?= $status === 'deleted' ? 'style="pointer-events:none;opacity:0.4;"' : '' ?>>View</a> |
+                                        <a href="<?= $path ?>" download class="action-download" <?= $status === 'deleted' ? 'style="pointer-events:none;opacity:0.4;"' : '' ?>>Download</a> |
+                                        <span class="action-btn-group" style="white-space:nowrap;">
+                                            <?php if ($status === 'active'): ?>
+                                                <a href="#" class="hide-note-btn" data-note-id="<?= $note['id'] ?>" style="color:#f59e0b;">Hide</a> |
+                                                <a href="#" class="delete-note-btn" data-note-id="<?= $note['id'] ?>" style="color:#ef4444;">Delete</a>
+                                            <?php elseif ($status === 'hidden'): ?>
+                                                <a href="#" class="unhide-note-btn" data-note-id="<?= $note['id'] ?>" style="color:#10b981;">Unhide</a> |
+                                                <a href="#" class="delete-note-btn" data-note-id="<?= $note['id'] ?>" style="color:#ef4444;">Delete</a>
+                                            <?php elseif ($status === 'deleted'): ?>
+                                                <span style="color:#9ca3af;font-size:12px;">Covered</span>
+                                            <?php endif; ?>
+                                        </span>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -209,6 +351,36 @@ $stmt->close();
                     </div>
                 <?php endforeach; ?>
             </div>
+        </div>
+
+        <!-- ==================== NOTES SENT SECTION ==================== -->
+        <div class="notes-sent-content content-section" style="display:none;">
+            <div class="notes-sent-header">
+                <h3><i class="fas fa-paper-plane"></i> Notes Sent</h3>
+            </div>
+
+            <?php if (count($units) > 0): ?>
+                <div class="notes-sent-grid" id="notesSentGrid">
+                    <?php foreach ($units as $unit):
+                        $cnt = $notesCountByUnit[$unit['id']] ?? 0;
+                    ?>
+                        <div class="notes-sent-tile" data-unit-id="<?= $unit['id'] ?>" data-unit-name="<?= htmlspecialchars($unit['name']) ?>">
+                            <span class="unit-name">
+                                <i class="fas fa-book" style="color:#6366f1;margin-right:10px;"></i>
+                                <?= htmlspecialchars($unit['name']) ?>
+                            </span>
+                            <span class="notes-badge <?= $cnt === 0 ? 'zero' : '' ?>">
+                                <?= $cnt ?> note<?= $cnt !== 1 ? 's' : '' ?>
+                            </span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="no-notes-msg">
+                    <i class="fas fa-inbox" style="font-size:40px;display:block;margin-bottom:12px;color:#d1d5db;"></i>
+                    No units assigned yet.
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- ASSIGNMENTS SECTION -->
@@ -356,6 +528,22 @@ $stmt->close();
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== NOTES SENT MODAL ==================== -->
+<div id="notesSentModal" class="modal hidden">
+    <div class="modal-content" style="max-width:700px;max-height:80vh;overflow-y:auto;padding:0;border-radius:14px;background:#fff;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+            <h3 style="margin:0;font-size:18px;font-weight:700;color:#111827;" id="notesSentModalTitle">
+                <i class="fas fa-paper-plane" style="color:#6366f1;margin-right:8px;"></i>
+                Notes
+            </h3>
+            <span class="close" style="font-size:28px;font-weight:700;cursor:pointer;color:#6b7280;line-height:1;" id="notesSentModalClose">&times;</span>
+        </div>
+        <div style="padding:24px;" id="notesSentModalBody">
+            <!-- Dynamically populated -->
         </div>
     </div>
 </div>
@@ -1224,6 +1412,136 @@ document.addEventListener('DOMContentLoaded', () => {
     notesModal?.addEventListener('click', e => {
         if (e.target === notesModal) notesModal.classList.add('hidden');
     });
+
+    // ==================== NOTES SENT FEATURE ====================
+    const notesSentBtn = document.getElementById('sidebarNotesSent');
+    const notesSentContent = document.querySelector('.notes-sent-content');
+    const notesSentModal = document.getElementById('notesSentModal');
+    const notesSentModalBody = document.getElementById('notesSentModalBody');
+    const notesSentModalTitle = document.getElementById('notesSentModalTitle');
+    const notesSentModalClose = document.getElementById('notesSentModalClose');
+    const notesData = document.getElementById('all-notes-data');
+
+    // Click sidebar "Notes Sent" -> show the notes-sent content section
+    notesSentBtn?.addEventListener('click', () => {
+        // Switch to "Notes Sent" view
+        document.querySelectorAll('.card-navbar li').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+        if (notesSentContent) notesSentContent.style.display = 'block';
+
+        // Highlight sidebar item
+        document.querySelectorAll('.sidebar ul li').forEach(li => li.classList.remove('active'));
+        notesSentBtn.classList.add('active');
+    });
+
+    // Click a unit tile in the Notes Sent section -> open modal with notes
+    document.querySelectorAll('.notes-sent-tile').forEach(tile => {
+        tile.addEventListener('click', () => {
+            const unitId = tile.dataset.unitId;
+            const unitName = tile.dataset.unitName;
+
+            // Update modal title
+            notesSentModalTitle.innerHTML = `<i class="fas fa-paper-plane" style="color:#6366f1;margin-right:8px;"></i> ${escapeHtml(unitName)}`;
+
+            // Find notes data for this unit
+            const dataDiv = document.querySelector(`.unit-notes-data[data-unit-id="${unitId}"]`);
+            if (dataDiv) {
+                // Clone the table to avoid mutating the original
+                const tableHtml = dataDiv.innerHTML;
+                notesSentModalBody.innerHTML = `
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#f3f4f6;">
+                                <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">File</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">Uploaded</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${dataDiv.querySelector('tbody').innerHTML}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                notesSentModalBody.innerHTML = `
+                    <div style="text-align:center;padding:40px 20px;color:#9ca3af;">
+                        <i class="fas fa-inbox" style="font-size:40px;display:block;margin-bottom:12px;color:#d1d5db;"></i>
+                        No notes uploaded yet for this unit.
+                    </div>
+                `;
+            }
+
+            // Show modal
+            notesSentModal?.classList.remove('hidden');
+        });
+    });
+
+    // Close Notes Sent modal
+    notesSentModalClose?.addEventListener('click', () => notesSentModal?.classList.add('hidden'));
+    notesSentModal?.addEventListener('click', e => {
+        if (e.target === notesSentModal) notesSentModal.classList.add('hidden');
+    });
+
+    // Helper: escape HTML
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ==================== NOTE STATUS ACTIONS ====================
+    // Use event delegation for dynamically loaded content
+    document.addEventListener('click', async (e) => {
+        const target = e.target;
+        
+        // Hide note
+        if (target.classList.contains('hide-note-btn')) {
+            e.preventDefault();
+            const noteId = target.dataset.noteId;
+            if (!confirm('Hide this note from students?')) return;
+            await updateNoteStatus(noteId, 'hide_note', target);
+        }
+        
+        // Delete note (soft delete - shows cover)
+        if (target.classList.contains('delete-note-btn')) {
+            e.preventDefault();
+            const noteId = target.dataset.noteId;
+            if (!confirm('Mark this note as deleted? Students will see it covered and cannot view/download.')) return;
+            await updateNoteStatus(noteId, 'delete_note', target);
+        }
+        
+        // Unhide note
+        if (target.classList.contains('unhide-note-btn')) {
+            e.preventDefault();
+            const noteId = target.dataset.noteId;
+            if (!confirm('Make this note visible to students again?')) return;
+            await updateNoteStatus(noteId, 'unhide_note', target);
+        }
+    });
+
+    async function updateNoteStatus(noteId, action, btnElement) {
+        const formData = new FormData();
+        formData.append('action', action);
+        formData.append('note_id', noteId);
+
+        try {
+            const response = await fetch('../actions.php', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                // Reload the page to reflect changes
+                location.reload();
+            } else {
+                alert('Error: ' + (result.error || 'Failed to update note status'));
+            }
+        } catch (error) {
+            console.error('Error updating note status:', error);
+            alert('Error updating note status: ' + error.message);
+        }
+    }
 
     // Upload notes modal
     const uploadNotesModal = document.getElementById('uploadNotesModal');

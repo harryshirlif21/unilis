@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Fetch file notes
 $file_notes_stmt = $conn->prepare("
-    SELECT n.id, n.file_path, n.uploaded_at
+    SELECT n.id, n.file_path, n.uploaded_at, n.status
     FROM notes n
     WHERE n.unit_id = ?
     ORDER BY n.uploaded_at DESC
@@ -789,15 +789,43 @@ function fixImagePathsInContent($content) {
                             <div class="note-icon">
                                 <i class="fas fa-file-pdf"></i>
                             </div>
-                            <div class="note-title">File Note</div>
+                            <div class="note-title">
+                                <?php 
+                                $noteStatus = $note['status'] ?? 'active';
+                                if ($noteStatus === 'deleted'): ?>
+                                    File Note 🗑️
+                                <?php elseif ($noteStatus === 'hidden'): ?>
+                                    File Note 🔶
+                                <?php else: ?>
+                                    File Note
+                                <?php endif; ?>
+                            </div>
                             <div class="note-meta">
                                 <span><i class="fas fa-calendar"></i> <?= date('d M Y', strtotime($note['uploaded_at'])) ?></span>
                                 <span><i class="fas fa-clock"></i> <?= date('h:i A', strtotime($note['uploaded_at'])) ?></span>
                             </div>
                             <div class="note-actions">
                                 <?php 
+                                $noteStatus = $note['status'] ?? 'active';
                                 $filePath = "../assets/uploads/" . htmlspecialchars($note['file_path']);
-                                if (file_exists($filePath)): ?>
+                                
+                                if ($noteStatus === 'deleted'): ?>
+                                    <div style="background:#fef2f2; border:2px dashed #ef4444; border-radius:10px; padding:16px; text-align:center; width:100%;">
+                                        <i class="fas fa-ban" style="color:#ef4444; font-size:20px; display:block; margin-bottom:6px;"></i>
+                                        <span style="color:#dc2626; font-weight:600; font-size:13px;">Note Covered</span>
+                                        <p style="color:#9ca3af; font-size:11px; margin:4px 0 0 0;">This note has been removed by the lecturer</p>
+                                    </div>
+                                <?php elseif ($noteStatus === 'hidden'): ?>
+                                    <a href="<?= $filePath ?>" target="_blank" class="btn btn-primary">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                    <a href="<?= $filePath ?>" download class="btn btn-success">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                    <span style="font-size:11px;color:#f59e0b;width:100%;text-align:center;margin-top:6px;">
+                                        🔶 Note hidden from students
+                                    </span>
+                                <?php elseif (file_exists($filePath)): ?>
                                     <a href="<?= $filePath ?>" target="_blank" class="btn btn-primary">
                                         <i class="fas fa-eye"></i> View
                                     </a>

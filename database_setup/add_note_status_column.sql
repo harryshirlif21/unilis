@@ -1,0 +1,1 @@
+ALTER TABLE notes ADD COLUMN status ENUM('active', 'hidden', 'deleted') NOT NULL DEFAULT 'active';
