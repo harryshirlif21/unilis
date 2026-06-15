@@ -15,7 +15,7 @@ $lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
 
 // Fetch lecturer info for profile popup
 $lecturer_info = [];
-$stmt = $conn->prepare("SELECT id, name, email, phone FROM lecturers WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, name, email FROM lecturers WHERE id = ?");
 $stmt->bind_param("i", $lecturer_id);
 $stmt->execute();
 $lecturer_info = $stmt->get_result()->fetch_assoc();

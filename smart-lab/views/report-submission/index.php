@@ -1,11 +1,12 @@
-<!-- DEBUG START -->
-<div style="position: fixed; top: 0; right: 0; background: red; color: white; padding: 10px; z-index: 9999; max-width: 400px; max-height: 200px; overflow: auto;">
-    <p>View loaded. APP_URL: <?= APP_URL ?? 'NOT SET' ?></p>
-    <p>Availables: <?= count($availablePracticals ?? []) ?></p>
-    <p>Reports: <?= count($reports ?? []) ?></p>
-    <p>Error: <?= ($error ?? 'none') ?></p>
-</div>
-<!-- DEBUG END -->
+<?php if ($error): ?>
+    <div class="error-banner">
+        <div class="error-banner-icon">⚠️</div>
+        <div class="error-banner-content">
+            <strong>Something went wrong</strong>
+            <p><?= htmlspecialchars($error) ?></p>
+        </div>
+    </div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header">
@@ -178,6 +179,33 @@
 </div>
 
 <style>
+.error-banner {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border: 1px solid #ffc107;
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.15);
+}
+.error-banner-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.error-banner-content strong {
+    display: block;
+    color: #856404;
+    margin-bottom: 0.25rem;
+}
+.error-banner-content p {
+    margin: 0;
+    color: #856404;
+    font-size: 0.9rem;
+}
+
 .practicals-grid, .reports-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));

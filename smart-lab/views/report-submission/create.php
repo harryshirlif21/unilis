@@ -143,6 +143,7 @@
     </div>
 </div>
 
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
 function updateDeadlineInfo() {
     const select = document.getElementById('practical_id');
@@ -213,6 +214,91 @@ function updateDeadlineInfo() {
         deadlineInfo.style.display = 'none';
     }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize TinyMCE rich text editor on content textareas
+    const editorConfig = {
+        selector: 'textarea.rich-editor',
+        height: 400,
+        menubar: true,
+        plugins: [
+            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
+            'preview', 'anchor', 'searchreplace', 'visualblocks', 'code',
+            'fullscreen', 'insertdatetime', 'media', 'table', 'help',
+            'wordcount', 'importcss', 'paste'
+        ],
+        toolbar: 'undo redo | blocks | ' +
+            'bold italic underline strikethrough | alignleft aligncenter ' +
+            'alignright alignjustify | bullist numlist outdent indent | ' +
+            'removeformat | image media link | table | code fullscreen | help',
+        paste_data_images: true,
+        image_advtab: true,
+        image_title: true,
+        automatic_uploads: true,
+        file_picker_types: 'file image media',
+        file_picker_callback: function(callback, value, meta) {
+            const input = document.createElement('input');
+            input.setAttribute('type', 'file');
+            if (meta.filetype === 'image') {
+                input.setAttribute('accept', 'image/*');
+            } else if (meta.filetype === 'media') {
+                input.setAttribute('accept', 'video/*,audio/*');
+            } else {
+                input.setAttribute('accept', '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif,.webp');
+            }
+            input.addEventListener('change', function(e) {
+                const file = this.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const dataUrl = e.target.result;
+                    if (meta.filetype === 'file') {
+                        // For file types, create a download link
+                        callback(dataUrl, { text: file.name });
+                    } else {
+                        callback(dataUrl);
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+            input.click();
+        },
+        content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.6; } img { max-width: 100%; height: auto; }',
+        setup: function(editor) {
+            editor.on('change', function() {
+                editor.save();
+            });
+        }
+    };
+    
+    // Apply to content textarea
+    if (document.getElementById('content')) {
+        editorConfig.selector = '#content';
+        tinymce.init(editorConfig);
+    }
+    
+    // Apply smaller editor to summary, methodology, results, conclusions, references
+    const smallConfig = {
+        ...editorConfig,
+        height: 250,
+        menubar: false,
+        plugins: [
+            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
+            'preview', 'searchreplace', 'visualblocks', 'code',
+            'fullscreen', 'insertdatetime', 'media', 'table', 'help', 'paste'
+        ],
+        toolbar: 'undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | image media link | removeformat'
+    };
+    
+    ['summary', 'methodology', 'results', 'conclusions', 'references'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            const cfg = {...smallConfig, selector: '#' + id};
+            tinymce.init(cfg);
+        }
+    });
+});
 </script>
 
 <style>
