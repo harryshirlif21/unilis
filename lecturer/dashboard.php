@@ -79,6 +79,13 @@ $stmt->close();
         /* ---------- Notes Sent specific styles ---------- */
         .notes-sent-btn {
             cursor: pointer;
+            background: #16a34a;
+            color: #fff;
+            border-radius: 8px;
+            padding: 10px 16px;
+        }
+        .notes-sent-btn:hover {
+            background: #15803d;
         }
         .notes-sent-btn.active {
             background: rgba(59, 130, 246, 0.15);
