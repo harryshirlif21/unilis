@@ -134,9 +134,9 @@ function notify_lecturer_assignment_submitted($conn, $lecturer_id, $student_name
  */
 function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_title, $notes_id) {
     try {
-        // Get unit and course info
+        // Get unit info (name + code)
         $stmt = $conn->prepare("
-            SELECT name, course_id FROM units WHERE id = ?
+            SELECT name, code FROM units WHERE id = ?
         ");
         $stmt->bind_param("i", $unit_id);
         $stmt->execute();
@@ -144,6 +144,24 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
         $stmt->close();
 
         if (!$unit) return false;
+
+        // Get lecturer name
+        $stmt = $conn->prepare("SELECT name FROM lecturers WHERE id = ?");
+        $stmt->bind_param("i", $lecturer_id);
+        $stmt->execute();
+        $lecturer = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $lecturer_name = $lecturer['name'] ?? 'Lecturer';
+        $unit_code = $unit['code'] ?? $unit['name'];
+
+        // Get the note file path for attachment
+        $stmt = $conn->prepare("SELECT file_path FROM notes WHERE id = ?");
+        $stmt->bind_param("i", $notes_id);
+        $stmt->execute();
+        $note_file = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $file_path = $note_file['file_path'] ?? '';
 
         // Get all students enrolled in this specific unit
         $stmt = $conn->prepare("
@@ -174,9 +192,6 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
             $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, notes_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
         }
         
-        // Prepare recipients for bulk email
-        $recipients = [];
-        
         foreach ($students as $student) {
             if (notifications_support_user_scope($conn)) {
                 $notif_stmt->bind_param("isssi", $student['id'], $title, $message, $link, $notes_id);
@@ -185,21 +200,68 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
             }
             $notif_stmt->execute();
             
-            // Add to recipients list for email
-            $recipients[] = [
-                'email' => $student['email'],
-                'name' => $student['name']
-            ];
+            // Send individual email with file attachment
+            $email_subject = "{$lecturer_name} sent {$unit_code}";
+            send_notes_email_with_attachment($student['email'], $student['name'], $lecturer_name, $unit_code, $notes_title, $file_path, $link);
         }
         $notif_stmt->close();
-        
-        // Send bulk email notifications
-        $email_subject = "📚 New Notes Uploaded: {$notes_title}";
-        send_bulk_notification_emails($recipients, $email_subject, $title, $message, $link, 'notes');
 
         return true;
     } catch (Exception $e) {
         error_log("Error notifying notes uploaded: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Send individual email with notes file attached
+ */
+function send_notes_email_with_attachment($email, $student_name, $lecturer_name, $unit_code, $notes_title, $file_path, $link) {
+    try {
+        $mail = getConfiguredMailer();
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = "{$lecturer_name} sent {$unit_code}";
+
+        // Attach the file if it exists
+        $full_path = __DIR__ . '/../assets/uploads/' . $file_path;
+        if ($file_path && file_exists($full_path)) {
+            $mail->addAttachment($full_path);
+        }
+
+        $mail->Body = "
+            <html>
+            <body style='font-family: Arial, sans-serif; line-height: 1.6; background: #f4f4f4; margin: 0; padding: 20px;'>
+                <div style='max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);'>
+                    <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 30px; text-align: center;'>
+                        <h1 style='margin: 0; font-size: 24px;'>📚 New Notes from {$lecturer_name}</h1>
+                        <p style='margin: 5px 0 0; opacity: 0.9;'>{$unit_code}</p>
+                    </div>
+                    <div style='padding: 30px;'>
+                        <p>Dear <strong>{$student_name}</strong>,</p>
+                        <p><strong>{$lecturer_name}</strong> has uploaded new notes for <strong>{$unit_code}</strong>.</p>
+                        <div style='background: #f8f9fa; padding: 20px; border-left: 4px solid #00f2fe; margin: 20px 0; border-radius: 0 8px 8px 0;'>
+                            <p style='margin: 0;'><strong>File:</strong> {$notes_title}</p>
+                        </div>
+                        <p>The file is attached to this email. You can also view it online.</p>
+                        <div style='text-align: center; margin: 25px 0;'>
+                            <a href='{$link}' style='background: #00f2fe; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-size: 16px; display: inline-block;'>
+                                📖 View Online
+                            </a>
+                        </div>
+                        <hr style='border: none; border-top: 1px solid #eee; margin: 30px 0;'>
+                        <p style='color: #7f8c8d; font-size: 12px;'>© UNILIS — This is an automated message, please do not reply.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Notes email failed to: {$email} - " . $e->getMessage());
         return false;
     }
 }
