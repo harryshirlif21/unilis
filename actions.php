@@ -872,7 +872,7 @@ if ($action === 'upload_notes') {
 
                     // === SEND NOTIFICATIONS & EMAILS TO STUDENTS ===
                     $notes_title = pathinfo($filename, PATHINFO_FILENAME);
-                    notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_id, $notes_title);
+                    notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_title, $notes_id);
 
                 } else {
                     $error_count++;
