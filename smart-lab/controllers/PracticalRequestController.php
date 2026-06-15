@@ -53,12 +53,15 @@ class PracticalRequestController {
                         $error = 'You are already enrolled in this practical.';
                     } else {
                         // Create the request
+                        // Convert empty preferred_lab to null to avoid FK constraint failure
+                        $preferredLabValue = empty($preferredLab) ? null : $preferredLab;
+                        
                         $requestData = [
                             'id' => bin2hex(random_bytes(16)),
                             'student_id' => Auth::id(),
                             'practical_id' => $practicalId,
                             'reason' => $reason,
-                            'preferred_lab' => $preferredLab,
+                            'preferred_lab' => $preferredLabValue,
                             'urgency' => $urgency,
                             'status' => 'pending',
                             'created_at' => date('Y-m-d H:i:s')

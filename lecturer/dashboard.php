@@ -3,6 +3,7 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 session_start();
 require_once '../config/db.php';
+require_once '../includes/notifications.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
@@ -11,6 +12,32 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 
 $lecturer_id   = $_SESSION['user_id'];
 $lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
+
+// Fetch lecturer info for profile popup
+$lecturer_info = [];
+$stmt = $conn->prepare("SELECT id, name, email, phone FROM lecturers WHERE id = ?");
+$stmt->bind_param("i", $lecturer_id);
+$stmt->execute();
+$lecturer_info = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+// Get latest 5 notifications for current lecturer
+$latest_notifications = get_latest_notifications($conn, 5, $lecturer_id, 'lecturer');
+
+// Get unread count for current lecturer
+$unread_count = get_unread_notification_count($conn, $lecturer_id, 'lecturer');
+
+// Handle AJAX mark as read
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_notification_read') {
+    header('Content-Type: application/json');
+    $notif_id = intval($_POST['notification_id']);
+    if (mark_notification_as_read($conn, $notif_id)) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false]);
+    }
+    exit;
+}
 
 /* ================= FETCH UNITS ================= */
 $units = [];
@@ -188,6 +215,178 @@ $stmt->close();
             color: #3b82f6;
             margin-right: 8px;
         }
+        /* ---------- Popup styles (notifications & profile) ---------- */
+        .popup {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            width: 360px;
+            max-width: calc(100vw - 40px);
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            border: 1px solid #e5e7eb;
+            z-index: 9999;
+            display: none;
+            overflow: hidden;
+            animation: popupFadeIn 0.2s ease-out;
+        }
+        @keyframes popupFadeIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .popup h3 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 20px;
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1f2937;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .popup h3 i {
+            color: #3b82f6;
+            font-size: 18px;
+        }
+        .popup-content {
+            padding: 12px 0;
+            max-height: 360px;
+            overflow-y: auto;
+        }
+        .notification-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 12px 20px;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .notification-item:hover {
+            background: #f9fafb;
+        }
+        .notification-item.unread {
+            background: #eff6ff;
+            border-left: 3px solid #3b82f6;
+        }
+        .notification-item .notif-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .notification-item .notif-msg {
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+        .notification-item .notif-time {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        .popup-footer {
+            padding: 12px 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+        }
+        .popup-footer a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .popup-footer a:hover {
+            text-decoration: underline;
+        }
+        .profile-popup h3 i {
+            color: #8b5cf6;
+        }
+        .profile-info {
+            padding: 16px 20px;
+        }
+        .profile-info .avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+        .profile-info .p-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .profile-info .p-email {
+            font-size: 14px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .profile-info .p-phone {
+            font-size: 14px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+        .profile-actions {
+            padding: 0 20px 16px;
+            display: flex;
+            gap: 10px;
+        }
+        .profile-actions .btn-profile {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .profile-actions .btn-profile.primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        .profile-actions .btn-profile.primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .profile-actions .btn-profile.secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        .profile-actions .btn-profile.secondary:hover {
+            background: #e5e7eb;
+        }
+        .notification-badge {
+            position: absolute;
+            top: -4px;
+            right: -6px;
+            min-width: 18px;
+            height: 18px;
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fff;
+            padding: 0 4px;
+        }
     </style>
 </head>
 <body data-theme="light">
@@ -204,14 +403,80 @@ $stmt->close();
         <i class="fas fa-ellipsis-v"></i>
     </div>
 
-    <div class="nav-icon" id="notifications-icon">
+    <div class="nav-icon" id="notifications-icon" style="position:relative;">
         <i class="fas fa-bell"></i>
+        <?php if ($unread_count > 0): ?>
+            <span class="notification-badge" id="notificationCount"><?= $unread_count > 99 ? '99+' : $unread_count ?></span>
+        <?php endif; ?>
     </div>
 
     <div class="nav-icon" id="profile-icon">
         <i class="fas fa-user"></i>
     </div>
 </nav>
+
+<!-- NOTIFICATIONS POPUP -->
+<div class="popup" id="notifications-popup">
+    <h3>
+        <i class="fas fa-bell"></i>
+        Notifications
+    </h3>
+    <div class="popup-content" id="notif-list">
+        <?php if(empty($latest_notifications)): ?>
+            <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+                <i class="fas fa-bell-slash" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                No notifications yet
+            </div>
+        <?php else: ?>
+            <?php foreach($latest_notifications as $notif): ?>
+                <div class="notification-item <?= !$notif['is_read'] ? 'unread' : '' ?>" id="quick-notif-<?= $notif['id'] ?>" onclick="quickMarkRead(<?= $notif['id'] ?>)">
+                    <span class="notif-title"><?= htmlspecialchars($notif['title']) ?></span>
+                    <span class="notif-msg"><?= htmlspecialchars(substr($notif['message'], 0, 100)) ?><?= strlen($notif['message']) > 100 ? '...' : '' ?></span>
+                    <span class="notif-time">
+                        <?php
+                            $time = strtotime($notif['created_at']);
+                            $now  = time();
+                            $diff = $now - $time;
+                            if ($diff < 60)        echo "Just now";
+                            elseif ($diff < 3600)  echo floor($diff / 60) . "m ago";
+                            elseif ($diff < 86400) echo floor($diff / 3600) . "h ago";
+                            else                   echo date('M d', $time);
+                        ?>
+                    </span>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+    <div class="popup-footer">
+        <a href="notifications.php">View All Notifications <i class="fas fa-arrow-right"></i></a>
+    </div>
+</div>
+
+<!-- PROFILE POPUP -->
+<div class="popup profile-popup" id="profile-popup">
+    <h3>
+        <i class="fas fa-user-circle"></i>
+        Profile
+    </h3>
+    <div class="profile-info">
+        <div class="avatar">
+            <?= strtoupper(substr(htmlspecialchars($lecturer_info['name'] ?? $lecturer_name), 0, 2)) ?>
+        </div>
+        <div class="p-name"><?= htmlspecialchars($lecturer_info['name'] ?? $lecturer_name) ?></div>
+        <div class="p-email"><i class="fas fa-envelope" style="margin-right:6px;color:#9ca3af;"></i><?= htmlspecialchars($lecturer_info['email'] ?? '') ?></div>
+        <?php if (!empty($lecturer_info['phone'])): ?>
+            <div class="p-phone"><i class="fas fa-phone" style="margin-right:6px;color:#9ca3af;"></i><?= htmlspecialchars($lecturer_info['phone']) ?></div>
+        <?php endif; ?>
+    </div>
+    <div class="profile-actions">
+        <a href="profile.php" class="btn-profile primary">
+            <i class="fas fa-user-edit"></i> View Profile
+        </a>
+        <a href="../logout.php" class="btn-profile secondary">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
+</div>
 
 <!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
@@ -1383,6 +1648,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Notifications popup toggle
+    const notifIcon = document.getElementById('notifications-icon');
+    const notifPopup = document.getElementById('notifications-popup');
+    const profileIcon = document.getElementById('profile-icon');
+    const profilePopup = document.getElementById('profile-popup');
+
+    notifIcon?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const visible = notifPopup.style.display === 'block';
+        notifPopup.style.display = visible ? 'none' : 'block';
+        profilePopup.style.display = 'none';
+    });
+
+    profileIcon?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const visible = profilePopup.style.display === 'block';
+        profilePopup.style.display = visible ? 'none' : 'block';
+        notifPopup.style.display = 'none';
+    });
+
     // Mobile sidebar toggle
     document.getElementById('sidebarToggle')?.addEventListener('click', () => {
         document.getElementById('sidebar')?.classList.toggle('show');
@@ -1393,6 +1678,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const toggle = document.getElementById('sidebarToggle');
         if (sidebar && toggle && !sidebar.contains(e.target) && !toggle.contains(e.target)) {
             sidebar.classList.remove('show');
+        }
+
+        // Close popups on outside click
+        if (notifPopup && !notifPopup.contains(e.target) && notifIcon && !notifIcon.contains(e.target)) {
+            notifPopup.style.display = 'none';
+        }
+        if (profilePopup && !profilePopup.contains(e.target) && profileIcon && !profileIcon.contains(e.target)) {
+            profilePopup.style.display = 'none';
         }
     });
 
@@ -1866,6 +2159,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Global notification mark-as-read function (called from onclick)
+function quickMarkRead(notificationId) {
+    const formData = new FormData();
+    formData.append('action', 'mark_notification_read');
+    formData.append('notification_id', notificationId);
+
+    fetch('dashboard.php', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) return;
+
+            const item = document.getElementById('quick-notif-' + notificationId);
+            if (item) {
+                item.classList.remove('unread');
+                item.style.background = 'white';
+                const indicator = item.querySelector('[style*="background: #ef4444"]');
+                if (indicator) indicator.remove();
+            }
+
+            const badge = document.getElementById('notificationCount');
+            if (badge) {
+                const count = parseInt(badge.textContent) || 0;
+                if (count > 1) {
+                    badge.textContent = count - 1;
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        })
+        .catch(error => console.error('Error marking notification as read:', error));
+}
 </script>
 
 </body>
