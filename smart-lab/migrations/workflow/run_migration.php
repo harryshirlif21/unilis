@@ -3,6 +3,7 @@
  * UNILIS SmartLabs - Academic Integrity Workflow Migration Runner
  * 
  * Run this script to create all workflow tables and apply schema changes.
+ * Compatible with MySQL 5.7+ and MariaDB 10.2+
  * 
  * Usage: php run_migration.php
  * Or via browser: https://your-domain/smart-lab/migrations/workflow/run_migration.php
@@ -13,96 +14,89 @@ echo "============================================\n";
 echo "UNILIS SmartLabs - Workflow Migration Tool\n";
 echo "============================================\n\n";
 
-// Load database config
 $basePath = __DIR__ . '/../../';
 require_once $basePath . 'config/database.php';
 
 try {
     $db = getDB();
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     echo "[OK] Database connection established\n\n";
 } catch (Exception $e) {
     die("[ERROR] Database connection failed: " . $e->getMessage() . "\n");
 }
 
-// Run migration SQL
 $migrationFile = __DIR__ . '/001_strict_workflow_tables.sql';
 if (!file_exists($migrationFile)) {
     die("[ERROR] Migration file not found: {$migrationFile}\n");
 }
 
 $sql = file_get_contents($migrationFile);
-if (empty($sql)) {
+if (empty(trim($sql))) {
     die("[ERROR] Migration file is empty\n");
 }
 
-// Split SQL into individual statements
 $statements = explode(';', $sql);
 $successCount = 0;
 $failCount = 0;
+$skipCount = 0;
 
 echo "Executing migration statements...\n";
 echo "--------------------------------------------\n";
 
 foreach ($statements as $i => $statement) {
     $statement = trim($statement);
-    if (empty($statement) || strpos($statement, '--') === 0) {
+    if (empty($statement)) {
         continue;
     }
-    
-    // Skip INSERT statements that might reference non-existent data
-    if (stripos($statement, 'INSERT ') === 0 && stripos($statement, 'SELECT') === false) {
-        echo "[SKIP] Statement " . ($i + 1) . ": INSERT skipped (data may reference non-existent records)\n";
-        continue;
-    }
-    
+
+    $firstWord = strtok($statement, " \t\n\r\0\x0B(");
+
     try {
         $stmt = $db->prepare($statement);
-        $result = $stmt->execute();
-        
-        if ($result) {
-            $successCount++;
-            $rowCount = $stmt->rowCount();
-            $action = strtok($statement, " \t\n\r\0\x0B(");
-            echo "[OK] Statement " . ($i + 1) . ": {$action}... ({$rowCount} rows affected)\n";
-        } else {
-            $failCount++;
-            $errorInfo = $stmt->errorInfo();
-            echo "[FAIL] Statement " . ($i + 1) . ": " . ($errorInfo[2] ?? 'Unknown error') . "\n";
-        }
+        $stmt->execute();
+        $successCount++;
+        $rowCount = $stmt->rowCount();
+        echo "[OK] Statement " . ($i + 1) . ": {$firstWord}... ({$rowCount} rows affected)\n";
     } catch (PDOException $e) {
-        $failCount++;
-        $action = strtok($statement, " \t\n\r\0\x0B(");
-        
-        // Some errors are acceptable (e.g. "already exists", "duplicate column")
-        $acceptableErrors = [
-            'already exists',
-            'Duplicate column',
-            'Duplicate key',
-            'Duplicate entry'
-        ];
-        
+        $errCode = $e->getCode();
+        $errMsg = $e->getMessage();
         $isAcceptable = false;
-        foreach ($acceptableErrors as $acceptable) {
-            if (stripos($e->getMessage(), $acceptable) !== false) {
+
+        // MySQL error codes that are safe to ignore
+        $acceptablePatterns = [
+            '42S21' => 'Duplicate column',       // Column already exists
+            'Duplicate column',
+            '1060'   => 'Duplicate column',       // MySQL error code
+            '42S11'  => 'Duplicate key',          // Key already exists
+            '1061'   => 'Duplicate key name',     // Index already exists
+            '1050'   => 'Table already exists',   // Table '\''...'\'' already exists
+            'Table \'' => 'Table already exists',
+            'already exists',
+            'Duplicate key name',
+            'Duplicate entry',
+        ];
+
+        foreach ($acceptablePatterns as $code => $pattern) {
+            if (stripos($errCode, $code) !== false || stripos($errMsg, $pattern) !== false) {
                 $isAcceptable = true;
                 break;
             }
         }
-        
+
         if ($isAcceptable) {
-            echo "[WARN] Statement " . ($i + 1) . ": {$action}... Already exists (skipped)\n";
-            $failCount--; // Don't count as failure
+            $skipCount++;
+            echo "[SKIP] Statement " . ($i + 1) . ": {$firstWord}... Already exists (safe to skip)\n";
         } else {
-            echo "[FAIL] Statement " . ($i + 1) . ": {$action}... " . $e->getMessage() . "\n";
+            $failCount++;
+            echo "[FAIL] Statement " . ($i + 1) . ": {$firstWord}... {$errMsg}\n";
         }
     }
 }
 
 echo "\n--------------------------------------------\n";
 echo "Migration Complete!\n";
-echo "Successful: {$successCount} | Failed: {$failCount}\n\n";
+echo "Successful: {$successCount} | Skipped: {$skipCount} | Failed: {$failCount}\n\n";
 
-// Verify tables were created
 echo "Verifying created tables...\n";
 echo "--------------------------------------------\n";
 
@@ -117,9 +111,8 @@ foreach ($tablesToCheck as $table) {
     try {
         $stmt = $db->query("SHOW TABLES LIKE '{$table}'");
         if ($stmt->fetch()) {
-            // Check row count
-            $countStmt = $db->query("SELECT COUNT(*) as cnt FROM {$table}");
-            $count = $countStmt->fetch()['cnt'];
+            $countStmt = $db->query("SELECT COUNT(*) as cnt FROM `{$table}`");
+            $count = $countStmt->fetch(PDO::FETCH_ASSOC)['cnt'];
             echo "[OK] Table '{$table}' exists ({$count} rows)\n";
         } else {
             echo "[MISSING] Table '{$table}' was NOT created!\n";
@@ -129,7 +122,6 @@ foreach ($tablesToCheck as $table) {
     }
 }
 
-// Verify columns were added
 echo "\nVerifying schema changes...\n";
 echo "--------------------------------------------\n";
 
@@ -142,8 +134,8 @@ $columnsToCheck = [
 foreach ($columnsToCheck as $table => $columns) {
     foreach ($columns as $column) {
         try {
-            $stmt = $db->prepare("SHOW COLUMNS FROM {$table} LIKE ?");
-            $stmt->execute([$column]);
+            $stmt = $db->prepare("SHOW COLUMNS FROM `{$table}` LIKE :col");
+            $stmt->execute([':col' => $column]);
             if ($stmt->fetch()) {
                 echo "[OK] Column '{$table}.{$column}' exists\n";
             } else {
@@ -157,5 +149,11 @@ foreach ($columnsToCheck as $table => $columns) {
 
 echo "\n============================================\n";
 echo "Migration process completed!\n";
+if ($failCount > 0) {
+    echo "WARNING: {$failCount} statement(s) failed. Review above.\n";
+    echo "Some features may not work correctly.\n";
+} else {
+    echo "All operations completed successfully!\n";
+}
 echo "============================================\n";
 echo "</pre>";
