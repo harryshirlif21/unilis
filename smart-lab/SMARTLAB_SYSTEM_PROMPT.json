@@ -1,0 +1,418 @@
+{
+  "system_name": "UNILIS SmartLab",
+  "version": "1.0.0",
+  "purpose": "A lab management module within the UNILIS learning management system for managing student practicals, lab sessions, experiments, report submissions, IoT device integration (RFID/CO2), QR-based authentication, blockchain-based audit trails, and complete lab asset/inventory management.",
+
+  "architecture": {
+    "pattern": "Front Controller MVC (custom PHP, no framework)",
+    "request_lifecycle": [
+      "1. Apache mod_rewrite in .htaccess: All non-file/non-directory requests rewritten to index.php?url=<path>",
+      "2. index.php: Loads environment config (app.php or app_production.php), database config, roles config, and helper utilities. Checks session authentication. If unauthenticated and not accessing auth/qr routes, redirects to landing.html.",
+      "3. routes/web.php: Parses URL segments into controller name, method, and optional parameter. Maps controller name (e.g., 'practicals') to controller class (e.g., 'PracticalController') using a hardcoded associative array. Instantiates the controller and calls the method with the parameter.",
+      "4. Controller: Loads models via require_once, performs business logic, renders views using renderView() helper.",
+      "5. Model: PDO-based database queries using a singleton getDB() function.",
+      "6. View: Procedural PHP templates rendered via renderView() which includes layouts/header.php, the template, and layouts/footer.php."
+    ],
+    "environment_detection": "index.php checks if $_SERVER['HTTP_HOST'] contains 'unilis.jhubafrica.com' to determine production vs development mode and loads corresponding config files.",
+    "directory_structure": {
+      "root": "smart-lab/",
+      "controllers/": "20+ controller classes",
+      "models/": "13+ model classes",
+      "views/": "Subdirectories per feature (practicals, auth, dashboard, student, reports, etc.) with layouts/ for header and footer",
+      "config/": "app.php, database.php, roles.php, and their _production counterparts",
+      "auth/": "Auth.php - authentication class with multiple auth methods",
+      "routes/": "web.php (controller routing), api.php (API endpoints)",
+      "utils/": "helpers.php (renderView, sanitize, logActivity, etc.), Validator.php, Mailer.php",
+      "includes/": "autoloader.php, QRCodeGenerator.php, DatasheetPDFGenerator.php, DigitalSignature.php, SensorServerClient.php",
+      "migrations/": "SQL migration files for database schema changes",
+      "database/": "init.sql, migrations/, seeds/",
+      "blockchain/": "Block.php, Blockchain.php, AssetTracker.php - custom blockchain implementation",
+      "public/": "upload.php, css/, js/",
+      "web-app/": "Python-based sensor server for CO2 monitoring (smart-lab-server.py), data-api.php",
+      "api/": "datasheet.php, download_datasheet.php, api/v1/",
+      "debug/": "Error debugging and monitoring utilities",
+      "scripts/": "backup.sh",
+      "docker_compose": "docker-compose.yml, Dockerfile, docker-compose.prod.yml - Containerization"
+    }
+  },
+
+  "authentication_system": {
+    "class": "Auth (smart-lab/auth/Auth.php)",
+    "session_based": true,
+    "session_keys": ["user_id", "user_role", "user_name", "lab_id", "auth_method", "session_id", "last_activity"],
+    "auth_methods": [
+      {
+        "method": "password",
+        "description": "Login via reg_number + password (password_verify with bcrypt)",
+        "functions": ["login(regNo, password)", "loginByEmail(email, password)"]
+      },
+      {
+        "method": "biometric",
+        "description": "Login via pre-registered biometric hash (SHA-256 with BIOMETRIC_SALT)",
+        "functions": ["loginBiometric(biometricHash)", "registerBiometric(userId, biometricData)"]
+      },
+      {
+        "method": "qr",
+        "description": "Login via QR token that encodes sessionId + timestamp, verified with HMAC-SHA256 using QR_SECRET_KEY (5 min expiry)",
+        "functions": ["loginByQR(qrToken, sessionId)", "generateQR(sessionId)", "verifyQR(token, sessionId)"]
+      },
+      {
+        "method": "rfid",
+        "description": "Login via RFID UID, looked up in rfid_cards table linked to users",
+        "functions": ["loginByRFID(uid)", "registerRFIDCard(uid, identifier)", "findUserByIdentifier(identifier)"]
+      },
+      {
+        "method": "code",
+        "description": "Login via technician-generated confirmation code linked to lab_sessions (8-hour validity)",
+        "functions": ["loginByCode(confirmationCode)", "selectStudentForSession(userId, sessionId)"]
+      }
+    ],
+    "security_features": [
+      "Session timeout check (SESSION_LIFETIME, default 3600s) with last_activity tracking",
+      "Multi-factor authentication support (initiateMultiFactor, verifyMultiFactor) for admin/lecturer roles",
+      "Account activation check (is_active = 1)",
+      "Password hashing with password_hash/password_verify",
+      "QR token HMAC signing with 5-minute expiry",
+      "Confirmation codes with 8-hour session validity",
+      "Role-based access with Auth::guard(role) method"
+    ],
+    "helper_methods": ["check()", "role()", "id()", "name()", "guard(role)", "logout()", "getAuthMethods()", "getCurrentAuthMethod()", "requireMultiFactor()"]
+  },
+
+  "user_roles": {
+    "student": "Can view and take practicals, submit reports, view grades",
+    "lecturer": "Can create/edit/manage practicals, grade reports, view analytics",
+    "technician": "Can manage labs, generate auth codes, assist with experiments",
+    "admin": "Full system management, user management, lab configuration",
+    "lab_admin": "Lab-level administrative control"
+  },
+
+  "routing_map": {
+    "auth": "AuthController",
+    "dashboard": "DashboardController",
+    "smartlab": "SmartLabController",
+    "practicals": "PracticalController",
+    "practical-requests": "PracticalRequestController",
+    "admin": "AdminPracticalRequestController",
+    "notebooks": "NotebookController",
+    "reports": "ReportController",
+    "report-submission": "ReportSubmissionController",
+    "assets": "AssetController",
+    "schedule": "ScheduleController",
+    "inventory": "InventoryController",
+    "audit": "AuditController",
+    "blockchain": "BlockchainController",
+    "dbtest": "DbtestController",
+    "qr": "QrAuthController",
+    "attendance-qr": "QrAuthController",
+    "experiments": "ExperimentController",
+    "schedules": "ScheduleController",
+    "student": "StudentPracticalController",
+    "start-practical": "StudentPracticalController",
+    "users": "UsersController"
+  },
+
+  "controllers": [
+    {
+      "name": "AuthController",
+      "path": "controllers/AuthController.php",
+      "methods": ["login", "logout", "register", "profile", "verifyQR", "verifyBiometric", "verifyCode", "verifyRFID", "apiMethods"]
+    },
+    {
+      "name": "DashboardController",
+      "path": "controllers/DashboardController.php",
+      "model": "DashboardModel",
+      "methods": {
+        "index": "Renders dashboard with stats, lab occupancy, today's schedule, activity, blockchain blocks, weekly activity, lab utilization, asset breakdown, top users, practical completion rates, system health",
+        "apiStats": "JSON endpoint for stats",
+        "apiActivity": "JSON endpoint for recent activity",
+        "apiLabOccupancy": "JSON endpoint for lab occupancy",
+        "apiSystemHealth": "JSON endpoint for system health"
+      },
+      "dashboard_data_sources": ["getStats()", "getLabOccupancy()", "getTodaySchedule()", "getRecentActivity()", "getRecentBlocks()", "getWeeklyActivity()", "getLabUtilizationData()", "getAssetStatusBreakdown()", "getTopUsers()", "getPracticalCompletionRates()", "getSystemHealth()", "getUserDashboard(userId, role)"]
+    },
+    {
+      "name": "PracticalController",
+      "path": "controllers/PracticalController.php",
+      "models": ["PracticalModel", "ReportModel"],
+      "methods": {
+        "index": "Lists all practicals with access windows, stats, and student report mapping",
+        "create": "Creates practical with UUID ID, validates date/time, checks lab availability (max 3/day, time slot conflicts), supports rich content (TinyMCE)",
+        "edit": "Updates practical, checks lab availability excluding current ID",
+        "view": "Shows practical detail with enrolled students and lab sessions",
+        "checkAvailability": "AJAX endpoint for real-time lab availability checking",
+        "startPractical": "AJAX endpoint to start a practical session (checks attendance, creates report)",
+        "markAttendance": "AJAX endpoint to mark attendance (QR, RFID, or fingerprint verification)"
+      },
+      "practical_data_fields": ["id(UUID)", "title", "objective", "theory", "description", "lab_id", "lecturer_id", "course_code", "scheduled_date", "start_time", "end_time", "duration_hours", "max_students", "status(draft/published/completed/ongoing)", "required_equipment", "required_chemicals", "procedure_json", "observations_table_structure", "safety_notes", "results_template", "calculations_template"]
+    },
+    {
+      "name": "PracticalRequestController",
+      "path": "controllers/PracticalRequestController.php",
+      "description": "Handles student requests for practical sessions, scheduling, and approval workflow"
+    },
+    {
+      "name": "AdminPracticalRequestController",
+      "path": "controllers/AdminPracticalRequestController.php",
+      "description": "Admin-level management of practical requests"
+    },
+    {
+      "name": "StudentPracticalController",
+      "path": "controllers/StudentPracticalController.php",
+      "description": "Student-facing practical execution interface with tabbed workflow, auto-save, and submission"
+    },
+    {
+      "name": "ReportController",
+      "path": "controllers/ReportController.php",
+      "description": "Report management, grading, and review"
+    },
+    {
+      "name": "ReportSubmissionController",
+      "path": "controllers/ReportSubmissionController.php",
+      "description": "Student report submission pipeline with draft/final workflow"
+    },
+    {
+      "name": "ExperimentController",
+      "path": "controllers/ExperimentController.php",
+      "description": "Structured experiment creation and management by technicians"
+    },
+    {
+      "name": "ScheduleController",
+      "path": "controllers/ScheduleController.php",
+      "description": "Lab scheduling with auth code generation and time slot management"
+    },
+    {
+      "name": "NotebookController",
+      "path": "controllers/NotebookController.php",
+      "description": "Digital lab notebook management"
+    },
+    {
+      "name": "AssetController",
+      "path": "controllers/AssetController.php",
+      "description": "Lab asset tracking and management"
+    },
+    {
+      "name": "InventoryController",
+      "path": "controllers/InventoryController.php",
+      "description": "Chemical and equipment inventory management"
+    },
+    {
+      "name": "AuditController",
+      "path": "controllers/AuditController.php",
+      "description": "System audit log viewing and analysis"
+    },
+    {
+      "name": "BlockchainController",
+      "path": "controllers/BlockchainController.php",
+      "description": "Blockchain verification and audit trail management"
+    },
+    {
+      "name": "QrAuthController",
+      "path": "controllers/QrAuthController.php",
+      "description": "QR code authentication endpoints for lab attendance"
+    },
+    {
+      "name": "SmartLabController",
+      "path": "controllers/SmartLabController.php",
+      "description": "General smart lab management"
+    },
+    {
+      "name": "UsersController",
+      "path": "controllers/UsersController.php",
+      "description": "User management (CRUD operations)"
+    },
+    {
+      "name": "DbtestController",
+      "path": "controllers/DbtestController.php",
+      "description": "Database connection testing utility"
+    },
+    {
+      "name": "DatasheetController",
+      "path": "controllers/DatasheetController.php",
+      "description": "Chemical datasheet management"
+    }
+  ],
+
+  "models": [
+    {"name": "PracticalModel", "key_tables": ["practicals", "labs", "users", "lab_sessions", "student_practicals", "attendance", "lab_reports", "report_deadlines"]},
+    {"name": "ReportModel", "key_tables": ["lab_reports", "submission_data"]},
+    {"name": "DashboardModel", "key_tables": ["practicals", "labs", "users", "audit_logs", "assets", "blockchain"]},
+    {"name": "AuthModel", "description": "Authentication database operations"},
+    {"name": "PracticalRequestModel", "description": "Practical request workflow"},
+    {"name": "ScheduleModel", "description": "Lab scheduling"},
+    {"name": "AssetModel", "description": "Asset management"},
+    {"name": "InventoryModel", "description": "Chemical/inventory management"},
+    {"name": "NotebookModel", "description": "Digital notebook"},
+    {"name": "BlockchainModel", "description": "Blockchain storage"},
+    {"name": "AuditModel", "description": "Audit log queries"},
+    {"name": "DatasheetModel", "description": "Chemical datasheets"},
+    {"name": "DeadlineModel", "description": "Report deadline management"}
+  ],
+
+  "database": {
+    "name": "unilis_smartlab",
+    "connection": "PDO with multi-host fallback (smart-labs-db → localhost → 127.0.0.1)",
+    "credentials": {
+      "user": "lab_admin",
+      "password": "lab_password",
+      "charset": "utf8mb4"
+    },
+    "key_tables": [
+      {"name": "users", "description": "Unified user management - all roles (student, lecturer, technician, admin, lab_admin)", "key_columns": ["id", "reg_number", "email", "password", "full_name", "role", "lab_id", "biometric_hash", "is_active"]},
+      {"name": "practicals", "description": "Lab practicals/experiments with full structured content", "key_columns": ["id(UUID char(36))", "title", "objective", "theory", "description", "lab_id", "lecturer_id", "course_code", "scheduled_date", "start_time", "end_time", "duration_hours", "max_students", "status(draft/published/completed/ongoing)", "required_equipment", "required_chemicals", "procedure_json", "observations_table_structure", "safety_notes", "results_template", "calculations_template", "created_at", "updated_at"]},
+      {"name": "labs", "description": "Lab rooms/spaces", "key_columns": ["id", "name", "lab_code", "type", "max_capacity", "current_count", "is_active"]},
+      {"name": "lab_sessions", "description": "Scheduled lab sessions linked to practicals", "key_columns": ["id", "practical_id", "lab_id", "status(open/closed)", "confirmation_code", "started_at", "ended_at"]},
+      {"name": "lab_session_students", "description": "Junction table linking students to lab sessions"},
+      {"name": "student_practicals", "description": "Junction table for student enrollment in practicals"},
+      {"name": "lab_reports", "description": "Student lab report submissions", "key_columns": ["id", "practical_id", "student_id", "status(in_progress/submitted/graded)", "grade", "graded_by", "started_at", "submitted_at"]},
+      {"name": "submission_data", "description": "Section-based content storage for lab reports"},
+      {"name": "attendance", "description": "Practical attendance tracking with verification method", "key_columns": ["student_id", "practical_id", "verification_method(qr/rfid/fingerprint)", "marked_at"]},
+      {"name": "otp_codes", "description": "Technician one-time authentication codes"},
+      {"name": "rfid_cards", "description": "RFID card registration linked to users", "key_columns": ["student_id", "uid", "device_id", "created_at", "updated_at"]},
+      {"name": "audit_logs", "description": "System activity tracking", "key_columns": ["user_id", "action", "module", "ip_address", "created_at"]},
+      {"name": "blockchain", "description": "Custom blockchain for immutable audit trail"},
+      {"name": "assets", "description": "Lab equipment/assets tracking"},
+      {"name": "inventory", "description": "Chemical and consumable inventory"},
+      {"name": "notebooks", "description": "Digital lab notebooks"},
+      {"name": "report_deadlines", "description": "Report submission deadline management"},
+      {"name": "co2_readings", "description": "IoT CO2 sensor readings"},
+      {"name": "activity_log", "description": "General activity logging"},
+      {"name": "datasheets", "description": "Chemical safety datasheets"}
+    ]
+  },
+
+  "practical_workflow": {
+    "steps": [
+      "1. Lecturer/Admin creates practical: Sets title, objective, theory, description, lab, course code, date/time, max students, equipment, chemicals, procedure (JSON), observations table, safety notes, results/calculations templates",
+      "2. Publish practical: Status changes from 'draft' to 'published'",
+      "3. Lab availability check: Max 3 practicals per lab per day, time slot conflict prevention",
+      "4. Attendance marking: Students mark attendance via QR code, RFID, or fingerprint within a 30-min-before to 20-min-after window",
+      "5. Access window: Students can access practical starting 30 minutes before scheduled time until 20 minutes after start time",
+      "6. Start practical: Creates a lab report with 'in_progress' status",
+      "7. Student executes practical: Tabbed interface with aims, materials, procedure, data tables, calculations, results, conclusion sections - auto-save enabled",
+      "8. Submit report: Final submission of lab report (draft → final pipeline)",
+      "9. Grading: Lecturer grades the report, adds marks and feedback",
+      "10. Blockchain audit: All activities logged to blockchain for tamper-proof audit trail"
+    ]
+  },
+
+  "iot_integration": {
+    "rfid": {
+      "description": "RFID card registration and login system",
+      "implementation": "rfid_cards table links UID hex strings to user accounts. One card per student (upsert logic). Auth::loginByRFID() and Auth::registerRFIDCard() handle the flow."
+    },
+    "qr_code": {
+      "description": "QR code generation and verification for lab session authentication",
+      "implementation": "Auth::generateQR() creates HMAC-SHA256 signed tokens with session ID and timestamp. Auth::verifyQR() validates signature and expiry (5 min). QRCodeGenerator.php class provides rendering."
+    },
+    "co2_sensor": {
+      "description": "CO2 monitoring via Python WebSocket server (smart-lab-server.py)",
+      "implementation": "Python WebSocket server running on configurable host:port. SensorServerClient.php communicates with it. JSON data stored in web-app/co2_data/. SmartLab dashboard includes CO2 monitor widget (components/co2_monitor_widget.php).",
+      "files": ["web-app/smart-lab-server.py", "web-app/smart-lab-server-production.py", "web-app/data-api.php", "web-app/smart-lab-sensor.service (systemd)", "includes/SensorServerClient.php", "components/co2_monitor_widget.php"]
+    }
+  },
+
+  "blockchain_subsystem": {
+    "files": ["blockchain/Block.php", "blockchain/Blockchain.php", "blockchain/AssetTracker.php"],
+    "description": "Custom PHP blockchain implementation for immutable audit logging of lab activities, asset transfers, and report submissions",
+    "difficulty": "4",
+    "structure": {
+      "Block": {"properties": ["index", "timestamp", "data", "previous_hash", "hash", "nonce"], "method": "mineBlock(difficulty)"},
+      "Blockchain": {"methods": ["addBlock(data)", "getLatestBlock()", "isChainValid()"], "difficulty": "2 (configurable via BLOCKCHAIN_DIFFICULTY constant)"},
+      "AssetTracker": "Tracks asset transfers and ownership changes on the blockchain"
+    }
+  },
+
+  "datasheet_system": {
+    "description": "Chemical safety datasheet management with PDF generation",
+    "files": ["controllers/DatasheetController.php", "models/DatasheetModel.php", "includes/DatasheetPDFGenerator.php", "api/datasheet.php", "api/download_datasheet.php", "views/datasheets.php"],
+    "workflow": "Technicians upload chemical datasheets → stored in database → searchable/printable → PDF generation for download"
+  },
+
+  "digital_signature": {
+    "file": "includes/DigitalSignature.php",
+    "purpose": "Digital signing of lab reports and documents for verification and non-repudiation"
+  },
+
+  "helpers_utilities": {
+    "file": "utils/helpers.php",
+    "key_functions": [
+      "redirect(path) - HTTP redirect with APP_URL prefix",
+      "renderView(template, data) - Renders PHP view with header/footer layout, extracts data array",
+      "sanitize(v) - strip_tags + htmlspecialchars sanitization",
+      "sanitizeHTML(html) - Safe HTML cleaning using DOMDocument, allows specific tags (p, br, strong, table, etc.) and attributes, removes scripts, event handlers, javascript: protocol",
+      "jsonResponse(data, code) - JSON response with status code",
+      "generateSignature(techId, docId) - SHA-256 signature for document verification",
+      "logActivity(userId, action, module) - Inserts audit log entry",
+      "getPracticalAccessWindow(practical, now) - Calculates access window for practicals: available 30 min before to 20 min after start time"
+    ]
+  },
+
+  "deployment": {
+    "development": {
+      "url": "http://localhost/smart-lab",
+      "webserver": "Apache with mod_rewrite (XAMPP)",
+      "database": "MySQL via phpMyAdmin, database name: unilis_smartlab",
+      "setup": "Import database/init.sql, configure database.php, visit setup.php"
+    },
+    "production": {
+      "url": "https://unilis.jhubafrica.com/smart-lab",
+      "config_files": ["config/app_production.php", "config/database_production.php", "config/.htaccess_production"],
+      "containerization": "Docker Compose with Dockerfile",
+      "ci_cd": "GitHub Actions automated deployment pipeline",
+      "reverse_proxy": "Nginx with SSL termination",
+      "backup": "Automated database backups with retention policy (scripts/backup.sh)",
+      "systemd_service": "smart-lab-sensor.service for CO2 sensor server"
+    },
+    "docker_files": ["Dockerfile", "docker-compose.yml", "docker-compose.prod.yml", ".env.example"],
+    "database_service": "Container name: smart-labs-db (as defined in docker-compose)"
+  },
+
+  "configuration_constants": {
+    "APP_NAME": "UNILIS SmartLab",
+    "APP_VERSION": "1.0.0",
+    "SESSION_LIFETIME": 3600,
+    "BLOCKCHAIN_DIFFICULTY": 2,
+    "QR_SECRET_KEY": "unilis_qr_secret_2025",
+    "BIOMETRIC_ENABLED": true,
+    "BIOMETRIC_SALT": "unilis_biometric_salt_2025",
+    "SENSOR_SERVER_URL": "Configurable via environment or defaults to http://localhost:8765",
+    "SENSOR_JSON_PATH": "web-app/co2_data/",
+    "STAFF_REGISTRATION_KEY": "UNILIS@Staff2025",
+    "ROLES": ["student", "lecturer", "technician", "admin"]
+  },
+
+  "key_reference_files": {
+    "README.md": "Basic setup instructions",
+    "PROJECT_SUMMARY.md": "Full project summary with completed features, architecture, deployment options, and next steps",
+    "DEPLOYMENT.md": "Complete deployment guide",
+    "COMPLETION_REPORT.md": "Implementation completion status",
+    "IMPLEMENTATION_SUMMARY.md": "Detailed implementation summary",
+    "FILE_MANIFEST.md": "Complete file listing and descriptions",
+    "INSTALLATION_GUIDE.md": "Step-by-step installation guide",
+    "database/init.sql": "Complete database schema",
+    "unilis_smartlab.sql": "Database dump",
+    "web-app/QUICK_START.md": "Quick start for web-app sensor server",
+    "web-app/DEPLOYMENT_GUIDE.md": "Web-app deployment documentation"
+  },
+
+  "setup_files": [
+    {"file": "setup.php", "purpose": "Web-based browser setup for database and admin account creation"},
+    {"file": "setup_default_admin.php", "purpose": "Creates default lab admin account"},
+    {"file": "setup_chemistry_practicals.php", "purpose": "Seeds chemistry practical data"},
+    {"file": "install.sh", "purpose": "Automated installation script"},
+    {"file": "deploy_production.sh", "purpose": "Production deployment script"}
+  ],
+
+  "practical_access_window_calculation": {
+    "window_starts": "30 minutes before scheduled_date + start_time",
+    "window_ends": "20 minutes after scheduled_date + start_time",
+    "states": ["Available now (within window)", "Upcoming (before window)", "Closed (after window)"],
+    "helper_function": "getPracticalAccessWindow() in utils/helpers.php"
+  },
+
+  "attendance_verification_methods": ["qr", "rfid", "fingerprint"],
+  "practical_statuses": ["draft", "published", "completed", "ongoing"],
+  "report_statuses": ["in_progress", "submitted", "graded"],
+  "lab_session_statuses": ["open", "closed"]
+}

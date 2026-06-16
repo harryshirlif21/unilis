@@ -1,0 +1,461 @@
+{
+  "system_name": "UNILIS SmartLab - Laboratory Management & Practical Execution System",
+  "version": "1.0.0",
+  "base_url": "http://localhost/smart-lab",
+  "production_url": "https://unilis.jhubafrica.com/smart-lab",
+  "description": "A comprehensive laboratory management and practical execution module built as a sub-module of the UNILIS LMS. SmartLab manages the complete lifecycle of laboratory practicals — from experiment creation and scheduling to student attendance verification, practical execution, notebook management, report submission, grading, and PDF datasheet generation with anti-tamper blockchain-based audit trails.",
+  
+  "core_features": {
+    "authentication_and_attendance": {
+      "description": "Multi-modal authentication and attendance verification system for lab sessions",
+      "methods": [
+        {
+          "method": "password",
+          "description": "Standard registration number/email + password login. Supports role-based redirects.",
+          "target_users": ["student", "lecturer", "technician", "admin"]
+        },
+        {
+          "method": "QR_code",
+          "description": "Dynamic QR code login system. Generates time-limited QR sessions (5 min expiry). Phone scans QR, selects user identity, auto-login on subsequent scans via device fingerprint cookie. Also used for attendance marking per practical.",
+          "target_users": ["student"],
+          "workflow": "Login page generates QR → student scans with phone → selects name → claims session → PC logs in automatically"
+        },
+        {
+          "method": "RFID_card",
+          "description": "RFID card-based login. Cards can be registered/paired to student accounts. Supports RFID registration flow and instant login.",
+          "target_users": ["student"]
+        },
+        {
+          "method": "biometric",
+          "description": "Biometric/fingerprint authentication using SHA256 hashing with configurable salt. Login via biometric hash verification.",
+          "target_users": ["student"]
+        },
+        {
+          "method": "auth_code_OTP",
+          "description": "6-digit OTP sent to email for passwordless login. Two-step flow: send OTP → verify OTP. Uses otp_codes table with 10-minute expiry.",
+          "target_users": ["student", "lecturer", "technician", "admin"]
+        },
+        {
+          "method": "session_code",
+          "description": "6-digit alphanumeric confirmation code generated per lab session. Lecturer/technician creates session, code is emailed to enrolled students. Students enter code and select their name from a lab-specific list to log in.",
+          "target_users": ["student"]
+        }
+      ],
+      "key_table": "qr_sessions (id, token, status, user_id, expires_at)",
+      "multi_factor_auth": "MFA required for admin and lecturer roles. Generates verification code with 5-minute expiry."
+    },
+
+    "practical_lifecycle": {
+      "description": "Complete practical management lifecycle from creation to completion",
+      "phases": [
+        {
+          "phase": "1. Experiment Definition",
+          "actor": "Technician",
+          "description": "Create structured experiments with sections, apparatus list, procedure steps (step-by-step), and results table structure. Experiments can be saved as draft and published later."
+        },
+        {
+          "phase": "2. Practical Creation",
+          "actor": "Lecturer",
+          "description": "Create practicals with title, objective, theory, description, lab assignment, scheduled date/time, equipment/chemical requirements, procedure JSON, observations table structure, safety notes, and templates for results and calculations. Supports lab availability checking (max 3 practicals per day per lab, time-slot conflict detection).",
+          "features": [
+            "CRUD operations with draft/publish workflow",
+            "Lab availability calendar (8 AM - 6 PM hourly slots)",
+            "Student enrollment tracking",
+            "Lab session management (open/closed states)",
+            "Confirmation code generation and email distribution to enrolled students"
+          ]
+        },
+        {
+          "phase": "3. Scheduling & Notification",
+          "actor": "Technician/Lecturer",
+          "description": "Create lab sessions linked to practicals. System generates confirmation codes and emails them to all enrolled students with lab name, practical title, and session date.",
+          "automations": [
+            "Bulk email auth codes via Mailer utility",
+            "Session status tracking (scheduled → active → completed)",
+            "Lab location GPS coordinates and radius for geo-fencing"
+          ]
+        },
+        {
+          "phase": "4. Student Attendance",
+          "actor": "Student",
+          "description": "Multiple methods to mark attendance for a practical session. Attendance required before accessing practical execution.",
+          "methods": ["QR code scan", "RFID scan", "Auth code entry", "Biometric verification"],
+          "verification_flow": "QR/biometric → Location validation (GPS radius) → Technician auth code → Full attendance marked"
+        },
+        {
+          "phase": "5. Practical Execution",
+          "actor": "Student",
+          "description": "Tabbed practical execution interface with auto-save. Student views experiment sections, apparatus, and step-by-step procedure. Has structured data entry for results with auto-saving. Submits final report.",
+          "features": [
+            "Auto-save per section (every change saved immediately)",
+            "Results table with dynamic columns",
+            "Draft/submitted status workflow",
+            "Access window enforcement (30 min before to 20 min after scheduled start)"
+          ],
+          "key_tables": ["student_submissions", "submission_data", "submission_results", "lab_reports"]
+        },
+        {
+          "phase": "6. Report Submission",
+          "actor": "Student",
+          "description": "Submit detailed lab reports after completing practical. Requires notebook completion first. Supports file upload (PDF/DOC/DOCX) with secure auth method verification.",
+          "features": [
+            "Deadline tracking with extension support",
+            "Rich content entry (summary, methodology, results, conclusions, references)",
+            "File upload restricted to secure auth methods (biometric, RFID, QR, code)",
+            "Status tracking: draft → submitted → graded/returned"
+          ]
+        },
+        {
+          "phase": "7. Grading & Feedback",
+          "actor": "Lecturer",
+          "description": "Grade submitted reports with scores (0-100) and detailed feedback. Supports returning reports for revision with comments.",
+          "features": [
+            "Grading statistics (average, highest, lowest scores)",
+            "Approval record creation for audit trail",
+            "Revision request workflow"
+          ]
+        },
+        {
+          "phase": "8. Datasheet Generation",
+          "actor": "Student/Lecturer",
+          "description": "Generate professional JKUAT-branded PDF lab datasheets with QR codes, digital signatures, and approval status. Anti-tamper verification system.",
+          "features": [
+            "TCPDF-based PDF generation with JKUAT logo header",
+            "SHA256 digital signatures for tamper detection",
+            "Embedded QR codes linking to public verification portal",
+            "Auto-approval for biometric/RFID/QR/auth_code methods",
+            "Manual approval workflow for password-based auth",
+            "Public verification page (no login required)",
+            "Student dashboard with two-tab interface (My Datasheets / Available Practicals)"
+          ],
+          "key_files": [
+            "includes/DatasheetPDFGenerator.php (640+ lines)",
+            "includes/DigitalSignature.php (SHA256)",
+            "includes/QRCodeGenerator.php",
+            "api/datasheet.php (POST: generate, list, verify)",
+            "api/download_datasheet.php (secure download)",
+            "verify.php (public QR verification portal)",
+            "migrations/datasheet_workflow_migration.sql (4 new tables)"
+          ],
+          "approval_logic": {
+            "auto_approved": ["biometric", "rfid", "qrcode", "auth_code"],
+            "manual_pending": ["password"]
+          }
+        }
+      ]
+    },
+
+    "notebook_management": {
+      "description": "Digital lab notebook system with versioning, approval workflow, and group sync capabilities",
+      "features": [
+        "Create notebooks linked to lab sessions with rich content",
+        "Structured sections: practical type, difficulty, objectives, materials, safety notes, conclusions",
+        "Version history tracking with autosave",
+        "Submit for technician approval workflow",
+        "Group notebook sync for collaborative work",
+        "Role-based views (student own, technician pending, admin all)",
+        "Digital signature generation on approval"
+      ],
+      "key_table": "notebooks (id, session_id, student_id, title, content, status, version, created_by, creator_role)"
+    },
+
+    "asset_management_with_blockchain": {
+      "description": "Laboratory asset inventory management with blockchain-based immutable audit trail",
+      "features": [
+        "Full CRUD for lab assets (asset code, name, type, lab assignment, quantity, serial number, purchase date)",
+        "Asset lifecycle: register → issue → return → transfer → dispose",
+        "Proof-of-work blockchain (configurable difficulty) recording every asset action",
+        "Blockchain integrity validation (tamper detection)",
+        "Asset transaction history with full provenance tracking",
+        "Usage logging with duration and consumption tracking",
+        "Lab-to-lab transfers with reason tracking",
+        "Dashboard with chain stats and validation status"
+      ],
+      "blockchain_implementation": {
+        "class": "Blockchain (Block.php + Blockchain.php)",
+        "difficulty": "Configurable (default 2 leading zeros)",
+        "genesis_block": "Created on first initialization",
+        "validation": "Full chain validation checking hash chain integrity",
+        "storage": "blockchain_blocks table with block_index, timestamp, data JSON, previous_hash, hash, nonce"
+      },
+      "key_files": [
+        "blockchain/Block.php",
+        "blockchain/Blockchain.php",
+        "blockchain/AssetTracker.php",
+        "controllers/AssetController.php (routes: index, create, view, issue, returnAsset, transfer, blockchain)"
+      ],
+      "user_roles": {
+        "admin": "Create and manage assets, view all",
+        "technician": "Issue, return, transfer assets within their lab",
+        "lecturer": "View assets and history",
+        "student": "View available assets"
+      }
+    },
+
+    "practical_request_system": {
+      "description": "Students can request enrollment in practicals they missed or need access to",
+      "features": [
+        "Submit requests with reason, preferred lab, and urgency level",
+        "Pre-selected practical via GET parameter (from closed practical Request Entry button)",
+        "Status tracking: pending → approved/rejected → cancelled",
+        "Duplicate enrollment prevention",
+        "Activity logging for all status changes"
+      ],
+      "key_table": "practical_requests",
+      "access": "Student only"
+    },
+
+    "scheduling_and_calendar": {
+      "description": "Multi-view lab scheduling system",
+      "views": {
+        "today": "Today's schedule",
+        "week": "Weekly schedule view",
+        "month": "Monthly calendar view",
+        "all": "Full schedule listing"
+      },
+      "features": [
+        "Lab filter by lab name",
+        "Schedule statistics (total, upcoming, completed)",
+        "Lab occupancy tracking",
+        "Lab session creation with auth code generation",
+        "Enrolled student listing per practical (AJAX endpoint)",
+        "Email notification of auth codes to enrolled students"
+      ]
+    },
+
+    "inventory_and_lab_monitoring": {
+      "description": "Lab inventory oversight and CO2 sensor monitoring",
+      "features": [
+        "Inventory listing with statistics and lab groupings",
+        "CO2 sensor data collection via Python WebSocket server (smart-lab-server.py)",
+        "Real-time CO2 monitoring widget (components/co2_monitor_widget.php)",
+        "JSON-based CO2 data storage in web-app/co2_data/",
+        "Dashboard with lab occupancy percentages and utilization data"
+      ],
+      "co2_sensor": {
+        "server": "web-app/smart-lab-server.py (Python WebSocket)",
+        "data_storage": "web-app/co2_data/ (JSON files)",
+        "widget": "components/co2_monitor_widget.php",
+        "dashboard_example": "EXAMPLE_DASHBOARD_WITH_CO2.php"
+      }
+    },
+
+    "role_based_dashboards": {
+      "description": "Custom dashboards per user role with relevant metrics and actions",
+      "dashboards": {
+        "student": {
+          "sections": [
+            "Today's lab schedules and practical status",
+            "Upcoming practicals",
+            "Recent submissions",
+            "My notebooks and reports status",
+            "Downloadable datasheets"
+          ]
+        },
+        "lecturer": {
+          "sections": [
+            "My practicals overview",
+            "Pending grading queue with counts",
+            "Report statistics (average/highest/lowest grades)",
+            "Student submission tracking"
+          ]
+        },
+        "technician": {
+          "sections": [
+            "Lab assets and inventory status",
+            "Pending notebook approvals",
+            "Experiment management",
+            "Schedule management with auth code generation"
+          ]
+        },
+        "admin": {
+          "sections": [
+            "System-wide statistics (users, labs, practicals, assets)",
+            "Blockchain validation status",
+            "Recent system activity",
+            "Lab utilization and occupancy data",
+            "Weekly activity chart",
+            "Top users by activity",
+            "System health indicators"
+          ]
+        }
+      },
+      "data_points": [
+        "Total labs, students, lecturers, technicians",
+        "Active practicals, assets, sessions, blockchain blocks",
+        "Today's logins, pending reports and notebooks",
+        "Lab occupancy percentages",
+        "System health (database, blockchain, sessions, activity)"
+      ]
+    },
+
+    "audit_and_logging": {
+      "description": "Comprehensive activity tracking across all system modules",
+      "features": [
+        "audit_logs table recording all user actions with module, action, IP address, and timestamp",
+        "Logging across: auth, practicals, reports, notebooks, assets, schedule modules",
+        "Dashboard display of recent activity",
+        "Weekly activity aggregation for analytics",
+        "Top users by activity count"
+      ],
+      "logged_actions": [
+        "login_password, login_biometric, login_rfid, login_qr, login_auth_code_otp, login_code_selected",
+        "logout, user_registered, staff_registered",
+        "practical_created, practical_updated, practical_status_changed",
+        "practical_request_created, practical_request_cancelled",
+        "practical_attendance_marked, practical_started, practical_submitted",
+        "report_created, report_submitted, report_updated, report_graded, report_returned",
+        "notebook_created, notebook_submitted, notebook_approved, notebook_rejected",
+        "asset_created, asset_issued, asset_returned, asset_transferred",
+        "lab_session_created, auth_code_generated, auth_code_success, auth_code_failed"
+      ]
+    },
+
+    "user_management": {
+      "description": "Role-based user system with registration and staff management",
+      "supported_roles": ["student", "lecturer", "technician", "admin"],
+      "features": [
+        "Student registration with reg_number, email validation",
+        "Staff registration with secure registration key (UNILIS@Staff2025)",
+        "Role-based lab assignment (lecturer/technician must be assigned to a lab)",
+        "Account active/inactive status",
+        "Lab assignment per user for access control",
+        "Device fingerprint tracking for QR quick-login"
+      ]
+    },
+
+    "datasheet_reports": {
+      "description": "Professional lab datasheet PDF generation and verification system",
+      "pdf_content": {
+        "header": "JKUAT logo (centered), university name, SmartLab branding, 'LAB DATASHEET' title, blue color scheme",
+        "practical_details": "Practical name, lab number, experiment description",
+        "student_details": "Student name, admission number, course",
+        "experiment_section": "Experiment title and full description",
+        "readings_table": "Auto-numbered trials, measurement fields, units, observations",
+        "blank_pages": "3 pages for Calculations, Inferences, Additional Notes",
+        "footer": "QR code (bottom-left, 20mm, scannable), SHA256 signature hash preview (16 chars), approval status badge (green APPROVED), generation timestamp"
+      },
+      "api_endpoints": {
+        "POST_api/datasheet.php": {
+          "actions": ["generate", "list", "verify"],
+          "generate_output": "datasheet_id, pdf_path, signature_hash, approval_status, qr_code_path"
+        },
+        "GET_api/download_datasheet.php": "Secure PDF download with access control and status update",
+        "GET_verify.php": "Public QR scanning endpoint - no auth required, displays verification result"
+      },
+      "security": {
+        "signatures": "SHA256 with timing-safe comparison (hash_equals)",
+        "qr_codes": "Each QR contains practical_id + student_id + timestamp, links to verification page",
+        "access_control": "Students download own datasheets only, lecturer approval required for password auth"
+      }
+    },
+
+    "database_schema": {
+      "database_name": "unilis_smartlab",
+      "table_count": "30+ tables",
+      "core_tables": [
+        {"table": "users", "purpose": "Unified user management with roles, biometric_hash, device_fingerprint, lab_id"},
+        {"table": "labs", "purpose": "Laboratory definitions with capacity, type, GPS coordinates"},
+        {"table": "experiments", "purpose": "Structured experiment definitions with sections, apparatus, procedures"},
+        {"table": "experiment_sections", "purpose": "Experiment content sections by type and display order"},
+        {"table": "experiment_apparatus", "purpose": "Equipment list per experiment"},
+        {"table": "experiment_procedure_steps", "purpose": "Step-by-step procedure instructions"},
+        {"table": "experiment_results_structure", "purpose": "Results table column definitions"},
+        {"table": "practicals", "purpose": "Scheduled lab practicals with full metadata (21 columns)"},
+        {"table": "lab_sessions", "purpose": "Lab session instances with confirmation codes and status"},
+        {"table": "lab_schedules", "purpose": "Schedule entries for experiments with GPS location"},
+        {"table": "lab_attendance", "purpose": "Student attendance records with login method"},
+        {"table": "attendance", "purpose": "Simple attendance records per practical"},
+        {"table": "student_submissions", "purpose": "Student practical submissions"},
+        {"table": "submission_data", "purpose": "Section-based rich content per submission"},
+        {"table": "submission_results", "purpose": "Structured results table data"},
+        {"table": "lab_reports", "purpose": "Lab report records tied to practicals"},
+        {"table": "reports", "purpose": "Full report submissions with grading"},
+        {"table": "notebooks", "purpose": "Digital lab notebooks with versioning"},
+        {"table": "report_deadlines", "purpose": "Deadline tracking with extension support"},
+        {"table": "datasheets", "purpose": "Generated PDF datasheet records with signatures and QR codes"},
+        {"table": "datasheet_readings", "purpose": "Student measurement data entries on datasheets"},
+        {"table": "chemistry_practicals", "purpose": "Chemistry-specific practical configurations"},
+        {"table": "chemistry_practical_readings", "purpose": "Reading templates for chemistry practicals"},
+        {"table": "assets", "purpose": "Lab asset inventory with blockchain tracking"},
+        {"table": "blockchain_blocks", "purpose": "Immutable blockchain ledger for asset actions"},
+        {"table": "asset_transactions", "purpose": "Traditional transaction records for quick queries"},
+        {"table": "approvals", "purpose": "Document approval records (reports, etc.)"},
+        {"table": "otp_codes", "purpose": "One-time passwords and auth codes with expiry"},
+        {"table": "qr_sessions", "purpose": "Dynamic QR authentication sessions"},
+        {"table": "rfid_cards", "purpose": "RFID card to student mapping"},
+        {"table": "audit_logs", "purpose": "System-wide activity audit trail"},
+        {"table": "student_practicals", "purpose": "Student-practical enrollment mapping"},
+        {"table": "practical_requests", "purpose": "Student requests for practical access"}
+      ]
+    },
+
+    "deployment_options": {
+      "local_development": {
+        "environment": "XAMPP / Apache / MySQL / PHP 8.2+",
+        "setup_file": "setup.php (web-based database and admin creation)",
+        "default_admin": "ADMIN001 / Admin@1234"
+      },
+      "docker_deployment": {
+        "files": ["docker-compose.yml", "docker-compose.prod.yml", "Dockerfile"],
+        "services": ["smartlab-app (Apache/PHP)", "smartlab-db (MySQL 8.0+)"],
+        "production_url": "https://unilis.jhubafrica.com/smart-lab"
+      },
+      "ci_cd": "GitHub Actions with SSH deployment (.github/workflows/deploy.yml)",
+      "environment_files": [".env.example", "config/app_production.php", "config/database_production.php"]
+    },
+
+    "key_routes": {
+      "web_routes": {
+        "auth/login": "AuthController@login",
+        "auth/register": "AuthController@register",
+        "dashboard": "DashboardController@index",
+        "practicals": "PracticalController@index",
+        "practicals/create": "PracticalController@create",
+        "practicals/view/{id}": "PracticalController@view",
+        "practicals/edit/{id}": "PracticalController@edit",
+        "practical-requests": "PracticalRequestController@index",
+        "practical-requests/create": "PracticalRequestController@create",
+        "report-submission": "ReportSubmissionController@index",
+        "report-submission/create": "ReportSubmissionController@create",
+        "notebooks": "NotebookController@index",
+        "notebooks/create": "NotebookController@create",
+        "assets": "AssetController@index",
+        "assets/create": "AssetController@create",
+        "assets/issue/{id}": "AssetController@issue",
+        "schedule": "ScheduleController@index",
+        "experiments": "ExperimentController@index",
+        "experiments/create": "ExperimentController@create",
+        "experiments/edit/{id}": "ExperimentController@edit",
+        "schedules": "ScheduleController@listSchedules",
+        "student/dashboard": "StudentPracticalController@dashboard",
+        "student/practical/{id}": "StudentPracticalController@execute",
+        "qr/scan": "QrAuthController@scan",
+        "qr/claim": "QrAuthController@claim",
+        "attendance-qr/scan": "QrAuthController@attendanceScan"
+      },
+      "api_routes": {
+        "api/datasheet.php?action=generate": "Create datasheet PDF",
+        "api/datasheet.php?action=list": "List student datasheets",
+        "api/datasheet.php?action=verify": "Verify datasheet signature",
+        "api/download_datasheet.php": "Download datasheet PDF",
+        "qr/generate": "Generate QR session token",
+        "qr/poll?token=X": "Poll QR session status"
+      }
+    },
+
+    "file_architecture": {
+      "presentation_layer": "views/ (datasheets.php, auth/login.php, practicals/index.php, student/dashboard.php, etc.)",
+      "api_layer": "api/ (datasheet.php, download_datasheet.php)",
+      "business_logic": "controllers/ (18 controllers)",
+      "data_access": "models/ (11 models)",
+      "utility_layer": "includes/ (DatasheetPDFGenerator.php, DigitalSignature.php, QRCodeGenerator.php, autoloader.php)",
+      "data_layer": "migrations/ (SQL schema files)",
+      "blockchain": "blockchain/ (Block.php, Blockchain.php, AssetTracker.php)",
+      "config": "config/ (app.php, database.php, roles.php, app_production.php, database_production.php)",
+      "auth": "auth/ (Auth.php)",
+      "utils": "utils/ (helpers.php, Mailer.php, Validator.php)",
+      "web_app": "web-app/ (Python sensor server, CO2 monitoring, index.html)"
+    }
+  }
+}
