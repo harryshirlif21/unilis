@@ -172,8 +172,9 @@ $columnsToCheck = [
 foreach ($columnsToCheck as $table => $columns) {
     foreach ($columns as $column) {
         try {
-            $stmt = $db->prepare("SHOW COLUMNS FROM `{$table}` LIKE :col");
-            $stmt->execute([':col' => $column]);
+            // SHOW COLUMNS does not support PDO named parameters on MySQL 8.0;
+            // use direct string interpolation with backtick-quoted identifiers
+            $stmt = $db->query("SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
             if ($stmt->fetch()) {
                 echo "[OK] Column '{$table}.{$column}' exists\n";
             } else {
