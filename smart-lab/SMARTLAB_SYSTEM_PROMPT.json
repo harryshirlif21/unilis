@@ -1,7 +1,7 @@
 {
   "system_name": "UNILIS SmartLab",
   "version": "1.0.0",
-  "purpose": "A lab management module within the UNILIS learning management system for managing student practicals, lab sessions, experiments, report submissions, IoT device integration (RFID/CO2), QR-based authentication, blockchain-based audit trails, and complete lab asset/inventory management.",
+  "purpose": "A lab management module within the UNILIS learning management system for managing student practicals, lab sessions, experiments, report submissions, IoT device integration (RFID/CO2), QR-based authentication, blockchain-based audit trails, and complete lab asset/inventory management with strict academic integrity workflow enforcement.",
 
   "architecture": {
     "pattern": "Front Controller MVC (custom PHP, no framework)",
@@ -9,24 +9,24 @@
       "1. Apache mod_rewrite in .htaccess: All non-file/non-directory requests rewritten to index.php?url=<path>",
       "2. index.php: Loads environment config (app.php or app_production.php), database config, roles config, and helper utilities. Checks session authentication. If unauthenticated and not accessing auth/qr routes, redirects to landing.html.",
       "3. routes/web.php: Parses URL segments into controller name, method, and optional parameter. Maps controller name (e.g., 'practicals') to controller class (e.g., 'PracticalController') using a hardcoded associative array. Instantiates the controller and calls the method with the parameter.",
-      "4. Controller: Loads models via require_once, performs business logic, renders views using renderView() helper.",
+      "4. Controller: Loads models and includes via require_once, performs business logic, renders views using renderView() helper.",
       "5. Model: PDO-based database queries using a singleton getDB() function.",
       "6. View: Procedural PHP templates rendered via renderView() which includes layouts/header.php, the template, and layouts/footer.php."
     ],
     "environment_detection": "index.php checks if $_SERVER['HTTP_HOST'] contains 'unilis.jhubafrica.com' to determine production vs development mode and loads corresponding config files.",
     "directory_structure": {
       "root": "smart-lab/",
-      "controllers/": "20+ controller classes",
+      "controllers/": "21+ controller classes",
       "models/": "13+ model classes",
-      "views/": "Subdirectories per feature (practicals, auth, dashboard, student, reports, etc.) with layouts/ for header and footer",
+      "views/": "Subdirectories per feature (practicals, auth, dashboard, student, reports, workflow, etc.) with layouts/ for header and footer",
       "config/": "app.php, database.php, roles.php, and their _production counterparts",
       "auth/": "Auth.php - authentication class with multiple auth methods",
       "routes/": "web.php (controller routing), api.php (API endpoints)",
       "utils/": "helpers.php (renderView, sanitize, logActivity, etc.), Validator.php, Mailer.php",
-      "includes/": "autoloader.php, QRCodeGenerator.php, DatasheetPDFGenerator.php, DigitalSignature.php, SensorServerClient.php",
-      "migrations/": "SQL migration files for database schema changes",
+      "includes/": "autoloader.php, WorkflowEngine.php, DatasheetGenerator.php, BlockchainAuditService.php, DynamicQRService.php, QRCodeGenerator.php, DatasheetPDFGenerator.php, DigitalSignature.php, SensorServerClient.php",
+      "migrations/": "SQL migration files for database schema changes including workflow/ subsystem",
       "database/": "init.sql, migrations/, seeds/",
-      "blockchain/": "Block.php, Blockchain.php, AssetTracker.php - custom blockchain implementation",
+      "blockchain/": "Block.php, Blockchain.php, AssetTracker.php - custom blockchain implementation (legacy)",
       "public/": "upload.php, css/, js/",
       "web-app/": "Python-based sensor server for CO2 monitoring (smart-lab-server.py), data-api.php",
       "api/": "datasheet.php, download_datasheet.php, api/v1/",
@@ -43,27 +43,27 @@
     "auth_methods": [
       {
         "method": "password",
-        "description": "Login via reg_number + password (password_verify with bcrypt)",
+        "description": "Login via reg_number + password (password_verify with bcrypt). NOTE: Password login does NOT qualify as attendance verification in the strict workflow.",
         "functions": ["login(regNo, password)", "loginByEmail(email, password)"]
       },
       {
         "method": "biometric",
-        "description": "Login via pre-registered biometric hash (SHA-256 with BIOMETRIC_SALT)",
+        "description": "Login via pre-registered biometric hash (SHA-256 with BIOMETRIC_SALT). Qualifies as physical presence verification.",
         "functions": ["loginBiometric(biometricHash)", "registerBiometric(userId, biometricData)"]
       },
       {
         "method": "qr",
-        "description": "Login via QR token that encodes sessionId + timestamp, verified with HMAC-SHA256 using QR_SECRET_KEY (5 min expiry)",
+        "description": "Login via QR token that encodes sessionId + timestamp, verified with HMAC-SHA256 using QR_SECRET_KEY (5 min expiry). Legacy method.",
         "functions": ["loginByQR(qrToken, sessionId)", "generateQR(sessionId)", "verifyQR(token, sessionId)"]
       },
       {
         "method": "rfid",
-        "description": "Login via RFID UID, looked up in rfid_cards table linked to users",
+        "description": "Login via RFID UID, looked up in rfid_cards table linked to users. Qualifies as physical presence verification.",
         "functions": ["loginByRFID(uid)", "registerRFIDCard(uid, identifier)", "findUserByIdentifier(identifier)"]
       },
       {
         "method": "code",
-        "description": "Login via technician-generated confirmation code linked to lab_sessions (8-hour validity)",
+        "description": "Login via technician-generated confirmation code linked to lab_sessions (8-hour validity).",
         "functions": ["loginByCode(confirmationCode)", "selectStudentForSession(userId, sessionId)"]
       }
     ],
@@ -80,8 +80,8 @@
   },
 
   "user_roles": {
-    "student": "Can view and take practicals, submit reports, view grades",
-    "lecturer": "Can create/edit/manage practicals, grade reports, view analytics",
+    "student": "Can view and take practicals, submit reports, view grades. Must verify attendance via physical methods only.",
+    "lecturer": "Can create/edit/manage practicals, grade reports, view analytics, review workflow verifications",
     "technician": "Can manage labs, generate auth codes, assist with experiments",
     "admin": "Full system management, user management, lab configuration",
     "lab_admin": "Lab-level administrative control"
@@ -109,7 +109,9 @@
     "schedules": "ScheduleController",
     "student": "StudentPracticalController",
     "start-practical": "StudentPracticalController",
-    "users": "UsersController"
+    "users": "UsersController",
+    "workflow": "WorkflowController",
+    "datasheets": "WorkflowController"
   },
 
   "controllers": [
@@ -144,7 +146,32 @@
         "startPractical": "AJAX endpoint to start a practical session (checks attendance, creates report)",
         "markAttendance": "AJAX endpoint to mark attendance (QR, RFID, or fingerprint verification)"
       },
-      "practical_data_fields": ["id(UUID)", "title", "objective", "theory", "description", "lab_id", "lecturer_id", "course_code", "scheduled_date", "start_time", "end_time", "duration_hours", "max_students", "status(draft/published/completed/ongoing)", "required_equipment", "required_chemicals", "procedure_json", "observations_table_structure", "safety_notes", "results_template", "calculations_template"]
+      "practical_data_fields": ["id(UUID)", "title", "objective", "theory", "description", "lab_id", "lecturer_id", "course_code", "scheduled_date", "start_time", "end_time", "duration_hours", "max_students", "status(draft/published/completed/ongoing)", "required_equipment", "required_chemicals", "procedure_json", "observations_table_structure", "safety_notes", "results_template", "calculations_template", "verification_window_opens_minutes", "verification_window_closes_minutes"]
+    },
+    {
+      "name": "WorkflowController",
+      "path": "controllers/WorkflowController.php",
+      "description": "Handles all academic-integrity workflow transitions including attendance verification (physical presence only), practical start/complete, datasheet generation/submission, report writing/submission, QR-based datasheet verification, and blockchain audit.",
+      "includes": ["WorkflowEngine.php", "DatasheetGenerator.php", "BlockchainAuditService.php", "DynamicQRService.php"],
+      "methods": {
+        "status": "GET /workflow/status/{practical_id} - JSON endpoint returning current workflow state, progress percentage, and availability flags",
+        "verifyAttendance": "POST /workflow/verify-attendance - Verifies attendance via RFID, Biometric, Dynamic QR, Technician Code, or NFC. Rejects PASSWORD/EMAIL methods. Two-step transition: Awaiting Verification → Verified.",
+        "startPractical": "POST /workflow/start-practical - Starts practical ONLY if in 'Verified' state, practical time has started, and verification is not expired. Auto-transitions through 'Ready To Start'.",
+        "completePractical": "POST /workflow/complete-practical - Marks practical as completed, triggers datasheet generation readiness.",
+        "generateDatasheet": "POST /workflow/generate-datasheet - Auto-generates datasheet ONLY after practical completion. Creates HTML+blockchain hash+QR token record.",
+        "submitDatasheet": "POST /workflow/submit-datasheet - Submits datasheet, creates blockchain record, locks datasheet, opens report writing.",
+        "openReportWriting": "POST /workflow/open-report-writing - Creates report record linked to datasheet, transitions to report writing state.",
+        "submitReport": "POST /workflow/submit-report - Final report submission transition.",
+        "verifyDatasheet": "GET /workflow/verify-datasheet/{token} - Verifies a datasheet by its QR token. Checks expiry, revocation, blockchain hash integrity.",
+        "dashboard": "GET /workflow/dashboard/{practical_id} - Renders the student-facing practical workflow dashboard with full status display.",
+        "verifyView": "GET /workflow/verify-view/{practical_id} - Renders the attendance verification page for a practical.",
+        "datasheetVerifyPage": "GET /datasheets/verify/{token} - Renders the datasheet verification result page for QR scan.",
+        "labQR": "GET /workflow/lab-qr?lab_id=&practical_id= - JSON endpoint returning current dynamic QR code for lab display.",
+        "blockchainAudit": "GET /workflow/blockchain-audit/{datasheet_id} - Returns full blockchain audit trail for a datasheet (lecturer/admin only).",
+        "checkTamper": "POST /workflow/check-tamper - Compares current PDF hash against blockchain record to detect tampering.",
+        "pendingVerifications": "GET /workflow/pending-verifications/{practical_id} - Returns all student verifications for a practical (lecturer/admin only).",
+        "grade": "POST /workflow/grade - Lecturer grades a student's practical (lecturer/admin only)."
+      }
     },
     {
       "name": "PracticalRequestController",
@@ -204,7 +231,7 @@
     {
       "name": "BlockchainController",
       "path": "controllers/BlockchainController.php",
-      "description": "Blockchain verification and audit trail management"
+      "description": "Blockchain verification and audit trail management (legacy)"
     },
     {
       "name": "QrAuthController",
@@ -233,6 +260,104 @@
     }
   ],
 
+  "academic_integrity_workflow": {
+    "class": "WorkflowEngine (smart-lab/includes/WorkflowEngine.php)",
+    "description": "Core state machine enforcing strict practical workflow with physical-presence-only attendance verification.",
+    "workflow_states": [
+      "Scheduled",
+      "Awaiting Verification",
+      "Verified",
+      "Ready To Start",
+      "In Progress",
+      "Practical Completed",
+      "Datasheet Generated",
+      "Datasheet Submitted",
+      "Report Writing Open",
+      "Report Submitted",
+      "Graded"
+    ],
+    "valid_transitions": {
+      "Scheduled": "Awaiting Verification",
+      "Awaiting Verification": "Verified",
+      "Verified": "Ready To Start",
+      "Ready To Start": "In Progress",
+      "In Progress": "Practical Completed",
+      "Practical Completed": "Datasheet Generated",
+      "Datasheet Generated": "Datasheet Submitted",
+      "Datasheet Submitted": "Report Writing Open",
+      "Report Writing Open": "Report Submitted",
+      "Report Submitted": "Graded"
+    },
+    "allowed_verification_methods": ["RFID", "BIOMETRIC", "DYNAMIC_QR", "TECHNICIAN_CODE", "NFC"],
+    "disallowed_verification_methods": ["EMAIL_PASSWORD", "PASSWORD_ONLY"],
+    "critical_rules": [
+      "Datasheet is never generated before practical starts",
+      "Only RFID/Biometric/DynamicQR/TechnicianCode/NFC qualify as physical presence verification",
+      "Password/email login never counts as attendance verification",
+      "Report writing locked until datasheet is submitted and verified",
+      "All datasheets contain QR verification + blockchain linkage",
+      "Attendance verification window: configurable minutes before/after practical start (default: opens 30 min before, closes 20 min after)",
+      "Automatic 30-minute expiry on attendance verification",
+      "Practical can only start when time >= scheduled start time AND verification is active"
+    ],
+    "background_checks_for_start": [
+      "Check student is scheduled for this practical",
+      "Check verification window is open",
+      "Check attendance is verified (verification_approved = 1)",
+      "Check verification method is physical (not password)",
+      "Check verification has not expired",
+      "Check practical status is 'published'"
+    ]
+  },
+
+  "datasheet_system": {
+    "description_v2": "Academic integrity datasheet system - auto-generated ONLY after practical completion. Each datasheet contains student info, practical info, verification method & time, lab/session info, measurements, observations, calculations, results, practical start & end times, QR verification code, blockchain audit hash, and digital signature for tamper evidence.",
+    "class": "DatasheetGenerator (smart-lab/includes/DatasheetGenerator.php)",
+    "key_features": [
+      "Datasheet generation forcibly blocked before practical completion (checks workflow_status === 'Practical Completed')",
+      "Each datasheet stored as HTML file with SHA-256 hash",
+      "Unique QR token (64 hex chars) generated per datasheet with 365-day expiry",
+      "Blockchain hash computed from all datasheet data + timestamp for immutability",
+      "Verification endpoint accepts QR token and returns full datasheet metadata with blockchain proof",
+      "QR token statuses: active → used → expired/revoked",
+      "Datasheet submission statuses: generated → submitted → verified",
+      "Footer imprint: 'Generated by UNILIS SmartLabs', Datasheet ID, Attendance Verification method, Blockchain Hash"
+    ],
+    "verifyByToken": "Public verification endpoint that checks token existence, expiry, revocation status, blockchain hash integrity, and marks QR as used on successful verification.",
+    "files": ["includes/DatasheetGenerator.php", "includes/BlockchainAuditService.php", "views/workflow/datasheet_verify.php", "controllers/WorkflowController.php (verifyDatasheet, datasheetVerifyPage methods)"],
+    "legacy_datasheet_system": {
+      "description": "Chemical safety datasheet management with PDF generation (separate from academic integrity datasheets)",
+      "files": ["controllers/DatasheetController.php", "models/DatasheetModel.php", "includes/DatasheetPDFGenerator.php", "api/datasheet.php", "api/download_datasheet.php", "views/datasheets.php"],
+      "workflow": "Technicians upload chemical datasheets → stored in database → searchable/printable → PDF generation for download"
+    }
+  },
+
+  "blockchain_audit_service": {
+    "class": "BlockchainAuditService (smart-lab/includes/BlockchainAuditService.php)",
+    "description": "Blockchain-based audit trail for datasheet submissions. Each submission creates an immutable block in the blockchain_blocks table chained via previous_hash pointers.",
+    "methods": {
+      "storeDatasheetHash": "Creates a block with block_index, previous_hash, block_data (event + datasheet_id + pdf_hash + timestamp), and computed SHA-256 hash. Returns block_id, index, hash.",
+      "verifyHash": "Looks up a hash in the blockchain and re-verifies chain integrity up to that block.",
+      "getAuditTrail": "Returns all blockchain blocks linked to a datasheet_id.",
+      "detectTampering": "Compares a current PDF hash against the stored blockchain record. Returns tampered=true with original_hash and current_hash if mismatch detected."
+    },
+    "chain_verification": "verifyChainIntegrity iterates all blocks from genesis to target index, verifying previous_hash pointers form an unbroken chain."
+  },
+
+  "dynamic_qr_service": {
+    "class": "DynamicQRService (smart-lab/includes/DynamicQRService.php)",
+    "description": "Dynamic QR codes for attendance verification displayed on laboratory screens. Refresh every 15 seconds, single-use, nonce-based anti-replay.",
+    "qr_payload_fields": ["lab_id", "session_id", "practical_id", "timestamp", "expiration_timestamp", "nonce (16 random bytes hex)", "type='attendance_verification'", "digital_signature (HMAC-SHA256)"],
+    "security_features": [
+      "Auto-refresh every 15 seconds on lab display",
+      "Single-use nonce prevents screenshot reuse (stored in file-based cache + audit_logs)",
+      "HMAC-SHA256 digital signature with lab-specific derived secret key",
+      "Nonce cleaned up after expiration via cleanupExpiredNonces()",
+      "Base64-encoded JSON payload for QR rendering"
+    ],
+    "workflow": "Lab screen displays rotating QR → Student scans → verifyQRPayload checks signature, expiration, nonce uniqueness → marks nonce as used → verification logged → attendance approved"
+  },
+
   "models": [
     {"name": "PracticalModel", "key_tables": ["practicals", "labs", "users", "lab_sessions", "student_practicals", "attendance", "lab_reports", "report_deadlines"]},
     {"name": "ReportModel", "key_tables": ["lab_reports", "submission_data"]},
@@ -243,7 +368,7 @@
     {"name": "AssetModel", "description": "Asset management"},
     {"name": "InventoryModel", "description": "Chemical/inventory management"},
     {"name": "NotebookModel", "description": "Digital notebook"},
-    {"name": "BlockchainModel", "description": "Blockchain storage"},
+    {"name": "BlockchainModel", "description": "Blockchain storage (legacy)"},
     {"name": "AuditModel", "description": "Audit log queries"},
     {"name": "DatasheetModel", "description": "Chemical datasheets"},
     {"name": "DeadlineModel", "description": "Report deadline management"}
@@ -259,51 +384,63 @@
     },
     "key_tables": [
       {"name": "users", "description": "Unified user management - all roles (student, lecturer, technician, admin, lab_admin)", "key_columns": ["id", "reg_number", "email", "password", "full_name", "role", "lab_id", "biometric_hash", "is_active"]},
-      {"name": "practicals", "description": "Lab practicals/experiments with full structured content", "key_columns": ["id(UUID char(36))", "title", "objective", "theory", "description", "lab_id", "lecturer_id", "course_code", "scheduled_date", "start_time", "end_time", "duration_hours", "max_students", "status(draft/published/completed/ongoing)", "required_equipment", "required_chemicals", "procedure_json", "observations_table_structure", "safety_notes", "results_template", "calculations_template", "created_at", "updated_at"]},
+      {"name": "practicals", "description": "Lab practicals/experiments with full structured content", "key_columns": ["id(UUID char(36))", "title", "objective", "theory", "description", "lab_id", "lecturer_id", "course_code", "scheduled_date", "start_time", "end_time", "duration_hours", "max_students", "status(draft/published/completed/ongoing)", "required_equipment", "required_chemicals", "procedure_json", "observations_table_structure", "safety_notes", "results_template", "calculations_template", "verification_window_opens_minutes", "verification_window_closes_minutes", "created_at", "updated_at"]},
       {"name": "labs", "description": "Lab rooms/spaces", "key_columns": ["id", "name", "lab_code", "type", "max_capacity", "current_count", "is_active"]},
       {"name": "lab_sessions", "description": "Scheduled lab sessions linked to practicals", "key_columns": ["id", "practical_id", "lab_id", "status(open/closed)", "confirmation_code", "started_at", "ended_at"]},
+      {"name": "student_practical_sessions", "description": "Per-student workflow session tracking with full state machine", "key_columns": ["id", "student_id", "practical_id", "workflow_status(Scheduled/Awaiting Verification/Verified/Ready To Start/In Progress/Practical Completed/Datasheet Generated/Datasheet Submitted/Report Writing Open/Report Submitted/Graded)", "attendance_verification_id", "verification_method", "verification_timestamp", "verification_approved", "practical_started_at", "practical_completed_at", "datasheet_generated_at", "datasheet_submitted_at", "datasheet_hash", "datasheet_qr_token", "report_id", "report_started_at", "report_submitted_at", "grade", "graded_by", "graded_at", "created_at", "updated_at"]},
+      {"name": "attendance_verifications", "description": "Verification records for strict attendance tracking", "key_columns": ["id", "student_id", "practical_id", "verification_method(RFID/BIOMETRIC/DYNAMIC_QR/TECHNICIAN_CODE/NFC)", "verification_timestamp", "verification_device", "verification_status(verified)", "ip_address", "user_agent", "expires_at", "created_at"]},
+      {"name": "datasheet_submissions", "description": "Academic integrity datasheet records with blockchain linkage", "key_columns": ["id", "student_id", "practical_id", "session_id", "pdf_filename", "pdf_path", "pdf_hash", "datasheet_data(JSON)", "verification_method", "verification_timestamp", "practical_start_time", "practical_end_time", "blockchain_hash", "qr_token", "qr_code_path", "signature_hash", "submission_status(generated/submitted/verified)", "verified_at", "created_at"]},
+      {"name": "datasheet_qr_tokens", "description": "QR tokens for datasheet verification", "key_columns": ["id", "datasheet_id", "token", "lab_id", "practical_id", "session_id", "expires_at", "blockchain_hash", "verification_status(active/used/expired/revoked)", "last_verified_at", "created_at"]},
+      {"name": "blockchain_blocks", "description": "Immutable blockchain blocks for audit trail", "key_columns": ["id", "block_index", "timestamp", "block_data(JSON)", "previous_hash", "hash", "datasheet_reference", "created_at"]},
+      {"name": "reports", "description": "Report records created after datasheet submission", "key_columns": ["id", "student_id", "practical_id", "status(draft/submitted/graded)", "datasheet_submitted", "grade", "graded_by", "created_at"]},
       {"name": "lab_session_students", "description": "Junction table linking students to lab sessions"},
       {"name": "student_practicals", "description": "Junction table for student enrollment in practicals"},
       {"name": "lab_reports", "description": "Student lab report submissions", "key_columns": ["id", "practical_id", "student_id", "status(in_progress/submitted/graded)", "grade", "graded_by", "started_at", "submitted_at"]},
       {"name": "submission_data", "description": "Section-based content storage for lab reports"},
-      {"name": "attendance", "description": "Practical attendance tracking with verification method", "key_columns": ["student_id", "practical_id", "verification_method(qr/rfid/fingerprint)", "marked_at"]},
+      {"name": "attendance", "description": "Practical attendance tracking with verification method (legacy)", "key_columns": ["student_id", "practical_id", "verification_method(qr/rfid/fingerprint)", "marked_at"]},
       {"name": "otp_codes", "description": "Technician one-time authentication codes"},
       {"name": "rfid_cards", "description": "RFID card registration linked to users", "key_columns": ["student_id", "uid", "device_id", "created_at", "updated_at"]},
       {"name": "audit_logs", "description": "System activity tracking", "key_columns": ["user_id", "action", "module", "ip_address", "created_at"]},
-      {"name": "blockchain", "description": "Custom blockchain for immutable audit trail"},
+      {"name": "blockchain", "description": "Custom blockchain for immutable audit trail (legacy)"},
       {"name": "assets", "description": "Lab equipment/assets tracking"},
       {"name": "inventory", "description": "Chemical and consumable inventory"},
       {"name": "notebooks", "description": "Digital lab notebooks"},
       {"name": "report_deadlines", "description": "Report submission deadline management"},
       {"name": "co2_readings", "description": "IoT CO2 sensor readings"},
       {"name": "activity_log", "description": "General activity logging"},
-      {"name": "datasheets", "description": "Chemical safety datasheets"}
+      {"name": "datasheets", "description": "Chemical safety datasheets (legacy)"}
     ]
   },
 
   "practical_workflow": {
+    "description": "Full academic integrity workflow enforced by WorkflowEngine state machine",
     "steps": [
-      "1. Lecturer/Admin creates practical: Sets title, objective, theory, description, lab, course code, date/time, max students, equipment, chemicals, procedure (JSON), observations table, safety notes, results/calculations templates",
+      "1. Lecturer/Admin creates practical: Sets title, objective, theory, description, lab, course code, date/time, max students, equipment, chemicals, procedure (JSON), observations table, safety notes, results/calculations templates, verification window settings",
       "2. Publish practical: Status changes from 'draft' to 'published'",
       "3. Lab availability check: Max 3 practicals per lab per day, time slot conflict prevention",
-      "4. Attendance marking: Students mark attendance via QR code, RFID, or fingerprint within a 30-min-before to 20-min-after window",
-      "5. Access window: Students can access practical starting 30 minutes before scheduled time until 20 minutes after start time",
-      "6. Start practical: Creates a lab report with 'in_progress' status",
-      "7. Student executes practical: Tabbed interface with aims, materials, procedure, data tables, calculations, results, conclusion sections - auto-save enabled",
-      "8. Submit report: Final submission of lab report (draft → final pipeline)",
-      "9. Grading: Lecturer grades the report, adds marks and feedback",
-      "10. Blockchain audit: All activities logged to blockchain for tamper-proof audit trail"
+      "4. Session initialization: student_practical_sessions record created with 'Scheduled' status",
+      "5. Attendance verification window opens (configurable, default 30 min before start): Student must verify via RFID, Biometric, Dynamic QR (lab display, 15-sec refresh), Technician Code, or NFC. Password login REJECTED. Two-step: Awaiting Verification → Verified. Verification expires after configurable timeout (default 30 min).",
+      "6. Ready To Start: System checks scheduled start time has been reached and verification is still valid",
+      "7. Practical In Progress: Student executes practical via tabbed interface (aims, materials, procedure, data tables, calculations, results, conclusion) with auto-save",
+      "8. Practical Completed: Student marks practical as complete",
+      "9. Datasheet Auto-Generated: DatasheetGenerator creates HTML datasheet with student info, verification proof, measurements, blockchain hash, QR token. Force-blocked if practical not yet completed.",
+      "10. Datasheet Submitted: Datasheet locked, blockchain block created (BlockchainAuditService::storeDatasheetHash), QR token activated. Chain includes previous_hash pointer for integrity.",
+      "11. Report Writing Open: New report record created in 'reports' table linked to datasheet",
+      "12. Report Submitted: Student submits final report",
+      "13. Grading: Lecturer grades the report with grade and feedback. Only lecturer/admin role allowed.",
+      "14. Blockchain audit: All datasheet activities logged to blockchain_blocks table for tamper-proof audit trail. Tamper detection available via checkTamper endpoint."
     ]
   },
 
   "iot_integration": {
     "rfid": {
-      "description": "RFID card registration and login system",
+      "description": "RFID card registration and login system. Qualifies as physical presence verification for strict workflow.",
       "implementation": "rfid_cards table links UID hex strings to user accounts. One card per student (upsert logic). Auth::loginByRFID() and Auth::registerRFIDCard() handle the flow."
     },
     "qr_code": {
-      "description": "QR code generation and verification for lab session authentication",
-      "implementation": "Auth::generateQR() creates HMAC-SHA256 signed tokens with session ID and timestamp. Auth::verifyQR() validates signature and expiry (5 min). QRCodeGenerator.php class provides rendering."
+      "description_v2": "Two QR systems: (1) Legacy static QR for session login via HMAC, (2) Dynamic QR for attendance verification with 15-second refresh, nonce-based anti-replay, HMAC-SHA256 digital signature.",
+      "legacy": "Auth::generateQR() creates HMAC-SHA256 signed tokens with session ID and timestamp. Auth::verifyQR() validates signature and expiry (5 min). QRCodeGenerator.php class provides rendering.",
+      "dynamic": "DynamicQRService::generateQRPayload() creates payload with lab_id, session_id, practical_id, timestamp, expiration, nonce, digital signature. Base64 encoded for display. verifyQRPayload() checks all fields, signature, and nonce uniqueness before approving. Single-use prevents screenshot reuse."
     },
     "co2_sensor": {
       "description": "CO2 monitoring via Python WebSocket server (smart-lab-server.py)",
@@ -314,19 +451,13 @@
 
   "blockchain_subsystem": {
     "files": ["blockchain/Block.php", "blockchain/Blockchain.php", "blockchain/AssetTracker.php"],
-    "description": "Custom PHP blockchain implementation for immutable audit logging of lab activities, asset transfers, and report submissions",
+    "description": "Legacy custom PHP blockchain implementation for immutable audit logging. Superseded by BlockchainAuditService for workflow datasheet tracking.",
     "difficulty": "4",
     "structure": {
       "Block": {"properties": ["index", "timestamp", "data", "previous_hash", "hash", "nonce"], "method": "mineBlock(difficulty)"},
       "Blockchain": {"methods": ["addBlock(data)", "getLatestBlock()", "isChainValid()"], "difficulty": "2 (configurable via BLOCKCHAIN_DIFFICULTY constant)"},
       "AssetTracker": "Tracks asset transfers and ownership changes on the blockchain"
     }
-  },
-
-  "datasheet_system": {
-    "description": "Chemical safety datasheet management with PDF generation",
-    "files": ["controllers/DatasheetController.php", "models/DatasheetModel.php", "includes/DatasheetPDFGenerator.php", "api/datasheet.php", "api/download_datasheet.php", "views/datasheets.php"],
-    "workflow": "Technicians upload chemical datasheets → stored in database → searchable/printable → PDF generation for download"
   },
 
   "digital_signature": {
@@ -353,7 +484,7 @@
       "url": "http://localhost/smart-lab",
       "webserver": "Apache with mod_rewrite (XAMPP)",
       "database": "MySQL via phpMyAdmin, database name: unilis_smartlab",
-      "setup": "Import database/init.sql, configure database.php, visit setup.php"
+      "setup": "Import database/init.sql, configure database.php, visit setup.php, run migrations/workflow/run_migration.php for workflow tables"
     },
     "production": {
       "url": "https://unilis.jhubafrica.com/smart-lab",
@@ -392,6 +523,8 @@
     "INSTALLATION_GUIDE.md": "Step-by-step installation guide",
     "database/init.sql": "Complete database schema",
     "unilis_smartlab.sql": "Database dump",
+    "migrations/workflow/001_strict_workflow_tables.sql": "Workflow state machine database tables",
+    "migrations/workflow/run_migration.php": "Workflow migration runner",
     "web-app/QUICK_START.md": "Quick start for web-app sensor server",
     "web-app/DEPLOYMENT_GUIDE.md": "Web-app deployment documentation"
   },
@@ -405,14 +538,19 @@
   ],
 
   "practical_access_window_calculation": {
-    "window_starts": "30 minutes before scheduled_date + start_time",
-    "window_ends": "20 minutes after scheduled_date + start_time",
+    "window_starts": "30 minutes before scheduled_date + start_time (configurable via verification_window_opens_minutes)",
+    "window_ends": "20 minutes after scheduled_date + start_time (configurable via verification_window_closes_minutes)",
     "states": ["Available now (within window)", "Upcoming (before window)", "Closed (after window)"],
-    "helper_function": "getPracticalAccessWindow() in utils/helpers.php"
+    "helper_function": "getPracticalAccessWindow() in utils/helpers.php",
+    "workflow_verification_window": "WorkflowEngine::checkVerificationWindow() reads verification_window_opens_minutes and verification_window_closes_minutes from practicals table"
   },
 
-  "attendance_verification_methods": ["qr", "rfid", "fingerprint"],
+  "attendance_verification_methods": ["qr", "rfid", "fingerprint", "RFID", "BIOMETRIC", "DYNAMIC_QR", "TECHNICIAN_CODE", "NFC"],
+  "workflow_attendance_verification_methods": ["RFID", "BIOMETRIC", "DYNAMIC_QR", "TECHNICIAN_CODE", "NFC"],
   "practical_statuses": ["draft", "published", "completed", "ongoing"],
   "report_statuses": ["in_progress", "submitted", "graded"],
-  "lab_session_statuses": ["open", "closed"]
+  "lab_session_statuses": ["open", "closed"],
+  "workflow_statuses": ["Scheduled", "Awaiting Verification", "Verified", "Ready To Start", "In Progress", "Practical Completed", "Datasheet Generated", "Datasheet Submitted", "Report Writing Open", "Report Submitted", "Graded"],
+  "datasheet_submission_statuses": ["generated", "submitted", "verified"],
+  "datasheet_qr_statuses": ["active", "used", "expired", "revoked"]
 }

@@ -14,13 +14,51 @@ echo "============================================\n";
 echo "UNILIS SmartLabs - Workflow Migration Tool\n";
 echo "============================================\n\n";
 
+echo "--- System & Environment Diagnostics ---\n";
+echo "--------------------------------------------\n";
+echo "PHP Version         : " . phpversion() . "\n";
+echo "PHP SAPI            : " . php_sapi_name() . "\n";
+echo "Server Software     : " . ($_SERVER['SERVER_SOFTWARE'] ?? 'CLI') . "\n";
+echo "PDO Drivers         : " . implode(', ', PDO::getAvailableDrivers()) . "\n";
+
 $basePath = __DIR__ . '/../../';
-require_once $basePath . 'config/database.php';
+require_once $basePath . 'config/database_production.php';
 
 try {
     $db = getDB();
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     echo "[OK] Database connection established\n\n";
+
+    // Gather MySQL / MariaDB version and server info
+    $serverInfo  = $db->getAttribute(PDO::ATTR_SERVER_VERSION);
+    $serverInfoRaw = $db->query("SELECT VERSION() AS ver")->fetch(PDO::FETCH_ASSOC)['ver'];
+    $dbNameQuery = $db->query("SELECT DATABASE() AS dbname")->fetch(PDO::FETCH_ASSOC);
+    $currentDb   = $dbNameQuery ? $dbNameQuery['dbname'] : '(unknown)';
+    $sqlMode     = $db->query("SELECT @@sql_mode AS mode")->fetch(PDO::FETCH_ASSOC)['mode'] ?? '(unknown)';
+    $charset     = $db->query("SELECT @@character_set_database AS cs")->fetch(PDO::FETCH_ASSOC)['cs'] ?? '(unknown)';
+    $collation   = $db->query("SELECT @@collation_database AS col")->fetch(PDO::FETCH_ASSOC)['col'] ?? '(unknown)';
+    $driverName  = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+    echo "--- Database Diagnostics ---\n";
+    echo "--------------------------------------------\n";
+    echo "DB Driver           : {$driverName}\n";
+    echo "DB Server Version   : {$serverInfo}\n";
+    echo "DB Version()        : {$serverInfoRaw}\n";
+    echo "Current Database    : {$currentDb}\n";
+    echo "SQL Mode            : {$sqlMode}\n";
+    echo "DB Character Set    : {$charset}\n";
+    echo "DB Collation        : {$collation}\n";
+    echo "PDO::ATTR_SERVER_INFO : " . ($db->getAttribute(PDO::ATTR_SERVER_INFO) ?: '(none)') . "\n";
+    echo "PDO::ATTR_CONNECTION_STATUS : " . ($db->getAttribute(PDO::ATTR_CONNECTION_STATUS) ?: '(none)') . "\n";
+    echo "PDO::ATTR_CLIENT_VERSION : " . ($db->getAttribute(PDO::ATTR_CLIENT_VERSION) ?: '(none)') . "\n";
+
+    // Detect if it's MariaDB vs MySQL
+    if (stripos($serverInfo, 'MariaDB') !== false || stripos($serverInfoRaw, 'MariaDB') !== false) {
+        echo "DB Flavor          : MariaDB\n";
+    } else {
+        echo "DB Flavor          : MySQL / Percona\n";
+    }
+    echo "\n";
 } catch (Exception $e) {
     die("[ERROR] Database connection failed: " . $e->getMessage() . "\n");
 }
