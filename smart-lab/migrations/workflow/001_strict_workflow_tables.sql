@@ -121,16 +121,23 @@ CREATE TABLE IF NOT EXISTS `datasheet_qr_tokens` (
   CONSTRAINT `fk_qr_token_practical` FOREIGN KEY (`practical_id`) REFERENCES `practicals`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE `practicals` ADD COLUMN IF NOT EXISTS `workflow_status` ENUM('standard','strict','hybrid') DEFAULT 'standard' AFTER `status`;
-ALTER TABLE `practicals` ADD COLUMN IF NOT EXISTS `verification_window_opens_minutes` INT DEFAULT 30 AFTER `max_students`;
-ALTER TABLE `practicals` ADD COLUMN IF NOT EXISTS `verification_window_closes_minutes` INT DEFAULT 20 AFTER `verification_window_opens_minutes`;
-ALTER TABLE `practicals` ADD COLUMN IF NOT EXISTS `allowed_verification_methods` VARCHAR(500) DEFAULT 'RFID,BIOMETRIC,DYNAMIC_QR,TECHNICIAN_CODE,NFC' AFTER `verification_window_closes_minutes`;
+-- ============================================================================
+-- Schema Alterations
+-- NOTE: ADD COLUMN IF NOT EXISTS is MariaDB-specific and NOT supported by MySQL 8.0.
+-- Column existence is pre-checked in run_migration.php before executing these
+-- ALTER statements, so plain ADD COLUMN is used here.
+-- ============================================================================
 
-ALTER TABLE `blockchain_blocks` ADD COLUMN IF NOT EXISTS `datasheet_reference` VARCHAR(64) DEFAULT NULL AFTER `hash`;
+ALTER TABLE `practicals` ADD COLUMN `workflow_status` ENUM('standard','strict','hybrid') DEFAULT 'standard' AFTER `status`;
+ALTER TABLE `practicals` ADD COLUMN `verification_window_opens_minutes` INT DEFAULT 30 AFTER `max_students`;
+ALTER TABLE `practicals` ADD COLUMN `verification_window_closes_minutes` INT DEFAULT 20 AFTER `verification_window_opens_minutes`;
+ALTER TABLE `practicals` ADD COLUMN `allowed_verification_methods` VARCHAR(500) DEFAULT 'RFID,BIOMETRIC,DYNAMIC_QR,TECHNICIAN_CODE,NFC' AFTER `verification_window_closes_minutes`;
+
+ALTER TABLE `blockchain_blocks` ADD COLUMN `datasheet_reference` VARCHAR(64) DEFAULT NULL AFTER `hash`;
 CREATE INDEX `idx_blockchain_datasheet` ON `blockchain_blocks`(`datasheet_reference`);
 
-ALTER TABLE `reports` ADD COLUMN IF NOT EXISTS `datasheet_submitted` TINYINT(1) DEFAULT 0 AFTER `status`;
-ALTER TABLE `reports` ADD COLUMN IF NOT EXISTS `datasheet_id` CHAR(36) DEFAULT NULL AFTER `datasheet_submitted`;
+ALTER TABLE `reports` ADD COLUMN `datasheet_submitted` TINYINT(1) DEFAULT 0 AFTER `status`;
+ALTER TABLE `reports` ADD COLUMN `datasheet_id` CHAR(36) DEFAULT NULL AFTER `datasheet_submitted`;
 
 CREATE INDEX `idx_attendance_lookup` ON `attendance_verifications`(`student_id`, `practical_id`, `verification_status`);
 CREATE INDEX `idx_session_lookup` ON `student_practical_sessions`(`student_id`, `practical_id`, `workflow_status`);
