@@ -7,8 +7,14 @@
  * Add this to routes/web.php
  */
 
-require_once __DIR__.'/../config/app.php';
-require_once __DIR__.'/../config/database.php';
+// Use production config (change to app.php / database.php for local dev)
+if ((strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false)) {
+    require_once __DIR__.'/../config/app_production.php';
+    require_once __DIR__.'/../config/database_production.php';
+} else {
+    require_once __DIR__.'/../config/app.php';
+    require_once __DIR__.'/../config/database.php';
+}
 require_once __DIR__.'/../auth/Auth.php';
 require_once __DIR__.'/../utils/helpers.php';
 

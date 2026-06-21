@@ -9,9 +9,14 @@
  * 3. The current server time vs practical times
  */
 
-// Use your production config
-require_once __DIR__ . '/config/database_production.php';
-// If the above fails, try: require_once __DIR__ . '/config/database.php';
+// Auto-detect environment
+if ((strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false)) {
+    require_once __DIR__ . '/config/app_production.php';
+    require_once __DIR__ . '/config/database_production.php';
+} else {
+    require_once __DIR__ . '/config/app.php';
+    require_once __DIR__ . '/config/database.php';
+}
 
 echo "<h1>🔍 Take Practical Button Diagnostic</h1>";
 
