@@ -1,4 +1,13 @@
 <div class="main-content">
+    <!-- JKUAT University Header -->
+    <div class="university-header" style="display:flex;align-items:center;gap:16px;padding:16px 20px;background:linear-gradient(135deg,#f8fafc 0%,#eff6ff 100%);border-radius:12px;margin-bottom:16px;border:1px solid #e2e8f0;">
+        <img src="<?= APP_URL ?>/jkuatlogo.jpg" alt="JKUAT Logo" style="width:70px;height:auto;border-radius:6px;" onerror="this.style.display='none'" />
+        <div style="flex:1;">
+            <h2 style="margin:0;font-size:1.2rem;color:#1e3a5f;font-weight:700;">Jomo Kenyatta University of Agriculture and Technology</h2>
+            <p style="margin:2px 0 0;font-size:.85rem;color:#64748b;">JKUAT SmartLab — <?= htmlspecialchars($practical['title'] ?? 'Practical') ?></p>
+        </div>
+    </div>
+
     <div class="page-header">
         <div class="page-overline">Practical Session</div>
         <h1 class="page-title"><?= htmlspecialchars($practical['title']) ?></h1>
@@ -36,7 +45,7 @@
                     <button disabled class="btn btn-secondary btn-lg">
                         <i class="icon-check"></i> Datasheet Saved
                     </button>
-                    <a href="<?= APP_URL ?>/report-submission/view/<?= htmlspecialchars($report_id ?? '') ?>" class="btn btn-accent btn-lg">
+                    <a href="<?= APP_URL ?>/start-practical-test/download/<?= htmlspecialchars($report_id ?? '') ?>" class="btn btn-accent btn-lg">
                         <i class="icon-download"></i> Download Datasheet
                     </a>
                     <span class="status-text">Completed</span>
@@ -45,7 +54,7 @@
                 <button disabled class="btn btn-secondary btn-lg">
                     <i class="icon-check"></i> Datasheet Saved
                 </button>
-                <a href="<?= APP_URL ?>/report-submission/view/<?= htmlspecialchars($report_id ?? '') ?>" class="btn btn-accent btn-lg">
+                <a href="<?= APP_URL ?>/start-practical-test/download/<?= htmlspecialchars($report_id ?? '') ?>" class="btn btn-accent btn-lg">
                     <i class="icon-download"></i> Download Datasheet
                 </a>
                 <span class="status-text">Completed</span>

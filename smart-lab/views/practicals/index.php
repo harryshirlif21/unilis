@@ -94,14 +94,9 @@
                                         
                                         <!-- View Datasheet button - shown if student has a report -->
                                         <?php if ($reportExists): ?>
-                                            <a href="<?= APP_URL ?>/report-submission/view/<?= $studentReportMap[$practical['id']]['id'] ?>" class="btn btn-primary btn-sm">
-                                                <i class="icon-file-text"></i> View Datasheet
+                                            <a href="<?= APP_URL ?>/start-practical-test/download/<?= $studentReportMap[$practical['id']]['id'] ?>" class="btn btn-accent btn-sm">
+                                                <i class="icon-download"></i> 📄 Datasheet
                                             </a>
-                                            <?php if ($reportStatus === 'submitted'): ?>
-                                            <a href="<?= APP_URL ?>/report-submission/view/<?= $studentReportMap[$practical['id']]['id'] ?>" class="btn btn-accent btn-sm">
-                                                <i class="icon-download"></i> Download Datasheet
-                                            </a>
-                                            <?php endif; ?>
                                         <?php endif; ?>
 
                                         <?php if ($practical['status'] === 'published'): ?>
