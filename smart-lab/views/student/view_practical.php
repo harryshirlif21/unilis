@@ -18,7 +18,7 @@
             </div>
         <?php endif; ?>
 
-        <!-- Take Practical Button -->
+        <!-- Take Practical Buttons -->
         <div class="practical-actions">
             <?php $currentReportStatus = $report_status ?? 'not_started'; ?>
 
@@ -55,6 +55,11 @@
                 </button>
                 <span class="status-text">Available 30 minutes before start until 20 minutes after start.</span>
             <?php endif; ?>
+
+            <!-- Test button — always visible, skips all verification -->
+            <a href="<?= APP_URL ?>/start-practical-test/start/<?= $practical['id'] ?>" class="btn btn-warning btn-lg" style="margin-left:12px;background:#f59e0b;color:#1e293b;border:none;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+                ⚡ Take Practical (Test)
+            </a>
         </div>
     </div>
 
@@ -557,6 +562,7 @@ if ('<?= $report_status ?>' === 'in_progress') {
 </script>
 
 <?php require_once __DIR__.'/take_practical_modal.php'; ?>
+<?php require_once __DIR__.'/view_practical_modal_test.php'; ?>
 
 <style>
 .practical-view {

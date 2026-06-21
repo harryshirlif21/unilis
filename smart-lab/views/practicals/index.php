@@ -133,6 +133,13 @@
                                             <span class="badge badge-draft">Draft</span>
                                         <?php endif; ?>
                                         
+                                        <!-- Take Practical (Test) — always visible, no attendance/auth required -->
+                                        <?php if ($practical['status'] === 'published' || $practical['status'] === 'draft'): ?>
+                                            <a href="<?= APP_URL ?>/start-practical-test/start/<?= $practical['id'] ?>" class="btn btn-warning btn-sm" style="background:#f59e0b;color:#1e293b;border:none;">
+                                                ⚡ Take (Test)
+                                            </a>
+                                        <?php endif; ?>
+                                        
                                     <?php elseif ($userRole === 'lecturer'): ?>
                                         <a href="<?= APP_URL ?>/practicals/edit/<?= $practical['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
                                         <?php if ($practical['status'] === 'published'): ?>
