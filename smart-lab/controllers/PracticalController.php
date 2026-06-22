@@ -7,10 +7,12 @@ require_once __DIR__.'/../utils/helpers.php';
 class PracticalController {
     private PracticalModel $model;
     private ReportModel $reportModel;
+    private PDO $db;
     
     public function __construct() {
         $this->model = new PracticalModel();
         $this->reportModel = new ReportModel();
+        $this->db = getDB();
     }
     
     public function index($param = null) {
@@ -412,6 +414,83 @@ class PracticalController {
             ]);
         } else {
             echo json_encode(['status' => 'error', 'message' => 'Failed to create report']);
+        }
+    }
+
+    /**
+     * Get submission stats for a practical (AJAX).
+     */
+    public function submissionStats($practicalId = null) {
+        header('Content-Type: application/json');
+        Auth::guard(['lecturer', 'technician', 'admin']);
+
+        if (!$practicalId) {
+            echo json_encode(['error' => 'Practical ID required']);
+            exit;
+        }
+
+        try {
+            // Get enrolled students (users who are linked to this practical's course)
+            $stmt = $this->db->prepare("
+                SELECT u.id, u.full_name, u.reg_number
+                FROM users u
+                JOIN enrollments e ON u.id = e.user_id
+                JOIN practicals p ON e.course_code = p.course_code
+                WHERE p.id = ? AND u.role = 'student'
+                ORDER BY u.full_name ASC
+            ");
+            $stmt->execute([$practicalId]);
+            $students = $stmt->fetchAll();
+
+            // Get submitted reports
+            $stmt = $this->db->prepare("
+                SELECT lr.student_id, lr.status, lr.submitted_at, lr.id as report_id,
+                       lr.result as grade_text,
+                       CASE WHEN lr.grade IS NOT NULL THEN 1 ELSE 0 END as graded,
+                       lr.grade
+                FROM lab_reports lr
+                WHERE lr.practical_id = ?
+            ");
+            $stmt->execute([$practicalId]);
+            $reports = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Map reports by student_id
+            $reportMap = [];
+            foreach ($reports as $r) {
+                $reportMap[$r['student_id']] = $r;
+            }
+
+            // Build response
+            $submittedCount = 0;
+            $studentList = [];
+            foreach ($students as $s) {
+                $hasReport = isset($reportMap[$s['id']]);
+                $report = $hasReport ? $reportMap[$s['id']] : null;
+                if ($hasReport && $report['status'] === 'submitted') {
+                    $submittedCount++;
+                }
+                $studentList[] = [
+                    'full_name' => $s['full_name'],
+                    'reg_number' => $s['reg_number'],
+                    'status' => $hasReport ? $report['status'] : 'not_started',
+                    'submitted_at' => $hasReport && $report['submitted_at']
+                        ? date('M j, Y H:i', strtotime($report['submitted_at']))
+                        : null,
+                    'report_id' => $hasReport ? $report['report_id'] : null,
+                    'graded' => $hasReport ? (bool)$report['graded'] : false,
+                    'grade' => $hasReport ? $report['grade'] : null,
+                ];
+            }
+
+            echo json_encode([
+                'total_students' => count($students),
+                'submitted' => $submittedCount,
+                'students' => $studentList,
+            ]);
+
+        } catch (Exception $e) {
+            error_log("submissionStats error: " . $e->getMessage());
+            echo json_encode(['error' => 'Error loading submission data']);
         }
     }
 

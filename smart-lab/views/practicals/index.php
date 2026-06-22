@@ -135,11 +135,25 @@
                                             </a>
                                         <?php endif; ?>
                                         
-                                    <?php elseif ($userRole === 'lecturer'): ?>
-                                        <a href="<?= APP_URL ?>/practicals/edit/<?= $practical['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
-                                        <?php if ($practical['status'] === 'published'): ?>
-                                            <a href="<?= APP_URL ?>/practicals/start-session/<?= $practical['id'] ?>" class="btn btn-success btn-sm">Start Session</a>
-                                        <?php endif; ?>
+                                        <?php elseif (in_array($userRole, ['lecturer', 'admin', 'technician'])): ?>
+                                            <!-- Role-based action buttons for staff -->
+                                            <a href="<?= APP_URL ?>/practicals/edit/<?= $practical['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
+                                            
+                                            <?php if ($practical['status'] === 'published'): ?>
+                                                <a href="<?= APP_URL ?>/practicals/start-session/<?= $practical['id'] ?>" class="btn btn-success btn-sm">Start Session</a>
+                                            <?php endif; ?>
+                                            
+                                            <!-- Report Submissions button for all staff -->
+                                            <button onclick="openReportSubmissionsModal('<?= $practical['id'] ?>', '<?= htmlspecialchars($practical['title'], ENT_QUOTES) ?>')" class="btn btn-info btn-sm" style="background:#0891b2;color:white;border:none;">
+                                                📋 Reports
+                                            </button>
+
+                                            <?php if ($userRole === 'lecturer'): ?>
+                                                <!-- Lecturer-only: Grade/Mark button -->
+                                                <a href="<?= APP_URL ?>/practicals/grade-report/<?= $practical['id'] ?>" class="btn btn-sm" style="background:#7c3aed;color:white;text-decoration:none;">
+                                                    ✏️ Grade
+                                                </a>
+                                            <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -150,6 +164,8 @@
         </div>
     <?php endif; ?>
 </div>
+
+<?php require_once __DIR__.'/report_submissions_modal.php'; ?>
 
 <style>
 .card-header-hero {
