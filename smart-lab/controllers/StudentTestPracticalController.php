@@ -350,9 +350,15 @@ class StudentTestPracticalController {
             $generator->stream($filename);
             exit;
 
-        } catch (\Exception $e) {
-            error_log('StudentTestPracticalController::download - Error: ' . $e->getMessage());
-            echo 'Error generating datasheet PDF: ' . htmlspecialchars($e->getMessage());
+        } catch (\Throwable $e) {
+            // Catch both Exception and Error (e.g. class-not-found fatal)
+            error_log('StudentTestPracticalController::download - ' . get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            http_response_code(500);
+            echo '<pre style="font-family:monospace;padding:20px;background:#fff3cd;border:1px solid #ffc107;color:#212529;">';
+            echo '<strong>PDF generation failed</strong><br><br>';
+            echo htmlspecialchars(get_class($e) . ': ' . $e->getMessage()) . "\n";
+            echo htmlspecialchars('File: ' . $e->getFile() . ' line ' . $e->getLine());
+            echo '</pre>';
         }
     }
 }

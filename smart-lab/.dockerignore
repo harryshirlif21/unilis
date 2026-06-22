@@ -1,0 +1,20 @@
+# Exclude vendor — Dockerfile runs composer install during build
+vendor/
+
+# Dev/local only
+.env
+.env.example
+.git
+.github
+*.md
+*.sql
+debug/
+test_*.php
+check_*.php
+create_*.php
+setup_*.php
+fix_*.php
+patch_*.php
+migrate.php
+run_migration.php
+CACHED
