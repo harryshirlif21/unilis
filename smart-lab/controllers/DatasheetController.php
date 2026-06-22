@@ -216,11 +216,10 @@ class DatasheetController {
     }
 
     private function getStudentInfo(string $studentId): ?array {
-        // Try with course/programme column first, fall back to base columns
+        // Try to fetch course/programme — column name may vary by installation
         try {
             $stmt = $this->db->prepare(
-                "SELECT id, full_name, reg_number, email,
-                        COALESCE(course, programme, program, '') AS course
+                "SELECT id, full_name, reg_number, email, '' AS course
                  FROM users WHERE id = ? LIMIT 1"
             );
             $stmt->execute([$studentId]);

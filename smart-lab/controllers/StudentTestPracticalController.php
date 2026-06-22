@@ -252,15 +252,15 @@ class StudentTestPracticalController {
             }
 
             // ---- Student info ----
-            $stmt = $this->db->prepare(
-                "SELECT full_name, reg_number,
-                        COALESCE(course, programme, program, '') AS course
-                 FROM users WHERE id = ? LIMIT 1"
-            );
             try {
+                $stmt = $this->db->prepare(
+                    "SELECT full_name, reg_number, '' AS course FROM users WHERE id = ? LIMIT 1"
+                );
                 $stmt->execute([$studentId]);
             } catch (\PDOException $e) {
-                $stmt = $this->db->prepare("SELECT full_name, reg_number, '' AS course FROM users WHERE id = ?");
+                $stmt = $this->db->prepare(
+                    "SELECT full_name, reg_number, '' AS course FROM users WHERE id = ? LIMIT 1"
+                );
                 $stmt->execute([$studentId]);
             }
             $student = $stmt->fetch();
