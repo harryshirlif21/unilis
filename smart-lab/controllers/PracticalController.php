@@ -264,7 +264,18 @@ class PracticalController {
         $success = '';
         $labs = $this->model->getLabs();
         
-        // Handle status change (publish)
+        // Handle publish from success modal
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['publish']) && $_POST['publish'] === '1') {
+            if ($this->model->updateStatus($practicalId, 'published')) {
+                logActivity(Auth::id(), 'practical_published', 'practicals', $practicalId);
+                $_SESSION['success'] = 'Practical published successfully!';
+                redirect('practicals');
+            } else {
+                $error = 'Failed to publish practical.';
+            }
+        }
+
+        // Handle status change (draft/published from old form)
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['status'])) {
             $newStatus = sanitize($_POST['status'] ?? '');
             if (in_array($newStatus, ['draft', 'published'])) {
@@ -278,7 +289,7 @@ class PracticalController {
         }
         
         // Handle full edit
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['status'])) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['status']) && !isset($_POST['publish'])) {
             $data = [
                 'title' => sanitize($_POST['title'] ?? ''),
                 'objective' => sanitizeHTML($_POST['objective'] ?? ''),
@@ -367,6 +378,28 @@ class PracticalController {
         ]);
     }
     
+    /**
+     * Postpone a practical — sets status to 'postponed'.
+     */
+    public function postpone($practicalId = null) {
+        Auth::guard(['lecturer', 'admin', 'technician']);
+
+        if (!$practicalId) {
+            redirect('practicals');
+        }
+
+        // Update status to postponed
+        if ($this->model->updateStatus($practicalId, 'postponed')) {
+            $reason = sanitize($_POST['postpone_reason'] ?? '');
+            logActivity(Auth::id(), 'practical_postponed', 'practicals', "Practical $practicalId postponed. Reason: $reason");
+            $_SESSION['success'] = 'Practical has been postponed successfully.';
+        } else {
+            $_SESSION['error'] = 'Failed to postpone practical.';
+        }
+
+        redirect('practicals');
+    }
+
     public function startPractical() {
         header('Content-Type: application/json');
         Auth::guard();
