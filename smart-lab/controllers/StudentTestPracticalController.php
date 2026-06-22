@@ -215,7 +215,8 @@ class StudentTestPracticalController {
     }
 
     /**
-     * Download datasheet as PDF.
+     * Download datasheet as PDF using DatasheetPDFGenerator (consistent format with
+     * JKUAT header, student info, observations table, filled answer pages, QR code).
      */
     public function download($reportId = null) {
         Auth::guard('student');
@@ -228,11 +229,11 @@ class StudentTestPracticalController {
         $studentId = Auth::id();
 
         try {
-            // Get report with practical details
+            // ---- Fetch submitted report ----
             $stmt = $this->db->prepare("
                 SELECT r.*, p.title as practical_title, p.course_code,
                        p.scheduled_date, p.start_time, p.end_time,
-                       p.objective, p.theory, p.description,
+                       p.objective, p.description,
                        p.required_equipment, p.required_chemicals,
                        l.name as lab_name, l.lab_code,
                        u.full_name as lecturer_name
@@ -246,150 +247,109 @@ class StudentTestPracticalController {
             $report = $stmt->fetch();
 
             if (!$report) {
-                echo 'Datasheet not found';
+                echo 'Datasheet not found or not yet submitted';
                 exit;
             }
 
-            // Get student info
-            $stmt = $this->db->prepare("SELECT full_name, reg_number FROM users WHERE id = ?");
-            $stmt->execute([$studentId]);
+            // ---- Student info ----
+            $stmt = $this->db->prepare(
+                "SELECT full_name, reg_number,
+                        COALESCE(course, programme, program, '') AS course
+                 FROM users WHERE id = ? LIMIT 1"
+            );
+            try {
+                $stmt->execute([$studentId]);
+            } catch (\PDOException $e) {
+                $stmt = $this->db->prepare("SELECT full_name, reg_number, '' AS course FROM users WHERE id = ?");
+                $stmt->execute([$studentId]);
+            }
             $student = $stmt->fetch();
 
-            $observations = json_decode($report['observations_json'] ?? '{}', true);
-
-            $logoUrl = APP_URL . '/jkuatlogo.jpg';
-            $blockchainHash = hash('sha256', $reportId . $studentId . $report['submitted_at']);
-            $signatureHash = hash('sha256', $reportId . $studentId . date('Y-m-d') . 'UNILIS');
-
-            // Build QR code inline (base64)
-            $qrData = APP_URL . '/verify/datasheet/' . $reportId;
-            $qrImgSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' . urlencode($qrData);
-
-            // Generate HTML for PDF
-            $html = '
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    @page { margin: 25px; }
-                    body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; line-height: 1.5; }
-                    .univ-header { text-align: center; border-bottom: 3px solid #1e3a5f; padding-bottom: 12px; margin-bottom: 18px; }
-                    .univ-header img { width: 65px; height: auto; }
-                    .univ-header h1 { margin: 6px 0 2px; font-size: 16px; color: #1e3a5f; }
-                    .univ-header p { margin: 0; font-size: 11px; color: #64748b; }
-                    .title-section { text-align: center; margin-bottom: 16px; }
-                    .title-section h2 { color: #1e40af; margin: 0 0 4px; font-size: 17px; }
-                    .title-section p { margin: 2px 0; color: #475569; font-size: 12px; }
-                    .badge { display: inline-block; background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-                    .info-grid { display: flex; justify-content: space-between; background: #f8fafc; padding: 10px 14px; border-left: 4px solid #1e3a5f; margin-bottom: 16px; font-size: 11px; }
-                    .info-grid div { flex:1; }
-                    .info-grid strong { color: #1e3a5f; display:block; margin-bottom:2px; }
-                    .section { margin-bottom: 16px; page-break-inside: avoid; }
-                    .section h3 { background: #1e3a5f; color: #fff; padding: 6px 12px; font-size: 13px; margin: 0 0 8px; border-radius: 4px; }
-                    table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
-                    th, td { padding: 5px 8px; border: 1px solid #e2e8f0; text-align: left; }
-                    th { background: #f1f5f9; font-weight: 600; color: #1e3a5f; }
-                    .content-text { padding: 10px; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 11px; white-space: pre-wrap; }
-                    .qr-section { text-align: center; margin-top: 18px; padding: 12px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; }
-                    .qr-section img { width: 100px; height: 100px; }
-                    .qr-section p { font-size: 10px; color: #64748b; margin: 4px 0 0; }
-                    .sig { font-size: 9px; color: #94a3b8; word-break: break-all; margin-top: 4px; }
-                    .footer { text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 20px; font-size: 10px; color: #94a3b8; }
-                </style>
-            </head>
-            <body>';
-
-            // JKUAT Header
-            $html .= '<div class="univ-header">';
-            $html .= '<img src="' . $logoUrl . '" alt="JKUAT Logo" />';
-            $html .= '<h1>Jomo Kenyatta University of Agriculture and Technology</h1>';
-            $html .= '<p>JKUAT SmartLab — Official Lab Datasheet</p></div>';
-
-            // Title
-            $html .= '<div class="title-section">';
-            $html .= '<h2>' . htmlspecialchars($report['practical_title']) . '</h2>';
-            $html .= '<p>' . htmlspecialchars($report['course_code']) . ' — ' . htmlspecialchars($report['lab_name']) . ' (' . htmlspecialchars($report['lab_code']) . ')</p>';
-            $html .= '<p><span class="badge">✅ Submitted: ' . date('M j, Y H:i', strtotime($report['submitted_at'])) . '</span></p></div>';
-
-            // Student Info
-            $html .= '<div class="info-grid">';
-            $html .= '<div><strong>Student</strong>' . htmlspecialchars($student['full_name'] ?? 'N/A') . '<br>' . htmlspecialchars($student['reg_number'] ?? 'N/A') . '</div>';
-            $html .= '<div><strong>Lecturer</strong>' . htmlspecialchars($report['lecturer_name'] ?? 'N/A') . '</div>';
-            $html .= '<div><strong>Practical Date</strong>' . htmlspecialchars($report['scheduled_date']) . ' ' . substr($report['start_time'] ?? '', 0, 5) . ' - ' . substr($report['end_time'] ?? '', 0, 5) . '</div></div>';
-
-            // Observations
-            if (!empty($observations)) {
-                $html .= '<div class="section"><h3>📊 Observations / Readings</h3><table><thead><tr>';
-                $firstRow = reset($observations);
-                if (is_array($firstRow)) {
-                    foreach ($firstRow as $colName => $val) {
-                        $html .= '<th>' . htmlspecialchars($colName) . '</th>';
-                    }
-                }
-                $html .= '</tr></thead><tbody>';
-                foreach ($observations as $row) {
-                    if (!is_array($row)) continue;
-                    $html .= '<tr>';
-                    foreach ($row as $val) {
-                        $html .= '<td>' . htmlspecialchars($val) . '</td>';
-                    }
-                    $html .= '</tr>';
-                }
-                $html .= '</tbody></table></div>';
-            }
-
-            // Calculations
-            if (!empty($report['calculations'])) {
-                $html .= '<div class="section"><h3>📝 Calculations</h3><div class="content-text">' . htmlspecialchars($report['calculations']) . '</div></div>';
-            }
-
-            // Result
-            if (!empty($report['result'])) {
-                $html .= '<div class="section"><h3>✅ Result</h3><div class="content-text">' . htmlspecialchars($report['result']) . '</div></div>';
-            }
-
-            // Conclusion
-            if (!empty($report['conclusion'])) {
-                $html .= '<div class="section"><h3>📌 Conclusion</h3><div class="content-text">' . htmlspecialchars($report['conclusion']) . '</div></div>';
-            }
-
-            // QR Code + Verification
-            $html .= '<div class="qr-section">';
-            $html .= '<img src="' . $qrImgSrc . '" alt="QR Code" />';
-            $html .= '<p>Scan this QR code to verify the authenticity of this datasheet</p>';
-            $html .= '<div class="sig"><strong>Datasheet ID:</strong> ' . htmlspecialchars($reportId) . '<br>';
-            $html .= '<strong>Blockchain Hash:</strong> ' . htmlspecialchars($blockchainHash) . '<br>';
-            $html .= '<strong>Digital Signature:</strong> ' . htmlspecialchars($signatureHash) . '</div></div>';
-
-            $html .= '<div class="footer">';
-            $html .= 'Generated by UNILIS SmartLabs &bull; ' . date('M j, Y H:i:s') . '<br>';
-            $html .= 'Datasheet ID: ' . htmlspecialchars($reportId) . ' &bull; Submitted: ' . date('M j, Y H:i:s', strtotime($report['submitted_at']));
-            $html .= '</div></body></html>';
-
-            // Generate PDF using Dompdf
-            $pdfPath = __DIR__ . '/../vendor/autoload.php';
-            if (!file_exists($pdfPath)) {
-                // Fallback: output as HTML if Dompdf not installed
-                header('Content-Type: text/html; charset=utf-8');
-                header('Content-Disposition: attachment; filename="datasheet-' . $reportId . '.html"');
-                echo $html;
+            // ---- Load autoloader + dompdf ----
+            $parentVendor = __DIR__ . '/../../vendor/autoload.php';
+            $localVendor  = __DIR__ . '/../vendor/autoload.php';
+            if (file_exists($parentVendor)) {
+                require_once $parentVendor;
+            } elseif (file_exists($localVendor)) {
+                require_once $localVendor;
+            } else {
+                header('Content-Type: text/plain');
+                echo 'PDF library not found. Please run composer install.';
                 exit;
             }
+            require_once __DIR__ . '/../includes/autoloader.php';
 
-            require_once $pdfPath;
-            $dompdf = new \Dompdf\Dompdf();
-            $dompdf->loadHtml($html);
-            $dompdf->setPaper('A4', 'portrait');
-            $dompdf->render();
+            // ---- Build observation rows from JSON ----
+            $observationRows = [];
+            $obsMixed = json_decode($report['observations_json'] ?? '{}', true);
+            if (is_array($obsMixed) && !empty($obsMixed)) {
+                $first = reset($obsMixed);
+                if (is_array($first)) {
+                    // Array of associative rows: [['Col1'=>val, ...], ...]
+                    $observationRows = $obsMixed;
+                } else {
+                    // Flat key->value: convert to single-column rows
+                    foreach ($obsMixed as $k => $v) {
+                        $observationRows[] = ['Parameter' => $k, 'Value' => (string)$v];
+                    }
+                }
+            }
 
-            // Output PDF
-            $dompdf->stream('datasheet-' . $reportId . '.pdf', ['Attachment' => true]);
+            // ---- Generate QR code (verification URL) ----
+            $verifyUrl = (defined('APP_URL') ? rtrim(APP_URL, '/') : 'https://unilis.jhubafrica.com/smart-lab')
+                       . '/verify.php?' . http_build_query([
+                           'report_id'  => $reportId,
+                           'student_id' => $studentId,
+                           'type'       => 'lab_report',
+                       ]);
+
+            $qrPath = '';
+            try {
+                $qrGen = new \SmartLab\QRCodeGenerator();
+                $qrPath = $qrGen->generate($verifyUrl, 'report_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $reportId));
+            } catch (\Exception $qrEx) {
+                error_log('QR generation failed: ' . $qrEx->getMessage());
+            }
+
+            // ---- Build the PDF ----
+            $logoPath = (defined('DOCUMENT_ROOT') ? DOCUMENT_ROOT : $_SERVER['DOCUMENT_ROOT'])
+                      . '/smart-lab/jkuatlogo.jpg';
+            if (!file_exists($logoPath)) {
+                $logoPath = __DIR__ . '/../jkuatlogo.jpg';
+            }
+
+            $sigHash = hash('sha256', $reportId . $studentId . ($report['submitted_at'] ?? date('Y-m-d H:i:s')));
+
+            $generator = new \SmartLab\DatasheetPDFGenerator($logoPath);
+            $generator
+                ->setStudentDetails(
+                    $student['full_name'] ?? 'Unknown',
+                    $student['reg_number'] ?? 'N/A',
+                    $student['course'] ?? ''
+                )
+                ->setPracticalDetails(
+                    $report['practical_title'],
+                    $report['lab_code'] ?? 'Lab',
+                    $report['course_code'] ?? '',
+                    $report['description'] ?? $report['objective'] ?? ''
+                )
+                ->setReadings([])
+                ->setObservationRows($observationRows)
+                ->setQRCode($qrPath)
+                ->setSignature($sigHash, 'approved')
+                ->setFilledAnswers([
+                    'Student Observations & Calculations' => $report['calculations'] ?? '',
+                    'Results & Analysis'                  => $report['result'] ?? '',
+                    'Conclusion & Recommendations'        => $report['conclusion'] ?? '',
+                ]);
+
+            $filename = 'datasheet-' . $reportId . '.pdf';
+            $generator->stream($filename);
             exit;
 
-        } catch (Exception $e) {
-            error_log("StudentTestPracticalController::download - Error: " . $e->getMessage());
-            echo 'Error generating datasheet PDF: ' . $e->getMessage();
+        } catch (\Exception $e) {
+            error_log('StudentTestPracticalController::download - Error: ' . $e->getMessage());
+            echo 'Error generating datasheet PDF: ' . htmlspecialchars($e->getMessage());
         }
     }
 }

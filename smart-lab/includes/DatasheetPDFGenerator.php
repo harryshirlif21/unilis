@@ -37,6 +37,15 @@ class DatasheetPDFGenerator {
         'Conclusion & Recommendations',
     ];
 
+    /**
+     * When set, answer pages show pre-filled content instead of ruled blank lines.
+     * Keys are page titles (matching $answerPages), values are content strings.
+     */
+    private array $filledAnswers = [];
+
+    /** Extra rows for the readings/observations section (filled-in data) */
+    private array $observationRows = [];
+
     public function __construct(string $logoPath, string $outputDir = '/assets/datasheets/') {
         $this->logoPath  = $logoPath;
         $this->outputDir = rtrim($outputDir, '/') . '/';
@@ -80,27 +89,67 @@ class DatasheetPDFGenerator {
         return $this;
     }
 
+    /**
+     * Provide pre-filled content for answer pages (used for submitted reports).
+     * Pass an array where each key is the page title and value is text content.
+     * Unmapped pages still show blank ruled lines.
+     *
+     * Example:
+     *   ['Student Observations & Calculations' => 'Vol = 25mL ...',
+     *    'Results & Analysis' => 'pH = 7.0 ...',
+     *    'Conclusion & Recommendations' => 'The titration ...']
+     */
+    public function setFilledAnswers(array $answers): self {
+        $this->filledAnswers = $answers;
+        return $this;
+    }
+
+    /**
+     * Provide an already-formatted observations table for the data page
+     * (columns => [[col=>val,...], ...]).
+     */
+    public function setObservationRows(array $rows): self {
+        $this->observationRows = $rows;
+        return $this;
+    }
+
     /* ------------------------------------------------------------------ */
-    /*  Main generate method                                                */
+    /*  Main generate methods                                               */
     /* ------------------------------------------------------------------ */
 
-    public function generate(string $filename): string {
-        $html = $this->buildHtml();
-
+    /** Build a Dompdf instance loaded and rendered, ready for output. */
+    private function buildDompdf(): Dompdf {
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', false);
 
         $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html);
+        $dompdf->loadHtml($this->buildHtml());
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
+        return $dompdf;
+    }
+
+    /**
+     * Save PDF to disk and return the web-root-relative path.
+     */
+    public function generate(string $filename): string {
+        $dompdf = $this->buildDompdf();
 
         $outputPath = $_SERVER['DOCUMENT_ROOT'] . $this->outputDir . $filename;
         @mkdir(dirname($outputPath), 0755, true);
         file_put_contents($outputPath, $dompdf->output());
 
         return $this->outputDir . $filename;
+    }
+
+    /**
+     * Stream the PDF directly to the browser as a download.
+     * Does NOT save to disk.
+     */
+    public function stream(string $downloadFilename): void {
+        $dompdf = $this->buildDompdf();
+        $dompdf->stream($downloadFilename, ['Attachment' => true]);
     }
 
     /* ------------------------------------------------------------------ */
@@ -156,11 +205,15 @@ class DatasheetPDFGenerator {
         $html .= $this->footerSection($qrTag, $sigShort);
         $html .= '</div>';
 
-        /* ---- Ruled answer pages ---- */
+        /* ---- Ruled answer pages (blank) or pre-filled content pages ---- */
         foreach ($this->answerPages as $pageTitle) {
             $html .= '<div class="page">';
             $html .= $this->answerPageHeader($pageTitle);
-            $html .= $this->ruledLines();
+            if (!empty($this->filledAnswers[$pageTitle])) {
+                $html .= $this->filledContentBlock($this->filledAnswers[$pageTitle]);
+            } else {
+                $html .= $this->ruledLines();
+            }
             $html .= $this->answerPageFooter();
             $html .= '</div>';
         }
@@ -305,6 +358,33 @@ class DatasheetPDFGenerator {
     }
 
     private function readingsTableSection(): string {
+        // If observationRows (filled-in columns from submitted report) exist, use those
+        if (!empty($this->observationRows)) {
+            $firstRow = reset($this->observationRows);
+            $thead = '';
+            if (is_array($firstRow)) {
+                foreach (array_keys($firstRow) as $col) {
+                    $thead .= '<th>' . htmlspecialchars($col) . '</th>';
+                }
+            }
+            $tbody = '';
+            foreach ($this->observationRows as $row) {
+                if (!is_array($row)) continue;
+                $tbody .= '<tr>';
+                foreach ($row as $val) {
+                    $tbody .= '<td>' . htmlspecialchars((string)$val) . '</td>';
+                }
+                $tbody .= '</tr>';
+            }
+            return '
+            <div class="section-heading">OBSERVATIONS / READINGS</div>
+            <table class="readings-table">
+                <thead><tr>' . $thead . '</tr></thead>
+                <tbody>' . ($tbody ?: '<tr><td style="text-align:center;color:#888;">No data</td></tr>') . '</tbody>
+            </table>';
+        }
+
+        // Otherwise use the template readings (blank/prefilled from DB)
         $rows = '';
         foreach ($this->readings as $r) {
             $rows .= '<tr>
@@ -378,6 +458,25 @@ class DatasheetPDFGenerator {
             $lines .= '<div class="ruled-line"></div>';
         }
         return '<div class="ruled-lines">' . $lines . '</div>';
+    }
+
+    /**
+     * Pre-filled content block (used when student has already submitted answers).
+     */
+    private function filledContentBlock(string $content): string {
+        return '
+        <div style="
+            margin-top:8px;
+            padding:10px 12px;
+            border:1px solid #c8dcff;
+            border-radius:4px;
+            background:#f8faff;
+            font-size:10pt;
+            line-height:1.7;
+            white-space:pre-wrap;
+            color:#1e293b;
+            min-height:180mm;
+        ">' . htmlspecialchars($content) . '</div>';
     }
 
     private function answerPageFooter(): string {
