@@ -6,6 +6,8 @@ define('DOCUMENT_ROOT', $_SERVER['DOCUMENT_ROOT']);
 
 try {
     require_once DOCUMENT_ROOT . '/smart-lab/config/app.php';
+    require_once DOCUMENT_ROOT . '/smart-lab/config/database.php';
+    require_once DOCUMENT_ROOT . '/smart-lab/includes/autoloader.php';
 
     $input = json_decode(file_get_contents('php://input'), true);
     $method = $_SERVER['REQUEST_METHOD'];
@@ -36,7 +38,7 @@ try {
         }
 
         $db = getDB();
-        $logoPath = 'C:/xampp/htdocs/unilis/smart-lab/jkuatlogo.jpg';
+        $logoPath = DOCUMENT_ROOT . '/smart-lab/jkuatlogo.jpg';
 
         $controller = new \SmartLab\Controllers\DatasheetController($db, $logoPath);
         $result = $controller->generateDatasheet($studentId, $practicalId, $authMethod);

@@ -4,6 +4,8 @@ define('DOCUMENT_ROOT', $_SERVER['DOCUMENT_ROOT']);
 
 try {
     require_once DOCUMENT_ROOT . '/smart-lab/config/app.php';
+    require_once DOCUMENT_ROOT . '/smart-lab/config/database.php';
+    require_once DOCUMENT_ROOT . '/smart-lab/includes/autoloader.php';
 
     $action = $_GET['action'] ?? null;
     $datasheetId = $_GET['datasheet_id'] ?? null;
@@ -52,8 +54,9 @@ try {
 
     readfile($filePath);
 
-    $controller = new \SmartLab\Controllers\DatasheetController($db);
-    $controller->downloadDatasheet($datasheetId);
+    // Update download status without re-serving the file
+    $db->prepare("UPDATE datasheets SET status = 'submitted', updated_at = NOW() WHERE id = ?")
+       ->execute([$datasheetId]);
 
     exit;
 

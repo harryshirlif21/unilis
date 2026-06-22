@@ -4,6 +4,8 @@ define('DOCUMENT_ROOT', $_SERVER['DOCUMENT_ROOT']);
 
 try {
     require_once DOCUMENT_ROOT . '/smart-lab/config/app.php';
+    require_once DOCUMENT_ROOT . '/smart-lab/config/database.php';
+    require_once DOCUMENT_ROOT . '/smart-lab/includes/autoloader.php';
 
     $studentId = $_SESSION['user_id'] ?? null;
 

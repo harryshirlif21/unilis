@@ -22,7 +22,9 @@ class DatasheetController {
         $this->datasheetModel = new DatasheetModel($db);
         $this->signature = new DigitalSignature();
         $this->qrGenerator = new QRCodeGenerator();
-        $this->logoPath = $logoPath ?: 'C:/xampp/htdocs/unilis/smart-lab/jkuatlogo.jpg';
+        $this->logoPath = $logoPath ?: (defined('DOCUMENT_ROOT')
+            ? DOCUMENT_ROOT . '/smart-lab/jkuatlogo.jpg'
+            : __DIR__ . '/../jkuatlogo.jpg');
     }
 
     public function generateDatasheet(
@@ -79,7 +81,7 @@ class DatasheetController {
                     $practical['description'] ?? ''
                 )
                 ->setReadings($readings)
-                ->setQRCode($_SERVER['DOCUMENT_ROOT'] . $qrCodePath)
+                ->setQRCode($qrCodePath)
                 ->setSignature($signatureHash, 'approved');
 
             $pdfPath = $pdfGenerator->generate($filename);
@@ -214,10 +216,21 @@ class DatasheetController {
     }
 
     private function getStudentInfo(string $studentId): ?array {
-        $stmt = $this->db->prepare(
-            "SELECT id, full_name, reg_number, email FROM users WHERE id = ? LIMIT 1"
-        );
-        $stmt->execute([$studentId]);
+        // Try with course/programme column first, fall back to base columns
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT id, full_name, reg_number, email,
+                        COALESCE(course, programme, program, '') AS course
+                 FROM users WHERE id = ? LIMIT 1"
+            );
+            $stmt->execute([$studentId]);
+        } catch (\PDOException $e) {
+            $stmt = $this->db->prepare(
+                "SELECT id, full_name, reg_number, email, '' AS course
+                 FROM users WHERE id = ? LIMIT 1"
+            );
+            $stmt->execute([$studentId]);
+        }
         return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
     }
 
