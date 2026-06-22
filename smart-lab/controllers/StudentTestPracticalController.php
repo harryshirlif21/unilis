@@ -215,7 +215,7 @@ class StudentTestPracticalController {
     }
 
     /**
-     * Download datasheet as HTML (prints nicely as PDF).
+     * Download datasheet as PDF.
      */
     public function download($reportId = null) {
         Auth::guard('student');
@@ -261,64 +261,66 @@ class StudentTestPracticalController {
             $blockchainHash = hash('sha256', $reportId . $studentId . $report['submitted_at']);
             $signatureHash = hash('sha256', $reportId . $studentId . date('Y-m-d') . 'UNILIS');
 
-            // Generate HTML datasheet with JKUAT branding
-            $html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
-            $html .= '<title>Datasheet - ' . htmlspecialchars($report['practical_title']) . '</title>';
-            $html .= '<style>
-                body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-                .univ-header { display:flex; align-items:center; gap:15px; padding-bottom:15px; border-bottom:3px solid #1e3a5f; margin-bottom:20px; }
-                .univ-header img { width:70px; height:auto; }
-                .univ-header h1 { margin:0; font-size:18px; color:#1e3a5f; }
-                .univ-header p { margin:2px 0 0; font-size:13px; color:#64748b; }
-                .header { text-align: center; margin-bottom: 20px; }
-                .header h2 { color: #1e40af; margin: 0; font-size:20px; }
-                .header p { color: #64748b; margin: 3px 0; }
-                .section { margin-bottom: 20px; page-break-inside: avoid; }
-                .section h3 { background: #1e3a5f; color: #fff; padding: 8px 15px; border-radius: 6px; font-size: 15px; margin: 0 0 10px; }
-                table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                th, td { padding: 8px 12px; border: 1px solid #e2e8f0; text-align: left; font-size: 13px; }
-                th { background: #f1f5f9; font-weight: 600; color:#1e3a5f; }
-                .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; background: #f8fafc; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left:4px solid #1e3a5f; }
-                .info-grid div { font-size: 13px; }
-                .info-grid strong { color: #1e3a5f; }
-                .footer { text-align: center; border-top: 2px solid #e2e8f0; padding-top: 15px; margin-top: 30px; font-size: 12px; color: #94a3b8; }
-                .badge { display: inline-block; background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
-                .content-text { padding: 12px; background: #f9fafb; border-radius: 4px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; border:1px solid #e2e8f0; }
-                .qr-section { text-align:center; margin-top:20px; padding:15px; border:1px dashed #d1d5db; border-radius:8px; background:#f8fafc; }
-                .qr-section img { width:100px; height:100px; } .qr-section p { font-size:11px; color:#64748b; margin:5px 0 0; }
-                .sig { font-size:11px; color:#94a3b8; word-break:break-all; margin-top:5px; }
-                @media print { body { margin: 20px; } .no-print { display: none; } }
-            </style></head><body>';
+            // Build QR code inline (base64)
+            $qrData = APP_URL . '/verify/datasheet/' . $reportId;
+            $qrImgSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' . urlencode($qrData);
 
-            $html .= '<div class="no-print" style="margin-bottom:15px;">
-                <button onclick="window.print()" style="padding:10px 20px;background:#1e3a5f;color:white;border:none;border-radius:6px;cursor:pointer;">🖨 Print / Save PDF</button>
-                <button onclick="history.back()" style="padding:10px 20px;background:#e2e8f0;border:none;border-radius:6px;cursor:pointer;margin-left:8px;">← Back</button>
-            </div>';
+            // Generate HTML for PDF
+            $html = '
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    @page { margin: 25px; }
+                    body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; line-height: 1.5; }
+                    .univ-header { text-align: center; border-bottom: 3px solid #1e3a5f; padding-bottom: 12px; margin-bottom: 18px; }
+                    .univ-header img { width: 65px; height: auto; }
+                    .univ-header h1 { margin: 6px 0 2px; font-size: 16px; color: #1e3a5f; }
+                    .univ-header p { margin: 0; font-size: 11px; color: #64748b; }
+                    .title-section { text-align: center; margin-bottom: 16px; }
+                    .title-section h2 { color: #1e40af; margin: 0 0 4px; font-size: 17px; }
+                    .title-section p { margin: 2px 0; color: #475569; font-size: 12px; }
+                    .badge { display: inline-block; background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+                    .info-grid { display: flex; justify-content: space-between; background: #f8fafc; padding: 10px 14px; border-left: 4px solid #1e3a5f; margin-bottom: 16px; font-size: 11px; }
+                    .info-grid div { flex:1; }
+                    .info-grid strong { color: #1e3a5f; display:block; margin-bottom:2px; }
+                    .section { margin-bottom: 16px; page-break-inside: avoid; }
+                    .section h3 { background: #1e3a5f; color: #fff; padding: 6px 12px; font-size: 13px; margin: 0 0 8px; border-radius: 4px; }
+                    table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
+                    th, td { padding: 5px 8px; border: 1px solid #e2e8f0; text-align: left; }
+                    th { background: #f1f5f9; font-weight: 600; color: #1e3a5f; }
+                    .content-text { padding: 10px; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 11px; white-space: pre-wrap; }
+                    .qr-section { text-align: center; margin-top: 18px; padding: 12px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; }
+                    .qr-section img { width: 100px; height: 100px; }
+                    .qr-section p { font-size: 10px; color: #64748b; margin: 4px 0 0; }
+                    .sig { font-size: 9px; color: #94a3b8; word-break: break-all; margin-top: 4px; }
+                    .footer { text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 20px; font-size: 10px; color: #94a3b8; }
+                </style>
+            </head>
+            <body>';
 
             // JKUAT Header
             $html .= '<div class="univ-header">';
             $html .= '<img src="' . $logoUrl . '" alt="JKUAT Logo" />';
-            $html .= '<div><h1>Jomo Kenyatta University of Agriculture and Technology</h1>';
-            $html .= '<p>JKUAT SmartLab — Official Lab Datasheet</p></div></div>';
+            $html .= '<h1>Jomo Kenyatta University of Agriculture and Technology</h1>';
+            $html .= '<p>JKUAT SmartLab — Official Lab Datasheet</p></div>';
 
-            // Datasheet title
-            $html .= '<div class="header">';
+            // Title
+            $html .= '<div class="title-section">';
             $html .= '<h2>' . htmlspecialchars($report['practical_title']) . '</h2>';
             $html .= '<p>' . htmlspecialchars($report['course_code']) . ' — ' . htmlspecialchars($report['lab_name']) . ' (' . htmlspecialchars($report['lab_code']) . ')</p>';
-            $html .= '<p><span class="badge">✅ Submitted: ' . date('M j, Y H:i', strtotime($report['submitted_at'])) . '</span></p>';
-            $html .= '</div>';
+            $html .= '<p><span class="badge">✅ Submitted: ' . date('M j, Y H:i', strtotime($report['submitted_at'])) . '</span></p></div>';
 
-            // Student & Practical Info
+            // Student Info
             $html .= '<div class="info-grid">';
-            $html .= '<div><strong>Student:</strong><br>' . htmlspecialchars($student['full_name'] ?? 'N/A') . ' (' . htmlspecialchars($student['reg_number'] ?? 'N/A') . ')</div>';
-            $html .= '<div><strong>Lecturer:</strong><br>' . htmlspecialchars($report['lecturer_name'] ?? 'N/A') . '</div>';
-            $html .= '<div><strong>Date:</strong><br>' . htmlspecialchars($report['scheduled_date']) . ' ' . substr($report['start_time'] ?? '', 0, 5) . ' - ' . substr($report['end_time'] ?? '', 0, 5) . '</div>';
-            $html .= '</div>';
+            $html .= '<div><strong>Student</strong>' . htmlspecialchars($student['full_name'] ?? 'N/A') . '<br>' . htmlspecialchars($student['reg_number'] ?? 'N/A') . '</div>';
+            $html .= '<div><strong>Lecturer</strong>' . htmlspecialchars($report['lecturer_name'] ?? 'N/A') . '</div>';
+            $html .= '<div><strong>Practical Date</strong>' . htmlspecialchars($report['scheduled_date']) . ' ' . substr($report['start_time'] ?? '', 0, 5) . ' - ' . substr($report['end_time'] ?? '', 0, 5) . '</div></div>';
 
             // Observations
             if (!empty($observations)) {
-                $html .= '<div class="section"><h3>📊 Observations / Readings</h3>';
-                $html .= '<table><thead><tr>';
+                $html .= '<div class="section"><h3>📊 Observations / Readings</h3><table><thead><tr>';
                 $firstRow = reset($observations);
                 if (is_array($firstRow)) {
                     foreach ($firstRow as $colName => $val) {
@@ -339,46 +341,55 @@ class StudentTestPracticalController {
 
             // Calculations
             if (!empty($report['calculations'])) {
-                $html .= '<div class="section"><h3>📝 Calculations</h3>';
-                $html .= '<div class="content-text">' . htmlspecialchars($report['calculations']) . '</div></div>';
+                $html .= '<div class="section"><h3>📝 Calculations</h3><div class="content-text">' . htmlspecialchars($report['calculations']) . '</div></div>';
             }
 
             // Result
             if (!empty($report['result'])) {
-                $html .= '<div class="section"><h3>✅ Result</h3>';
-                $html .= '<div class="content-text">' . htmlspecialchars($report['result']) . '</div></div>';
+                $html .= '<div class="section"><h3>✅ Result</h3><div class="content-text">' . htmlspecialchars($report['result']) . '</div></div>';
             }
 
             // Conclusion
             if (!empty($report['conclusion'])) {
-                $html .= '<div class="section"><h3>📌 Conclusion</h3>';
-                $html .= '<div class="content-text">' . htmlspecialchars($report['conclusion']) . '</div></div>';
+                $html .= '<div class="section"><h3>📌 Conclusion</h3><div class="content-text">' . htmlspecialchars($report['conclusion']) . '</div></div>';
             }
 
             // QR Code + Verification
-            $qrData = APP_URL . '/verify/datasheet/' . $reportId;
             $html .= '<div class="qr-section">';
-            $html .= '<img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=' . urlencode($qrData) . '" alt="QR Code" />';
+            $html .= '<img src="' . $qrImgSrc . '" alt="QR Code" />';
             $html .= '<p>Scan this QR code to verify the authenticity of this datasheet</p>';
             $html .= '<div class="sig"><strong>Datasheet ID:</strong> ' . htmlspecialchars($reportId) . '<br>';
             $html .= '<strong>Blockchain Hash:</strong> ' . htmlspecialchars($blockchainHash) . '<br>';
-            $html .= '<strong>Digital Signature:</strong> ' . htmlspecialchars($signatureHash) . '</div>';
-            $html .= '</div>';
+            $html .= '<strong>Digital Signature:</strong> ' . htmlspecialchars($signatureHash) . '</div></div>';
 
             $html .= '<div class="footer">';
             $html .= 'Generated by UNILIS SmartLabs &bull; ' . date('M j, Y H:i:s') . '<br>';
-            $html .= 'Datasheet ID: ' . htmlspecialchars($reportId) . ' &bull; Status: Submitted on ' . date('M j, Y H:i:s', strtotime($report['submitted_at']));
+            $html .= 'Datasheet ID: ' . htmlspecialchars($reportId) . ' &bull; Submitted: ' . date('M j, Y H:i:s', strtotime($report['submitted_at']));
             $html .= '</div></body></html>';
 
-            // Output as HTML download
-            header('Content-Type: text/html; charset=utf-8');
-            header('Content-Disposition: attachment; filename="datasheet-' . $reportId . '.html"');
-            echo $html;
+            // Generate PDF using Dompdf
+            $pdfPath = __DIR__ . '/../vendor/autoload.php';
+            if (!file_exists($pdfPath)) {
+                // Fallback: output as HTML if Dompdf not installed
+                header('Content-Type: text/html; charset=utf-8');
+                header('Content-Disposition: attachment; filename="datasheet-' . $reportId . '.html"');
+                echo $html;
+                exit;
+            }
+
+            require_once $pdfPath;
+            $dompdf = new \Dompdf\Dompdf();
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+
+            // Output PDF
+            $dompdf->stream('datasheet-' . $reportId . '.pdf', ['Attachment' => true]);
             exit;
 
         } catch (Exception $e) {
             error_log("StudentTestPracticalController::download - Error: " . $e->getMessage());
-            echo 'Error generating datasheet: ' . $e->getMessage();
+            echo 'Error generating datasheet PDF: ' . $e->getMessage();
         }
     }
 }
