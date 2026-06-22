@@ -1,5 +1,5 @@
-# Use official PHP 8.1 with Apache
-FROM php:8.1-apache
+# Use official PHP 8.2 with Apache
+FROM php:8.2-apache
 
 # Install system dependencies + Postfix + OpenDKIM
 RUN apt-get update && apt-get install -y \

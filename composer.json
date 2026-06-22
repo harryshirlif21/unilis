@@ -3,7 +3,7 @@
     "description": "UNILIS - Learning Management System",
     "type": "project",
     "require": {
-        "php": ">=7.4",
+        "php": ">=8.2",
         "phpmailer/phpmailer": "^6.8",
         "dompdf/dompdf": "^2.0",
         "chillerlan/php-qrcode": "^6.0"
