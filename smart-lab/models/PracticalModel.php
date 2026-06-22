@@ -150,10 +150,18 @@ class PracticalModel {
     
     public function update(string $practicalId, array $data): bool {
         try {
+            // Preserve existing status — only change if explicitly provided
+            $statusValue = $data['status'] ?? null;
+            if ($statusValue === null) {
+                // Fetch current status so we don't overwrite it
+                $current = $this->getById($practicalId);
+                $statusValue = $current['status'] ?? 'draft';
+            }
+
             $stmt = $this->db->prepare(
                 "UPDATE practicals 
                  SET title = ?, objective = ?, theory = ?, description = ?, lab_id = ?, 
-                     scheduled_date = ?, duration_hours = ?, 
+                     scheduled_date = ?, 
                      max_students = ?, status = ?,
                      course_code = ?, start_time = ?, end_time = ?,
                      required_equipment = ?, required_chemicals = ?, 
@@ -169,9 +177,8 @@ class PracticalModel {
                 $data['description'] ?? null,
                 $data['lab_id'],
                 $data['scheduled_date'],
-                $data['duration_hours'] ?? 2,
                 $data['max_students'],
-                $data['status'] ?? 'draft',
+                $statusValue,
                 $data['course_code'] ?? null,
                 $data['start_time'] ?? null,
                 $data['end_time'] ?? null,

@@ -316,12 +316,19 @@ class PracticalController {
                 empty($data['end_time'])) {
                 $error = 'Title, lab, date, and times are required.';
             } else {
-                // Validate date and times first
-                $dateTimeErrors = $this->model->validateDateTime(
-                    $data['scheduled_date'],
-                    $data['start_time'],
-                    $data['end_time']
-                );
+                // Validate time format only (skip past-date check for edits)
+                $dateTimeErrors = [];
+                $selectedDate = DateTime::createFromFormat('Y-m-d', $data['scheduled_date']);
+                if (!$selectedDate) {
+                    $dateTimeErrors[] = 'Invalid date format.';
+                }
+                if ($data['start_time'] && $data['end_time']) {
+                    if (strlen($data['start_time']) !== 5 || strlen($data['end_time']) !== 5) {
+                        $dateTimeErrors[] = 'Invalid time format. Use HH:MM.';
+                    } elseif ($data['start_time'] >= $data['end_time']) {
+                        $dateTimeErrors[] = 'End time must be after start time.';
+                    }
+                }
                 
                 if (!empty($dateTimeErrors)) {
                     $error = implode(' ', $dateTimeErrors);
