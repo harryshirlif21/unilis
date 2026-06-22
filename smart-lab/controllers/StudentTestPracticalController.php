@@ -266,12 +266,14 @@ class StudentTestPracticalController {
             $student = $stmt->fetch();
 
             // ---- Load autoloader + dompdf ----
-            $parentVendor = __DIR__ . '/../../vendor/autoload.php';
+            // Smart-lab vendor is tried first (works on Docker production).
+            // Parent XAMPP vendor is the fallback for local dev.
             $localVendor  = __DIR__ . '/../vendor/autoload.php';
-            if (file_exists($parentVendor)) {
-                require_once $parentVendor;
-            } elseif (file_exists($localVendor)) {
+            $parentVendor = __DIR__ . '/../../vendor/autoload.php';
+            if (file_exists($localVendor)) {
                 require_once $localVendor;
+            } elseif (file_exists($parentVendor)) {
+                require_once $parentVendor;
             } else {
                 header('Content-Type: text/plain');
                 echo 'PDF library not found. Please run composer install.';
@@ -312,10 +314,11 @@ class StudentTestPracticalController {
             }
 
             // ---- Build the PDF ----
-            $logoPath = (defined('DOCUMENT_ROOT') ? DOCUMENT_ROOT : $_SERVER['DOCUMENT_ROOT'])
-                      . '/smart-lab/jkuatlogo.jpg';
-            if (!file_exists($logoPath)) {
-                $logoPath = __DIR__ . '/../jkuatlogo.jpg';
+            // Logo — __DIR__ works correctly on both local XAMPP and Docker
+            $logoPath = realpath(__DIR__ . '/../jkuatlogo.jpg') ?: '';
+            if (!$logoPath) {
+                $logoPath = (defined('DOCUMENT_ROOT') ? DOCUMENT_ROOT : $_SERVER['DOCUMENT_ROOT'])
+                          . '/smart-lab/jkuatlogo.jpg';
             }
 
             $sigHash = hash('sha256', $reportId . $studentId . ($report['submitted_at'] ?? date('Y-m-d H:i:s')));

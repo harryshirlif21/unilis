@@ -27,14 +27,16 @@ spl_autoload_register(function ($class) {
     }
 });
 
-// Parent project vendor (has dompdf)
-if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
-    require_once __DIR__ . '/../../vendor/autoload.php';
-}
-
-// Smart-lab local vendor (chillerlan/php-qrcode etc.)
+// Smart-lab local vendor (dompdf + chillerlan/php-qrcode) — loaded first so
+// it wins on production Docker where no parent vendor exists.
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
+}
+
+// Parent project vendor (local XAMPP dev) — only loaded if the class wasn't
+// already resolved by the smart-lab vendor above.
+if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
+    require_once __DIR__ . '/../../vendor/autoload.php';
 }
 
 return [

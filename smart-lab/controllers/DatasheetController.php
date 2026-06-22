@@ -22,9 +22,7 @@ class DatasheetController {
         $this->datasheetModel = new DatasheetModel($db);
         $this->signature = new DigitalSignature();
         $this->qrGenerator = new QRCodeGenerator();
-        $this->logoPath = $logoPath ?: (defined('DOCUMENT_ROOT')
-            ? DOCUMENT_ROOT . '/smart-lab/jkuatlogo.jpg'
-            : __DIR__ . '/../jkuatlogo.jpg');
+        $this->logoPath = $logoPath ?: realpath(__DIR__ . '/../jkuatlogo.jpg') ?: __DIR__ . '/../jkuatlogo.jpg';
     }
 
     public function generateDatasheet(

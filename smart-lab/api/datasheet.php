@@ -38,7 +38,7 @@ try {
         }
 
         $db = getDB();
-        $logoPath = DOCUMENT_ROOT . '/smart-lab/jkuatlogo.jpg';
+        $logoPath = realpath(__DIR__ . '/../jkuatlogo.jpg') ?: __DIR__ . '/../jkuatlogo.jpg';
 
         $controller = new \SmartLab\Controllers\DatasheetController($db, $logoPath);
         $result = $controller->generateDatasheet($studentId, $practicalId, $authMethod);

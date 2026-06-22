@@ -2,6 +2,7 @@
     "name": "jkuat/smartlab",
     "description": "JKUAT SmartLab",
     "require": {
-        "chillerlan/php-qrcode": "^6.0"
+        "chillerlan/php-qrcode": "^6.0",
+        "dompdf/dompdf": "^3.1"
     }
 }
