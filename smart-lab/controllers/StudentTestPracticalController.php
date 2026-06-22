@@ -266,17 +266,18 @@ class StudentTestPracticalController {
             $student = $stmt->fetch();
 
             // ---- Load autoloader + dompdf ----
-            // Smart-lab vendor is tried first (works on Docker production).
-            // Parent XAMPP vendor is the fallback for local dev.
-            $localVendor  = __DIR__ . '/../vendor/autoload.php';
-            $parentVendor = __DIR__ . '/../../vendor/autoload.php';
+            // Try in order: smart-lab local vendor → root project vendor (production)
+            $localVendor  = __DIR__ . '/../vendor/autoload.php';   // smart-lab/vendor/
+            $parentVendor = __DIR__ . '/../../vendor/autoload.php'; // unilis/vendor/ — present on production
             if (file_exists($localVendor)) {
                 require_once $localVendor;
-            } elseif (file_exists($parentVendor)) {
+            }
+            if (file_exists($parentVendor)) {
                 require_once $parentVendor;
-            } else {
+            }
+            if (!class_exists('\\Dompdf\\Dompdf')) {
                 header('Content-Type: text/plain');
-                echo 'PDF library not found. Please run composer install.';
+                echo 'PDF library (dompdf) not found. Run: composer install';
                 exit;
             }
             require_once __DIR__ . '/../includes/autoloader.php';
@@ -309,7 +310,7 @@ class StudentTestPracticalController {
             try {
                 $qrGen = new \SmartLab\QRCodeGenerator();
                 $qrPath = $qrGen->generate($verifyUrl, 'report_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $reportId));
-            } catch (\Exception $qrEx) {
+            } catch (\Throwable $qrEx) {
                 error_log('QR generation failed: ' . $qrEx->getMessage());
             }
 

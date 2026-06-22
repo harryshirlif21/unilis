@@ -27,14 +27,15 @@ spl_autoload_register(function ($class) {
     }
 });
 
-// Smart-lab local vendor (dompdf + chillerlan/php-qrcode) — loaded first so
-// it wins on production Docker where no parent vendor exists.
+// Vendor load order (first match wins for already-registered autoloaders):
+// 1. Smart-lab local vendor — present when smart-lab has its own composer deps
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
 }
 
-// Parent project vendor (local XAMPP dev) — only loaded if the class wasn't
-// already resolved by the smart-lab vendor above.
+// 2. Parent project vendor — unilis root vendor.
+//    On production Docker this is /var/www/html/vendor/ (has dompdf + chillerlan).
+//    On local XAMPP this is unilis/vendor/.
 if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
     require_once __DIR__ . '/../../vendor/autoload.php';
 }
