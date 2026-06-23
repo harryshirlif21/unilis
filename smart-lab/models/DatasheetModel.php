@@ -11,7 +11,7 @@ class DatasheetModel {
     }
 
     public function create(array $data): string {
-        $id = bin2hex(random_bytes(18));
+        $id = $data['id'] ?? bin2hex(random_bytes(18));
 
         $stmt = $this->db->prepare(
             "INSERT INTO datasheets 

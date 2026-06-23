@@ -276,15 +276,29 @@ function testSubmitReport() {
             localStorage.removeItem('practical_<?= $practical['id'] ?>_draft');
             const actions = document.querySelector('.report-actions');
             actions.innerHTML = `
-                <div style="background:#dcfce7;color:#166534;padding:16px;border-radius:8px;width:100%;text-align:center;">
+                <div style="background:#dcfce7;color:#166534;padding:16px;border-radius:8px;width:100%;">
                     <strong>✅ Datasheet saved successfully!</strong>
-                    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                    <p style="margin:8px 0 12px;font-size:14px;">Download your datasheet, fill in the blank pages, then upload the completed report below.</p>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
                         <a href="<?= APP_URL ?>/start-practical-test/download/<?= $report_id ?>" class="btn" style="background:#16a34a;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
                             📄 Download Datasheet
                         </a>
                         <a href="<?= APP_URL ?>/student/view_practical/<?= $practical['id'] ?>" class="btn" style="background:#e2e8f0;color:#334155;padding:10px 20px;border-radius:6px;text-decoration:none;">
                             ← Back to Practical
                         </a>
+                    </div>
+                    <div style="border-top:1px solid #bbf7d0;padding-top:14px;">
+                        <p style="font-weight:600;margin-bottom:8px;">📤 Upload Completed Report</p>
+                        <p style="font-size:13px;margin-bottom:10px;color:#15803d;">After filling the blank pages, upload a scan or photo of your completed datasheet (PDF, JPG, or PNG — max 10 MB).</p>
+                        <div id="uploadArea" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                            <input type="file" id="reportFileInput" accept=".pdf,.jpg,.jpeg,.png"
+                                style="border:1px solid #86efac;border-radius:6px;padding:6px;background:white;color:#166534;font-size:13px;max-width:280px;" />
+                            <button type="button" onclick="uploadReport()" id="uploadBtn"
+                                style="background:#15803d;color:white;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">
+                                Upload
+                            </button>
+                        </div>
+                        <div id="uploadStatus" style="margin-top:8px;font-size:13px;"></div>
                     </div>
                 </div>
             `;
@@ -296,6 +310,48 @@ function testSubmitReport() {
     .catch(err => {
         alert('Error: ' + err.message);
         btn.disabled = false; btn.textContent = '📄 Save Datasheet';
+    });
+}
+
+function uploadReport() {
+    const fileInput = document.getElementById('reportFileInput');
+    const statusEl  = document.getElementById('uploadStatus');
+    const btn       = document.getElementById('uploadBtn');
+
+    if (!fileInput || !fileInput.files[0]) {
+        statusEl.textContent = 'Please select a file first.';
+        statusEl.style.color = '#b91c1c';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('report_file', fileInput.files[0]);
+
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+    statusEl.textContent = '';
+
+    fetch('<?= APP_URL ?>/start-practical-test/upload/<?= $report_id ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            statusEl.innerHTML = '<span style="color:#15803d;font-weight:600;">✅ Report uploaded successfully!</span>';
+            document.getElementById('uploadArea').innerHTML = '<span style="color:#15803d;font-weight:600;">✅ Completed report submitted.</span>';
+        } else {
+            statusEl.textContent = 'Upload failed: ' + (res.error || 'Unknown error');
+            statusEl.style.color = '#b91c1c';
+            btn.disabled = false;
+            btn.textContent = 'Upload';
+        }
+    })
+    .catch(err => {
+        statusEl.textContent = 'Upload error: ' + err.message;
+        statusEl.style.color = '#b91c1c';
+        btn.disabled = false;
+        btn.textContent = 'Upload';
     });
 }
 

@@ -56,6 +56,10 @@ class DatasheetController {
                 $timestamp
             );
 
+            // Pre-generate datasheet ID so it can be embedded in the PDF
+            $datasheetId = bin2hex(random_bytes(18));
+            $blockchainHash = hash('sha256', $datasheetId . $signatureHash . $timestamp);
+
             $qrData = sprintf(
                 'https://unilis.jhubafrica.com/smart-lab/verify.php?practical_id=%s&student_id=%s&status=approved&timestamp=%s',
                 urlencode($practicalId),
@@ -76,11 +80,18 @@ class DatasheetController {
                     $practical['title'],
                     $practical['lab_number'] ?? 'Lab 1',
                     $practical['objective'] ?? 'Experiment',
-                    $practical['description'] ?? ''
+                    $practical['description'] ?? '',
+                    $practical['scheduled_date'] ?? '',
+                    $practical['start_time'] ?? ''
                 )
+                ->setExtendedDetails([
+                    'course_code'  => $practical['course_code'] ?? '',
+                    'lab_name'     => $practical['lab_name']    ?? '',
+                ])
                 ->setReadings($readings)
                 ->setQRCode($qrCodePath)
-                ->setSignature($signatureHash, 'approved');
+                ->setSignature($signatureHash, 'approved')
+                ->setDatasheetMeta($datasheetId, $blockchainHash, $timestamp);
 
             $pdfPath = $pdfGenerator->generate($filename);
 
@@ -89,6 +100,7 @@ class DatasheetController {
                 : 'pending';
 
             $datasheetId = $this->datasheetModel->create([
+                'id' => $datasheetId,
                 'student_id' => $studentId,
                 'practical_id' => $practicalId,
                 'pdf_filename' => $filename,

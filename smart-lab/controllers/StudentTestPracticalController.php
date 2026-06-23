@@ -323,6 +323,7 @@ class StudentTestPracticalController {
             }
 
             $sigHash = hash('sha256', $reportId . $studentId . ($report['submitted_at'] ?? date('Y-m-d H:i:s')));
+            $blockchainHash = hash('sha256', $reportId . $sigHash);
 
             $generator = new \SmartLab\DatasheetPDFGenerator($logoPath);
             $generator
@@ -337,6 +338,11 @@ class StudentTestPracticalController {
                     $report['course_code'] ?? '',
                     $report['description'] ?? $report['objective'] ?? ''
                 )
+                ->setExtendedDetails([
+                    'course_code'  => $report['course_code'] ?? '',
+                    'lab_name'     => $report['lab_name']    ?? $report['lab_code'] ?? '',
+                ])
+                ->setDatasheetMeta($reportId, $blockchainHash, $report['submitted_at'] ?? '')
                 ->setReadings([])
                 ->setObservationRows($observationRows)
                 ->setQRCode($qrPath)
@@ -344,6 +350,7 @@ class StudentTestPracticalController {
                 ->setFilledAnswers([
                     'Student Observations & Calculations' => $report['calculations'] ?? '',
                     'Results & Analysis'                  => $report['result'] ?? '',
+                    'Discussion'                          => $report['discussion'] ?? '',
                     'Conclusion & Recommendations'        => $report['conclusion'] ?? '',
                 ]);
 
@@ -361,5 +368,92 @@ class StudentTestPracticalController {
             echo htmlspecialchars('File: ' . $e->getFile() . ' line ' . $e->getLine());
             echo '</pre>';
         }
+    }
+
+    /**
+     * Upload completed physical report (PDF/image) for a submitted datasheet.
+     * POST /start-practical-test/upload/{reportId}
+     * Returns JSON.
+     */
+    public function upload($reportId = null) {
+        Auth::guard('student');
+        header('Content-Type: application/json');
+
+        if (!$reportId || $_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid request']);
+            exit;
+        }
+
+        $studentId = Auth::id();
+
+        // Verify report belongs to this student and is submitted
+        $stmt = $this->db->prepare(
+            "SELECT id FROM lab_reports WHERE id = ? AND student_id = ? AND status = 'submitted'"
+        );
+        $stmt->execute([$reportId, $studentId]);
+        if (!$stmt->fetch()) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Report not found or not yet submitted']);
+            exit;
+        }
+
+        if (!isset($_FILES['report_file']) || $_FILES['report_file']['error'] !== UPLOAD_ERR_OK) {
+            $uploadErrors = [
+                UPLOAD_ERR_INI_SIZE   => 'File exceeds server size limit',
+                UPLOAD_ERR_FORM_SIZE  => 'File exceeds form size limit',
+                UPLOAD_ERR_NO_FILE    => 'No file uploaded',
+            ];
+            $errCode = $_FILES['report_file']['error'] ?? UPLOAD_ERR_NO_FILE;
+            echo json_encode(['success' => false, 'error' => $uploadErrors[$errCode] ?? 'Upload error']);
+            exit;
+        }
+
+        $file = $_FILES['report_file'];
+
+        // Validate extension
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true)) {
+            echo json_encode(['success' => false, 'error' => 'Only PDF, JPG, or PNG files are allowed']);
+            exit;
+        }
+
+        // Validate MIME type (defence-in-depth)
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime  = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        if (!in_array($mime, ['application/pdf', 'image/jpeg', 'image/png'], true)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid file type detected']);
+            exit;
+        }
+
+        // Validate file size (10 MB)
+        if ($file['size'] > 10 * 1024 * 1024) {
+            echo json_encode(['success' => false, 'error' => 'File must be under 10 MB']);
+            exit;
+        }
+
+        // Build destination path
+        $uploadDir = rtrim($_SERVER['DOCUMENT_ROOT'], '/') . '/smart-lab/assets/uploads/reports/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $safeId  = preg_replace('/[^a-zA-Z0-9_-]/', '', $reportId);
+        $filename = 'report_' . $safeId . '.' . $ext;
+        $destPath = $uploadDir . $filename;
+
+        if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to save file — check directory permissions']);
+            exit;
+        }
+
+        $webPath = '/smart-lab/assets/uploads/reports/' . $filename;
+
+        $this->db->prepare(
+            "UPDATE lab_reports SET report_file = ?, report_uploaded_at = NOW() WHERE id = ? AND student_id = ?"
+        )->execute([$webPath, $reportId, $studentId]);
+
+        echo json_encode(['success' => true, 'message' => 'Report uploaded successfully', 'file' => $webPath]);
     }
 }

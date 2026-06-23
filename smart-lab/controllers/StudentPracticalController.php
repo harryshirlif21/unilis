@@ -521,10 +521,11 @@ class StudentPracticalController {
 
         // Get report ID if a report exists for this practical
         $report_id = '';
+        $report_uploaded = false;
         if ($report_status !== 'not_started') {
             try {
                 $stmt = $this->db->prepare("
-                    SELECT id FROM lab_reports
+                    SELECT id, report_file FROM lab_reports
                     WHERE practical_id = ? AND student_id = ?
                     ORDER BY created_at DESC LIMIT 1
                 ");
@@ -532,6 +533,7 @@ class StudentPracticalController {
                 $reportRow = $stmt->fetch();
                 if ($reportRow) {
                     $report_id = $reportRow['id'];
+                    $report_uploaded = !empty($reportRow['report_file']);
                 }
             } catch (PDOException $e) {
                 error_log("StudentPracticalController::view_practical - report query failed: " . $e->getMessage());
@@ -541,7 +543,8 @@ class StudentPracticalController {
         renderView('student/view_practical', [
             'practical' => $practical,
             'report_status' => $report_status,
-            'report_id' => $report_id
+            'report_id' => $report_id,
+            'report_uploaded' => $report_uploaded,
         ]);
     }
 

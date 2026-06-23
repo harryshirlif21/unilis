@@ -57,7 +57,7 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 777 /var/www/html/assets
 
 # Create necessary directories
-RUN mkdir -p /var/www/html/logs /var/www/html/uploads /var/www/html/assets/datasheets /var/www/html/assets/qrcodes
+RUN mkdir -p /var/www/html/logs /var/www/html/uploads /var/www/html/assets/datasheets /var/www/html/assets/qrcodes /var/www/html/assets/uploads/reports
 
 # Configure Apache
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \

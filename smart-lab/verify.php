@@ -1,51 +1,73 @@
 <?php
 session_start();
 define('DOCUMENT_ROOT', $_SERVER['DOCUMENT_ROOT']);
-require_once DOCUMENT_ROOT . '/smart-lab/config/app.php';
+
+// Environment detection
+if (strpos($_SERVER['HTTP_HOST'] ?? '', 'unilis.jhubafrica.com') !== false) {
+    require_once DOCUMENT_ROOT . '/smart-lab/config/app_production.php';
+    require_once DOCUMENT_ROOT . '/smart-lab/config/database_production.php';
+} else {
+    require_once DOCUMENT_ROOT . '/smart-lab/config/app.php';
+    require_once DOCUMENT_ROOT . '/smart-lab/config/database.php';
+}
 
 try {
-    $practical_id = $_GET['practical_id'] ?? null;
-    $student_id = $_GET['student_id'] ?? null;
-    $status = $_GET['status'] ?? 'pending';
-    $timestamp = $_GET['timestamp'] ?? date('Y-m-d H:i:s');
-
-    if (!$practical_id || !$student_id) {
-        http_response_code(400);
-        die('Missing required parameters: practical_id, student_id');
-    }
-
     $db = getDB();
 
-    $stmt = $db->prepare(
-        "SELECT d.*, p.title as practical_title, s.full_name as student_name, s.reg_number
-         FROM datasheets d
-         LEFT JOIN practicals p ON d.practical_id = p.id
-         LEFT JOIN users s ON d.student_id = s.id
-         WHERE d.practical_id = ? AND d.student_id = ?
-         LIMIT 1"
-    );
-    $stmt->execute([$practical_id, $student_id]);
-    $datasheet = $stmt->fetch(PDO::FETCH_ASSOC);
+    $type       = $_GET['type']       ?? 'datasheet';
+    $student_id = $_GET['student_id'] ?? null;
+    $report_id  = $_GET['report_id']  ?? null;   // new lab_reports flow
+    $practical_id = $_GET['practical_id'] ?? null; // legacy datasheets flow
 
-    if (!$datasheet) {
-        http_response_code(404);
-        die('Datasheet not found');
+    // ── NEW FLOW: type=lab_report ──────────────────────────────────────────
+    if ($type === 'lab_report' && $report_id && $student_id) {
+
+        $stmt = $db->prepare("
+            SELECT r.id, r.status, r.submitted_at, r.report_file, r.report_uploaded_at,
+                   r.calculations, r.result, r.conclusion,
+                   p.title as practical_title, p.course_code, p.scheduled_date,
+                   l.name as lab_name,
+                   u.full_name as student_name, u.reg_number
+            FROM lab_reports r
+            JOIN practicals p ON r.practical_id = p.id
+            LEFT JOIN labs l ON p.lab_id = l.id
+            JOIN users u ON r.student_id = u.id
+            WHERE r.id = ? AND r.student_id = ? AND r.status = 'submitted'
+            LIMIT 1
+        ");
+        $stmt->execute([$report_id, $student_id]);
+        $datasheet = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $verified = ($datasheet !== false);
+        $isLabReport = true;
+
+    // ── LEGACY FLOW: datasheets table ─────────────────────────────────────
+    } else {
+        $isLabReport = false;
+
+        if (!$practical_id || !$student_id) {
+            http_response_code(400);
+            die('Missing required parameters: practical_id and student_id (or report_id and type=lab_report)');
+        }
+
+        $stmt = $db->prepare(
+            "SELECT d.*, p.title as practical_title, s.full_name as student_name, s.reg_number
+             FROM datasheets d
+             LEFT JOIN practicals p ON d.practical_id = p.id
+             LEFT JOIN users s ON d.student_id = s.id
+             WHERE d.practical_id = ? AND d.student_id = ?
+             LIMIT 1"
+        );
+        $stmt->execute([$practical_id, $student_id]);
+        $datasheet = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$datasheet) {
+            http_response_code(404);
+            die('Datasheet not found');
+        }
+
+        $verified = ($datasheet['approval_status'] === 'approved');
     }
-
-    $signature = new \SmartLab\DigitalSignature();
-    $isValid = $signature->verifySignature(
-        $datasheet['signature_hash'],
-        $student_id,
-        $practical_id,
-        $timestamp
-    );
-
-    if ($datasheet['approval_status'] !== 'approved') {
-        $isValid = false;
-        $status = 'pending';
-    }
-
-    $verified = ($isValid && $status === 'approved');
 
 ?>
 <!DOCTYPE html>
@@ -222,17 +244,47 @@ try {
                 <span class="detail-label">Practical:</span>
                 <span class="detail-value"><?php echo htmlspecialchars($datasheet['practical_title'] ?? 'N/A'); ?></span>
             </div>
+            <?php if (!empty($datasheet['course_code'])): ?>
+            <div class="detail-row">
+                <span class="detail-label">Course Code:</span>
+                <span class="detail-value"><?php echo htmlspecialchars($datasheet['course_code']); ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($datasheet['lab_name'])): ?>
+            <div class="detail-row">
+                <span class="detail-label">Laboratory:</span>
+                <span class="detail-value"><?php echo htmlspecialchars($datasheet['lab_name']); ?></span>
+            </div>
+            <?php endif; ?>
             <div class="detail-row">
                 <span class="detail-label">Status:</span>
                 <span class="detail-value">
-                    <strong><?php echo htmlspecialchars(strtoupper($datasheet['approval_status'])); ?></strong>
+                    <strong><?php echo $verified ? 'SUBMITTED' : 'NOT VERIFIED'; ?></strong>
                 </span>
             </div>
             <div class="detail-row">
-                <span class="detail-label">Generated:</span>
-                <span class="detail-value"><?php echo date('F j, Y \a\t g:i A', strtotime($datasheet['created_at'])); ?></span>
+                <span class="detail-label">Submitted:</span>
+                <span class="detail-value">
+                    <?php
+                    $ts = $datasheet['submitted_at'] ?? $datasheet['created_at'] ?? null;
+                    echo $ts ? date('F j, Y \a\t g:i A', strtotime($ts)) : 'N/A';
+                    ?>
+                </span>
             </div>
-            <?php if ($verified): ?>
+            <?php if (!empty($datasheet['report_uploaded_at'])): ?>
+            <div class="detail-row">
+                <span class="detail-label">Report Uploaded:</span>
+                <span class="detail-value" style="color:#16a34a;font-weight:600;">
+                    <?php echo date('F j, Y \a\t g:i A', strtotime($datasheet['report_uploaded_at'])); ?> ✓
+                </span>
+            </div>
+            <?php endif; ?>
+            <?php if ($isLabReport && $verified): ?>
+            <div class="detail-row">
+                <span class="detail-label">Datasheet ID:</span>
+                <span class="detail-value" style="font-family:monospace;font-size:12px;"><?php echo substr($datasheet['id'], 0, 16); ?>...</span>
+            </div>
+            <?php elseif (!$isLabReport && $verified): ?>
             <div class="detail-row">
                 <span class="detail-label">Signature Hash:</span>
                 <span class="detail-value"><?php echo substr($datasheet['signature_hash'], 0, 16); ?>...</span>
@@ -253,7 +305,6 @@ try {
 </body>
 </html>
 <?php
-
 } catch (\Exception $e) {
     error_log('Verification Page Error: ' . $e->getMessage());
     http_response_code(500);

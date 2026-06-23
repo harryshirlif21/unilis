@@ -70,7 +70,79 @@
                 ⚡ Take Practical (Test)
             </a>
         </div>
-    </div>
+
+        <?php if ($currentReportStatus === 'submitted' && !empty($report_id)): ?>
+        <!-- Upload completed physical report -->
+        <div id="uploadReportSection" style="margin-top:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px 20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <p style="font-weight:600;color:#15803d;margin:0 0 4px;">📤 Upload Completed Report</p>
+                    <p style="font-size:13px;color:#166534;margin:0;">
+                        <?php if (!empty($report_uploaded)): ?>
+                            <span style="color:#15803d;font-weight:600;">✅ Report already uploaded.</span> You can replace it by uploading again.
+                        <?php else: ?>
+                            Fill the blank pages of the datasheet and upload a scan or photo (PDF, JPG, PNG — max 10 MB).
+                        <?php endif; ?>
+                    </p>
+                </div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="file" id="reportFileInput" accept=".pdf,.jpg,.jpeg,.png"
+                    style="border:1px solid #86efac;border-radius:6px;padding:6px 10px;background:white;color:#166534;font-size:13px;" />
+                <button type="button" id="uploadBtn" onclick="uploadCompletedReport('<?= htmlspecialchars($report_id) ?>')"
+                    style="background:#15803d;color:white;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">
+                    Upload
+                </button>
+            </div>
+            <div id="uploadStatus" style="margin-top:8px;font-size:13px;"></div>
+        </div>
+        <script>
+        function uploadCompletedReport(reportId) {
+            const fileInput = document.getElementById('reportFileInput');
+            const statusEl  = document.getElementById('uploadStatus');
+            const btn       = document.getElementById('uploadBtn');
+
+            if (!fileInput || !fileInput.files[0]) {
+                statusEl.textContent = 'Please select a file first.';
+                statusEl.style.color = '#b91c1c';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('report_file', fileInput.files[0]);
+
+            btn.disabled = true;
+            btn.textContent = 'Uploading…';
+            statusEl.textContent = '';
+
+            fetch('<?= APP_URL ?>/start-practical-test/upload/' + reportId, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    statusEl.innerHTML = '<span style="color:#15803d;font-weight:600;">✅ Report uploaded successfully! Your lecturer can now verify your submission.</span>';
+                    document.getElementById('uploadReportSection').querySelector('p:last-of-type').innerHTML =
+                        '<span style="color:#15803d;font-weight:600;">✅ Report uploaded.</span> You can replace it by uploading again.';
+                    btn.disabled = false;
+                    btn.textContent = 'Replace';
+                } else {
+                    statusEl.textContent = 'Upload failed: ' + (res.error || 'Unknown error');
+                    statusEl.style.color = '#b91c1c';
+                    btn.disabled = false;
+                    btn.textContent = 'Upload';
+                }
+            })
+            .catch(err => {
+                statusEl.textContent = 'Upload error: ' + err.message;
+                statusEl.style.color = '#b91c1c';
+                btn.disabled = false;
+                btn.textContent = 'Upload';
+            });
+        }
+        </script>
+        <?php endif; ?>
 
     <div class="practical-view">
         <!-- Practical Content Tabs -->
