@@ -18,6 +18,7 @@ services:
       - smart-labs-db
     environment:
       DB_HOST: db
+      SMARTLAB_DB_HOST: smart-labs-db
       MYSQL_USER: unilisuser
       MYSQL_PASSWORD: unilispass
       MYSQL_DATABASE: unilis

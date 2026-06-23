@@ -1,8 +1,8 @@
 <?php
 // Production Database Configuration with Docker Support
 
-// Try Docker container name first, fallback to localhost for local development
-$dockerHost = getenv('DB_HOST') ?: 'unilis-db';
+// Use SMARTLAB_DB_HOST for the smart-lab database container; fallback to DB_HOST then smart-labs-db
+$dockerHost = getenv('SMARTLAB_DB_HOST') ?: (getenv('DB_HOST') ?: 'smart-labs-db');
 $localHost  = getenv('DB_LOCAL_HOST') ?: 'localhost';
 $dbName     = getenv('DB_NAME') ?: 'unilis_smartlab';
 $dbUser     = getenv('DB_USER') ?: 'lab_admin';
@@ -18,8 +18,8 @@ function getProductionDB(): PDO {
         return $pdo;
     }
     
-    // Try Docker first
-    $hosts = [$dockerHost, $localHost, '127.0.0.1'];
+    // Try the smart-lab database host first, then fallbacks
+    $hosts = [$dockerHost, 'smart-labs-db', $localHost, '127.0.0.1'];
     $lastError = null;
     
     foreach ($hosts as $host) {
@@ -63,9 +63,9 @@ function getDB(): PDO {
     return getProductionDB();
 }
 
-// Define constants for backward compatibility
+// Define constants for backward compatibility (production fallback)
 if (!defined('DB_HOST')) {
-    define('DB_HOST', 'unilis-db');
+    define('DB_HOST', 'smart-labs-db');
     define('DB_NAME', 'unilis_smartlab');
     define('DB_USER', 'lab_admin');
     define('DB_PASS', 'lab_password');
