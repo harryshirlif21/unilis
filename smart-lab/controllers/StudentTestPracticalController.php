@@ -308,7 +308,7 @@ class StudentTestPracticalController {
 
             $qrPath = '';
             try {
-                $qrGen = new \SmartLab\QRCodeGenerator();
+                $qrGen = new \SmartLab\QRCodeGenerator('/smart-lab/assets/qrcodes/');
                 $qrPath = $qrGen->generate($verifyUrl, 'report_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $reportId));
             } catch (\Throwable $qrEx) {
                 error_log('QR generation failed: ' . $qrEx->getMessage());
@@ -325,7 +325,7 @@ class StudentTestPracticalController {
             $sigHash = hash('sha256', $reportId . $studentId . ($report['submitted_at'] ?? date('Y-m-d H:i:s')));
             $blockchainHash = hash('sha256', $reportId . $sigHash);
 
-            $generator = new \SmartLab\DatasheetPDFGenerator($logoPath);
+            $generator = new \SmartLab\DatasheetPDFGenerator($logoPath, '/smart-lab/assets/datasheets/');
             $generator
                 ->setStudentDetails(
                     $student['full_name'] ?? 'Unknown',

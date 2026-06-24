@@ -40,7 +40,9 @@ class QRCodeGenerator {
         ]);
 
         $svg = (new QRCode($options))->render($data);
-        file_put_contents($fullPath, $svg);
+        if (file_put_contents($fullPath, $svg) === false) {
+            throw new \RuntimeException('Failed to write QR code to ' . $fullPath);
+        }
 
         return $this->outputDir . $filename . '.svg';
     }

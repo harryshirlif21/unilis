@@ -196,7 +196,9 @@ class DatasheetPDFGenerator {
         $dompdf = $this->buildDompdf();
         $outputPath = $_SERVER['DOCUMENT_ROOT'] . $this->outputDir . $filename;
         @mkdir(dirname($outputPath), 0755, true);
-        file_put_contents($outputPath, $dompdf->output());
+        if (file_put_contents($outputPath, $dompdf->output()) === false) {
+            throw new \RuntimeException('Failed to write datasheet PDF to ' . $outputPath);
+        }
         return $this->outputDir . $filename;
     }
 
