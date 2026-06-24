@@ -69,6 +69,10 @@
             <a href="<?= APP_URL ?>/start-practical-test/start/<?= $practical['id'] ?>" class="btn btn-warning btn-lg" style="margin-left:12px;background:#f59e0b;color:#1e293b;border:none;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
                 ⚡ Take Practical (Test)
             </a>
+            <!-- Download Datasheet — green button, always visible, downloads latest submitted PDF -->
+            <a href="<?= APP_URL ?>/download-latest-datasheet/downloadLatest/<?= $practical['id'] ?>" class="btn btn-success btn-lg" style="margin-left:8px;background:#16a34a;color:#fff;border:none;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+                <i class="icon-download"></i> Download Datasheet
+            </a>
         </div>
 
         <?php if ($currentReportStatus === 'submitted' && !empty($report_id)): ?>

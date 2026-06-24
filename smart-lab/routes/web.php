@@ -36,6 +36,7 @@ $map = [
     'student'              => 'StudentPracticalController',
     'start-practical'      => 'StudentPracticalController',
     'start-practical-test' => 'StudentTestPracticalController',
+    'download-latest-datasheet' => 'StudentTestPracticalController',
     'users'              => 'UsersController',
     'workflow'           => 'WorkflowController',
     'datasheets'         => 'WorkflowController',

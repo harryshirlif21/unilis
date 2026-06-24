@@ -371,6 +371,45 @@ class StudentTestPracticalController {
     }
 
     /**
+     * Download the latest submitted datasheet for a practical (test mode).
+     * GET /start-practical-test/download-latest/{practicalId}
+     * Finds the most recent submitted report for this student + practical and streams the PDF.
+     */
+    public function downloadLatest($practicalId = null) {
+        Auth::guard('student');
+
+        if (!$practicalId) {
+            echo 'Practical ID is required';
+            exit;
+        }
+
+        $studentId = Auth::id();
+
+        try {
+            // Find the latest submitted report for this student + practical
+            $stmt = $this->db->prepare("
+                SELECT id FROM lab_reports
+                WHERE practical_id = ? AND student_id = ? AND status = 'submitted'
+                ORDER BY submitted_at DESC LIMIT 1
+            ");
+            $stmt->execute([$practicalId, $studentId]);
+            $report = $stmt->fetch();
+
+            if (!$report) {
+                echo 'No datasheet found. Please complete and submit the practical first.';
+                exit;
+            }
+
+            // Delegate to the existing download method
+            $this->download($report['id']);
+        } catch (Exception $e) {
+            error_log("StudentTestPracticalController::downloadLatest - Error: " . $e->getMessage());
+            http_response_code(500);
+            echo 'Internal server error';
+        }
+    }
+
+    /**
      * Upload completed physical report (PDF/image) for a submitted datasheet.
      * POST /start-practical-test/upload/{reportId}
      * Returns JSON.
