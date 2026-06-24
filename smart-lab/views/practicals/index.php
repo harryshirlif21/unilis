@@ -133,6 +133,10 @@
                                             <a href="<?= APP_URL ?>/start-practical-test/start/<?= $practical['id'] ?>" class="btn btn-warning btn-sm" style="background:#f59e0b;color:#1e293b;border:none;">
                                                 ⚡ Take (Test)
                                             </a>
+                                            <!-- Download Datasheet — green button, always visible, downloads latest submitted PDF -->
+                                            <a href="<?= APP_URL ?>/download-latest-datasheet/downloadLatest/<?= $practical['id'] ?>" class="btn btn-success btn-sm" style="background:#16a34a;color:#fff;border:none;">
+                                                <i class="icon-download"></i> Download Datasheet
+                                            </a>
                                         <?php endif; ?>
                                         
                                         <?php elseif (in_array($userRole, ['lecturer', 'admin', 'technician'])): ?>
