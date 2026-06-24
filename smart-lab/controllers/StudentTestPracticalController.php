@@ -335,8 +335,10 @@ class StudentTestPracticalController {
                 ->setPracticalDetails(
                     $report['practical_title'],
                     $report['lab_code'] ?? 'Lab',
-                    $report['course_code'] ?? '',
-                    $report['description'] ?? $report['objective'] ?? ''
+                    $report['objective'] ?? '',
+                    $report['description'] ?? $report['objective'] ?? '',
+                    $report['scheduled_date'] ?? '',
+                    $report['start_time'] ?? ''
                 )
                 ->setExtendedDetails([
                     'course_code'  => $report['course_code'] ?? '',
