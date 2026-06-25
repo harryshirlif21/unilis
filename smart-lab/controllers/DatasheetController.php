@@ -21,7 +21,7 @@ class DatasheetController {
         $this->db = $db;
         $this->datasheetModel = new DatasheetModel($db);
         $this->signature = new DigitalSignature();
-        $this->qrGenerator = new QRCodeGenerator();
+        $this->qrGenerator = new QRCodeGenerator('/smart-lab/assets/qrcodes/');
         $this->logoPath = $logoPath ?: realpath(__DIR__ . '/../jkuatlogo.jpg') ?: __DIR__ . '/../jkuatlogo.jpg';
     }
 
@@ -73,7 +73,7 @@ class DatasheetController {
 
             $filename = sprintf('datasheet_%s_%s_%d.pdf', $studentId, $practicalId, time());
 
-            $pdfGenerator = new DatasheetPDFGenerator($this->logoPath);
+            $pdfGenerator = new DatasheetPDFGenerator($this->logoPath, '/smart-lab/assets/datasheets/');
             $pdfGenerator
                 ->setStudentDetails($student['full_name'], $student['reg_number'], $student['course'] ?? '')
                 ->setPracticalDetails(

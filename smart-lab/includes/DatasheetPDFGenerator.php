@@ -241,12 +241,20 @@ class DatasheetPDFGenerator {
         if (!$qrFsPath || !file_exists($qrFsPath)) return '';
 
         $ext = strtolower(pathinfo($qrFsPath, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'svg' => 'image/svg+xml',
+            'jpg', 'jpeg' => 'image/jpeg',
+            default => 'image/png',
+        };
+
         if ($ext === 'svg') {
-            $svg = preg_replace('/<\?xml[^?]*\?>/', '', file_get_contents($qrFsPath));
-            return '<div style="width:' . $sizePx . 'px;height:' . $sizePx . 'px;overflow:hidden;">' . $svg . '</div>';
+            $svg = preg_replace('/<\?xml[^?]*\?>/', '', (string)file_get_contents($qrFsPath));
+            $data = base64_encode($svg);
+        } else {
+            $data = base64_encode((string)file_get_contents($qrFsPath));
         }
-        $data = base64_encode(file_get_contents($qrFsPath));
-        return '<img src="data:image/png;base64,' . $data . '" width="' . $sizePx . '" height="' . $sizePx . '" alt="QR Code">';
+
+        return '<img src="data:' . $mime . ';base64,' . $data . '" width="' . $sizePx . '" height="' . $sizePx . '" alt="QR Code">';
     }
 
     // ──────────────────────────────────────────────────────────

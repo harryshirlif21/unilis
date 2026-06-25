@@ -406,13 +406,68 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('observations-structure-json').value = JSON.stringify(observationsColumns);
     });
 
-    // Handle image uploads
+    // --- Image Paste Handler for Quill Editors ---
+    function setupPasteHandler(quillEditor) {
+        quillEditor.root.addEventListener('paste', function(e) {
+            // Check if the clipboard contains image data
+            const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+            if (!items) return;
+
+            let imageBlob = null;
+            for (const item of items) {
+                if (item.type && item.type.startsWith('image/')) {
+                    imageBlob = item.getAsFile();
+                    break;
+                }
+            }
+
+            // If no direct image item, check for HTML data containing embedded images (e.g., from Word)
+            if (!imageBlob) {
+                for (const item of items) {
+                    if (item.type === 'text/html') {
+                        // Let Quill handle HTML paste normally — it may contain <img> with base64 data
+                        // which we handle separately below
+                        break;
+                    }
+                }
+                return; // Don't intercept non-image paste
+            }
+
+            e.preventDefault(); // Prevent default paste behavior
+
+            const reader = new FileReader();
+            reader.onload = function(readerEvent) {
+                const base64DataUrl = readerEvent.target.result;
+
+                // Upload the base64 image to the server
+                fetch('<?= APP_URL ?>/public/upload_base64.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64DataUrl })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.location) {
+                        const range = quillEditor.getSelection(true);
+                        quillEditor.insertEmbed(range.index, 'image', data.location);
+                        quillEditor.setSelection(range.index + 1);
+                    } else {
+                        console.error('Image paste upload failed:', data.error || 'Unknown error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error uploading pasted image:', err);
+                });
+            };
+            reader.readAsDataURL(imageBlob);
+        });
+    }
+
+    // Handle image uploads (picked via toolbar button)
     const toolbar = descriptionEditor.getModule('toolbar');
     toolbar.addHandler('image', function() {
         selectLocalImage(descriptionEditor);
     });
-
-
 
     const calculationsToolbar = calculationsTemplateEditor.getModule('toolbar');
     calculationsToolbar.addHandler('image', function() {
@@ -450,6 +505,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         };
     }
+
+    // Setup paste handlers for all Quill editors
+    setupPasteHandler(objectiveEditor);
+    setupPasteHandler(theoryEditor);
+    setupPasteHandler(descriptionEditor);
+    setupPasteHandler(calculationsTemplateEditor);
 
     // Sync content to hidden textarea before form submission
     const form = document.querySelector('form');

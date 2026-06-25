@@ -299,11 +299,17 @@ class StudentTestPracticalController {
             }
 
             // ---- Generate QR code (verification URL) ----
+            $verificationToken = hash_hmac(
+                'sha256',
+                $reportId . '|' . $studentId . '|' . ($report['submitted_at'] ?? ''),
+                defined('QR_SECRET_KEY') ? QR_SECRET_KEY : 'smart-lab-verification'
+            );
             $verifyUrl = (defined('APP_URL') ? rtrim(APP_URL, '/') : 'https://unilis.jhubafrica.com/smart-lab')
                        . '/verify.php?' . http_build_query([
                            'report_id'  => $reportId,
                            'student_id' => $studentId,
                            'type'       => 'lab_report',
+                           'token'      => $verificationToken,
                        ]);
 
             $qrPath = '';

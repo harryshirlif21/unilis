@@ -164,9 +164,9 @@
                 <div id="objective-tab" class="tab-pane active">
                     <div class="content-section">
                         <h3>Learning Objectives</h3>
-                        <div class="content-text">
-                            <?= $practical['objective'] ? nl2br(htmlspecialchars($practical['objective'])) : 'No objectives specified.' ?>
-                        </div>
+                    <div class="content-text">
+                        <?= $practical['objective'] ? $practical['objective'] : 'No objectives specified.' ?>
+                    </div>
                     </div>
                 </div>
 
@@ -174,9 +174,9 @@
                 <div id="theory-tab" class="tab-pane">
                     <div class="content-section">
                         <h3>Theoretical Background</h3>
-                        <div class="content-text">
-                            <?= $practical['theory'] ? nl2br(htmlspecialchars($practical['theory'])) : 'No theory provided.' ?>
-                        </div>
+                    <div class="content-text">
+                        <?= $practical['theory'] ? $practical['theory'] : 'No theory provided.' ?>
+                    </div>
                     </div>
                 </div>
 
@@ -239,7 +239,21 @@
                 <!-- Lab Report Tab -->
                 <div id="report-tab" class="tab-pane">
                     <div class="content-section">
-                        <h3>Lab Report</h3>
+                        <h3>Lab Report / Results</h3>
+                        
+                        <?php if (!empty($practical['description'])): ?>
+                        <div class="report-instruction" style="margin-bottom:16px;padding:16px;background:#f8fafc;border-left:4px solid #2563eb;border-radius:6px;">
+                            <?= $practical['description'] ?>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if (!empty($practical['calculations_template'])): ?>
+                        <div class="calculations-template-section" style="margin-bottom:20px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
+                            <h4 style="margin:0 0 8px;color:#15803d;">Calculations Template</h4>
+                            <?= $practical['calculations_template'] ?>
+                        </div>
+                        <?php endif; ?>
+                        
                         <p class="report-instruction">Fill in your observations, calculations, results, and conclusion below.</p>
 
                         <form id="lab-report-form">
@@ -650,6 +664,16 @@ if ('<?= $report_status ?>' === 'in_progress') {
 <?php require_once __DIR__.'/view_practical_modal_test.php'; ?>
 
 <style>
+.content-text img,
+.content-section img,
+.calculations-template-section img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 12px 0;
+    display: block;
+}
+
 .practical-view {
     max-width: 1200px;
     margin: 0 auto;

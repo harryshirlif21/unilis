@@ -359,7 +359,52 @@ document.addEventListener('DOMContentLoaded', function() {
         syncTableHTML();
     });
 
-    // Image upload handlers
+    // --- Image Paste Handler for Quill Editors ---
+    function setupPasteHandler(quillEditor) {
+        quillEditor.root.addEventListener('paste', function(e) {
+            const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+            if (!items) return;
+
+            let imageBlob = null;
+            for (const item of items) {
+                if (item.type && item.type.startsWith('image/')) {
+                    imageBlob = item.getAsFile();
+                    break;
+                }
+            }
+
+            if (!imageBlob) return;
+
+            e.preventDefault();
+
+            const reader = new FileReader();
+            reader.onload = function(readerEvent) {
+                const base64DataUrl = readerEvent.target.result;
+
+                fetch('<?= APP_URL ?>/public/upload_base64.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64DataUrl })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.location) {
+                        const range = quillEditor.getSelection(true);
+                        quillEditor.insertEmbed(range.index, 'image', data.location);
+                        quillEditor.setSelection(range.index + 1);
+                    } else {
+                        console.error('Image paste upload failed:', data.error || 'Unknown error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error uploading pasted image:', err);
+                });
+            };
+            reader.readAsDataURL(imageBlob);
+        });
+    }
+
+    // Image upload handlers (toolbar button)
     const imageHandler = function(editor) {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
@@ -383,6 +428,13 @@ document.addEventListener('DOMContentLoaded', function() {
     descriptionEditor.getModule('toolbar').addHandler('image', () => imageHandler(descriptionEditor));
     resultsTemplateEditor.getModule('toolbar').addHandler('image', () => imageHandler(resultsTemplateEditor));
     calculationsTemplateEditor.getModule('toolbar').addHandler('image', () => imageHandler(calculationsTemplateEditor));
+
+    // Setup paste handlers for all Quill editors
+    setupPasteHandler(objectiveEditor);
+    setupPasteHandler(theoryEditor);
+    setupPasteHandler(descriptionEditor);
+    setupPasteHandler(resultsTemplateEditor);
+    setupPasteHandler(calculationsTemplateEditor);
 
     // Table builder functions
     window.addTableRow = function() {

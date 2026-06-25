@@ -526,6 +526,14 @@ function closePostponeModal() {
 .form-control { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 14px; box-sizing:border-box; }
 .text-muted { color: #94a3b8; font-style: italic; }
 
+.content-card-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 12px 0;
+    display: block;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
     .view-grid { grid-template-columns: 1fr; }

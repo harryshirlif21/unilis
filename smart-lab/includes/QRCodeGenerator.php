@@ -3,6 +3,8 @@ namespace SmartLab;
 
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
+use chillerlan\QRCode\Common\EccLevel;
+use chillerlan\QRCode\Output\QRGdImagePNG;
 use chillerlan\QRCode\Output\QRMarkupSVG;
 
 /**
@@ -29,13 +31,16 @@ class QRCodeGenerator {
         $outputPath = $_SERVER['DOCUMENT_ROOT'] . $this->outputDir;
         @mkdir($outputPath, 0755, true);
 
-        $fullPath = $outputPath . $filename . '.svg';
+        $usePng = extension_loaded('gd');
+        $extension = $usePng ? 'png' : 'svg';
+        $fullPath = $outputPath . $filename . '.' . $extension;
 
         $options = new QROptions([
-            'outputType'       => QRMarkupSVG::class,
-            'eccLevel'         => QRCode::ECC_M,
-            'scale'            => $this->scale,
+            'outputType'       => $usePng ? QRGdImagePNG::class : QRMarkupSVG::class,
+            'eccLevel'         => EccLevel::M,
+            'scale'            => $usePng ? 8 : $this->scale,
             'imageBase64'      => false,
+            'outputBase64'     => false,
             'svgAddXmlHeader'  => false,
         ]);
 
@@ -44,7 +49,7 @@ class QRCodeGenerator {
             throw new \RuntimeException('Failed to write QR code to ' . $fullPath);
         }
 
-        return $this->outputDir . $filename . '.svg';
+        return $this->outputDir . $filename . '.' . $extension;
     }
 
     /**
