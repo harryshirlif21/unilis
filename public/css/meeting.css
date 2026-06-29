@@ -111,6 +111,15 @@ body {
     object-fit: cover;
 }
 
+.video-item canvas.meeting-render-canvas,
+.video-item canvas.remote-render-canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #1a1a1a;
+    display: block;
+}
+
 .video-overlay {
     position: absolute;
     bottom: 0;

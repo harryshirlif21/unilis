@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../config/db.php';
+require_once '../config/meeting.php';
 
 // Check if user is logged in and is a student
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
@@ -80,9 +81,10 @@ $lecturer_id = $meeting['lecturer_id'];
                     </div>
                 </div>
 
-                <!-- Lecturer Video -->
+                <!-- Lecturer Video (Python-rendered composite) -->
                 <div class="video-item lecturer" id="lecturerVideoContainer">
-                    <video id="lecturerVideo" autoplay></video>
+                    <canvas id="lecturerCanvas" class="meeting-render-canvas"></canvas>
+                    <video id="lecturerVideo" autoplay class="hidden" style="display:none"></video>
                     <div class="video-overlay">
                         <div class="video-info">
                             <strong>Lecturer</strong>
@@ -93,7 +95,8 @@ $lecturer_id = $meeting['lecturer_id'];
 
                 <!-- Screen Share Video -->
                 <div class="video-item screen-share hidden" id="screenShareContainer">
-                    <video id="screenShareVideo" autoplay></video>
+                    <canvas id="screenShareCanvas" class="meeting-render-canvas"></canvas>
+                    <video id="screenShareVideo" autoplay class="hidden" style="display:none"></video>
                     <div class="video-overlay">
                         <div class="video-info">
                             <strong>Screen Share</strong>
@@ -171,6 +174,7 @@ $lecturer_id = $meeting['lecturer_id'];
     <script src="../public/js/api.js"></script>
     <script src="../public/js/ws_signaling.js"></script>
     <script src="../public/js/webrtc_student.js"></script>
+    <script src="../public/js/meeting_media_bridge.js"></script>
     
     <script>
         // Configuration
@@ -178,11 +182,13 @@ $lecturer_id = $meeting['lecturer_id'];
             meetingId: <?php echo $meeting_id; ?>,
             userId: <?php echo $user_id; ?>,
             lecturerId: <?php echo $lecturer_id; ?>,
-            baseUrl: '<?php echo dirname($_SERVER['PHP_SELF']); ?>'
+            baseUrl: '..',
+            mediaServerUrl: <?php echo json_encode(getMeetingMediaWsUrl()); ?>
         };
 
         // Global variables
         let webrtcStudent = null;
+        let mediaBridge = null;
         let isPublishing = false;
 
         // Initialize when page loads
@@ -206,6 +212,9 @@ $lecturer_id = $meeting['lecturer_id'];
                 });
 
                 await webrtcStudent.initialize();
+
+                await initializeMediaBridge();
+
                 updateStatus('connected', 'Connected');
                 showToast('Successfully joined meeting', 'success');
 
@@ -216,17 +225,44 @@ $lecturer_id = $meeting['lecturer_id'];
             }
         }
 
+        async function initializeMediaBridge() {
+            try {
+                mediaBridge = new MeetingMediaBridge({
+                    meetingId: config.meetingId,
+                    userId: config.userId,
+                    role: 'student',
+                    mediaServerUrl: config.mediaServerUrl,
+                    onStatusChange: (status) => console.log('Media bridge:', status),
+                    onFrame: (message) => {
+                        if (message.stream_type === 'screen' || message.stream_type === 'composite') {
+                            document.getElementById('lecturerVideoContainer').classList.remove('hidden');
+                        }
+                        if (message.stream_type === 'screen') {
+                            document.getElementById('screenShareContainer').classList.remove('hidden');
+                        }
+                    }
+                });
+                await mediaBridge.connect();
+
+                const lecturerCanvas = document.getElementById('lecturerCanvas');
+                mediaBridge.attachRenderCanvas(config.lecturerId, 'composite', lecturerCanvas);
+                mediaBridge.attachRenderCanvas(config.lecturerId, 'screen', document.getElementById('screenShareCanvas'));
+            } catch (error) {
+                console.warn('Python media bridge unavailable:', error.message);
+            }
+        }
+
         function handleRemoteStream(remoteUserId, stream, role) {
             if (role === 'lecturer') {
                 const videoElement = document.getElementById('lecturerVideo');
+                const screenVideo = document.getElementById('screenShareVideo');
                 videoElement.srcObject = stream;
+                screenVideo.srcObject = stream;
                 document.getElementById('lecturerStreamInfo').textContent = 'Streaming...';
                 
-                // Check if this is screen share
                 const videoTrack = stream.getVideoTracks()[0];
                 if (videoTrack && videoTrack.label.toLowerCase().includes('screen')) {
                     document.getElementById('screenShareContainer').classList.remove('hidden');
-                    document.getElementById('screenShareVideo').srcObject = stream;
                 } else {
                     document.getElementById('lecturerVideoContainer').classList.remove('hidden');
                 }
@@ -268,6 +304,9 @@ $lecturer_id = $meeting['lecturer_id'];
                 // Show local video
                 const localVideo = document.getElementById('localVideo');
                 localVideo.srcObject = webrtcStudent.localStream;
+                if (mediaBridge) {
+                    mediaBridge.publishStream(localVideo, 'camera', 'camera');
+                }
                 updateLocalStreamInfo();
                 
                 showToast('Requested to publish video', 'success');
@@ -278,6 +317,9 @@ $lecturer_id = $meeting['lecturer_id'];
 
         async function stopPublishing() {
             webrtcStudent.stopPublishing();
+            if (mediaBridge) {
+                mediaBridge.stopPublishing('camera');
+            }
             isPublishing = false;
             document.getElementById('publishBtn').classList.remove('hidden');
             document.getElementById('stopPublishBtn').classList.add('hidden');
@@ -400,6 +442,9 @@ $lecturer_id = $meeting['lecturer_id'];
         }
 
         async function leaveMeeting() {
+            if (mediaBridge) {
+                mediaBridge.disconnect();
+            }
             if (webrtcStudent) {
                 webrtcStudent.disconnect();
             }
@@ -433,6 +478,9 @@ $lecturer_id = $meeting['lecturer_id'];
 
         // Handle page unload
         window.addEventListener('beforeunload', () => {
+            if (mediaBridge) {
+                mediaBridge.disconnect();
+            }
             if (webrtcStudent) {
                 webrtcStudent.disconnect();
             }

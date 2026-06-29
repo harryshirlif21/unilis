@@ -61,6 +61,14 @@ class WebRTCStudent {
         }
 
         await this.joinMeeting();
+        this.connectToLecturer();
+    }
+
+    connectToLecturer() {
+        if (!this.lecturerId || this.lecturerConnection) {
+            return;
+        }
+        this.lecturerConnection = this.createPeerConnection(this.lecturerId, 'lecturer');
     }
 
     async joinMeeting() {
@@ -86,9 +94,10 @@ class WebRTCStudent {
                 audio: true
             });
 
-            // Create peer connection for lecturer
-            this.lecturerConnection = this.createPeerConnection(this.lecturerId, 'lecturer');
-            
+            if (!this.lecturerConnection) {
+                this.connectToLecturer();
+            }
+
             // Add local tracks
             this.localStream.getTracks().forEach(track => {
                 this.lecturerConnection.addTrack(track, this.localStream);
@@ -194,6 +203,10 @@ class WebRTCStudent {
         if (fromUserId !== this.lecturerId) {
             console.warn('Received offer from non-lecturer:', fromUserId);
             return;
+        }
+
+        if (!this.lecturerConnection) {
+            this.connectToLecturer();
         }
 
         if (!this.lecturerConnection) {

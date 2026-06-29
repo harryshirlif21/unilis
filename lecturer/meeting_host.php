@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/meeting.php';
 
 // Check if user is logged in and is a lecturer
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
@@ -208,8 +209,6 @@ $meeting = $meeting[0];
                         </div>
                     </div>
                 </div>
-<button onclick="alert('Button clicked!')">Test Button</button>
-<button onclick="console.log('Console test')">Console Test</button>
                 <!-- Chat Panel -->
                 <div class="sidebar-panel">
                     <div class="panel-header">Chat</div>
@@ -237,6 +236,7 @@ $meeting = $meeting[0];
     <script src="../public/js/api.js"></script>
     <script src="../public/js/ws_signaling.js"></script>
     <script src="../public/js/webrtc_host.js"></script>
+    <script src="../public/js/meeting_media_bridge.js"></script>
     
     <script>
         // Debug function
@@ -257,17 +257,20 @@ $meeting = $meeting[0];
         // Configuration
         const config = {
             meetingId: <?php echo $meeting_id; ?>,
-            userId: <?php echo $user_id; ?>,
-            baseUrl: '<?php echo dirname($_SERVER['PHP_SELF']); ?>'
+            userId: <?php echo $lecturer_id; ?>,
+            baseUrl: '..',
+            mediaServerUrl: <?php echo json_encode(getMeetingMediaWsUrl()); ?>
         };
 
         debugLog('Configuration loaded', config);
 
         // Global variables
         let webrtcHost = null;
+        let mediaBridge = null;
         let isMeetingActive = false;
         let isRecording = false;
         let recordingStartTime = null;
+        const connectedStudentIds = new Set();
 
         // Test basic functionality
         function testConnection() {
@@ -320,11 +323,17 @@ $meeting = $meeting[0];
                 
                 await webrtcHost.initialize();
                 debugLog('WebRTCHost initialized successfully');
+
+                await initializeMediaBridge();
                 
                 // Start local stream
                 debugLog('Requesting local media stream...');
                 const localStream = await webrtcHost.startLocalStream();
-                document.getElementById('localVideo').srcObject = localStream;
+                const localVideo = document.getElementById('localVideo');
+                localVideo.srcObject = localStream;
+                if (mediaBridge) {
+                    mediaBridge.publishStream(localVideo, 'camera', 'camera');
+                }
                 
                 updateLocalStreamInfo();
                 updateStatus('connected', 'Connected');
@@ -339,9 +348,25 @@ $meeting = $meeting[0];
             }
         }
 
+        async function initializeMediaBridge() {
+            try {
+                mediaBridge = new MeetingMediaBridge({
+                    meetingId: config.meetingId,
+                    userId: config.userId,
+                    role: 'lecturer',
+                    mediaServerUrl: config.mediaServerUrl,
+                    onStatusChange: (status) => debugLog('Media bridge: ' + status),
+                    onParticipants: (participants) => debugLog('Media participants', participants)
+                });
+                await mediaBridge.connect();
+                debugLog('Python media bridge connected');
+            } catch (error) {
+                debugLog('Media bridge unavailable (WebRTC still works)', error.message);
+            }
+        }
+
         function handleRemoteStream(studentId, stream) {
             debugLog('Remote stream received from student:', studentId);
-            // Create video element for student
             const videoId = `remoteVideo_${studentId}`;
             let videoElement = document.getElementById(videoId);
             
@@ -350,6 +375,12 @@ $meeting = $meeting[0];
                 videoElement.id = videoId;
                 videoElement.autoplay = true;
                 videoElement.playsInline = true;
+                videoElement.muted = true;
+                
+                const canvasId = `remoteCanvas_${studentId}`;
+                const canvas = document.createElement('canvas');
+                canvas.id = canvasId;
+                canvas.className = 'remote-render-canvas';
                 
                 const videoItem = document.createElement('div');
                 videoItem.className = 'video-item';
@@ -361,13 +392,17 @@ $meeting = $meeting[0];
                         </div>
                     </div>
                 `;
+                videoItem.appendChild(canvas);
                 videoItem.appendChild(videoElement);
                 
-                // Remove empty state if it exists
                 const emptyState = document.querySelector('#remoteVideosGrid .empty-state');
                 if (emptyState) emptyState.remove();
                 
                 document.getElementById('remoteVideosGrid').appendChild(videoItem);
+
+                if (mediaBridge) {
+                    mediaBridge.attachRenderCanvas(studentId, 'camera', canvas);
+                }
             }
             
             videoElement.srcObject = stream;
@@ -434,13 +469,20 @@ $meeting = $meeting[0];
             try {
                 if (!webrtcHost.isScreenSharing) {
                     const screenStream = await webrtcHost.startScreenShare();
-                    document.getElementById('screenShareVideo').srcObject = screenStream;
+                    const screenVideo = document.getElementById('screenShareVideo');
+                    screenVideo.srcObject = screenStream;
+                    if (mediaBridge) {
+                        mediaBridge.publishStream(screenVideo, 'screen', 'screen');
+                    }
                     document.getElementById('screenShareContainer').classList.remove('hidden');
                     document.getElementById('screenShareBtn').innerHTML = '<span class="btn-icon">🖥️</span> Stop Share';
                     showToast('Screen sharing started', 'success');
                     debugLog('Screen sharing started');
                 } else {
                     await webrtcHost.stopScreenShare();
+                    if (mediaBridge) {
+                        mediaBridge.stopPublishing('screen');
+                    }
                     document.getElementById('screenShareContainer').classList.add('hidden');
                     document.getElementById('screenShareBtn').innerHTML = '<span class="btn-icon">🖥️</span> Share Screen';
                     showToast('Screen sharing stopped', 'success');
@@ -558,13 +600,25 @@ $meeting = $meeting[0];
         async function startParticipantsPolling() {
             debugLog('Starting participants polling');
             setInterval(async () => {
-                if (!isMeetingActive) return;
-                
                 try {
                     const response = await webrtcHost.api.listParticipants(config.meetingId, config.userId);
                     if (response.success) {
                         updateParticipantsList(response.participants);
                         updateStudentsGrid(response.participants);
+
+                        if (isMeetingActive) {
+                            const onlineStudents = response.participants.filter(
+                                p => p.role === 'student' && p.status === 'online'
+                            );
+                            for (const student of onlineStudents) {
+                                const sid = parseInt(student.id, 10);
+                                if (!connectedStudentIds.has(sid)) {
+                                    connectedStudentIds.add(sid);
+                                    await webrtcHost.addStudent(sid);
+                                    debugLog('WebRTC peer added for student', sid);
+                                }
+                            }
+                        }
                     }
                 } catch (error) {
                     console.error('Failed to fetch participants:', error);
@@ -687,10 +741,13 @@ $meeting = $meeting[0];
         // Handle page unload
         window.addEventListener('beforeunload', () => {
             debugLog('Page unloading, cleaning up...');
+            if (mediaBridge) {
+                mediaBridge.disconnect();
+            }
             if (webrtcHost) {
                 webrtcHost.disconnect();
             }
-            if (isMeetingActive) {
+            if (isMeetingActive && webrtcHost) {
                 webrtcHost.api.leaveMeeting(config.meetingId, config.userId);
             }
         });
@@ -710,24 +767,5 @@ $meeting = $meeting[0];
             debugLog('Unhandled promise rejection', e.reason);
         });
     </script>
-    <script>
-// Test if scripts are loading
-console.log('Testing script loading...');
-
-// Check each required script
-const scripts = [
-    '../public/js/api.js',
-    '../public/js/ws_signaling.js', 
-    '../public/js/webrtc_host.js'
-];
-
-scripts.forEach(script => {
-    const scriptTag = document.createElement('script');
-    scriptTag.src = script;
-    scriptTag.onload = () => console.log('✅ Loaded:', script);
-    scriptTag.onerror = () => console.log('❌ Failed to load:', script);
-    document.head.appendChild(scriptTag);
-});
-</script>
 </body>
 </html>

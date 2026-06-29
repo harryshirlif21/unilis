@@ -14,14 +14,40 @@ services:
       - ./assets/meetings:/var/www/html/assets/meetings
       - ./assets/requested_files:/var/www/html/assets/requested_files
     depends_on:
-      - db
-      - smart-labs-db
+      db:
+        condition: service_started
+      smart-labs-db:
+        condition: service_started
+      meeting-server:
+        condition: service_healthy
     environment:
       DB_HOST: db
       SMARTLAB_DB_HOST: smart-labs-db
       MYSQL_USER: unilisuser
       MYSQL_PASSWORD: unilispass
       MYSQL_DATABASE: unilis
+      MEETING_MEDIA_PORT: "8765"
+      # Set MEETING_MEDIA_WS_URL when deploying behind HTTPS / reverse proxy, e.g.:
+      # MEETING_MEDIA_WS_URL: wss://your-domain.com:8765/ws/media
+
+  meeting-server:
+    build:
+      context: ./meeting-server
+      dockerfile: Dockerfile
+    image: hilkim21/unilis-meeting-media:1.0
+    container_name: unilis-meeting-media
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   db:
     image: mysql:8.0.33
