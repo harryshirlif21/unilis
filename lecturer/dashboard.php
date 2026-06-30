@@ -908,6 +908,7 @@ $stmt->close();
                                         echo "</div>";
                                         echo "</td>";
                                         echo "<td class='py-4 px-4'>";
+                                        echo "<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;'>";
                                         // Smart button: Start Meeting if not active, Join Meeting if active
                                         if ($canStartOrJoin) {
                                             echo "<a class='inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200' ";
@@ -928,6 +929,9 @@ $stmt->close();
                                         } else {
                                             echo "<span style='font-size:0.75rem;color:#92400e;background:#fef3c7;padding:0.35rem 0.65rem;border-radius:999px;white-space:nowrap;'>Scheduled</span>";
                                         }
+                                        // Always-visible Join button
+                                        echo "<a href='meeting_ide.php?meeting_id={$meetingId}' style='display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1.5px solid #6366f1;border-radius:8px;font-size:12px;font-weight:600;color:#6366f1;background:#fff;text-decoration:none;transition:all 0.2s;' onmouseover='this.style.background=\"#eef2ff\"' onmouseout='this.style.background=\"#fff\"'><i class='fas fa-sign-in-alt' style='font-size:11px;'></i> Join</a>";
+                                        echo "</div>";
                                         echo "</td>";
                                         echo "</tr>";
                                     }
