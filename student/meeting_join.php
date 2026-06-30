@@ -214,7 +214,8 @@ $lecturer_id = $meeting['lecturer_id'];
                     onRemoteStream: handleRemoteStream,
                     onRemoteStreamEnded: handleRemoteStreamEnded,
                     onConnectionStateChange: handleConnectionStateChange,
-                    onSignalingStateChange: handleSignalingStateChange
+                    onSignalingStateChange: handleSignalingStateChange,
+                    onLocalStreamReady: handleLocalStreamReady
                 });
 
                 await webrtcStudent.initialize();
@@ -229,6 +230,20 @@ $lecturer_id = $meeting['lecturer_id'];
                 updateStatus('disconnected', 'Connection Failed');
                 showToast('Failed to join meeting: ' + error.message, 'error');
             }
+        }
+
+        function handleLocalStreamReady(stream) {
+            // Show local video preview immediately
+            const localVideo = document.getElementById('localVideo');
+            localVideo.srcObject = stream;
+            
+            // Enable camera/mic controls since stream is now available
+            document.getElementById('cameraText').textContent = 'Camera On';
+            document.getElementById('micText').textContent = 'Mic On';
+            updateLocalStreamInfo();
+            
+            console.log('Local media stream ready - camera/mic controls enabled');
+            showToast('Camera and microphone ready', 'success');
         }
 
         async function initializeMediaBridge() {

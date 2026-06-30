@@ -1953,6 +1953,256 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
                 });
             });
         });
+
+        // ============================================================
+        // AUTO-JOIN MEETING SYSTEM
+        // ============================================================
+        (function() {
+            'use strict';
+
+            // Configuration
+            const AUTO_JOIN_CONFIG = {
+                pollInterval: 10000,        // Check every 10 seconds
+                autoJoinDelay: 3000,        // Wait 3 seconds before auto-joining
+                knownLiveMeetings: new Set(), // Track meetings we already know about
+                hasAutoJoined: false,        // Prevent multiple auto-joins
+                lastCheckTime: null,
+                isOnMeetingPage: window.location.pathname.includes('meeting_join.php')
+            };
+
+            // Don't run if we're already on a meeting page
+            if (AUTO_JOIN_CONFIG.isOnMeetingPage) return;
+
+            // Create the live meeting notification bar
+            function createLiveMeetingBar() {
+                // Remove existing if any
+                const existing = document.getElementById('live-meeting-bar');
+                if (existing) existing.remove();
+
+                const bar = document.createElement('div');
+                bar.id = 'live-meeting-bar';
+                bar.style.cssText = `
+                    display: none;
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    background: linear-gradient(135deg, #16a34a, #15803d);
+                    color: white;
+                    padding: 12px 24px;
+                    z-index: 9999;
+                    box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+                    animation: slideUp 0.3s ease-out;
+                    font-family: 'Inter', sans-serif;
+                `;
+
+                // Add keyframe animation
+                if (!document.getElementById('live-meeting-styles')) {
+                    const style = document.createElement('style');
+                    style.id = 'live-meeting-styles';
+                    style.textContent = `
+                        @keyframes slideUp {
+                            from { transform: translateY(100%); }
+                            to { transform: translateY(0); }
+                        }
+                        @keyframes pulse-green {
+                            0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+                            50% { box-shadow: 0 0 0 10px rgba(22, 163, 74, 0); }
+                        }
+                        .live-dot {
+                            display: inline-block;
+                            width: 10px;
+                            height: 10px;
+                            background: #ff4444;
+                            border-radius: 50%;
+                            animation: pulse-dot 1.5s infinite;
+                            margin-right: 8px;
+                        }
+                        @keyframes pulse-dot {
+                            0%, 100% { opacity: 1; transform: scale(1); }
+                            50% { opacity: 0.5; transform: scale(1.3); }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+
+                bar.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: space-between; max-width: 1200px; margin: 0 auto; gap: 16px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span class="live-dot"></span>
+                            <div>
+                                <div style="font-weight: 700; font-size: 15px;" id="live-meeting-title">Meeting is Live!</div>
+                                <div style="font-size: 13px; opacity: 0.9;" id="live-meeting-info">Click to join now</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <span id="auto-join-countdown" style="font-size: 13px; opacity: 0.9; display: none;"></span>
+                            <button id="join-live-meeting-btn" style="
+                                background: white;
+                                color: #16a34a;
+                                border: none;
+                                padding: 10px 24px;
+                                border-radius: 8px;
+                                font-weight: 700;
+                                font-size: 14px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                animation: pulse-green 2s infinite;
+                            ">
+                                <span>▶</span>
+                                Join Meeting Now
+                            </button>
+                            <button id="dismiss-live-meeting" style="
+                                background: rgba(255,255,255,0.2);
+                                color: white;
+                                border: 1px solid rgba(255,255,255,0.3);
+                                padding: 10px 16px;
+                                border-radius: 8px;
+                                font-size: 13px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                            ">Dismiss</button>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(bar);
+
+                // Event listeners
+                document.getElementById('join-live-meeting-btn').addEventListener('click', function() {
+                    const url = this.getAttribute('data-url');
+                    if (url) window.location.href = url;
+                });
+
+                document.getElementById('dismiss-live-meeting').addEventListener('click', function() {
+                    document.getElementById('live-meeting-bar').style.display = 'none';
+                });
+
+                return bar;
+            }
+
+            // Show live meeting bar
+            function showLiveMeeting(meeting) {
+                const bar = document.getElementById('live-meeting-bar') || createLiveMeetingBar();
+                
+                document.getElementById('live-meeting-title').textContent = 
+                    `🔴 Live: ${meeting.title}`;
+                document.getElementById('live-meeting-info').textContent = 
+                    `${meeting.unit_name} • ${meeting.lecturer_name || 'Lecture'}`;
+                
+                const joinBtn = document.getElementById('join-live-meeting-btn');
+                joinBtn.setAttribute('data-url', meeting.join_url);
+                
+                bar.style.display = 'flex';
+
+                // Auto-join countdown
+                const countdownEl = document.getElementById('auto-join-countdown');
+                countdownEl.style.display = 'inline';
+                let countdown = AUTO_JOIN_CONFIG.autoJoinDelay / 1000;
+                countdownEl.textContent = `Auto-joining in ${countdown}s...`;
+
+                const countdownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown > 0) {
+                        countdownEl.textContent = `Auto-joining in ${countdown}s...`;
+                    } else {
+                        clearInterval(countdownInterval);
+                        countdownEl.textContent = 'Joining now...';
+                    }
+                }, 1000);
+
+                // Auto-join after delay
+                setTimeout(() => {
+                    if (!AUTO_JOIN_CONFIG.hasAutoJoined) {
+                        AUTO_JOIN_CONFIG.hasAutoJoined = true;
+                        window.location.href = meeting.join_url;
+                    }
+                }, AUTO_JOIN_CONFIG.autoJoinDelay);
+            }
+
+            // Poll for live meetings
+            async function checkLiveMeetings() {
+                try {
+                    const timestamp = new Date().toISOString();
+                    const url = `../api/check_live_meetings.php?t=${encodeURIComponent(timestamp)}`;
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (!data.success) return;
+
+                    // Process live meetings
+                    if (data.live_meetings && data.live_meetings.length > 0) {
+                        const liveMeeting = data.live_meetings[0];
+                        
+                        // Check if this is a new live meeting we haven't seen
+                        if (!AUTO_JOIN_CONFIG.knownLiveMeetings.has(liveMeeting.id)) {
+                            AUTO_JOIN_CONFIG.knownLiveMeetings.add(liveMeeting.id);
+                            
+                            // Show the live meeting bar
+                            showLiveMeeting(liveMeeting);
+                            
+                            // Also trigger a browser notification if permitted
+                            if ('Notification' in window && Notification.permission === 'granted') {
+                                new Notification('🔴 Meeting is Live!', {
+                                    body: `${liveMeeting.title} - ${liveMeeting.unit_name}`,
+                                    icon: '../assets/logo.png'
+                                });
+                            }
+                        }
+                    }
+
+                    // Update the meetings card on the dashboard to reflect live status
+                    updateMeetingsCard(data.live_meetings || []);
+
+                } catch (error) {
+                    console.error('Auto-join: Error checking live meetings:', error);
+                }
+            }
+
+            // Update the meetings card UI
+            function updateMeetingsCard(liveMeetings) {
+                // Find the meetings card
+                const meetingsCard = document.querySelector('.card .card-icon.purple')?.closest('.card');
+                if (!meetingsCard) return;
+
+                // Update the live count
+                const liveCountEl = meetingsCard.querySelector('.hero-stat-value');
+                // Just update the visual - the PHP already handles this on page load
+            }
+
+            // Request notification permission
+            function requestNotificationPermission() {
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            }
+
+            // Initialize auto-join system
+            function initAutoJoin() {
+                // Create the live meeting bar (hidden initially)
+                createLiveMeetingBar();
+                
+                // Request notification permission
+                requestNotificationPermission();
+
+                // Start polling
+                checkLiveMeetings(); // Immediate check
+                setInterval(checkLiveMeetings, AUTO_JOIN_CONFIG.pollInterval);
+
+                console.log('🔴 Auto-join meeting system initialized (polling every ' + (AUTO_JOIN_CONFIG.pollInterval/1000) + 's)');
+            }
+
+            // Start when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initAutoJoin);
+            } else {
+                initAutoJoin();
+            }
+        })();
     </script>
 </body>
 </html>

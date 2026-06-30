@@ -30,6 +30,7 @@ class WebRTCStudent {
         this.onRemoteStreamEnded = config.onRemoteStreamEnded || (() => {});
         this.onConnectionStateChange = config.onConnectionStateChange || (() => {});
         this.onSignalingStateChange = config.onSignalingStateChange || (() => {});
+        this.onLocalStreamReady = config.onLocalStreamReady || (() => {});
         
         this.isRequestingPublish = false;
     }
@@ -61,7 +62,50 @@ class WebRTCStudent {
         }
 
         await this.joinMeeting();
+        
+        // Auto-start local media stream (camera + mic) for preview/controls
+        await this.startLocalStream();
+        
         this.connectToLecturer();
+    }
+
+    /**
+     * Start local media stream (camera + microphone)
+     * This allows the student to preview and toggle camera/mic before publishing
+     */
+    async startLocalStream() {
+        try {
+            this.localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+
+            // Notify the UI that local stream is ready
+            if (this.onLocalStreamReady) {
+                this.onLocalStreamReady(this.localStream);
+            }
+
+            console.log('Local media stream started for preview');
+            return this.localStream;
+        } catch (error) {
+            console.warn('Could not access camera/mic:', error.message);
+            // Attempt audio-only if video fails
+            try {
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                    video: false,
+                    audio: true
+                });
+                if (this.onLocalStreamReady) {
+                    this.onLocalStreamReady(this.localStream);
+                }
+                console.log('Audio-only stream started');
+                return this.localStream;
+            } catch (audioError) {
+                console.error('Could not access any media devices:', audioError.message);
+                this.localStream = null;
+                return null;
+            }
+        }
     }
 
     connectToLecturer() {
@@ -88,22 +132,24 @@ class WebRTCStudent {
         this.isRequestingPublish = true;
         
         try {
-            // Get local media stream
-            this.localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
+            // Get local media stream if not already available
+            if (!this.localStream) {
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+            }
 
             if (!this.lecturerConnection) {
                 this.connectToLecturer();
             }
 
-            // Add local tracks
+            // Add local tracks to peer connection
             this.localStream.getTracks().forEach(track => {
-                this.lecturerConnection.addTrack(track, this.localStream);
+                if (this.lecturerConnection) {
+                    this.lecturerConnection.addTrack(track, this.localStream);
+                }
             });
-
-            // The lecturer will send us an offer, we'll respond with answer
 
         } catch (error) {
             console.error('Failed to request publishing:', error);
@@ -113,14 +159,15 @@ class WebRTCStudent {
     }
 
     stopPublishing() {
-        if (this.localStream) {
-            this.localStream.getTracks().forEach(track => track.stop());
-            this.localStream = null;
-        }
-
+        // Remove tracks from peer connection but keep local stream alive
+        // so camera/mic toggles still work
         if (this.lecturerConnection) {
-            this.lecturerConnection.close();
-            this.lecturerConnection = null;
+            const senders = this.lecturerConnection.getSenders();
+            senders.forEach(sender => {
+                if (sender.track) {
+                    this.lecturerConnection.removeTrack(sender);
+                }
+            });
         }
 
         this.isRequestingPublish = false;
@@ -337,8 +384,10 @@ class WebRTCStudent {
             const videoTrack = this.localStream.getVideoTracks()[0];
             if (videoTrack) {
                 videoTrack.enabled = enabled;
+                return true;
             }
         }
+        return false;
     }
 
     // Utility method to toggle microphone
@@ -347,8 +396,10 @@ class WebRTCStudent {
             const audioTrack = this.localStream.getAudioTracks()[0];
             if (audioTrack) {
                 audioTrack.enabled = enabled;
+                return true;
             }
         }
+        return false;
     }
 }
 
