@@ -1,6 +1,7 @@
 <?php
 require_once '../config/db.php';
 require_once '../includes/notifications.php';
+require_once __DIR__ . '/../config/meeting.php';
 session_start();
 
 // Redirect if not logged in or not a student
@@ -61,6 +62,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         echo json_encode(['success' => false]);
     }
     exit;
+}
+
+$studentMeetingsByUnit = fetchStudentMeetingsByUnit($conn, (int)$student_id);
+$totalUpcomingMeetings = 0;
+$liveMeetingsCount = 0;
+$nextMeeting = null;
+
+foreach ($studentMeetingsByUnit as $unitGroup) {
+    foreach ($unitGroup['meetings'] as $meetingRow) {
+        $totalUpcomingMeetings++;
+        if (!empty($meetingRow['is_live'])) {
+            $liveMeetingsCount++;
+        }
+        if (
+            $nextMeeting === null
+            || strtotime($meetingRow['scheduled_time']) < strtotime($nextMeeting['scheduled_time'])
+        ) {
+            $nextMeeting = $meetingRow;
+            $nextMeeting['unit_name'] = $unitGroup['unit_name'];
+        }
+    }
 }
 ?>
 
@@ -1204,49 +1226,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </div>
                     <div>
                         <h3 class="card-title">Meetings</h3>
-                        <p class="card-subtitle">Virtual Classes</p>
+                        <p class="card-subtitle">By your enrolled units</p>
                     </div>
                 </div>
-                
-                <div style="margin: 1.5rem 0;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--primary-50); border-radius: var(--radius-lg); border-left: 4px solid var(--primary-500);">
-                        <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--primary-500); display: flex; align-items: center; justify-content: center; color: white;">
-                            <span class="material-symbols-outlined">event</span>
-                        </div>
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; color: var(--neutral-900);">Data Structures Class</div>
-                            <div style="font-size: 0.875rem; color: var(--neutral-500);">Today at 4:00 PM</div>
-                        </div>
+
+                <?php if ($totalUpcomingMeetings === 0): ?>
+                    <div style="margin: 1.5rem 0; padding: 1.25rem; background: var(--neutral-50); border-radius: var(--radius-lg); text-align: center; color: var(--neutral-500);">
+                        <span class="material-symbols-outlined" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">event_busy</span>
+                        No upcoming meetings for your enrolled units yet.
                     </div>
-                </div>
-                
+                <?php else: ?>
+                    <?php if ($nextMeeting): ?>
+                        <div style="margin: 1.5rem 0;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--primary-50); border-radius: var(--radius-lg); border-left: 4px solid var(--primary-500);">
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--primary-500); display: flex; align-items: center; justify-content: center; color: white;">
+                                    <span class="material-symbols-outlined"><?= !empty($nextMeeting['is_live']) ? 'sensors' : 'event' ?></span>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-700); text-transform: uppercase;">
+                                        <?= htmlspecialchars($nextMeeting['unit_name']) ?>
+                                        <?php if (!empty($nextMeeting['is_live'])): ?>
+                                            <span style="background:#16a34a;color:#fff;padding:2px 8px;border-radius:999px;margin-left:6px;">Live</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div style="font-weight: 600; color: var(--neutral-900);"><?= htmlspecialchars($nextMeeting['title']) ?></div>
+                                    <div style="font-size: 0.875rem; color: var(--neutral-500);">
+                                        <?= date('d M Y • h:i A', strtotime($nextMeeting['scheduled_time'])) ?>
+                                        <?php if (!empty($nextMeeting['lecturer_name'])): ?>
+                                            · <?= htmlspecialchars($nextMeeting['lecturer_name']) ?>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <div style="display: flex; flex-direction: column; gap: 1rem; margin: 1rem 0; max-height: 320px; overflow-y: auto;">
+                        <?php foreach ($studentMeetingsByUnit as $unitGroup): ?>
+                            <div style="border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); overflow: hidden;">
+                                <div style="padding: 0.75rem 1rem; background: var(--neutral-100); font-weight: 700; color: var(--neutral-800); font-size: 0.9rem;">
+                                    <span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">menu_book</span>
+                                    <?= htmlspecialchars($unitGroup['unit_name']) ?>
+                                </div>
+                                <?php foreach ($unitGroup['meetings'] as $meetingRow): ?>
+                                    <div style="padding: 0.9rem 1rem; border-top: 1px solid var(--neutral-200); display: flex; justify-content: space-between; gap: 0.75rem; align-items: center;">
+                                        <div style="min-width: 0;">
+                                            <div style="font-weight: 600; color: var(--neutral-900);"><?= htmlspecialchars($meetingRow['title']) ?></div>
+                                            <div style="font-size: 0.8rem; color: var(--neutral-500);">
+                                                <?= date('d M Y • h:i A', strtotime($meetingRow['scheduled_time'])) ?>
+                                                · <?= (int)$meetingRow['duration'] ?> min
+                                            </div>
+                                        </div>
+                                        <?php if (!empty($meetingRow['is_live'])): ?>
+                                            <a href="<?= htmlspecialchars($meetingRow['join_url']) ?>" class="btn btn-primary" style="padding: 0.45rem 0.8rem; font-size: 0.8rem; white-space: nowrap;">
+                                                Join
+                                            </a>
+                                        <?php else: ?>
+                                            <span style="font-size: 0.75rem; color: var(--warning-700); background: var(--warning-50); padding: 0.35rem 0.65rem; border-radius: 999px; white-space: nowrap;">
+                                                Scheduled
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
                     <div style="text-align: center; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
-                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-600);">3</div>
-                        <div style="font-size: 0.75rem; color: var(--neutral-500);">This Week</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-600);"><?= $totalUpcomingMeetings ?></div>
+                        <div style="font-size: 0.75rem; color: var(--neutral-500);">Upcoming</div>
                     </div>
                     <div style="text-align: center; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
-                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-600);">12</div>
-                        <div style="font-size: 0.75rem; color: var(--neutral-500);">Attended</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-600);"><?= $liveMeetingsCount ?></div>
+                        <div style="font-size: 0.75rem; color: var(--neutral-500);">Live Now</div>
                     </div>
                 </div>
-                
-                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--secondary-50); border-radius: var(--radius-lg); border-left: 4px solid var(--secondary-500);">
-                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--secondary-700); font-weight: 500;">
-                        <span class="material-symbols-outlined" style="font-size: 1.25rem;">videocam</span>
-                        Stay connected with your class 💻
-                    </div>
-                </div>
-                
+
                 <div class="card-actions">
-                    <a href="meeting_ide.php" class="btn btn-primary flex-1">
-                        <span class="material-symbols-outlined">video_call</span>
-                        Join Meeting
+                    <?php if ($liveMeetingsCount > 0 && $nextMeeting && !empty($nextMeeting['is_live'])): ?>
+                        <a href="<?= htmlspecialchars($nextMeeting['join_url']) ?>" class="btn btn-primary flex-1">
+                            <span class="material-symbols-outlined">video_call</span>
+                            Join Live Meeting
+                        </a>
+                    <?php else: ?>
+                        <button type="button" class="btn btn-secondary flex-1" disabled style="opacity:0.7;cursor:not-allowed;">
+                            <span class="material-symbols-outlined">video_call</span>
+                            Join when live
+                        </button>
+                    <?php endif; ?>
+                    <a href="my_units.php" class="btn btn-secondary">
+                        <span class="material-symbols-outlined">menu_book</span>
+                        My Units
                     </a>
-                    <button class="btn btn-secondary">
-                        <span class="material-symbols-outlined">calendar_month</span>
-                        Schedule
-                    </button>
                 </div>
             </div>
             

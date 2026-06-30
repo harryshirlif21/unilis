@@ -4,6 +4,7 @@ error_reporting(E_ALL);
 session_start();
 require_once '../config/db.php';
 require_once '../includes/notifications.php';
+require_once __DIR__ . '/../config/meeting.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
@@ -387,6 +388,67 @@ $stmt->close();
             border: 2px solid #fff;
             padding: 0 4px;
         }
+        .meeting-flash {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .meeting-flash-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        .meeting-flash-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .meeting-link-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+        .meeting-link-row label {
+            min-width: 90px;
+            font-size: 12px;
+            font-weight: 700;
+            color: inherit;
+            opacity: 0.85;
+        }
+        .meeting-flash-note {
+            font-size: 13px;
+            opacity: 0.95;
+        }
+        .meeting-link-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 13px;
+            background: #fff;
+        }
+        .modal-body .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        .modal-body .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
     </style>
 </head>
 <body data-theme="light">
@@ -726,11 +788,48 @@ $stmt->close();
             <div class="meetings-header">
                 <h3>Office Hours & Meetings</h3>
                 <div class="header-actions">
-                    <button class="btn-primary" id="scheduleMeetingBtn">
+                    <button type="button" class="btn-primary" id="scheduleMeetingBtn">
                         <i class="fas fa-plus mr-2"></i> Schedule Meeting
                     </button>
                 </div>
             </div>
+
+            <?php if (!empty($_SESSION['meeting_success'])): ?>
+                <div class="meeting-flash meeting-flash-success">
+                    <i class="fas fa-check-circle"></i>
+                    <?= htmlspecialchars($_SESSION['meeting_success']) ?>
+                    <?php if (!empty($_SESSION['meeting_unit_name'])): ?>
+                        <div class="meeting-flash-note">
+                            Students enrolled in <strong><?= htmlspecialchars($_SESSION['meeting_unit_name']) ?></strong> will see this on their dashboard.
+                        </div>
+                    <?php endif; ?>
+                    <?php if (!empty($_SESSION['meeting_link'])): ?>
+                        <div class="meeting-link-row">
+                            <label>Host link</label>
+                            <input type="text" id="scheduledMeetingLink" readonly
+                                   value="<?= htmlspecialchars($_SESSION['meeting_link']) ?>">
+                            <button type="button" class="btn-secondary copy-link-btn" data-target="scheduledMeetingLink">Copy</button>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (!empty($_SESSION['meeting_student_link'])): ?>
+                        <div class="meeting-link-row">
+                            <label>Student link</label>
+                            <input type="text" id="scheduledStudentMeetingLink" readonly
+                                   value="<?= htmlspecialchars($_SESSION['meeting_student_link']) ?>">
+                            <button type="button" class="btn-secondary copy-link-btn" data-target="scheduledStudentMeetingLink">Copy</button>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <?php unset($_SESSION['meeting_success'], $_SESSION['meeting_link'], $_SESSION['meeting_student_link'], $_SESSION['meeting_unit_name']); ?>
+            <?php endif; ?>
+
+            <?php if (!empty($_SESSION['meeting_error'])): ?>
+                <div class="meeting-flash meeting-flash-error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <?= htmlspecialchars($_SESSION['meeting_error']) ?>
+                </div>
+                <?php unset($_SESSION['meeting_error']); ?>
+            <?php endif; ?>
 
             <section class="card bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                 <h2 class="text-xl font-semibold mb-5 text-gray-800">Upcoming Meetings & Office Hours</h2>
@@ -741,6 +840,7 @@ $stmt->close();
                                 <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Title</th>
                                 <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Unit</th>
                                 <th class="py-3 px-4 text-sm font-semibold text-amber-700 uppercase tracking-wide">Time</th>
+                                <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Student Link</th>
                                 <th class="py-3 px-4 text-sm font-semibold text-gray-700 uppercase tracking-wide">Action</th>
                             </tr>
                         </thead>
@@ -749,12 +849,12 @@ $stmt->close();
                             try {
                                 $now = date('Y-m-d H:i:s');
                                 $stmt = $conn->prepare("
-                                    SELECT m.id, m.title, m.scheduled_time, u.name AS unit_name 
+                                    SELECT m.id, m.title, m.scheduled_time, m.duration, u.id AS unit_id, u.name AS unit_name 
                                     FROM meetings m 
                                     JOIN units u ON m.unit_id = u.id 
                                     JOIN lecturer_units lu ON u.id = lu.unit_id
-                                    WHERE lu.lecturer_id = ? AND m.scheduled_time >= ?
-                                    ORDER BY m.scheduled_time ASC
+                                    WHERE lu.lecturer_id = ? AND DATE_ADD(m.scheduled_time, INTERVAL m.duration MINUTE) >= ?
+                                    ORDER BY u.name ASC, m.scheduled_time ASC
                                 ");
                                 $stmt->bind_param("is", $lecturer_id, $now);
                                 $stmt->execute();
@@ -763,22 +863,32 @@ $stmt->close();
                                 if ($res->num_rows > 0) {
                                     while ($meeting = $res->fetch_assoc()) {
                                         $timeFormatted = date("d M Y • h:i A", strtotime($meeting['scheduled_time']));
+                                        $studentJoinUrl = getMeetingStudentJoinUrl((int)$meeting['id']);
+                                        $inputId = 'studentMeetingLink' . (int)$meeting['id'];
                                         echo "<tr class='border-b border-gray-100 hover:bg-amber-50/40 transition-colors'>";
                                         echo "<td class='py-4 px-4 font-medium'>" . htmlspecialchars($meeting['title']) . "</td>";
                                         echo "<td class='py-4 px-4 text-gray-600'>" . htmlspecialchars($meeting['unit_name']) . "</td>";
                                         echo "<td class='py-4 px-4 text-sm text-amber-700 font-medium'>" . $timeFormatted . "</td>";
                                         echo "<td class='py-4 px-4'>";
+                                        echo "<div class='meeting-link-row'>";
+                                        echo "<input type='text' id='" . $inputId . "' readonly value='" . htmlspecialchars($studentJoinUrl) . "' style='min-width:220px;max-width:320px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;'>";
+                                        echo "<button type='button' class='btn-secondary copy-link-btn' data-target='" . $inputId . "' style='padding:6px 10px;font-size:12px;'>Copy</button>";
+                                        echo "</div>";
+                                        echo "</td>";
+                                        echo "<td class='py-4 px-4'>";
                                         echo "<a class='text-amber-600 hover:text-amber-800 hover:underline font-medium' ";
-                                        echo "href='meeting_ide.php?meeting_id=" . htmlspecialchars($meeting['id']) . "' target='_blank'>Join</a>";
+                                        echo "href='meeting_host.php?meeting_id=" . (int)$meeting['id'] . "'>Host</a> | ";
+                                        echo "<a class='text-amber-600 hover:text-amber-800 hover:underline font-medium' ";
+                                        echo "href='meeting_ide.php?meeting_id=" . (int)$meeting['id'] . "' target='_blank'>IDE</a>";
                                         echo "</td>";
                                         echo "</tr>";
                                     }
                                 } else {
-                                    echo "<tr><td colspan='4' class='py-10 text-center text-gray-500 italic'>No upcoming meetings or office hours scheduled.</td></tr>";
+                                    echo "<tr><td colspan='5' class='py-10 text-center text-gray-500 italic'>No upcoming meetings or office hours scheduled.</td></tr>";
                                 }
                                 $stmt->close();
                             } catch (Exception $e) {
-                                echo "<tr><td colspan='4' class='py-10 text-center text-red-500 italic'>Error loading meetings: " . htmlspecialchars($e->getMessage()) . "</td></tr>";
+                                echo "<tr><td colspan='5' class='py-10 text-center text-red-500 italic'>Error loading meetings: " . htmlspecialchars($e->getMessage()) . "</td></tr>";
                             }
                             ?>
                         </tbody>
@@ -1553,7 +1663,7 @@ $stmt->close();
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="form-group">
                         <label>Date & Time <span class="text-red-500">*</span></label>
-                        <input type="datetime-local" name="scheduled_time" required>
+                        <input type="datetime-local" name="scheduled_time" id="meetingScheduledTime" required>
                     </div>
                     <div class="form-group">
                         <label>Duration (minutes)</label>
@@ -1634,17 +1744,68 @@ $stmt->close();
 <script>
 // Single tab switching logic
 document.addEventListener('DOMContentLoaded', () => {
+    function activateTab(tabClass) {
+        const tab = document.querySelector(`.card-navbar li.${tabClass}`);
+        if (!tab) return;
+        document.querySelectorAll('.card-navbar li').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+        const section = document.querySelector(`.${tabClass}-content`);
+        if (section) section.style.display = 'block';
+    }
+
     // Tab switching
     document.querySelectorAll('.card-navbar li').forEach(tab => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.card-navbar li').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
-
             const target = tab.className.split(' ')[0];
-            const section = document.querySelector(`.${target}-content`);
-            if (section) section.style.display = 'block';
+            activateTab(target);
+        });
+    });
+
+    // Open meetings tab when redirected after scheduling
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('tab') === 'meetings') {
+        activateTab('meetings');
+    }
+
+    // Schedule meeting modal
+    const scheduleMeetingBtn = document.getElementById('scheduleMeetingBtn');
+    const scheduleMeetingModal = document.getElementById('scheduleMeetingModal');
+    const scheduleMeetingModalClose = document.getElementById('scheduleMeetingModalClose');
+    const meetingScheduledTime = document.getElementById('meetingScheduledTime');
+
+    if (meetingScheduledTime) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        meetingScheduledTime.min = now.toISOString().slice(0, 16);
+    }
+
+    scheduleMeetingBtn?.addEventListener('click', () => {
+        showModal('scheduleMeetingModal');
+    });
+
+    scheduleMeetingModalClose?.addEventListener('click', () => {
+        hideModal('scheduleMeetingModal');
+    });
+
+    scheduleMeetingModal?.addEventListener('click', e => {
+        if (e.target === scheduleMeetingModal) {
+            hideModal('scheduleMeetingModal');
+        }
+    });
+
+    document.querySelectorAll('.copy-link-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            if (!input) return;
+            input.select();
+            input.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(input.value).then(() => {
+                const original = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = original; }, 2000);
+            }).catch(() => alert('Could not copy link. Please copy manually.'));
         });
     });
 

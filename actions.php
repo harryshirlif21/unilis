@@ -1,5 +1,6 @@
 <?php
 require_once 'config/db.php';
+require_once __DIR__ . '/config/meeting.php';
 //require_once 'vendor/autoload.php';
 require_once 'vendor/autoload.php';
 require_once 'includes/mailer.php';
@@ -1143,21 +1144,87 @@ if ($action === 'generate_pdf' && isset($_GET['assignment_id'])) {
 
 // === SCHEDULE MEETING ===
 if ($action === 'schedule_meeting') {
-    $title = $_POST['title'];
-    $unit_id = $_POST['unit_id'];
-    $scheduled_time = $_POST['scheduled_time'];
-    $duration = intval($_POST['duration']);
-    $lecturer_id = $_SESSION['user_id'];
+    if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'lecturer') {
+        $_SESSION['meeting_error'] = 'Unauthorized.';
+        header('Location: lecturer/dashboard.php?tab=meetings');
+        exit;
+    }
 
-    $meeting_id = time(); // for mock ID
-    $meeting_link = "http://localhost/unilis/meeting_ide.php?meeting_id=" . $meeting_id;
+    $title = trim($_POST['title'] ?? '');
+    $unit_id = (int)($_POST['unit_id'] ?? 0);
+    $scheduled_time = trim($_POST['scheduled_time'] ?? '');
+    $duration = max(15, min(480, (int)($_POST['duration'] ?? 60)));
+    $lecturer_id = (int)$_SESSION['user_id'];
+    $custom_link = trim($_POST['meeting_link'] ?? '');
 
-    $stmt = $conn->prepare("INSERT INTO meetings (lecturer_id, unit_id, title, meeting_link, scheduled_time, duration)
-                            VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("iisssi", $lecturer_id, $unit_id, $title, $meeting_link, $scheduled_time, $duration);
-    $stmt->execute();
-    $_SESSION['meeting_success'] = "Meeting scheduled.";
-    header("Location: lecturer/meetings.php");
+    if ($title === '' || $unit_id <= 0 || $scheduled_time === '') {
+        $_SESSION['meeting_error'] = 'Please fill in all required fields.';
+        header('Location: lecturer/dashboard.php?tab=meetings');
+        exit;
+    }
+
+    $unitCheck = $conn->prepare('SELECT 1 FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ? LIMIT 1');
+    $unitCheck->bind_param('ii', $lecturer_id, $unit_id);
+    $unitCheck->execute();
+    $unitCheck->store_result();
+    if ($unitCheck->num_rows === 0) {
+        $unitCheck->close();
+        $_SESSION['meeting_error'] = 'You can only schedule meetings for your assigned units.';
+        header('Location: lecturer/dashboard.php?tab=meetings');
+        exit;
+    }
+    $unitCheck->close();
+
+    $scheduledTs = strtotime($scheduled_time);
+    if ($scheduledTs === false || $scheduledTs < time() - 60) {
+        $_SESSION['meeting_error'] = 'Scheduled time must be in the future.';
+        header('Location: lecturer/dashboard.php?tab=meetings');
+        exit;
+    }
+
+    $placeholder_link = '';
+    $stmt = $conn->prepare(
+        'INSERT INTO meetings (lecturer_id, unit_id, title, meeting_link, scheduled_time, duration)
+         VALUES (?, ?, ?, ?, ?, ?)'
+    );
+    $stmt->bind_param('iisssi', $lecturer_id, $unit_id, $title, $placeholder_link, $scheduled_time, $duration);
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        $_SESSION['meeting_error'] = 'Failed to schedule meeting. Please try again.';
+        header('Location: lecturer/dashboard.php?tab=meetings');
+        exit;
+    }
+
+    $meeting_id = (int)$conn->insert_id;
+    $stmt->close();
+
+    if ($custom_link !== '') {
+        $meeting_link = $custom_link;
+    } else {
+        $meeting_link = getMeetingHostUrl($meeting_id);
+    }
+
+    $student_link = getMeetingStudentJoinUrl($meeting_id);
+
+    $upd = $conn->prepare('UPDATE meetings SET meeting_link = ? WHERE id = ? AND lecturer_id = ?');
+    $upd->bind_param('sii', $meeting_link, $meeting_id, $lecturer_id);
+    $upd->execute();
+    $upd->close();
+
+    $_SESSION['meeting_success'] = 'Meeting scheduled successfully.';
+    $_SESSION['meeting_link'] = $meeting_link;
+    $_SESSION['meeting_student_link'] = $student_link;
+    $_SESSION['meeting_unit_name'] = '';
+    $unitNameStmt = $conn->prepare('SELECT name FROM units WHERE id = ? LIMIT 1');
+    $unitNameStmt->bind_param('i', $unit_id);
+    $unitNameStmt->execute();
+    $unitNameRes = $unitNameStmt->get_result()->fetch_assoc();
+    if ($unitNameRes) {
+        $_SESSION['meeting_unit_name'] = $unitNameRes['name'];
+    }
+    $unitNameStmt->close();
+    header('Location: lecturer/dashboard.php?tab=meetings');
     exit;
 }
 

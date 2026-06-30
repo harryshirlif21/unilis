@@ -16,22 +16,28 @@ if (!$meeting_id) {
     die('Meeting ID is required');
 }
 
-// Get meeting details and validate student access
+// Get meeting details and validate student access (must be enrolled in the meeting's unit)
 $sql = "SELECT m.*, u.name as unit_name, l.name as lecturer_name 
         FROM meetings m 
         JOIN units u ON m.unit_id = u.id 
         JOIN lecturers l ON m.lecturer_id = l.id 
-        JOIN student_unit su ON su.unit_id = u.id 
-        WHERE m.id = ? AND su.student_id = ? AND m.meeting_status = 'active'";
+        JOIN student_unit_enrollments sue ON sue.unit_id = u.id 
+        WHERE m.id = ? AND sue.student_id = ?";
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $meeting_id, $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 $meeting = $result->fetch_assoc();
+$stmt->close();
 
 if (!$meeting) {
-    die('Meeting not found, access denied, or meeting is not active');
+    die('Meeting not found or you are not enrolled in this unit');
+}
+
+if (!isMeetingJoinable($meeting)) {
+    $scheduledLabel = date('d M Y, h:i A', strtotime($meeting['scheduled_time']));
+    die('This meeting is not live yet. It is scheduled for ' . htmlspecialchars($scheduledLabel) . '. Please return when your lecturer starts the session.');
 }
 
 $lecturer_id = $meeting['lecturer_id'];
