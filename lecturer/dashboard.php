@@ -450,6 +450,16 @@ $stmt->close();
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
     </style>
+<style>
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(1.3); }
+    }
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
+        50% { box-shadow: 0 0 0 10px rgba(245,158,11,0); }
+    }
+</style>
 </head>
 <body data-theme="light">
     <!-- Global Theme Manager -->
@@ -864,8 +874,30 @@ $stmt->close();
                                     while ($meeting = $res->fetch_assoc()) {
                                         $timeFormatted = date("d M Y • h:i A", strtotime($meeting['scheduled_time']));
                                         $studentJoinUrl = getMeetingStudentJoinUrl((int)$meeting['id']);
-                                        $inputId = 'studentMeetingLink' . (int)$meeting['id'];
-                                        echo "<tr class='border-b border-gray-100 hover:bg-amber-50/40 transition-colors'>";
+                                        $meetingId = (int)$meeting['id'];
+                                        $inputId = 'studentMeetingLink' . $meetingId;
+
+                                        // Determine if meeting is within its scheduled time window
+                                        $startTs = strtotime($meeting['scheduled_time']);
+                                        $endTs = $startTs + ((int)$meeting['duration'] * 60);
+                                        $nowTs = time();
+                                        $isWithinTime = ($nowTs >= $startTs && $nowTs <= $endTs);
+
+                                        // Check if meeting has meeting_status column and if it's active
+                                        $isActive = false;
+                                        $statusCheck = $conn->query("SHOW COLUMNS FROM meetings LIKE 'meeting_status'");
+                                        if ($statusCheck && $statusCheck->num_rows > 0) {
+                                            $stmtStatus = $conn->prepare("SELECT meeting_status FROM meetings WHERE id = ?");
+                                            $stmtStatus->bind_param("i", $meetingId);
+                                            $stmtStatus->execute();
+                                            $statusRow = $stmtStatus->get_result()->fetch_assoc();
+                                            $stmtStatus->close();
+                                            $isActive = ($statusRow['meeting_status'] ?? '') === 'active';
+                                        }
+
+                                        $canStartOrJoin = $isActive || $isWithinTime;
+
+                                        echo "<tr class='border-b border-gray-100 hover:bg-amber-50/40 transition-colors' id='meeting-row-{$meetingId}'>";
                                         echo "<td class='py-4 px-4 font-medium'>" . htmlspecialchars($meeting['title']) . "</td>";
                                         echo "<td class='py-4 px-4 text-gray-600'>" . htmlspecialchars($meeting['unit_name']) . "</td>";
                                         echo "<td class='py-4 px-4 text-sm text-amber-700 font-medium'>" . $timeFormatted . "</td>";
@@ -876,10 +908,26 @@ $stmt->close();
                                         echo "</div>";
                                         echo "</td>";
                                         echo "<td class='py-4 px-4'>";
-                                        echo "<a class='text-amber-600 hover:text-amber-800 hover:underline font-medium' ";
-                                        echo "href='meeting_host.php?meeting_id=" . (int)$meeting['id'] . "'>Host</a> | ";
-                                        echo "<a class='text-amber-600 hover:text-amber-800 hover:underline font-medium' ";
-                                        echo "href='meeting_ide.php?meeting_id=" . (int)$meeting['id'] . "' target='_blank'>IDE</a>";
+                                        // Smart button: Start Meeting if not active, Join Meeting if active
+                                        if ($canStartOrJoin) {
+                                            echo "<a class='inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200' ";
+                                            if ($isActive) {
+                                                echo "style='background:linear-gradient(135deg,#16a34a,#15803d);color:white;box-shadow:0 2px 8px rgba(22,163,74,0.3);' ";
+                                                echo "href='meeting_ide.php?meeting_id={$meetingId}' ";
+                                                echo "data-meeting-id='{$meetingId}' ";
+                                                echo "onclick='startOrJoinMeeting({$meetingId}, this)'>";
+                                                echo "<span class='live-dot' style='display:inline-block;width:8px;height:8px;background:#ff4444;border-radius:50%;animation:pulse-dot 1.5s infinite;margin-right:4px;'></span> Join Meeting";
+                                            } else {
+                                                echo "style='background:linear-gradient(135deg,#f59e0b,#d97706);color:white;box-shadow:0 2px 8px rgba(245,158,11,0.3);animation:pulse-glow 2s infinite;' ";
+                                                echo "href='meeting_ide.php?meeting_id={$meetingId}' ";
+                                                echo "data-meeting-id='{$meetingId}' ";
+                                                echo "onclick='startOrJoinMeeting({$meetingId}, this)'>";
+                                                echo "<span class='btn-icon' style='font-size:14px;'>▶</span> Start Meeting";
+                                            }
+                                            echo "</a>";
+                                        } else {
+                                            echo "<span style='font-size:0.75rem;color:#92400e;background:#fef3c7;padding:0.35rem 0.65rem;border-radius:999px;white-space:nowrap;'>Scheduled</span>";
+                                        }
                                         echo "</td>";
                                         echo "</tr>";
                                     }
@@ -2320,6 +2368,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+/**
+ * Start or Join Meeting - marks meeting as active and navigates to IDE
+ * This function is called when clicking "Start Meeting" or "Join Meeting" buttons
+ */
+function startOrJoinMeeting(meetingId, btnElement) {
+    // Update button to show loading state
+    const originalHtml = btnElement.innerHTML;
+    btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+    btnElement.style.pointerEvents = 'none';
+    btnElement.style.opacity = '0.7';
+
+    // Mark meeting as active in database
+    fetch('../api/meeting_state.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'start_meeting',
+            meeting_id: meetingId,
+            user_id: <?= (int)$lecturer_id ?>
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Navigate to the IDE regardless of API result
+        window.location.href = btnElement.getAttribute('href');
+    })
+    .catch(error => {
+        console.error('Error starting meeting:', error);
+        // Navigate anyway even if API call fails
+        window.location.href = btnElement.getAttribute('href');
+    });
+
+    return false; // Prevent default link navigation
+}
 
 // Global notification mark-as-read function (called from onclick)
 function quickMarkRead(notificationId) {

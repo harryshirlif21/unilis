@@ -56,13 +56,16 @@ function meetingsTableHasColumn(mysqli $conn, string $column): bool
 
 /**
  * Whether a student can enter the live meeting room.
+ * Students can join anytime from the scheduled time onwards (including before if not ended).
  */
 function isMeetingJoinable(array $meeting): bool
 {
+    // Meeting has ended - cannot join
     if (!empty($meeting['ended'])) {
         return false;
     }
 
+    // Check explicit meeting status
     if (isset($meeting['meeting_status']) && $meeting['meeting_status'] !== '') {
         return $meeting['meeting_status'] === 'active';
     }
@@ -76,7 +79,10 @@ function isMeetingJoinable(array $meeting): bool
     $end = $start + ($duration * 60);
     $now = time();
 
-    return $now >= $start && $now <= $end;
+    // Students can join anytime starting from the scheduled time,
+    // even if they join early (before the meeting technically starts)
+    // They just can't join after the meeting duration has elapsed.
+    return $now <= $end;
 }
 
 /**

@@ -1282,9 +1282,9 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
                                                 Join
                                             </a>
                                         <?php else: ?>
-                                            <span style="font-size: 0.75rem; color: var(--warning-700); background: var(--warning-50); padding: 0.35rem 0.65rem; border-radius: 999px; white-space: nowrap;">
-                                                Scheduled
-                                            </span>
+                                            <a href="<?= htmlspecialchars($meetingRow['join_url']) ?>" class="btn btn-secondary" style="padding: 0.45rem 0.8rem; font-size: 0.8rem; white-space: nowrap;">
+                                                Join
+                                            </a>
                                         <?php endif; ?>
                                     </div>
                                 <?php endforeach; ?>

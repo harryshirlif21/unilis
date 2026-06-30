@@ -35,11 +35,6 @@ if (!$meeting) {
     die('Meeting not found or you are not enrolled in this unit');
 }
 
-if (!isMeetingJoinable($meeting)) {
-    $scheduledLabel = date('d M Y, h:i A', strtotime($meeting['scheduled_time']));
-    die('This meeting is not live yet. It is scheduled for ' . htmlspecialchars($scheduledLabel) . '. Please return when your lecturer starts the session.');
-}
-
 $lecturer_id = $meeting['lecturer_id'];
 ?>
 <!DOCTYPE html>
@@ -48,464 +43,585 @@ $lecturer_id = $meeting['lecturer_id'];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Join Meeting - <?php echo htmlspecialchars($meeting['title']); ?></title>
-    <link rel="stylesheet" href="../public/css/meeting.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Google Sans', Roboto, Arial, sans-serif;
+            background: #202124;
+            color: #e8eaed;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .top-bar {
+            height: 48px;
+            background: #171717;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 12px;
+            border-bottom: 1px solid #3c4043;
+        }
+        .top-bar .back-btn {
+            color: #9aa0a6;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .top-bar .back-btn:hover { color: #e8eaed; }
+        .top-bar .meeting-title {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .top-bar .live-badge {
+            font-size: 10px;
+            background: #f28b82;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .meeting-layout {
+            display: flex;
+            height: calc(100vh - 128px);
+        }
+        .main-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #171717;
+            position: relative;
+            overflow: hidden;
+        }
+        #lecturerVideo {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+        .no-stream {
+            text-align: center;
+            color: #9aa0a6;
+        }
+        .no-stream i { font-size: 64px; display: block; margin-bottom: 16px; opacity: 0.5; }
+        
+        /* Local preview corner */
+        .local-preview {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            width: 180px;
+            height: 101px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #3c4043;
+            background: #000;
+            z-index: 10;
+        }
+        .local-preview video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .local-preview .label {
+            position: absolute;
+            bottom: 6px;
+            left: 6px;
+            background: rgba(0,0,0,0.7);
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        
+        /* Control bar */
+        .control-bar {
+            height: 80px;
+            background: #292929;
+            border-top: 1px solid #3c4043;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .ctrl-btn {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            background: #171717;
+            border: none;
+            color: #e8eaed;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .ctrl-btn:hover { background: #3c4043; transform: scale(1.05); }
+        .ctrl-btn.active { background: #8ab4f8; }
+        .ctrl-btn.danger { background: #f28b82; width: 52px; height: 52px; }
+        .ctrl-btn.danger:hover { background: #d93025; }
+        .ctrl-btn .label {
+            position: absolute;
+            bottom: -16px;
+            font-size: 9px;
+            color: #9aa0a6;
+            white-space: nowrap;
+        }
+        
+        /* Side panel */
+        .side-panel {
+            width: 300px;
+            background: #292929;
+            border-left: 1px solid #3c4043;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+        }
+        .side-panel.open { transform: translateX(0); }
+        .panel-tabs {
+            display: flex;
+            border-bottom: 1px solid #3c4043;
+            flex-shrink: 0;
+        }
+        .panel-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 12px;
+            border-bottom: 2px solid transparent;
+        }
+        .panel-tab.active { border-bottom-color: #8ab4f8; color: #8ab4f8; }
+        .panel-content { flex: 1; overflow-y: auto; display: none; padding: 12px; }
+        .panel-content.active { display: block; }
+        
+        .participant-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            background: #171717;
+            border-radius: 8px;
+            margin-bottom: 6px;
+        }
+        .p-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #8ab4f8, #5a9fd4);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; font-size: 13px; flex-shrink: 0;
+        }
+        .p-info { flex: 1; min-width: 0; }
+        .p-name { font-size: 12px; font-weight: 500; }
+        .p-role { font-size: 10px; color: #9aa0a6; }
+        
+        .chat-messages { flex: 1; overflow-y: auto; padding: 12px; }
+        .chat-msg { margin-bottom: 10px; }
+        .chat-msg.me { text-align: right; }
+        .msg-sender { font-size: 10px; color: #9aa0a6; margin-bottom: 2px; }
+        .msg-bubble {
+            display: inline-block; padding: 6px 10px; border-radius: 10px;
+            background: #171717; max-width: 85%; font-size: 12px;
+        }
+        .chat-msg.me .msg-bubble { background: #8ab4f8; color: #111; }
+        .chat-input-area { padding: 12px; border-top: 1px solid #3c4043; flex-shrink: 0; }
+        .chat-input-area textarea {
+            width: 100%; padding: 8px; border-radius: 6px;
+            background: #171717; border: 1px solid #3c4043;
+            color: #e8eaed; resize: none; font-family: inherit; font-size: 12px;
+        }
+        .chat-input-area button {
+            margin-top: 6px; width: 100%; padding: 7px;
+            border-radius: 6px; background: #8ab4f8; border: none;
+            color: #111; font-weight: 500; cursor: pointer; font-size: 12px;
+        }
+        
+        .toast-container {
+            position: fixed; top: 60px; right: 16px; z-index: 300;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .toast {
+            padding: 10px 16px; border-radius: 6px; font-size: 12px;
+            animation: slideIn 0.3s ease; max-width: 280px;
+        }
+        .toast.info { background: #1a73e8; color: white; }
+        .toast.success { background: #81c995; color: #111; }
+        .toast.error { background: #f28b82; color: white; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        @media (max-width: 768px) {
+            .side-panel { position: absolute; right: 0; top: 48px; bottom: 80px; width: 100%; max-width: 300px; }
+            .local-preview { width: 120px; height: 68px; }
+            .ctrl-btn { width: 42px; height: 42px; font-size: 16px; }
+        }
+    </style>
 </head>
 <body>
-    <div class="meeting-container">
-        <div class="meeting-header">
-            <div class="meeting-title">
-                <h1><?php echo htmlspecialchars($meeting['title']); ?></h1>
-                <p>Unit: <?php echo htmlspecialchars($meeting['unit_name']); ?> | Lecturer: <?php echo htmlspecialchars($meeting['lecturer_name']); ?></p>
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <div class="top-bar">
+        <a href="dashboard.php" class="back-btn"><i class="fas fa-arrow-left"></i> Dashboard</a>
+        <span class="meeting-title"><?php echo htmlspecialchars($meeting['title']); ?></span>
+        <span class="live-badge">LIVE</span>
+        <span style="font-size:12px;color:#9aa0a6;margin-left:auto;">
+            <?php echo htmlspecialchars($meeting['unit_name']); ?> · <?php echo htmlspecialchars($meeting['lecturer_name']); ?>
+        </span>
+    </div>
+    
+    <div class="meeting-layout">
+        <div class="main-area">
+            <div id="noLecturerStream" class="no-stream">
+                <i class="fas fa-chalkboard-teacher"></i>
+                <div>Waiting for the lecturer to start...</div>
+                <div style="font-size:12px;margin-top:8px;">Your camera and mic are ready</div>
             </div>
-            <div class="meeting-status">
-                <span>Status: </span>
-                <div class="status-indicator" id="statusIndicator"></div>
-                <span id="statusText">Connecting...</span>
+            <video id="lecturerVideo" autoplay playsinline style="display:none;"></video>
+            
+            <div class="local-preview">
+                <video id="selfVideo" autoplay muted playsinline></video>
+                <div class="label">You</div>
             </div>
         </div>
-
-        <div class="meeting-content">
-            <div class="video-section">
-                <!-- Local Video -->
-                <div class="video-item">
-                    <video id="localVideo" autoplay muted></video>
-                    <div class="video-overlay">
-                        <div class="video-info">
-                            <strong>You (Student)</strong>
-                            <div id="localStreamInfo">Camera: Off | Mic: Off</div>
-                        </div>
-                        <div class="video-actions">
-                            <button class="btn btn-secondary btn-sm" onclick="toggleCamera()">
-                                <span class="btn-icon">📹</span>
-                                <span id="cameraText">Camera Off</span>
-                            </button>
-                            <button class="btn btn-secondary btn-sm" onclick="toggleMicrophone()">
-                                <span class="btn-icon">🎤</span>
-                                <span id="micText">Mic Off</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Lecturer Video (Python-rendered composite) -->
-                <div class="video-item lecturer" id="lecturerVideoContainer">
-                    <canvas id="lecturerCanvas" class="meeting-render-canvas"></canvas>
-                    <video id="lecturerVideo" autoplay class="hidden" style="display:none"></video>
-                    <div class="video-overlay">
-                        <div class="video-info">
-                            <strong>Lecturer</strong>
-                            <div id="lecturerStreamInfo">Waiting for stream...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Screen Share Video -->
-                <div class="video-item screen-share hidden" id="screenShareContainer">
-                    <canvas id="screenShareCanvas" class="meeting-render-canvas"></canvas>
-                    <video id="screenShareVideo" autoplay class="hidden" style="display:none"></video>
-                    <div class="video-overlay">
-                        <div class="video-info">
-                            <strong>Screen Share</strong>
-                        </div>
-                    </div>
-                </div>
+        
+        <div id="sidePanel" class="side-panel">
+            <div class="panel-tabs">
+                <div class="panel-tab active" data-tab="participants"><i class="fas fa-users"></i> <span id="participantCount">0</span></div>
+                <div class="panel-tab" data-tab="chat"><i class="fas fa-comment"></i> Chat</div>
             </div>
-
-            <div class="sidebar">
-                <!-- Controls Panel -->
-                <div class="sidebar-panel">
-                    <div class="panel-header">Meeting Controls</div>
-                    <div class="panel-content controls-section">
-                        <div class="control-group">
-                            <h3>Media Controls</h3>
-                            <div class="control-buttons">
-                                <button class="btn btn-primary" onclick="requestToPublish()" id="publishBtn">
-                                    <span class="btn-icon">📹</span>
-                                    Request to Publish
-                                </button>
-                                <button class="btn btn-danger hidden" onclick="stopPublishing()" id="stopPublishBtn">
-                                    <span class="btn-icon">⏹️</span>
-                                    Stop Publishing
-                                </button>
-                                <button class="btn btn-warning" onclick="leaveMeeting()" id="leaveBtn">
-                                    <span class="btn-icon">🚪</span>
-                                    Leave Meeting
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="control-group">
-                            <h3>Signaling Mode</h3>
-                            <div class="control-buttons">
-                                <button class="btn btn-secondary" id="signalingModeBtn">
-                                    <span class="btn-icon">🔌</span>
-                                    <span id="signalingModeText">Polling Mode</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+            <div id="participantsPanel" class="panel-content active">
+                <div id="participantsList"></div>
+            </div>
+            <div id="chatPanel" class="panel-content">
+                <div class="chat-messages" id="chatMessages">
+                    <div style="color:#9aa0a6;text-align:center;padding:20px;font-size:12px;">No messages yet</div>
                 </div>
-
-                <!-- Participants Panel -->
-                <div class="sidebar-panel">
-                    <div class="panel-header">Participants</div>
-                    <div class="panel-content">
-                        <div class="participants-list" id="participantsList">
-                            <!-- Participants will be added here dynamically -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Chat Panel -->
-                <div class="sidebar-panel">
-                    <div class="panel-header">Chat</div>
-                    <div class="panel-content">
-                        <div class="chat-messages" id="chatMessages">
-                            <!-- Chat messages will be added here -->
-                        </div>
-                        <div class="chat-input">
-                            <input type="text" id="chatInput" placeholder="Type a message...">
-                            <button class="btn btn-primary" onclick="sendChatMessage()">Send</button>
-                        </div>
-                    </div>
+                <div class="chat-input-area">
+                    <textarea id="chatInput" placeholder="Type a message..." rows="2"></textarea>
+                    <button id="sendChatBtn">Send</button>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
-
-    <!-- Scripts -->
-    <script src="../public/js/api.js"></script>
-    <script src="../public/js/ws_signaling.js"></script>
-    <script src="../public/js/webrtc_student.js"></script>
-    <script src="../public/js/meeting_media_bridge.js"></script>
     
+    <div class="control-bar">
+        <button id="toggleMicBtn" class="ctrl-btn" title="Microphone">
+            <i class="fas fa-microphone"></i><span class="label">Mic</span>
+        </button>
+        <button id="toggleCameraBtn" class="ctrl-btn" title="Camera">
+            <i class="fas fa-video"></i><span class="label">Camera</span>
+        </button>
+        <button id="participantsBtn" class="ctrl-btn" title="Participants">
+            <i class="fas fa-user-friends"></i><span class="label">People</span>
+        </button>
+        <button id="chatBtn" class="ctrl-btn" title="Chat">
+            <i class="fas fa-comment-dots"></i><span class="label">Chat</span>
+        </button>
+        <button id="leaveBtn" class="ctrl-btn danger" title="Leave Meeting">
+            <i class="fas fa-phone-slash"></i>
+        </button>
+    </div>
+
     <script>
-        // Configuration
-        const config = {
-            meetingId: <?php echo $meeting_id; ?>,
-            userId: <?php echo $user_id; ?>,
-            lecturerId: <?php echo $lecturer_id; ?>,
-            baseUrl: '..',
-            mediaServerUrl: <?php echo json_encode(getMeetingMediaWsUrl()); ?>
-        };
-
-        // Global variables
-        let webrtcStudent = null;
-        let mediaBridge = null;
-        let isPublishing = false;
-
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', async function() {
-            await initializeMeeting();
-            startParticipantsPolling();
-        });
-
-        async function initializeMeeting() {
+        // ==================== CONFIG ====================
+        const MEETING_ID = <?php echo $meeting_id; ?>;
+        const USER_ID = <?php echo $user_id; ?>;
+        const LECTURER_ID = <?php echo $lecturer_id; ?>;
+        
+        // ==================== STATE ====================
+        let localStream = null;
+        let micEnabled = true;
+        let cameraEnabled = true;
+        let isWaitingForLecturer = true;
+        let lastChatCount = 0;
+        let isChatOpen = false;
+        
+        // ==================== UTILITY ====================
+        function showToast(msg, type = 'info') {
+            const c = document.getElementById('toastContainer');
+            const t = document.createElement('div'); t.className = `toast ${type}`; t.textContent = msg;
+            c.appendChild(t); setTimeout(() => t.remove(), 3000);
+        }
+        
+        function escapeHtml(text) {
+            const d = document.createElement('div'); d.textContent = text; return d.innerHTML;
+        }
+        
+        // ==================== MEDIA ====================
+        async function initMedia() {
             try {
-                // Initialize WebRTC student
-                webrtcStudent = new WebRTCStudent({
-                    meetingId: config.meetingId,
-                    userId: config.userId,
-                    lecturerId: config.lecturerId,
-                    baseUrl: config.baseUrl,
-                    onRemoteStream: handleRemoteStream,
-                    onRemoteStreamEnded: handleRemoteStreamEnded,
-                    onConnectionStateChange: handleConnectionStateChange,
-                    onSignalingStateChange: handleSignalingStateChange,
-                    onLocalStreamReady: handleLocalStreamReady
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 640 }, height: { ideal: 480 } },
+                    audio: { echoCancellation: true, noiseSuppression: true }
                 });
-
-                await webrtcStudent.initialize();
-
-                await initializeMediaBridge();
-
-                updateStatus('connected', 'Connected');
-                showToast('Successfully joined meeting', 'success');
-
-            } catch (error) {
-                console.error('Failed to join meeting:', error);
-                updateStatus('disconnected', 'Connection Failed');
-                showToast('Failed to join meeting: ' + error.message, 'error');
-            }
-        }
-
-        function handleLocalStreamReady(stream) {
-            // Show local video preview immediately
-            const localVideo = document.getElementById('localVideo');
-            localVideo.srcObject = stream;
-            
-            // Enable camera/mic controls since stream is now available
-            document.getElementById('cameraText').textContent = 'Camera On';
-            document.getElementById('micText').textContent = 'Mic On';
-            updateLocalStreamInfo();
-            
-            console.log('Local media stream ready - camera/mic controls enabled');
-            showToast('Camera and microphone ready', 'success');
-        }
-
-        async function initializeMediaBridge() {
-            try {
-                mediaBridge = new MeetingMediaBridge({
-                    meetingId: config.meetingId,
-                    userId: config.userId,
-                    role: 'student',
-                    mediaServerUrl: config.mediaServerUrl,
-                    onStatusChange: (status) => console.log('Media bridge:', status),
-                    onFrame: (message) => {
-                        if (message.stream_type === 'screen' || message.stream_type === 'composite') {
-                            document.getElementById('lecturerVideoContainer').classList.remove('hidden');
-                        }
-                        if (message.stream_type === 'screen') {
-                            document.getElementById('screenShareContainer').classList.remove('hidden');
-                        }
-                    }
-                });
-                await mediaBridge.connect();
-
-                const lecturerCanvas = document.getElementById('lecturerCanvas');
-                mediaBridge.attachRenderCanvas(config.lecturerId, 'composite', lecturerCanvas);
-                mediaBridge.attachRenderCanvas(config.lecturerId, 'screen', document.getElementById('screenShareCanvas'));
-            } catch (error) {
-                console.warn('Python media bridge unavailable:', error.message);
-            }
-        }
-
-        function handleRemoteStream(remoteUserId, stream, role) {
-            if (role === 'lecturer') {
-                const videoElement = document.getElementById('lecturerVideo');
-                const screenVideo = document.getElementById('screenShareVideo');
-                videoElement.srcObject = stream;
-                screenVideo.srcObject = stream;
-                document.getElementById('lecturerStreamInfo').textContent = 'Streaming...';
-                
-                const videoTrack = stream.getVideoTracks()[0];
-                if (videoTrack && videoTrack.label.toLowerCase().includes('screen')) {
-                    document.getElementById('screenShareContainer').classList.remove('hidden');
-                } else {
-                    document.getElementById('lecturerVideoContainer').classList.remove('hidden');
-                }
-            }
-        }
-
-        function handleRemoteStreamEnded(remoteUserId, role) {
-            if (role === 'lecturer') {
-                document.getElementById('lecturerStreamInfo').textContent = 'Stream ended';
-            }
-        }
-
-        function handleConnectionStateChange(remoteUserId, state, role) {
-            console.log(`Connection state for ${role} ${remoteUserId}: ${state}`);
-            
-            if (role === 'lecturer') {
-                const infoElement = document.getElementById('lecturerStreamInfo');
-                infoElement.textContent = `Connection: ${state}`;
-                
-                if (state === 'connected') {
-                    infoElement.textContent = 'Streaming...';
-                } else if (state === 'disconnected' || state === 'failed') {
-                    infoElement.textContent = 'Connection lost';
-                }
-            }
-        }
-
-        function handleSignalingStateChange(remoteUserId, state, role) {
-            console.log(`Signaling state for ${role} ${remoteUserId}: ${state}`);
-        }
-
-        async function requestToPublish() {
-            try {
-                await webrtcStudent.requestToPublish();
-                isPublishing = true;
-                document.getElementById('publishBtn').classList.add('hidden');
-                document.getElementById('stopPublishBtn').classList.remove('hidden');
-                
-                // Show local video
-                const localVideo = document.getElementById('localVideo');
-                localVideo.srcObject = webrtcStudent.localStream;
-                if (mediaBridge) {
-                    mediaBridge.publishStream(localVideo, 'camera', 'camera');
-                }
-                updateLocalStreamInfo();
-                
-                showToast('Requested to publish video', 'success');
-            } catch (error) {
-                showToast('Failed to request publishing: ' + error.message, 'error');
-            }
-        }
-
-        async function stopPublishing() {
-            webrtcStudent.stopPublishing();
-            if (mediaBridge) {
-                mediaBridge.stopPublishing('camera');
-            }
-            isPublishing = false;
-            document.getElementById('publishBtn').classList.remove('hidden');
-            document.getElementById('stopPublishBtn').classList.add('hidden');
-            
-            // Hide local video
-            const localVideo = document.getElementById('localVideo');
-            localVideo.srcObject = null;
-            updateLocalStreamInfo();
-            
-            showToast('Stopped publishing video', 'success');
-        }
-
-        function toggleCamera() {
-            if (webrtcStudent.localStream) {
-                const videoTrack = webrtcStudent.localStream.getVideoTracks()[0];
-                if (videoTrack) {
-                    videoTrack.enabled = !videoTrack.enabled;
-                    updateLocalStreamInfo();
-                    showToast(`Camera ${videoTrack.enabled ? 'enabled' : 'disabled'}`, 'success');
-                }
-            }
-        }
-
-        function toggleMicrophone() {
-            if (webrtcStudent.localStream) {
-                const audioTrack = webrtcStudent.localStream.getAudioTracks()[0];
-                if (audioTrack) {
-                    audioTrack.enabled = !audioTrack.enabled;
-                    updateLocalStreamInfo();
-                    showToast(`Microphone ${audioTrack.enabled ? 'enabled' : 'disabled'}`, 'success');
-                }
-            }
-        }
-
-        function updateLocalStreamInfo() {
-            if (webrtcStudent.localStream) {
-                const videoTrack = webrtcStudent.localStream.getVideoTracks()[0];
-                const audioTrack = webrtcStudent.localStream.getAudioTracks()[0];
-                
-                const cameraText = videoTrack?.enabled ? 'Camera: On' : 'Camera: Off';
-                const micText = audioTrack?.enabled ? 'Mic: On' : 'Mic: Off';
-                
-                document.getElementById('localStreamInfo').textContent = `${cameraText} | ${micText}`;
-                document.getElementById('cameraText').textContent = videoTrack?.enabled ? 'Camera On' : 'Camera Off';
-                document.getElementById('micText').textContent = audioTrack?.enabled ? 'Mic On' : 'Mic Off';
-            } else {
-                document.getElementById('localStreamInfo').textContent = 'Camera: Off | Mic: Off';
-                document.getElementById('cameraText').textContent = 'Camera Off';
-                document.getElementById('micText').textContent = 'Mic Off';
-            }
-        }
-
-        function updateStatus(status, text) {
-            const indicator = document.getElementById('statusIndicator');
-            const statusText = document.getElementById('statusText');
-            
-            indicator.className = `status-indicator ${status}`;
-            statusText.textContent = text;
-        }
-
-        async function startParticipantsPolling() {
-            setInterval(async () => {
+                document.getElementById('selfVideo').srcObject = localStream;
+                showToast('Camera and mic ready', 'success');
+            } catch(e) {
+                console.error('Media error:', e);
                 try {
-                    const response = await webrtcStudent.api.listParticipants(config.meetingId, config.userId);
-                    if (response.success) {
-                        updateParticipantsList(response.participants);
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch participants:', error);
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                    document.getElementById('selfVideo').srcObject = localStream;
+                    showToast('Audio only mode', 'info');
+                } catch(e2) {
+                    showToast('No media access', 'error');
                 }
-            }, 1500);
+            }
         }
-
-        function updateParticipantsList(participants) {
-            const container = document.getElementById('participantsList');
-            container.innerHTML = '';
+        
+        // ==================== API ====================
+        async function apiCall(action, data = {}) {
+            const fd = new URLSearchParams({ action, ...data });
+            const r = await fetch('', { method: 'POST', body: fd });
+            return await r.json();
+        }
+        
+        async function pollSignals() {
+            try {
+                const signals = await apiCall('get_signals');
+                for (const s of signals) await handleSignal(s);
+            } catch(e) { console.error('Poll error:', e); }
+        }
+        
+        async function handleSignal(signal) {
+            const { from_lecturer_id, type, data } = signal;
+            if (from_lecturer_id != LECTURER_ID) return;
+            const parsed = JSON.parse(data || '{}');
             
-            participants.forEach(participant => {
-                const participantEl = document.createElement('div');
-                participantEl.className = 'participant-item';
-                participantEl.innerHTML = `
-                    <div class="participant-avatar">
-                        ${participant.name.charAt(0).toUpperCase()}
+            switch(type) {
+                case 'offer':
+                    if (parsed.sdp) {
+                        await handleLecturerOffer(parsed);
+                    }
+                    break;
+                case 'candidate':
+                    if (parsed.candidate && lecturerPC) {
+                        try { await lecturerPC.addIceCandidate(new RTCIceCandidate(parsed.candidate)); } catch(e) {}
+                    }
+                    break;
+                case 'end':
+                    showToast('Meeting ended by lecturer', 'info');
+                    setTimeout(() => window.location.href = 'dashboard.php', 2000);
+                    break;
+            }
+        }
+        
+        let lecturerPC = null;
+        
+        async function handleLecturerOffer(data) {
+            try {
+                lecturerPC = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }]
+                });
+                
+                lecturerPC.ontrack = (event) => {
+                    const [stream] = event.streams;
+                    const video = document.getElementById('lecturerVideo');
+                    video.srcObject = stream;
+                    video.style.display = 'block';
+                    document.getElementById('noLecturerStream').style.display = 'none';
+                    isWaitingForLecturer = false;
+                    showToast('Lecturer stream received!', 'success');
+                };
+                
+                lecturerPC.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        apiCall('send_signal', {
+                            to_lecturer_id: LECTURER_ID,
+                            type: 'candidate',
+                            data: JSON.stringify({ candidate: event.candidate })
+                        });
+                    }
+                };
+                
+                await lecturerPC.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
+                
+                const answer = await lecturerPC.createAnswer();
+                await lecturerPC.setLocalDescription(answer);
+                
+                await apiCall('send_signal', {
+                    to_lecturer_id: LECTURER_ID,
+                    type: 'answer',
+                    data: JSON.stringify({ sdp: answer.sdp })
+                });
+                
+                console.log('Answer sent to lecturer');
+            } catch(e) {
+                console.error('Error handling lecturer offer:', e);
+            }
+        }
+        
+        // ==================== PARTICIPANTS ====================
+        async function loadParticipants() {
+            const participants = await apiCall('get_participants');
+            const list = document.getElementById('participantsList');
+            document.getElementById('participantCount').textContent = participants.length + 1;
+            
+            list.innerHTML = `
+                <div class="participant-item">
+                    <div class="p-avatar" style="background:linear-gradient(135deg,#fdd663,#f59e0b);">
+                        ${escapeHtml(<?php echo json_encode(htmlspecialchars($meeting['lecturer_name'])); ?>).charAt(0)}
                     </div>
-                    <div class="participant-info">
-                        <div class="participant-name">${participant.name}</div>
-                        <div class="participant-role">${participant.role}</div>
+                    <div class="p-info">
+                        <div class="p-name">${escapeHtml(<?php echo json_encode(htmlspecialchars($meeting['lecturer_name'])); ?>)}</div>
+                        <div class="p-role">Lecturer</div>
                     </div>
-                    <div class="participant-status ${participant.status}"></div>
+                </div>
+            `;
+            
+            participants.forEach(p => {
+                const initial = (p.name || '?').charAt(0).toUpperCase();
+                list.innerHTML += `
+                    <div class="participant-item">
+                        <div class="p-avatar">${escapeHtml(initial)}</div>
+                        <div class="p-info">
+                            <div class="p-name">${escapeHtml(p.name || 'Unknown')}</div>
+                            <div class="p-role">${escapeHtml(p.reg_no || 'Student')}</div>
+                        </div>
+                    </div>
                 `;
-                container.appendChild(participantEl);
             });
         }
-
-        function sendChatMessage() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            
-            if (message) {
-                // Add message to chat UI
-                addChatMessage(config.userId, 'You', message, true);
-                input.value = '';
-                
-                // In a real implementation, you would send this via signaling
-                // webrtcStudent.sendSignal('chat', null, { message: message });
-            }
-        }
-
-        function addChatMessage(userId, userName, message, isOwn = false) {
+        
+        // ==================== CHAT ====================
+        async function loadChat() {
+            const messages = await apiCall('get_chat');
             const container = document.getElementById('chatMessages');
-            const messageEl = document.createElement('div');
-            messageEl.className = `chat-message ${isOwn ? 'own' : 'other'}`;
-            messageEl.innerHTML = `
-                <div class="message-sender">${userName}</div>
-                <div class="message-text">${message}</div>
-                <div class="message-time">${new Date().toLocaleTimeString()}</div>
-            `;
-            container.appendChild(messageEl);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        async function leaveMeeting() {
-            if (mediaBridge) {
-                mediaBridge.disconnect();
-            }
-            if (webrtcStudent) {
-                webrtcStudent.disconnect();
+            container.innerHTML = '';
+            
+            if (messages.length === 0) {
+                container.innerHTML = '<div style="color:#9aa0a6;text-align:center;padding:20px;font-size:12px;">No messages yet</div>';
+            } else {
+                messages.forEach(msg => {
+                    const isMe = msg.user_id == USER_ID || (msg.user_id == LECTURER_ID && msg.user_name.includes('Lecturer'));
+                    const div = document.createElement('div');
+                    div.className = `chat-msg ${isMe ? 'me' : ''}`;
+                    div.innerHTML = `
+                        <div class="msg-sender">${escapeHtml(msg.user_name)}</div>
+                        <div class="msg-bubble">${escapeHtml(msg.message)}</div>
+                    `;
+                    container.appendChild(div);
+                });
+                container.scrollTop = container.scrollHeight;
             }
             
-            showToast('Leaving meeting...', 'info');
-            
-            setTimeout(() => {
-                window.location.href = 'dashboard.php';
-            }, 1000);
+            lastChatCount = messages.length;
         }
-
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            toast.innerHTML = `
-                <div class="toast-header">
-                    <div class="toast-title">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
-                    <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
-                </div>
-                <div class="toast-body">${message}</div>
-            `;
-            container.appendChild(toast);
-            
-            setTimeout(() => toast.classList.add('show'), 100);
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 300);
-            }, 5000);
-        }
-
-        // Handle page unload
-        window.addEventListener('beforeunload', () => {
-            if (mediaBridge) {
-                mediaBridge.disconnect();
+        
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (msg) {
+                await apiCall('send_chat', { message: msg, user_id: USER_ID, user_name: 'You' });
+                input.value = '';
+                await loadChat();
             }
-            if (webrtcStudent) {
-                webrtcStudent.disconnect();
+        }
+        
+        // ==================== SIGNALING FOR STUDENT (sends to lecturer) ====================
+        // Override send_signal to work for student -> lecturer
+        async function sendSignalToLecturer(type, data) {
+            const fd = new URLSearchParams({
+                action: 'send_signal',
+                to_lecturer_id: LECTURER_ID,
+                type: type,
+                data: JSON.stringify(data)
+            });
+            await fetch('', { method: 'POST', body: fd });
+        }
+        
+        // ==================== UI CONTROLS ====================
+        document.getElementById('toggleMicBtn').addEventListener('click', () => {
+            if (localStream) {
+                micEnabled = !micEnabled;
+                localStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
+                const btn = document.getElementById('toggleMicBtn');
+                btn.innerHTML = micEnabled ? '<i class="fas fa-microphone"></i><span class="label">Mic</span>' : '<i class="fas fa-microphone-slash"></i><span class="label">Mic</span>';
+                btn.classList.toggle('active', !micEnabled);
+                showToast(micEnabled ? 'Mic on' : 'Mic muted', 'info');
             }
         });
+        
+        document.getElementById('toggleCameraBtn').addEventListener('click', () => {
+            if (localStream) {
+                cameraEnabled = !cameraEnabled;
+                localStream.getVideoTracks().forEach(t => t.enabled = cameraEnabled);
+                const btn = document.getElementById('toggleCameraBtn');
+                btn.innerHTML = cameraEnabled ? '<i class="fas fa-video"></i><span class="label">Camera</span>' : '<i class="fas fa-video-slash"></i><span class="label">Camera</span>';
+                btn.classList.toggle('active', !cameraEnabled);
+                showToast(cameraEnabled ? 'Camera on' : 'Camera off', 'info');
+            }
+        });
+        
+        document.getElementById('participantsBtn').addEventListener('click', () => {
+            document.getElementById('sidePanel').classList.toggle('open');
+            switchTab('participants');
+        });
+        
+        document.getElementById('chatBtn').addEventListener('click', () => {
+            document.getElementById('sidePanel').classList.toggle('open');
+            switchTab('chat');
+            isChatOpen = true;
+        });
+        
+        document.getElementById('leaveBtn').addEventListener('click', () => {
+            if (confirm('Leave the meeting?')) {
+                if (localStream) localStream.getTracks().forEach(t => t.stop());
+                if (lecturerPC) lecturerPC.close();
+                window.location.href = 'dashboard.php';
+            }
+        });
+        
+        document.getElementById('sendChatBtn').addEventListener('click', sendChat);
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+        });
+        
+        function switchTab(name) {
+            document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+            document.getElementById(`${name}Panel`).classList.add('active');
+            if (name === 'chat') isChatOpen = true; else isChatOpen = false;
+        }
+        
+        // Close panel on outside click
+        document.addEventListener('click', (e) => {
+            const panel = document.getElementById('sidePanel');
+            if (panel.classList.contains('open') &&
+                !panel.contains(e.target) &&
+                !document.getElementById('participantsBtn').contains(e.target) &&
+                !document.getElementById('chatBtn').contains(e.target)) {
+                panel.classList.remove('open');
+            }
+        });
+        
+        // ==================== INIT ====================
+        async function init() {
+            await initMedia();
+            await loadParticipants();
+            await loadChat();
+            
+            // Start polling for signals from lecturer
+            setInterval(pollSignals, 1500);
+            setInterval(loadParticipants, 5000);
+            setInterval(loadChat, 3000);
+            
+            // Send join signal to lecturer
+            await apiCall('send_signal', {
+                to_lecturer_id: LECTURER_ID,
+                type: 'request-publish',
+                data: JSON.stringify({ name: '<?php echo htmlspecialchars($meeting['lecturer_name']); ?>' })
+            });
+        }
+        
+        window.addEventListener('beforeunload', () => {
+            if (localStream) localStream.getTracks().forEach(t => t.stop());
+            if (lecturerPC) lecturerPC.close();
+        });
+        
+        init();
     </script>
 </body>
 </html>
