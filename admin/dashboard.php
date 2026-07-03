@@ -1380,8 +1380,14 @@ function loadStudents() {
         let data; try { data = parseJSONSafe(text); } catch(e) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:red;">Error loading students.</td></tr>'; return;
         }
-        if (!data || !Array.isArray(data.students)) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;">No students found.</td></tr>'; return;
+        if (!data || data.status !== 'success') {
+            const msg = data?.message || 'Failed to load students.';
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:red;">${escapeHtml(msg)}</td></tr>`;
+            return;
+        }
+        if (!Array.isArray(data.students)) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;">No students found.</td></tr>';
+            return;
         }
         allStudents = data.students;
         renderStudentsTable(allStudents);

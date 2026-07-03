@@ -1768,23 +1768,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
 if ($action === 'get_all_students') {
     header('Content-Type: application/json');
 
-    $has_verified_at = false;
-    $col_stmt = $conn->prepare("SHOW COLUMNS FROM students LIKE ?");
-    if ($col_stmt) {
-        $column_name = 'verified_at';
-        $col_stmt->bind_param('s', $column_name);
-        $col_stmt->execute();
-        $col_stmt->store_result();
-        $has_verified_at = $col_stmt->num_rows > 0;
-        $col_stmt->close();
-    }
+    $has_year_of_study = tableColumnExists($conn, 'students', 'year_of_study');
+    $has_year_joined = tableColumnExists($conn, 'students', 'year_joined');
+    $has_is_verified = tableColumnExists($conn, 'students', 'is_verified');
+    $has_verified_at = tableColumnExists($conn, 'students', 'verified_at');
 
-    $select_fields = 'id, reg_no, name, email, year_of_study, year_joined, is_verified';
+    $select_fields = [
+        'id',
+        'reg_no',
+        'name',
+        'email',
+        $has_year_of_study ? 'year_of_study' : 'NULL AS year_of_study',
+        $has_year_joined ? 'year_joined' : 'NULL AS year_joined',
+        $has_is_verified ? 'is_verified' : '0 AS is_verified',
+    ];
+
     if ($has_verified_at) {
-        $select_fields .= ', verified_at';
+        $select_fields[] = 'verified_at';
     }
 
-    $result = $conn->query("SELECT {$select_fields} FROM students ORDER BY name ASC");
+    $result = $conn->query("SELECT " . implode(', ', $select_fields) . " FROM students ORDER BY name ASC");
     if (!$result) {
         echo json_encode(['status' => 'error', 'message' => 'Failed to load students: ' . $conn->error]);
         exit;
@@ -1995,6 +1998,30 @@ function deleteStudentDependencies(mysqli $conn, int $student_id): bool {
     }
 
     return true;
+}
+
+function tableColumnExists(mysqli $conn, string $table, string $column): bool {
+    $sql = "
+        SELECT 1
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = ?
+          AND COLUMN_NAME = ?
+        LIMIT 1
+    ";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('ss', $table, $column);
+    $stmt->execute();
+    $stmt->store_result();
+    $exists = $stmt->num_rows > 0;
+    $stmt->close();
+
+    return $exists;
 }
 
 // === DELETE SINGLE STUDENT ===
