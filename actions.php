@@ -1898,8 +1898,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_course_year_students') {
     header('Content-Type: application/json');
     $course_id = intval($_GET['course_id'] ?? 0);
     $year = intval($_GET['year'] ?? 0);
-    $registered_at_select = tableColumnExists($conn, 'students', 'created_at')
-        ? "DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS registered_at"
+    $registered_at_select = tableColumnExists($conn, 'students', 'verified_at')
+        ? "DATE_FORMAT(verified_at, '%Y-%m-%d %H:%i:%s') AS registered_at"
         : "NULL AS registered_at";
 
     if ($course_id <= 0 || $year <= 0) {
@@ -1931,8 +1931,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_course_year_students') {
 if (isset($_GET['action']) && $_GET['action'] === 'download_registration_pdf') {
     $course_id = intval($_GET['course_id'] ?? 0);
     $year = intval($_GET['year'] ?? 0);
-    $registered_at_select = tableColumnExists($conn, 'students', 'created_at')
-        ? "DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS registered_at"
+    $registered_at_select = tableColumnExists($conn, 'students', 'verified_at')
+        ? "DATE_FORMAT(verified_at, '%Y-%m-%d %H:%i:%s') AS registered_at"
         : "NULL AS registered_at";
 
     if ($course_id <= 0 || $year <= 0) {
