@@ -745,6 +745,7 @@ async function loadFiles() {
                 <div class="activity-meta">By: ${f.uploader_name || ('User #' + (f.uploaded_by || ''))}</div>
                 <div style="margin-top:0.4rem;">
                     <button class="read-btn" onclick="openTeamFileViewer(${Number(f.id) || 0}, '${String((f.file_name || 'File').replace(/'/g, "\\'"))}')">Read</button>
+                    <button class="read-btn" style="background:#dc2626;margin-left:0.35rem;" onclick="deleteTeamFile(${Number(f.id) || 0}, '${String((f.file_name || 'File').replace(/'/g, "\\'"))}')">Delete</button>
                 </div>
             </div>`;
         });
@@ -754,6 +755,40 @@ async function loadFiles() {
     } catch (err) {
         statusEl.textContent = 'Error loading files: ' + err.message;
         statusEl.classList.add('error');
+    }
+}
+
+async function deleteTeamFile(fileId, fileName) {
+    if (!fileId) return;
+    const ok = confirm(`Delete file "${fileName || 'this file'}"? This action cannot be undone.`);
+    if (!ok) return;
+
+    const statusEl = document.getElementById('filesStatus');
+    if (statusEl) statusEl.textContent = 'Deleting file...';
+
+    try {
+        const res = await fetch('/teams/api/delete_team_file.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                file_id: fileId,
+                csrf_token: csrfToken
+            })
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) {
+            throw new Error(data?.error || ('HTTP ' + res.status));
+        }
+
+        if (statusEl) statusEl.textContent = data.message || 'File deleted';
+        loadFiles();
+        if (panels.activity && panels.activity.dataset.loaded) {
+            loadActivity();
+        }
+    } catch (err) {
+        if (statusEl) statusEl.textContent = 'Delete failed: ' + err.message;
     }
 }
 
