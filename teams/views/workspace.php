@@ -344,6 +344,31 @@ $csrfToken     = $_SESSION['csrf_token'];
                 <p class="muted">
                     Latest team files and versions from <span class="pill">team_files</span>.
                 </p>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin:0.5rem 0 0.75rem 0;">
+                    <div style="flex:1;min-width:220px;">
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Submission title</label>
+                        <input id="workspaceSubmissionTitle" type="text" placeholder="e.g. Sprint 2 Draft" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Description (optional)</label>
+                        <input id="workspaceSubmissionDescription" type="text" placeholder="What files are included" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                    </div>
+                    <div>
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Type</label>
+                        <select id="workspaceSubmissionType" style="padding:0.55rem;border:1px solid #d1d5db;border-radius:8px;">
+                            <option value="team">Team</option>
+                            <option value="individual">Individual</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                        <label class="muted" style="display:block;margin-bottom:0.25rem;">Files</label>
+                        <input id="workspaceFilesInput" type="file" multiple style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;">
+                    </div>
+                    <button id="workspaceUploadBtn" type="button" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:0.6rem 0.9rem;cursor:pointer;">
+                        Upload files
+                    </button>
+                    <span id="workspaceUploadStatus" class="muted"></span>
+                </div>
                 <p id="filesStatus" class="muted">Loading files...</p>
                 <div id="filesList" class="muted" style="font-size:0.9rem;"></div>
             </div>
@@ -675,7 +700,7 @@ if (peerSubmitBtn) {
     });
 }
 
-// --- Files tab: read-only list via workspace_files.php ---
+// --- Files tab: list + upload for all team members ---
 async function loadFiles() {
     const statusEl = document.getElementById('filesStatus');
     const listEl = document.getElementById('filesList');
@@ -697,7 +722,7 @@ async function loadFiles() {
 
         const files = data.files || [];
         if (files.length === 0) {
-            statusEl.textContent = 'No files yet. Use the existing submission flow to upload.';
+            statusEl.textContent = 'No files yet. Any team member can upload using the form above.';
             return;
         }
 
@@ -730,6 +755,70 @@ async function loadFiles() {
         statusEl.textContent = 'Error loading files: ' + err.message;
         statusEl.classList.add('error');
     }
+}
+
+const workspaceUploadBtn = document.getElementById('workspaceUploadBtn');
+if (workspaceUploadBtn) {
+    workspaceUploadBtn.addEventListener('click', async () => {
+        const statusEl = document.getElementById('workspaceUploadStatus');
+        const titleEl = document.getElementById('workspaceSubmissionTitle');
+        const descEl = document.getElementById('workspaceSubmissionDescription');
+        const typeEl = document.getElementById('workspaceSubmissionType');
+        const filesEl = document.getElementById('workspaceFilesInput');
+
+        const title = (titleEl?.value || '').trim();
+        const description = (descEl?.value || '').trim();
+        const submissionType = (typeEl?.value || 'team').trim();
+        const fileList = filesEl?.files ? Array.from(filesEl.files) : [];
+
+        if (!title) {
+            if (statusEl) statusEl.textContent = 'Submission title is required';
+            return;
+        }
+        if (!fileList.length) {
+            if (statusEl) statusEl.textContent = 'Please select at least one file';
+            return;
+        }
+
+        if (statusEl) statusEl.textContent = 'Uploading...';
+        workspaceUploadBtn.disabled = true;
+
+        try {
+            const formData = new FormData();
+            formData.append('team_id', teamId);
+            formData.append('submission_title', title);
+            formData.append('submission_description', description);
+            formData.append('submission_type', submissionType === 'individual' ? 'individual' : 'team');
+            formData.append('csrf_token', csrfToken);
+            fileList.forEach(file => formData.append('files[]', file));
+
+            const res = await fetch('/teams/api/submit.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            });
+
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data || !data.success) {
+                throw new Error(data?.error || ('HTTP ' + res.status));
+            }
+
+            if (statusEl) statusEl.textContent = data.message || 'Files uploaded';
+            if (titleEl) titleEl.value = '';
+            if (descEl) descEl.value = '';
+            if (typeEl) typeEl.value = 'team';
+            if (filesEl) filesEl.value = '';
+
+            loadFiles();
+            if (panels.activity && panels.activity.dataset.loaded) {
+                loadActivity();
+            }
+        } catch (err) {
+            if (statusEl) statusEl.textContent = 'Upload failed: ' + err.message;
+        } finally {
+            workspaceUploadBtn.disabled = false;
+        }
+    });
 }
 
 function openTeamFileViewer(fileId, fileName) {
@@ -803,7 +892,7 @@ async function loadActivity() {
     }
 }
 
-// --- Tasks / Kanban: read-only from kanban_tasks.php ---
+// --- Tasks / Kanban ---
 async function loadTasks() {
     const statusEl = document.getElementById('tasksStatus');
     const boardEl = document.getElementById('tasksBoard');
@@ -825,7 +914,7 @@ async function loadTasks() {
 
         const tasks = data.tasks || [];
         if (tasks.length === 0) {
-            statusEl.textContent = 'No tasks yet. Add tasks in a later phase or via lecturer tools.';
+            statusEl.textContent = 'No tasks yet. Any team member can create the first task above.';
             return;
         }
 
@@ -1049,7 +1138,7 @@ if (createTaskBtn) {
     });
 }
 
-// --- Checklist: read-only from checklist.php ---
+// --- Checklist from checklist.php ---
 async function loadChecklist() {
     const statusEl = document.getElementById('checklistStatus');
     const listEl = document.getElementById('checklistList');
