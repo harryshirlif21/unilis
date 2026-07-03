@@ -1413,6 +1413,9 @@ function renderStudentsTable(students) {
         const tr = document.createElement('tr');
         tr.dataset.id = s.id;
         const verified = parseInt(s.is_verified) === 1;
+        const verifyBtn = verified
+            ? '<button class="btn-delete-single" disabled style="opacity:.55;cursor:not-allowed;background:#adb5bd;"><i class="fas fa-check-circle"></i> Verified</button>'
+            : `<button class="btn-delete-single" style="background:#28a745;" onclick="verifyStudent(${s.id}, '${escapeJs(s.name)}')"><i class="fas fa-user-check"></i> Verify</button>`;
         tr.innerHTML = `
             <td><input type="checkbox" class="student-checkbox" value="${s.id}" onchange="updateBulkDeleteBtn()"></td>
             <td>${escapeHtml(s.reg_no || '—')}</td>
@@ -1420,11 +1423,36 @@ function renderStudentsTable(students) {
             <td>${escapeHtml(s.email)}</td>
             <td>Year ${escapeHtml(s.year_of_study || '—')}</td>
             <td><span class="${verified ? 'badge-verified' : 'badge-unverified'}">${verified ? '✔ Verified' : '✘ Unverified'}</span></td>
-            <td><button class="btn-delete-single" onclick="promptDeleteStudent(${s.id}, '${escapeJs(s.name)}')"><i class="fas fa-trash"></i> Delete</button></td>
+            <td style="display:flex;gap:6px;flex-wrap:wrap;">
+                ${verifyBtn}
+                <button class="btn-delete-single" onclick="promptDeleteStudent(${s.id}, '${escapeJs(s.name)}')"><i class="fas fa-trash"></i> Delete</button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
     updateBulkDeleteBtn();
+}
+
+function verifyStudent(id, name) {
+    if (!id) return;
+    if (!confirm(`Verify "${name}" now?`)) return;
+
+    fetch('../actions.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=verify_student_by_id&student_id=${encodeURIComponent(id)}`
+    })
+    .then(r => r.text())
+    .then(text => {
+        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
+        if (data?.status === 'success') {
+            showFloatingMessage(data.message || 'Student verified successfully.', 'success');
+            loadStudents();
+        } else {
+            showFloatingMessage(data?.message || 'Failed to verify student.', 'error');
+        }
+    })
+    .catch(() => showFloatingMessage('Error verifying student.', 'error'));
 }
 
 function filterStudentsTable() {

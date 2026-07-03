@@ -1764,6 +1764,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
     exit;
 }
 
+if ($action === 'verify_student_by_id') {
+    header('Content-Type: application/json');
+
+    $student_id = (int)($_POST['student_id'] ?? 0);
+    if ($student_id <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid student ID.']);
+        exit;
+    }
+
+    if (!tableColumnExists($conn, 'students', 'is_verified')) {
+        echo json_encode(['status' => 'error', 'message' => 'Verification is not supported by this students table schema.']);
+        exit;
+    }
+
+    $has_verified_at = tableColumnExists($conn, 'students', 'verified_at');
+    $sql = $has_verified_at
+        ? "UPDATE students SET is_verified = 1, verified_at = NOW() WHERE id = ?"
+        : "UPDATE students SET is_verified = 1 WHERE id = ?";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        echo json_encode(['status' => 'error', 'message' => 'Failed to prepare verification query.']);
+        exit;
+    }
+
+    $stmt->bind_param('i', $student_id);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        echo json_encode(['status' => 'error', 'message' => 'Failed to verify student: ' . $conn->error]);
+        exit;
+    }
+
+    if ($stmt->affected_rows < 1) {
+        $stmt->close();
+        echo json_encode(['status' => 'error', 'message' => 'Student not found or already verified.']);
+        exit;
+    }
+
+    $stmt->close();
+    echo json_encode(['status' => 'success', 'message' => 'Student verified successfully.']);
+    exit;
+}
+
 // === GET ALL STUDENTS ===
 if ($action === 'get_all_students') {
     header('Content-Type: application/json');
