@@ -145,77 +145,114 @@ try {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="css/styles.css">
 <style>
-.units-page{max-width:700px;margin:32px auto;padding:0 20px 60px}
+:root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --line: #dbe4ea;
+    --line-soft: #ebeff2;
+    --text: #0f1720;
+    --muted: #5a6a78;
+    --accent: #0f766e;
+    --accent-weak: #dff4f1;
+    --danger: #b42318;
+}
 
-.page-title{font-size:1.45rem;font-weight:800;color:#1e293b;margin-bottom:4px}
-.page-sub{font-size:.88rem;color:#64748b;margin-bottom:28px;line-height:1.6}
+body {
+    background: var(--bg) !important;
+    color: var(--text);
+}
 
-.alert{padding:13px 18px;border-radius:10px;margin-bottom:20px;font-size:.88rem;display:flex;align-items:center;gap:10px}
-.alert-success{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
-.alert-error  {background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.units-page {
+    max-width: 760px;
+    margin: 30px auto;
+    padding: 0 20px 56px;
+}
 
-/* semester tabs */
-.sem-tabs{display:flex;gap:8px;margin-bottom:22px}
-.sem-tab{padding:9px 24px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;
-         color:#64748b;font-size:.88rem;font-weight:600;cursor:pointer;text-decoration:none;
-         transition:all .15s;display:inline-flex;align-items:center;gap:7px}
-.sem-tab:hover{border-color:#6366f1;color:#6366f1}
-.sem-tab.active{background:#6366f1;border-color:#6366f1;color:#fff}
+.page-title {font-size:1.5rem;font-weight:800;color:var(--text);margin-bottom:6px;letter-spacing:.2px}
+.page-sub {font-size:.9rem;color:var(--muted);margin-bottom:24px;line-height:1.65}
 
-/* info bar */
-.info-bar{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;
-          margin-bottom:20px;font-size:.83rem;color:#475569;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.info-bar i{color:#6366f1}
+.alert {padding:12px 14px;border-radius:10px;margin-bottom:18px;font-size:.88rem;display:flex;align-items:center;gap:10px;background:#fff}
+.alert-success {color:#065f46;border:1px solid #b7e3dc;border-left:4px solid #0f766e}
+.alert-error   {color:var(--danger);border:1px solid #f2c5c2;border-left:4px solid var(--danger)}
 
-/* card */
-.units-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;
-            box-shadow:0 2px 12px rgba(0,0,0,.06)}
-.card-head{background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:16px 22px;
-           display:flex;align-items:center;justify-content:space-between}
-.card-head h3{font-size:.95rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:9px}
-.card-head span{font-size:.78rem;color:rgba(255,255,255,.75)}
+.sem-tabs {display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.sem-tab {
+    padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;
+    color:var(--muted);font-size:.86rem;font-weight:700;cursor:pointer;text-decoration:none;
+    transition:all .16s;display:inline-flex;align-items:center;gap:7px
+}
+.sem-tab:hover {border-color:var(--accent);color:var(--accent)}
+.sem-tab.active {border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
 
-/* select all */
-.sel-all{display:flex;align-items:center;gap:10px;padding:11px 22px;
-         background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:.82rem;color:#64748b;cursor:pointer}
-.sel-all:hover{background:#f1f5f9}
-.sel-all label{cursor:pointer;font-weight:600}
+.info-bar {
+    border:1px dashed var(--line);border-radius:10px;padding:11px 14px;
+    margin-bottom:18px;font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:7px;flex-wrap:wrap
+}
+.info-bar i {color:var(--accent)}
 
-/* unit rows */
-.unit-list{padding:4px 0}
-.unit-item{display:flex;align-items:center;gap:14px;padding:13px 22px;
-           border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .12s}
-.unit-item:last-child{border-bottom:none}
-.unit-item:hover{background:#f8fafc}
-.unit-item.enrolled{background:#f0fdf4}
-.unit-item.enrolled:hover{background:#dcfce7}
-.unit-cb{width:19px;height:19px;accent-color:#6366f1;cursor:pointer;flex-shrink:0}
-.unit-info{flex:1}
-.unit-name{font-size:.9rem;font-weight:600;color:#1e293b;margin-bottom:2px}
-.unit-code{font-size:.74rem;color:#94a3b8;font-family:monospace}
-.enroll-badge{font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
-.badge-enrolled{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
-.badge-selected{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.units-card {
+    background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    box-shadow:0 8px 24px rgba(15, 23, 32, .06)
+}
+.card-head {
+    padding:16px 20px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line-soft);background:#fff
+}
+.card-head h3 {font-size:.96rem;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px}
+.card-head span {font-size:.78rem;color:var(--muted)}
 
-/* empty */
-.empty-units{text-align:center;padding:44px 24px;color:#94a3b8}
-.empty-units i{font-size:2.2rem;margin-bottom:12px;display:block;opacity:.35}
-.empty-units h3{font-size:.95rem;font-weight:700;color:#64748b;margin-bottom:6px}
-.empty-units p{font-size:.83rem;line-height:1.6}
+.sel-all {
+    display:flex;align-items:center;gap:10px;padding:11px 20px;
+    border-bottom:1px solid var(--line-soft);font-size:.82rem;color:var(--muted);cursor:pointer
+}
+.sel-all:hover {background:#fcfdfd}
+.sel-all label {cursor:pointer;font-weight:700}
 
-/* footer */
-.card-foot{padding:15px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;
-           display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
-.sel-count{font-size:.82rem;color:#64748b}
-.sel-count strong{color:#6366f1}
-.btn-save{padding:10px 26px;background:#6366f1;color:#fff;border:none;border-radius:8px;
-          font-size:.88rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;
-          gap:7px;transition:background .15s,transform .1s}
-.btn-save:hover{background:#4f46e5;transform:translateY(-1px)}
-.btn-back{padding:9px 16px;background:transparent;border:1px solid #e2e8f0;border-radius:8px;
-          font-size:.83rem;color:#64748b;cursor:pointer;text-decoration:none;
-          display:inline-flex;align-items:center;gap:6px;transition:border-color .15s,color .15s}
-.btn-back:hover{border-color:#6366f1;color:#6366f1}
+.unit-list {padding:4px 0}
+.unit-item {
+    display:flex;align-items:center;gap:14px;padding:13px 20px;
+    border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background .12s, border-color .12s
+}
+.unit-item:last-child {border-bottom:none}
+.unit-item:hover {background:#fcfdfd}
+.unit-item.enrolled {background:#fbfefd;border-left:3px solid #8ecfc7;padding-left:17px}
+.unit-cb {width:19px;height:19px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+.unit-info {flex:1}
+.unit-name {font-size:.92rem;font-weight:700;color:var(--text);margin-bottom:2px}
+.unit-code {font-size:.74rem;color:#7b8b96;font-family:Consolas, Monaco, 'Courier New', monospace}
+.enroll-badge {font-size:.7rem;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.badge-enrolled {background:#fff;border:1px solid #b7e3dc;color:#0b635c}
+.badge-selected {background:#fff;border:1px solid #bdd5df;color:#245d70}
+
+.empty-units {text-align:center;padding:42px 24px;color:#8a99a5}
+.empty-units i {font-size:2.2rem;margin-bottom:12px;display:block;opacity:.32}
+.empty-units h3 {font-size:.96rem;font-weight:800;color:#4d5f6d;margin-bottom:6px}
+.empty-units p {font-size:.84rem;line-height:1.6}
+
+.card-foot {
+    padding:14px 20px;border-top:1px solid var(--line-soft);
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:#fff
+}
+.sel-count {font-size:.83rem;color:var(--muted)}
+.sel-count strong {color:var(--accent)}
+.btn-save {
+    padding:10px 20px;background:var(--accent);color:#fff;border:none;border-radius:10px;
+    font-size:.87rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;
+    gap:7px;transition:opacity .15s, transform .1s
+}
+.btn-save:hover {opacity:.92;transform:translateY(-1px)}
+.btn-back {
+    padding:9px 14px;background:#fff;border:1px solid var(--line);border-radius:9px;
+    font-size:.83rem;color:var(--muted);cursor:pointer;text-decoration:none;
+    display:inline-flex;align-items:center;gap:6px;transition:border-color .15s,color .15s
+}
+.btn-back:hover {border-color:var(--accent);color:var(--accent)}
+
+@media (max-width: 640px) {
+    .units-page {padding: 0 14px 42px; margin-top: 20px}
+    .card-head, .sel-all, .unit-item, .card-foot {padding-left: 14px; padding-right: 14px}
+    .page-title {font-size:1.34rem}
+}
 </style>
 </head>
 <body>
@@ -226,7 +263,7 @@ try {
         <a href="dashboard.php" class="btn-back"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
 
-    <div class="page-title"><i class="fas fa-book-open" style="color:#6366f1;margin-right:8px"></i>My Units</div>
+    <div class="page-title"><i class="fas fa-book-open" style="color:#0f766e;margin-right:8px"></i>My Units</div>
     <p class="page-sub">
         Select the units you are studying this semester. They will appear in your lessons, assessments, labs, progress tracking and attendance.
         <br><small style="color:#94a3b8">Showing Year <?= $year_of_study ?> units that match your current year of study.</small>

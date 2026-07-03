@@ -1768,11 +1768,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
 if ($action === 'get_all_students') {
     header('Content-Type: application/json');
 
-    $result = $conn->query("
-        SELECT id, reg_no, name, email, year_of_study, year_joined, is_verified, verified_at
-        FROM students
-        ORDER BY name ASC
-    ");
+    $has_verified_at = false;
+    $col_stmt = $conn->prepare("SHOW COLUMNS FROM students LIKE ?");
+    if ($col_stmt) {
+        $column_name = 'verified_at';
+        $col_stmt->bind_param('s', $column_name);
+        $col_stmt->execute();
+        $col_stmt->store_result();
+        $has_verified_at = $col_stmt->num_rows > 0;
+        $col_stmt->close();
+    }
+
+    $select_fields = 'id, reg_no, name, email, year_of_study, year_joined, is_verified';
+    if ($has_verified_at) {
+        $select_fields .= ', verified_at';
+    }
+
+    $result = $conn->query("SELECT {$select_fields} FROM students ORDER BY name ASC");
+    if (!$result) {
+        echo json_encode(['status' => 'error', 'message' => 'Failed to load students: ' . $conn->error]);
+        exit;
+    }
 
     $students = [];
     while ($row = $result->fetch_assoc()) {
@@ -1939,6 +1955,48 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_registration_pdf') {
     exit;
 }
 
+function deleteStudentDependencies(mysqli $conn, int $student_id): bool {
+    $fk_query = "
+        SELECT kcu.TABLE_NAME, kcu.COLUMN_NAME, rc.DELETE_RULE
+        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+        INNER JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+            ON rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
+           AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+        WHERE kcu.REFERENCED_TABLE_SCHEMA = DATABASE()
+          AND kcu.REFERENCED_TABLE_NAME = 'students'
+          AND kcu.REFERENCED_COLUMN_NAME = 'id'
+          AND kcu.TABLE_NAME <> 'students'
+    ";
+
+    $fk_result = $conn->query($fk_query);
+    if (!$fk_result) {
+        return false;
+    }
+
+    while ($fk = $fk_result->fetch_assoc()) {
+        $delete_rule = strtoupper((string) $fk['DELETE_RULE']);
+        if ($delete_rule === 'CASCADE' || $delete_rule === 'SET NULL') {
+            continue;
+        }
+
+        $table = $fk['TABLE_NAME'];
+        $column = $fk['COLUMN_NAME'];
+        $dep_stmt = $conn->prepare("DELETE FROM `{$table}` WHERE `{$column}` = ?");
+        if (!$dep_stmt) {
+            return false;
+        }
+
+        $dep_stmt->bind_param('i', $student_id);
+        if (!$dep_stmt->execute()) {
+            $dep_stmt->close();
+            return false;
+        }
+        $dep_stmt->close();
+    }
+
+    return true;
+}
+
 // === DELETE SINGLE STUDENT ===
 if ($action === 'delete_student') {
     header('Content-Type: application/json');
@@ -1949,15 +2007,37 @@ if ($action === 'delete_student') {
         exit;
     }
 
-    $stmt = $conn->prepare("DELETE FROM students WHERE id = ?");
-    $stmt->bind_param("i", $student_id);
+    try {
+        $conn->begin_transaction();
 
-    if ($stmt->execute()) {
+        if (!deleteStudentDependencies($conn, $student_id)) {
+            throw new Exception('Failed to clear dependent records before delete.');
+        }
+
+        $stmt = $conn->prepare("DELETE FROM students WHERE id = ?");
+        if (!$stmt) {
+            throw new Exception('Failed to prepare student delete statement.');
+        }
+
+        $stmt->bind_param('i', $student_id);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception('Delete failed: ' . $conn->error);
+        }
+
+        $deleted_rows = $stmt->affected_rows;
+        $stmt->close();
+
+        if ($deleted_rows < 1) {
+            throw new Exception('Student not found or already deleted.');
+        }
+
+        $conn->commit();
         echo json_encode(['status' => 'success', 'message' => 'Student deleted successfully.']);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'Failed to delete student: ' . $conn->error]);
+    } catch (Throwable $e) {
+        $conn->rollback();
+        echo json_encode(['status' => 'error', 'message' => 'Failed to delete student: ' . $e->getMessage()]);
     }
-    $stmt->close();
     exit;
 }
 
@@ -1973,19 +2053,40 @@ if ($action === 'bulk_delete_students') {
         exit;
     }
 
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $types = str_repeat('i', count($ids));
+    $delete_stmt = null;
 
-    $stmt = $conn->prepare("DELETE FROM students WHERE id IN ($placeholders)");
-    $stmt->bind_param($types, ...$ids);
+    try {
+        $conn->begin_transaction();
 
-    if ($stmt->execute()) {
-        $count = $stmt->affected_rows;
-        echo json_encode(['status' => 'success', 'message' => "$count student(s) deleted successfully."]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'Bulk delete failed: ' . $conn->error]);
+        $deleted_count = 0;
+        $delete_stmt = $conn->prepare("DELETE FROM students WHERE id = ?");
+        if (!$delete_stmt) {
+            throw new Exception('Failed to prepare student delete statement.');
+        }
+
+        foreach ($ids as $student_id) {
+            if (!deleteStudentDependencies($conn, $student_id)) {
+                throw new Exception('Failed to clear dependent records for student ID ' . $student_id . '.');
+            }
+
+            $delete_stmt->bind_param('i', $student_id);
+            if (!$delete_stmt->execute()) {
+                throw new Exception('Delete failed for student ID ' . $student_id . ': ' . $conn->error);
+            }
+
+            $deleted_count += max(0, (int) $delete_stmt->affected_rows);
+        }
+
+        $delete_stmt->close();
+        $conn->commit();
+        echo json_encode(['status' => 'success', 'message' => "$deleted_count student(s) deleted successfully."]);
+    } catch (Throwable $e) {
+        if ($delete_stmt instanceof mysqli_stmt) {
+            $delete_stmt->close();
+        }
+        $conn->rollback();
+        echo json_encode(['status' => 'error', 'message' => 'Bulk delete failed: ' . $e->getMessage()]);
     }
-    $stmt->close();
     exit;
 }
 
