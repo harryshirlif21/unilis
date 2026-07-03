@@ -372,6 +372,7 @@ unset($_SESSION['verify_error']);
                             <th>Email</th>
                             <th>Year</th>
                             <th>Joined</th>
+                            <th>Time Registered</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -1298,7 +1299,7 @@ function loadStudentsForSelectedYear() {
         .then(text => {
             const data = parseJSONSafe(text);
             if (!data || data.status !== 'success') {
-                if (tbody) tbody.innerHTML = `<tr><td colspan="6">${escapeHtml(data?.message || 'Unable to load students.')}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="7">${escapeHtml(data?.message || 'Unable to load students.')}</td></tr>`;
                 return;
             }
             renderRegistrationStudents(data.students, year);
@@ -1307,7 +1308,7 @@ function loadStudentsForSelectedYear() {
             }
         })
         .catch(() => {
-            if (tbody) tbody.innerHTML = '<tr><td colspan="6">Error loading students.</td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="7">Error loading students.</td></tr>';
         });
 }
 
@@ -1318,7 +1319,7 @@ function renderRegistrationStudents(students, year) {
 
     if (!tbody || !countText || !view) return;
     if (!students || !students.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="padding:18px;text-align:center;color:#666;">No students registered for this year.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="padding:18px;text-align:center;color:#666;">No students registered for this year.</td></tr>';
         countText.textContent = '0 students found';
         view.style.display = 'block';
         return;
@@ -1334,6 +1335,7 @@ function renderRegistrationStudents(students, year) {
                 <td>${escapeHtml(s.email || '')}</td>
                 <td>Year ${escapeHtml(s.year_of_study || '')}</td>
                 <td>${escapeHtml(s.year_joined || '')}</td>
+                <td>${escapeHtml(s.registered_at || 'N/A')}</td>
                 <td>${escapeHtml(verified)}</td>
             </tr>`;
     });

@@ -1898,6 +1898,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_course_year_students') {
     header('Content-Type: application/json');
     $course_id = intval($_GET['course_id'] ?? 0);
     $year = intval($_GET['year'] ?? 0);
+    $registered_at_select = tableColumnExists($conn, 'students', 'created_at')
+        ? "DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS registered_at"
+        : "NULL AS registered_at";
 
     if ($course_id <= 0 || $year <= 0) {
         echo json_encode(['status' => 'error', 'message' => 'Course and year are required.']);
@@ -1905,7 +1908,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_course_year_students') {
     }
 
     $stmt = $conn->prepare(
-        "SELECT id, reg_no, name, email, year_of_study, year_joined, is_verified
+        "SELECT id, reg_no, name, email, year_of_study, year_joined, {$registered_at_select}, is_verified
          FROM students
          WHERE course_id = ? AND year_of_study = ?
          ORDER BY name ASC"
@@ -1928,6 +1931,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_course_year_students') {
 if (isset($_GET['action']) && $_GET['action'] === 'download_registration_pdf') {
     $course_id = intval($_GET['course_id'] ?? 0);
     $year = intval($_GET['year'] ?? 0);
+    $registered_at_select = tableColumnExists($conn, 'students', 'created_at')
+        ? "DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS registered_at"
+        : "NULL AS registered_at";
 
     if ($course_id <= 0 || $year <= 0) {
         header('Content-Type: text/plain');
@@ -1953,7 +1959,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_registration_pdf') {
     }
 
     $stmt = $conn->prepare(
-        "SELECT reg_no, name, email, year_of_study, year_joined, is_verified
+        "SELECT reg_no, name, email, year_of_study, year_joined, {$registered_at_select}, is_verified
          FROM students
          WHERE course_id = ? AND year_of_study = ?
          ORDER BY name ASC"
@@ -1977,16 +1983,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_registration_pdf') {
     $html .= '<p style="font-family: Arial, sans-serif;">Year: <strong>' . htmlspecialchars($year) . '</strong></p>';
     $html .= '<p style="font-family: Arial, sans-serif;">Total Students: <strong>' . count($students) . '</strong></p>';
     $html .= '<table style="width:100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-top: 18px;">'
-           . '<thead><tr style="background:#f2f2f2;"><th style="border:1px solid #ddd; padding:8px;">Reg No</th><th style="border:1px solid #ddd; padding:8px;">Name</th><th style="border:1px solid #ddd; padding:8px;">Email</th><th style="border:1px solid #ddd; padding:8px;">Year</th><th style="border:1px solid #ddd; padding:8px;">Joined</th><th style="border:1px solid #ddd; padding:8px;">Status</th></tr></thead><tbody>';
+            . '<thead><tr style="background:#f2f2f2;"><th style="border:1px solid #ddd; padding:8px;">Reg No</th><th style="border:1px solid #ddd; padding:8px;">Name</th><th style="border:1px solid #ddd; padding:8px;">Email</th><th style="border:1px solid #ddd; padding:8px;">Year</th><th style="border:1px solid #ddd; padding:8px;">Joined</th><th style="border:1px solid #ddd; padding:8px;">Time Registered</th><th style="border:1px solid #ddd; padding:8px;">Status</th></tr></thead><tbody>';
 
     foreach ($students as $student) {
         $status = intval($student['is_verified']) === 1 ? 'Verified' : 'Unverified';
+        $registered_at = !empty($student['registered_at']) ? $student['registered_at'] : 'N/A';
         $html .= '<tr>' .
                  '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['reg_no']) . '</td>' .
                  '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['name']) . '</td>' .
                  '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['email']) . '</td>' .
                  '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['year_of_study']) . '</td>' .
                  '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($student['year_joined']) . '</td>' .
+             '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($registered_at) . '</td>' .
                  '<td style="border:1px solid #ddd; padding:8px;">' . htmlspecialchars($status) . '</td>' .
                  '</tr>';
     }
