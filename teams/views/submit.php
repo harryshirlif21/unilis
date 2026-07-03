@@ -212,14 +212,14 @@ $submissionsCheck->close();
         <textarea id="submissionDescription" name="submission_description" placeholder="Provide a brief description of your submission (optional)" rows="4" style="width: 100%; padding: 0.8rem; border: 1px solid #ced4da; border-radius: 6px; margin-bottom: 1rem; resize: vertical;"></textarea>
 
         <label for="files">Select Files (multiple allowed)</label>
-        <input type="file" id="files" name="files[]" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,.zip">
+        <input type="file" id="files" name="files[]" multiple>
 
         <div id="fileList"></div>
 
         <label>Submission Type</label>
         <select id="submissionType" name="submission_type">
-            <option value="team">Team Submission (only leader can submit)</option>
             <option value="individual">Individual Submission</option>
+            <option value="team">Team Submission (all members can upload)</option>
         </select>
 
         <input type="hidden" id="teamId" value="">

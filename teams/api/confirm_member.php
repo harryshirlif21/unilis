@@ -10,8 +10,11 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION[
 
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../models/ActivityLog.php';
+require_once __DIR__ . '/../includes/team_limits.php';
 
 try {
+    ensure_team_max_members_column($conn);
+
     $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
     $teamId = (int)($input['team_id'] ?? 0);
     $identifier = trim((string)($input['identifier'] ?? ''));
@@ -128,6 +131,8 @@ try {
         echo json_encode(['success' => false, 'error' => 'Student is already in another team for this unit. A student can only be in one team per unit.']);
         exit;
     }
+
+    assert_team_has_capacity($conn, $teamId);
 
     // Add member
     $role = 'member';

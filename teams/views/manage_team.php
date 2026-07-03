@@ -61,6 +61,37 @@ if (empty($_SESSION['csrf_token'])) {
             gap: 1rem; 
             flex-wrap: wrap; 
         }
+        .settings-panel {
+            margin: 1.25rem 0;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        .settings-panel h3 {
+            margin: 0 0 0.6rem 0;
+            color: #2c3e50;
+        }
+        .settings-row {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            flex-wrap: wrap;
+        }
+        .settings-row input[type="range"] {
+            width: 280px;
+            accent-color: #fd7e14;
+        }
+        .limit-badge {
+            display: inline-flex;
+            min-width: 44px;
+            justify-content: center;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            background: #fff3cd;
+            color: #7f5c00;
+            font-weight: 700;
+        }
         input[type="text"] { 
             padding: 0.6rem; 
             width: 280px; 
@@ -96,6 +127,18 @@ if (empty($_SESSION['csrf_token'])) {
             margin-bottom: 1rem; 
             text-align: right; 
         }
+        .count-pill {
+            display: inline-flex;
+            padding: 0.15rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            vertical-align: middle;
+        }
+        .count-normal { background: #dcfce7; color: #166534; }
+        .count-yellow { background: #fef9c3; color: #854d0e; }
+        .count-orange { background: #ffedd5; color: #9a3412; }
+        .count-red { background: #fee2e2; color: #991b1b; }
     </style>
 </head>
 <body>
@@ -123,7 +166,18 @@ if (empty($_SESSION['csrf_token'])) {
     <button id="confirmMemberBtn" style="background:#6f42c1;">Confirm Member</button>
 </div>
 
-<h3>Members (<span id="size">0</span>/5)</h3>
+<div id="teamSettingsPanel" class="settings-panel" style="display:none;">
+    <h3>Team Settings</h3>
+    <p style="margin:0 0 0.75rem 0;color:#6c757d;">Team leader can set member limit (maximum 15).</p>
+    <div class="settings-row">
+        <input type="range" id="teamLimitSlider" min="2" max="15" step="1" value="15">
+        <span id="teamLimitValue" class="limit-badge">15</span>
+        <button id="saveTeamSettingsBtn" style="background:#0d6efd;">Save Limit</button>
+    </div>
+    <small id="teamSettingsHint" style="display:block;margin-top:0.55rem;color:#6c757d;"></small>
+</div>
+
+<h3>Members <span id="memberCountPill" class="count-pill count-normal"><span id="size">0</span>/<span id="max-size">15</span></span></h3>
 <div id="members-grid" class="members-grid"></div>
 
 <h3 style="margin-top:1.25rem;">Invitations</h3>
@@ -149,6 +203,9 @@ const currentUserId = <?php echo json_encode($current_user_id); ?>;
 
 // CSRF token
 const csrf = "<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>";
+let maxTeamMembers = 15;
+let currentTeamSize = 0;
+let isCurrentUserLeader = false;
 
 const messageDiv = document.getElementById('message');
 
@@ -157,6 +214,35 @@ function showMessage(text, type = 'error') {
     messageDiv.className = type;
     messageDiv.textContent = text;
     messageDiv.scrollIntoView({ behavior: 'smooth' });
+}
+
+function memberCountClass(count) {
+    if (count > 10) return 'count-red';
+    if (count > 7) return 'count-orange';
+    if (count > 5) return 'count-yellow';
+    return 'count-normal';
+}
+
+function syncTeamLimitUI() {
+    const panel = document.getElementById('teamSettingsPanel');
+    const slider = document.getElementById('teamLimitSlider');
+    const value = document.getElementById('teamLimitValue');
+    const hint = document.getElementById('teamSettingsHint');
+
+    if (!panel || !slider || !value || !hint) return;
+
+    if (!isCurrentUserLeader) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    panel.style.display = 'block';
+    const minAllowed = Math.max(2, currentTeamSize);
+    slider.min = String(minAllowed);
+    slider.max = '15';
+    slider.value = String(Math.min(15, Math.max(minAllowed, maxTeamMembers)));
+    value.textContent = slider.value;
+    hint.textContent = `Current members: ${currentTeamSize}. Minimum allowed limit is ${minAllowed}.`;
 }
 
 // Load team data
@@ -186,6 +272,9 @@ async function loadTeam() {
             <p>Status: ${data.team.status || 'active'} | Created: ${new Date(data.team.created_at).toLocaleDateString()}</p>
         `;
 
+        maxTeamMembers = Math.min(15, Number(data.team.max_members) || 15);
+        document.getElementById('max-size').textContent = maxTeamMembers;
+
         const grid = document.getElementById('members-grid');
         grid.innerHTML = '';
 
@@ -196,6 +285,8 @@ async function loadTeam() {
             m.isCurrentUser = (m.student_id == currentUserId);
             if (!m.role) m.role = 'member';
         });
+
+        isCurrentUserLeader = members.some(m => m.isCurrentUser && m.role === 'leader');
 
         // Sort: leader first, then others
         members.sort((a, b) => {
@@ -248,7 +339,23 @@ async function loadTeam() {
             grid.appendChild(card);
         });
 
-        document.getElementById('size').textContent = members.length;
+        const teamSize = members.length;
+        currentTeamSize = teamSize;
+        document.getElementById('size').textContent = teamSize;
+        const countPill = document.getElementById('memberCountPill');
+        countPill.className = `count-pill ${memberCountClass(teamSize)}`;
+        syncTeamLimitUI();
+
+        const addMemberBtn = document.getElementById('addMemberBtn');
+        if (teamSize >= maxTeamMembers) {
+            addMemberBtn.disabled = true;
+            addMemberBtn.style.opacity = '0.6';
+            addMemberBtn.title = `Team is full (${teamSize}/${maxTeamMembers})`;
+        } else {
+            addMemberBtn.disabled = false;
+            addMemberBtn.style.opacity = '1';
+            addMemberBtn.title = '';
+        }
 
         // Add event listeners for membership-related buttons
         document.querySelectorAll('.request-leave').forEach(btn => {
@@ -650,6 +757,61 @@ document.getElementById('submitBtn').addEventListener('click', () => {
     window.location.href = `submit.php?team_id=${teamId}`;
 });
 document.getElementById('refreshInvitesBtn').addEventListener('click', loadInvitations);
+
+const teamLimitSlider = document.getElementById('teamLimitSlider');
+const teamLimitValue = document.getElementById('teamLimitValue');
+if (teamLimitSlider && teamLimitValue) {
+    teamLimitSlider.addEventListener('input', () => {
+        teamLimitValue.textContent = teamLimitSlider.value;
+    });
+}
+
+document.getElementById('saveTeamSettingsBtn').addEventListener('click', async () => {
+    if (!isCurrentUserLeader) {
+        showMessage('Only team leaders can update team settings');
+        return;
+    }
+
+    const max_members = Number(teamLimitSlider?.value || 15);
+    const minAllowed = Math.max(2, currentTeamSize);
+
+    if (!Number.isFinite(max_members) || max_members < minAllowed || max_members > 15) {
+        showMessage(`Member limit must be between ${minAllowed} and 15`);
+        return;
+    }
+
+    const saveBtn = document.getElementById('saveTeamSettingsBtn');
+    saveBtn.disabled = true;
+    const oldLabel = saveBtn.textContent;
+    saveBtn.textContent = 'Saving...';
+
+    try {
+        const res = await fetch('/teams/api/update_team_settings.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                max_members,
+                csrf_token: csrf
+            })
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) {
+            throw new Error(data?.error || ('HTTP ' + res.status));
+        }
+
+        showMessage(data.message || 'Team settings updated', 'success');
+        maxTeamMembers = Number(data.max_members) || max_members;
+        loadTeam();
+    } catch (err) {
+        showMessage('Save settings error: ' + err.message);
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = oldLabel;
+    }
+});
 
 // Load on page ready
 loadTeam();

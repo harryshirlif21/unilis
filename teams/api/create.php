@@ -17,6 +17,7 @@ register_shutdown_function(function () {
 try {
     require_once '../../config/db.php';
     require_once __DIR__ . '/../models/ActivityLog.php';
+    require_once __DIR__ . '/../includes/team_limits.php';
 } catch (Throwable $e) {
     ob_clean();
     header('Content-Type: application/json');
@@ -80,9 +81,15 @@ if (empty($data['csrf_token']) || $data['csrf_token'] !== $_SESSION['csrf_token'
 $title           = trim($data['title']           ?? '');
 $unit_id         = intval($data['unit_id']        ?? 0);
 $assessment_type = trim($data['assessment_type']  ?? '');
+$max_members     = (int)($data['max_members'] ?? TEAM_MEMBERS_ABSOLUTE_CAP);
 
 if (empty($title) || $unit_id <= 0 || empty($assessment_type)) {
     echo json_encode(['success' => false, 'message' => 'All fields are required (title, unit, assessment type)']);
+    exit;
+}
+
+if ($max_members < 2 || $max_members > TEAM_MEMBERS_ABSOLUTE_CAP) {
+    echo json_encode(['success' => false, 'message' => 'Max members must be between 2 and 15']);
     exit;
 }
 
@@ -104,11 +111,14 @@ if ($chk->num_rows === 0) {
 }
 $chk->close();
 
+// Ensure schema supports configurable team size.
+ensure_team_max_members_column($conn);
+
 // ── Insert team ───────────────────────────────────────────────────────────────
-// teams columns: title, unit_id, course_id, assessment_type, created_by, year
+// teams columns: title, unit_id, course_id, assessment_type, created_by, year, max_members
 $stmt = $conn->prepare("
-    INSERT INTO teams (title, unit_id, course_id, assessment_type, created_by, year)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO teams (title, unit_id, course_id, assessment_type, created_by, year, max_members)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
 ");
 
 if (!$stmt) {
@@ -116,8 +126,8 @@ if (!$stmt) {
     exit;
 }
 
-// s=title  i=unit_id  i=course_id  s=assessment_type  i=created_by  i=year
-$stmt->bind_param("siisii", $title, $unit_id, $course_id, $assessment_type, $user_id, $year_of_study);
+// s=title  i=unit_id  i=course_id  s=assessment_type  i=created_by  i=year  i=max_members
+$stmt->bind_param("siisiii", $title, $unit_id, $course_id, $assessment_type, $user_id, $year_of_study, $max_members);
 
 if (!$stmt->execute()) {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $stmt->error]);

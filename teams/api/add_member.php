@@ -69,12 +69,15 @@ debugLog("CSRF validation passed.");
 require_once __DIR__ . '/../../config/db.php'; // $conn is mysqli
 require_once __DIR__ . '/../controllers/MemberController.php';
 require_once __DIR__ . '/../models/ActivityLog.php';
+require_once __DIR__ . '/../includes/team_limits.php';
 require_once __DIR__ . '/../../config/email.php';
 
 $controller = new MemberController($conn);
 $activityLog = new ActivityLog($conn);
 
 try {
+    ensure_team_max_members_column($conn);
+
     // 1. Find student by reg_no or email
     $stmt = $conn->prepare("SELECT id, name, reg_no, email FROM students WHERE reg_no = ? OR email = ?");
     $stmt->bind_param("ss", $identifier, $identifier);
@@ -123,6 +126,9 @@ try {
     if ($result['count'] > 0) {
         throw new Exception("Student is already in another team for this unit. A student can only be in one team per unit.");
     }
+
+    // 3b. Team must have available capacity before creating invitation.
+    assert_team_has_capacity($conn, (int)$teamId);
 
     // 4. Ensure invitation helper table exists (code storage)
     $conn->query("

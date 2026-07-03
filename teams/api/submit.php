@@ -46,6 +46,10 @@ $submission_description = $_POST['submission_description'] ?? '';
 $submission_type = $_POST['submission_type'] ?? 'individual';
 $student_id = $_SESSION['user_id'];
 
+if (!in_array($submission_type, ['team', 'individual'], true)) {
+    $submission_type = 'individual';
+}
+
 if (!$team_id) {
     echo json_encode([
         'success' => false,
@@ -71,15 +75,6 @@ if ($memberResult->num_rows === 0) {
 $memberData = $memberResult->fetch_assoc();
 $student_role = $memberData['role'];
 $memberCheck->close();
-
-// Check if team leader is submitting team files
-if ($submission_type === 'team' && $student_role !== 'leader') {
-    echo json_encode([
-        'success' => false,
-        'error' => 'Only team leaders can submit team files'
-    ]);
-    exit;
-}
 
 // Check if files were uploaded
 if (!isset($_FILES['files']) || empty($_FILES['files']['name'][0])) {

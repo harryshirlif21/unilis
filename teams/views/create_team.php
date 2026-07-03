@@ -73,9 +73,13 @@ if (empty($_SESSION['csrf_token'])) {
             background: var(--white); transition: border-color .15s, box-shadow .15s;
             appearance: none; -webkit-appearance: none; width: 100%;
         }
+        input[type="range"] { width: 100%; accent-color: var(--orange); }
         .select-wrap { position: relative; }
         .select-wrap::after { content: '\f107'; font-family: 'Font Awesome 6 Free'; font-weight: 900; position: absolute; right: .95rem; top: 50%; transform: translateY(-50%); color: var(--gray-400); pointer-events: none; font-size: .85rem; }
         input[type="text"]:focus, select:focus { outline: none; border-color: var(--orange); box-shadow: 0 0 0 3px rgba(249,115,22,.12); }
+
+        .range-meta { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--gray-600); }
+        .range-value { font-weight: 700; color: var(--orange-dark); }
 
         .submit-btn { width: 100%; padding: .8rem; border: none; border-radius: 9px; background: var(--orange); color: white; font-family: 'DM Sans', sans-serif; font-size: .95rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s, box-shadow .15s; display: flex; align-items: center; justify-content: center; gap: .5rem; margin-top: .25rem; }
         .submit-btn:hover    { background: var(--orange-dark); box-shadow: 0 4px 12px rgba(249,115,22,.3); }
@@ -102,6 +106,12 @@ if (empty($_SESSION['csrf_token'])) {
 
         .status-pill { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600; padding: .2rem .6rem; border-radius: 20px; background: #dcfce7; color: #15803d; }
         .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #16a34a; display: inline-block; }
+
+        .members-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 84px; padding: .24rem .6rem; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+        .members-normal { background: #dcfce7; color: #166534; }
+        .members-yellow { background: #fef9c3; color: #854d0e; }
+        .members-orange { background: #ffedd5; color: #9a3412; }
+        .members-red { background: #fee2e2; color: #991b1b; }
 
         .td-actions { display: flex; gap: .4rem; justify-content: flex-end; }
         .td-actions a { font-size: .78rem; font-weight: 600; padding: .35rem .75rem; border-radius: 6px; text-decoration: none; transition: background .12s; white-space: nowrap; }
@@ -178,6 +188,15 @@ if (empty($_SESSION['csrf_token'])) {
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label for="max_members">Max Team Members *</label>
+                        <input type="range" id="max_members" min="2" max="15" step="1" value="15">
+                        <div class="range-meta">
+                            <span>Use slider to set team size limit (2-15)</span>
+                            <span class="range-value" id="maxMembersValue">15</span>
+                        </div>
+                    </div>
+
                     <button type="submit" class="submit-btn" id="createBtn">
                         <i class="fas fa-plus-circle"></i> Create Team
                     </button>
@@ -228,6 +247,14 @@ function escHtml(str) {
     const d = document.createElement('div');
     d.appendChild(document.createTextNode(str ?? ''));
     return d.innerHTML;
+}
+
+function getMemberHeatClass(memberCount) {
+    const count = Number(memberCount) || 0;
+    if (count > 10) return 'members-red';
+    if (count > 7) return 'members-orange';
+    if (count > 5) return 'members-yellow';
+    return 'members-normal';
 }
 
 /* ── Safe JSON fetch ── */
@@ -285,13 +312,15 @@ async function loadTeams() {
             const aType   = (team.assessment_type || '').toLowerCase();
             const label   = aType ? aType.charAt(0).toUpperCase() + aType.slice(1) : 'Unknown';
             const members = Array.isArray(team.members) ? team.members.length : (team.member_count || 0);
+            const maxMembers = Number(team.max_members) || 15;
+            const memberClass = getMemberHeatClass(members);
             return `
                 <tr>
                     <td class="td-title">${escHtml(team.title)}</td>
                     <td>${escHtml(team.unit_name || '—')}</td>
                     <td><span class="tc-badge ${badgeClass(aType)}">${escHtml(label)}</span></td>
                     <td><span class="status-pill">${escHtml(team.status || 'Active')}</span></td>
-                    <td style="text-align:center">${members}</td>
+                    <td style="text-align:center"><span class="members-pill ${memberClass}">${members}/${maxMembers}</span></td>
                     <td>
                         <div class="td-actions">
                             <a href="/teams/views/manage_team.php?team_id=${team.id}" class="btn-manage">
@@ -340,8 +369,9 @@ document.getElementById('createTeamForm').addEventListener('submit', async (e) =
     const title           = document.getElementById('title').value.trim();
     const unit_id         = parseInt(document.getElementById('unit_id').value, 10);
     const assessment_type = document.getElementById('assessment_type').value;
+    const max_members     = parseInt(document.getElementById('max_members').value, 10);
 
-    if (!title || !unit_id || !assessment_type) {
+    if (!title || !unit_id || !assessment_type || !max_members) {
         showMessage('Please fill in all fields.', 'error');
         return;
     }
@@ -355,7 +385,7 @@ document.getElementById('createTeamForm').addEventListener('submit', async (e) =
         const data = await safeFetch('/teams/api/create.php', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ title, unit_id, assessment_type, csrf_token: csrf })
+            body:    JSON.stringify({ title, unit_id, assessment_type, max_members, csrf_token: csrf })
         });
 
         if (!data.success) throw new Error(data.message || 'Failed to create team');
@@ -372,6 +402,12 @@ document.getElementById('createTeamForm').addEventListener('submit', async (e) =
         btn.disabled  = false;
         btn.innerHTML = '<i class="fas fa-plus-circle"></i> Create Team';
     }
+});
+
+const maxMembersSlider = document.getElementById('max_members');
+const maxMembersValue = document.getElementById('maxMembersValue');
+maxMembersSlider.addEventListener('input', () => {
+    maxMembersValue.textContent = maxMembersSlider.value;
 });
 
 /* ── Boot ── */
