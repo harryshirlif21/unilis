@@ -21,6 +21,11 @@ body {
     background-color: var(--light-bg);
     color: var(--text-color);
     line-height: 1.6;
+    overflow-x: hidden;
+}
+
+html {
+    overflow-x: hidden;
 }
 
 /* Sidebar Styles */
@@ -87,7 +92,7 @@ body {
 }
 
 .sidebar a.logout:hover {
-    background-color: darken(var(--danger-color), 10%); /* Darken on hover */
+    background-color: #c0392b;
 }
 
 /* Content Area Styles */
@@ -190,7 +195,7 @@ form input[type="datetime-local"],
 form input[type="file"],
 form select,
 form textarea {
-    width: calc(100% - 24px); /* Account for padding */
+    width: 100%;
     padding: 12px;
     margin-bottom: 18px;
     border: 1px solid var(--border-color);
@@ -282,7 +287,8 @@ form button[type="submit"]:hover {
         flex-direction: row; /* Buttons in a row */
         flex-wrap: wrap; /* Wrap buttons to next line */
         justify-content: center;
-        padding-bottom: 10px;
+        padding: 16px 12px 10px;
+        gap: 8px;
     }
     .sidebar h2, .sidebar p {
         text-align: center;
@@ -294,12 +300,14 @@ form button[type="submit"]:hover {
         justify-content: center; /* Center text and icon */
         font-size: 0.9em; /* Slightly smaller font */
         padding: 10px 12px;
+        min-height: 44px;
     }
     .sidebar a.logout {
         margin-top: 5px; /* Adjust margin for logout on mobile */
     }
     .content {
         padding: 20px; /* Slightly less padding on mobile */
+        width: 100%;
     }
     .modal-content {
         width: 95%;
@@ -309,11 +317,26 @@ form button[type="submit"]:hover {
 }
 
 @media (max-width: 480px) {
+    .sidebar {
+        padding: 14px 10px 8px;
+    }
+
     .sidebar button, .sidebar a {
         width: calc(100% - 20px); /* One button per row on very small screens */
     }
+
+    .content {
+        padding: 16px 12px;
+    }
+
+    .content h2 {
+        font-size: 1.5em;
+    }
+
     .modal-content {
         padding: 15px;
+        max-height: 90vh;
+        overflow-y: auto;
     }
     .modal-content h3 {
         font-size: 1.4em;

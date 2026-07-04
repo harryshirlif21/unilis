@@ -13,6 +13,20 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow-x: hidden;
+}
+
+html {
+    overflow-x: hidden;
+}
+
+img,
+video,
+canvas,
+iframe,
+svg {
+    max-width: 100%;
+    height: auto;
 }
 /* ================= Navbar ================= */
 .navbar {
@@ -255,6 +269,10 @@ body {
         border-radius: 12px;
     }
 
+    .sidebar {
+        width: min(85vw, 300px);
+    }
+
     .main-content {
         margin-left: 0;
         margin-top: 70px;
@@ -282,9 +300,10 @@ body {
     
     .card-navbar ul {
         overflow-x: auto;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 8px;
         padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
     }
     
     .card-navbar li {
@@ -311,6 +330,14 @@ body {
 
     .overflow-x-auto {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
     }
 }
 
@@ -338,6 +365,10 @@ body {
     .dashboard-card {
         padding: 14px 12px;
         border-radius: 12px;
+    }
+
+    .sidebar {
+        width: min(90vw, 300px);
     }
     
     .modal-content {
