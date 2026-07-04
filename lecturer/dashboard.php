@@ -577,10 +577,8 @@ $stmt->close();
             <i class="fas fa-chart-line"></i><span>Assessment Submissions</span>
         </a>
     </li>
-    <li class="purple">
-        <a href="../teams/views/lecturer_teams.php" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-users-cog"></i><span>Teams</span>
-        </a>
+    <li class="purple" onclick="window.location.href='../teams/views/lecturer_teams.php'">
+        <i class="fas fa-users-cog"></i><span>Teams</span>
     </li>
     <li class="orange">
         <a href="request_files.php" style="color:inherit;text-decoration:none;">
