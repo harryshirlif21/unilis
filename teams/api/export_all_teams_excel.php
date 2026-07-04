@@ -12,6 +12,26 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/ensure_team_marks.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
+function team_role_label(string $role): string
+{
+    $role = strtolower(trim($role));
+    $labels = [
+        'leader' => 'Team Lead',
+        'member' => 'Member',
+        'frontend_developer' => 'Frontend Developer',
+        'backend_developer' => 'Backend Developer',
+        'machine_learning' => 'Machine Learning',
+        'ui_ux_designer' => 'UI/UX Designer',
+        'data_analyst' => 'Data Analyst',
+        'tester' => 'Tester',
+        'researcher' => 'Researcher',
+        'presenter' => 'Presenter',
+        'other' => 'Other',
+    ];
+
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
+}
+
 ensure_team_marks_table($conn);
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -132,7 +152,7 @@ try {
         
         foreach ($members as $member) {
             $sheet->setCellValue('A' . $row, $member['student_name']);
-            $sheet->setCellValue('B' . $row, ucfirst($member['role']));
+            $sheet->setCellValue('B' . $row, team_role_label((string)$member['role']));
             $sheet->setCellValue('C' . $row, $member['reg_no']);
             $sheet->setCellValue('D' . $row, $member['email']);
             $sheet->setCellValue('E' . $row, $member['year_of_study'] ?: 'N/A');

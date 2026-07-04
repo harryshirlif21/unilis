@@ -110,7 +110,23 @@ try {
 
         assert_team_has_capacity($conn, $teamId);
 
-        $role = 'member';
+        $role = strtolower(trim((string)($input['role'] ?? 'member')));
+        $allowedRoles = [
+            'leader',
+            'member',
+            'frontend_developer',
+            'backend_developer',
+            'machine_learning',
+            'ui_ux_designer',
+            'data_analyst',
+            'tester',
+            'researcher',
+            'presenter',
+            'other'
+        ];
+        if (!in_array($role, $allowedRoles, true)) {
+            $role = 'member';
+        }
         $stmt = $conn->prepare("INSERT INTO team_members (team_id, student_id, role, joined_at) VALUES (?, ?, ?, NOW())");
         if (!$stmt) throw new Exception('Failed to prepare member insert: ' . $conn->error);
         $stmt->bind_param("iis", $teamId, $userId, $role);

@@ -50,6 +50,34 @@ if (empty($_SESSION['csrf_token'])) {
             background: #fff; 
             box-shadow: 0 1px 4px rgba(0,0,0,0.05); 
         }
+        .member-name {
+            display: block;
+            margin-bottom: 0.35rem;
+        }
+        .member-meta {
+            margin-top: 0.4rem;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .member-role-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.18rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            margin-left: 0.35rem;
+        }
+        .member-role-badge.leader {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .member-role-badge.member {
+            background: #dbeafe;
+            color: #1e40af;
+        }
         .leader { 
             background: #fff3cd; 
             border-color: #ffeeba; 
@@ -71,6 +99,14 @@ if (empty($_SESSION['csrf_token'])) {
         .settings-panel h3 {
             margin: 0 0 0.6rem 0;
             color: #2c3e50;
+        }
+        .role-selector {
+            padding: 0.6rem;
+            min-width: 220px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background: #fff;
+            color: #212529;
         }
         .settings-row {
             display: flex;
@@ -155,12 +191,38 @@ if (empty($_SESSION['csrf_token'])) {
 </div>
 
 <div class="actions">
+    <select id="memberRole" class="role-selector" aria-label="Select team role">
+        <option value="member">Member</option>
+        <option value="leader">Team Lead</option>
+        <option value="frontend_developer">Frontend Developer</option>
+        <option value="backend_developer">Backend Developer</option>
+        <option value="machine_learning">Machine Learning</option>
+        <option value="ui_ux_designer">UI/UX Designer</option>
+        <option value="data_analyst">Data Analyst</option>
+        <option value="tester">Tester</option>
+        <option value="researcher">Researcher</option>
+        <option value="presenter">Presenter</option>
+        <option value="other">Other</option>
+    </select>
     <input type="text" id="identifier" placeholder="Enter reg number or email">
     <button id="addMemberBtn">Add Member</button>
     <button id="resendCodeBtn" style="background:#fd7e14;">Resend Code</button>
     <button id="submitBtn">Submit Files</button>
 </div>
 <div class="actions">
+    <select id="confirmMemberRole" class="role-selector" aria-label="Select confirmed member role">
+        <option value="member">Member</option>
+        <option value="leader">Team Lead</option>
+        <option value="frontend_developer">Frontend Developer</option>
+        <option value="backend_developer">Backend Developer</option>
+        <option value="machine_learning">Machine Learning</option>
+        <option value="ui_ux_designer">UI/UX Designer</option>
+        <option value="data_analyst">Data Analyst</option>
+        <option value="tester">Tester</option>
+        <option value="researcher">Researcher</option>
+        <option value="presenter">Presenter</option>
+        <option value="other">Other</option>
+    </select>
     <input type="text" id="confirmIdentifier" placeholder="Confirm member reg/email">
     <input type="text" id="confirmCode" placeholder="Enter 6-digit code">
     <button id="confirmMemberBtn" style="background:#6f42c1;">Confirm Member</button>
@@ -206,6 +268,30 @@ const csrf = "<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>";
 let maxTeamMembers = 15;
 let currentTeamSize = 0;
 let isCurrentUserLeader = false;
+
+const teamRoleLabels = {
+    leader: 'Team Lead',
+    member: 'Member',
+    frontend_developer: 'Frontend Developer',
+    backend_developer: 'Backend Developer',
+    machine_learning: 'Machine Learning',
+    ui_ux_designer: 'UI/UX Designer',
+    data_analyst: 'Data Analyst',
+    tester: 'Tester',
+    researcher: 'Researcher',
+    presenter: 'Presenter',
+    other: 'Other'
+};
+
+function normalizeTeamRole(role) {
+    const value = String(role || 'member').trim().toLowerCase();
+    return teamRoleLabels[value] ? value : 'other';
+}
+
+function formatTeamRole(role) {
+    const normalized = normalizeTeamRole(role);
+    return teamRoleLabels[normalized] || 'Other';
+}
 
 const messageDiv = document.getElementById('message');
 
@@ -283,7 +369,7 @@ async function loadTeam() {
         // Mark current user and set leader role
         members.forEach(m => {
             m.isCurrentUser = (m.student_id == currentUserId);
-            if (!m.role) m.role = 'member';
+            m.role = normalizeTeamRole(m.role);
         });
 
         isCurrentUserLeader = members.some(m => m.isCurrentUser && m.role === 'leader');
@@ -292,7 +378,7 @@ async function loadTeam() {
         members.sort((a, b) => {
             if (a.role === 'leader') return -1;
             if (b.role === 'leader') return 1;
-            return 0;
+            return formatTeamRole(a.role).localeCompare(formatTeamRole(b.role));
         });
 
         members.forEach(m => {
@@ -329,11 +415,17 @@ async function loadTeam() {
                 // Other regular members viewed by current user (if current user is leader)
                 // This will be handled by the leader section above
             }
+
+            const roleLabel = normalizeTeamRole(m.role);
+            const roleText = formatTeamRole(roleLabel);
             
             card.innerHTML = `
-                <strong>${m.name || 'Unknown'}</strong><br>
-                ${m.reg_no || m.reg_number || m.email || '—'}<br>
-                <em>${m.role}${m.isCurrentUser ? ' (You)' : ''}</em>
+                <strong class="member-name">${m.name || 'Unknown'}</strong>
+                <div>${m.reg_no || m.reg_number || m.email || '—'}</div>
+                <div class="member-meta">
+                    <span class="member-role-badge ${roleLabel}">${roleText}</span>
+                    ${m.isCurrentUser ? '<span style="margin-left:0.35rem;color:#6c757d;">You</span>' : ''}
+                </div>
                 ${actionButtons}
             `;
             grid.appendChild(card);
@@ -477,6 +569,7 @@ async function loadInvitations() {
 // Add member
 async function addMember() {
     const identifier = document.getElementById('identifier').value.trim();
+    const role = normalizeTeamRole(document.getElementById('memberRole')?.value);
     if (!identifier) {
         showMessage('Please enter registration number or email');
         return;
@@ -490,6 +583,7 @@ async function addMember() {
             body: JSON.stringify({
                 team_id: teamId,
                 identifier,
+                role,
                 csrf_token: csrf
             })
         });
@@ -507,6 +601,8 @@ async function addMember() {
 
         showMessage(data.message || 'Member added successfully', 'success');
         document.getElementById('identifier').value = '';
+        const roleSelect = document.getElementById('memberRole');
+        if (roleSelect) roleSelect.value = 'member';
         loadTeam();
 
     } catch (err) {
@@ -725,6 +821,7 @@ document.getElementById('resendCodeBtn').addEventListener('click', async () => {
 document.getElementById('confirmMemberBtn').addEventListener('click', async () => {
     const identifier = document.getElementById('confirmIdentifier').value.trim();
     const code = document.getElementById('confirmCode').value.trim();
+    const role = normalizeTeamRole(document.getElementById('confirmMemberRole')?.value);
     if (!identifier || !code) {
         showMessage('Provide identifier and confirmation code');
         return;
@@ -738,6 +835,7 @@ document.getElementById('confirmMemberBtn').addEventListener('click', async () =
                 team_id: teamId,
                 identifier,
                 code,
+                role,
                 csrf_token: csrf
             })
         });
@@ -748,6 +846,8 @@ document.getElementById('confirmMemberBtn').addEventListener('click', async () =
         showMessage(data.message || 'Member confirmed', 'success');
         document.getElementById('confirmIdentifier').value = '';
         document.getElementById('confirmCode').value = '';
+        const confirmRoleSelect = document.getElementById('confirmMemberRole');
+        if (confirmRoleSelect) confirmRoleSelect.value = 'member';
         loadTeam();
     } catch (err) {
         showMessage('Confirm member error: ' + err.message);

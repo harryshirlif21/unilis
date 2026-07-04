@@ -13,6 +13,26 @@ if (!isset($conn) || !$conn) {
 
 ensure_team_marks_table($conn);
 
+function team_role_label(string $role): string
+{
+    $role = strtolower(trim($role));
+    $labels = [
+        'leader' => 'Team Lead',
+        'member' => 'Member',
+        'frontend_developer' => 'Frontend Developer',
+        'backend_developer' => 'Backend Developer',
+        'machine_learning' => 'Machine Learning',
+        'ui_ux_designer' => 'UI/UX Designer',
+        'data_analyst' => 'Data Analyst',
+        'tester' => 'Tester',
+        'researcher' => 'Researcher',
+        'presenter' => 'Presenter',
+        'other' => 'Other',
+    ];
+
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
+}
+
 /* =========================
    AUTH CHECK
 ========================= */
@@ -864,8 +884,8 @@ foreach ($teams as $team) {
                                     <span class="mark-box" title="Award individual mark" onclick="toggleMarkBox(this, <?= $team['team_id']; ?>, <?= $member['student_id']; ?>)">□</span>
                                     <?= htmlspecialchars($member['student_name']); ?>
                                 </div>
-                                <span class="member-role role-<?= $member['role']; ?>">
-                                    <?= ucfirst($member['role']); ?>
+                                <span class="member-role role-<?= htmlspecialchars($member['role']); ?>">
+                                    <?= htmlspecialchars(team_role_label((string)$member['role'])); ?>
                                 </span>
                             </div>
                             <div style="font-size: 0.9rem; color: #6b7280; margin-bottom: 0.5rem;">

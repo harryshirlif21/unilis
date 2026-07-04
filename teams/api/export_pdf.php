@@ -12,6 +12,26 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/ensure_team_marks.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
+function team_role_label(string $role): string
+{
+    $role = strtolower(trim($role));
+    $labels = [
+        'leader' => 'Team Lead',
+        'member' => 'Member',
+        'frontend_developer' => 'Frontend Developer',
+        'backend_developer' => 'Backend Developer',
+        'machine_learning' => 'Machine Learning',
+        'ui_ux_designer' => 'UI/UX Designer',
+        'data_analyst' => 'Data Analyst',
+        'tester' => 'Tester',
+        'researcher' => 'Researcher',
+        'presenter' => 'Presenter',
+        'other' => 'Other',
+    ];
+
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
+}
+
 ensure_team_marks_table($conn);
 
 use Dompdf\Dompdf;
@@ -194,7 +214,7 @@ try {
             <tr class="' . $rowClass . '">
                 <td>' . htmlspecialchars($member['student_name']) . '</td>
                 <td>' . htmlspecialchars($member['reg_no']) . '</td>
-                <td>' . ucfirst($member['role']) . '</td>
+                <td>' . htmlspecialchars(team_role_label((string)$member['role'])) . '</td>
                 <td>' . htmlspecialchars($member['email']) . '</td>
                 <td>' . htmlspecialchars($member['phone'] ?: 'N/A') . '</td>
                 <td>' . date('d M Y', strtotime($member['joined_at'])) . '</td>

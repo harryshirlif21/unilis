@@ -19,12 +19,30 @@ try {
     $teamId = (int)($input['team_id'] ?? 0);
     $identifier = trim((string)($input['identifier'] ?? ''));
     $code = trim((string)($input['code'] ?? ''));
+    $role = strtolower(trim((string)($input['role'] ?? 'member')));
     $csrfToken = $input['csrf_token'] ?? '';
 
     if ($teamId <= 0 || $identifier === '' || $code === '') {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'team_id, identifier and code are required']);
         exit;
+    }
+
+    $allowedRoles = [
+        'leader',
+        'member',
+        'frontend_developer',
+        'backend_developer',
+        'machine_learning',
+        'ui_ux_designer',
+        'data_analyst',
+        'tester',
+        'researcher',
+        'presenter',
+        'other'
+    ];
+    if (!in_array($role, $allowedRoles, true)) {
+        $role = 'other';
     }
     if (!isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrfToken)) {
         http_response_code(403);
@@ -135,7 +153,6 @@ try {
     assert_team_has_capacity($conn, $teamId);
 
     // Add member
-    $role = 'member';
     $stmt = $conn->prepare("INSERT INTO team_members (team_id, student_id, role, joined_at) VALUES (?, ?, ?, NOW())");
     if (!$stmt) throw new Exception('Failed to prepare member insert: ' . $conn->error);
     $stmt->bind_param("iis", $teamId, $studentId, $role);

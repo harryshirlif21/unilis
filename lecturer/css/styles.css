@@ -93,10 +93,10 @@ body {
     transform: translateY(-50%);
     width: 44px;
     height: 44px;
-    background-color: #4A90E2;
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
     color: white;
     border: none;
-    border-radius: 50%;
+    border-radius: 14px;
     cursor: pointer;
     font-size: 20px;
     z-index: 1100;
@@ -184,6 +184,8 @@ body {
 @media (max-width: 992px) {
     .sidebar-toggle {
         display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .sidebar {
@@ -225,15 +227,44 @@ body {
 
 /* Additional mobile responsive fixes */
 @media (max-width: 768px) {
+    .navbar {
+        height: auto;
+        min-height: 70px;
+        padding: 12px 14px 12px 70px;
+        align-items: center;
+    }
+
+    .navbar .welcome-msg {
+        position: static;
+        transform: none;
+        left: auto;
+        white-space: normal;
+        text-align: left;
+        font-size: 14px;
+        line-height: 1.25;
+        max-width: none;
+        flex: 1;
+    }
+
+    .sidebar-toggle {
+        top: 12px;
+        left: 14px;
+        transform: none;
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+    }
+
     .main-content {
         margin-left: 0;
         margin-top: 70px;
-        padding: 20px 16px;
+        padding: 18px 14px 22px;
     }
     
     .dashboard-card {
-        padding: 16px;
-        border-radius: 8px;
+        padding: 16px 14px;
+        border-radius: 14px;
+        min-height: auto;
     }
     
     .modal-content {
@@ -250,19 +281,43 @@ body {
     }
     
     .card-navbar ul {
+        overflow-x: auto;
         flex-wrap: wrap;
         gap: 8px;
+        padding-bottom: 4px;
     }
     
     .card-navbar li {
         padding: 8px 16px;
         font-size: 14px;
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
+    .notes-box {
+        padding: 22px 18px;
+    }
+
+    .notes-box > div,
+    .assignments-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .assignments-controls > * {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .overflow-x-auto {
+        overflow-x: auto;
     }
 }
 
 @media (max-width: 480px) {
     .navbar {
-        padding: 0 15px;
+        padding: 10px 12px 10px 64px;
+        gap: 10px;
     }
     
     .nav-icon {
@@ -273,15 +328,16 @@ body {
     
     .welcome-msg {
         font-size: 14px;
-        max-width: 50%;
+        max-width: none;
     }
     
     .main-content {
-        padding: 16px 12px;
+        padding: 16px 12px 20px;
     }
     
     .dashboard-card {
-        padding: 12px;
+        padding: 14px 12px;
+        border-radius: 12px;
     }
     
     .modal-content {
@@ -293,6 +349,15 @@ body {
         min-width: 140px;
         padding: 12px 16px;
         font-size: 14px;
+    }
+
+    .notes-box h3 {
+        font-size: 18px;
+    }
+
+    .card-navbar li {
+        padding: 8px 12px;
+        font-size: 13px;
     }
     
     th, td {

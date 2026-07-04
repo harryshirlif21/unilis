@@ -12,6 +12,26 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/ensure_team_marks.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
+function team_role_label(string $role): string
+{
+    $role = strtolower(trim($role));
+    $labels = [
+        'leader' => 'Team Lead',
+        'member' => 'Member',
+        'frontend_developer' => 'Frontend Developer',
+        'backend_developer' => 'Backend Developer',
+        'machine_learning' => 'Machine Learning',
+        'ui_ux_designer' => 'UI/UX Designer',
+        'data_analyst' => 'Data Analyst',
+        'tester' => 'Tester',
+        'researcher' => 'Researcher',
+        'presenter' => 'Presenter',
+        'other' => 'Other',
+    ];
+
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
+}
+
 ensure_team_marks_table($conn);
 
 use Dompdf\Dompdf;
@@ -174,7 +194,7 @@ try {
         
         foreach ($members as $member) {
             $html .= '<div class="member">
-                <div class="member-name">' . htmlspecialchars($member['student_name']) . ' (' . ucfirst($member['role']) . ')</div>
+                <div class="member-name">' . htmlspecialchars($member['student_name']) . ' (' . htmlspecialchars(team_role_label((string)$member['role'])) . ')</div>
                 <div class="member-details">
                     Reg No: ' . htmlspecialchars($member['reg_no']) . ' | 
                     Email: ' . htmlspecialchars($member['email']) . ' | 
@@ -259,7 +279,7 @@ try {
                 $html .= '<div style="margin: 10px 0; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
                     <div style="display: flex; align-items: center; margin-bottom: 5px;">
                         <span style="display: inline-block; width: 16px; height: 16px; border: 2px solid #3b82f6; border-radius: 2px; margin-right: 8px;">□</span>
-                        <strong>' . htmlspecialchars($member['student_name']) . ' (' . ucfirst($member['role']) . ')</strong>
+                        <strong>' . htmlspecialchars($member['student_name']) . ' (' . htmlspecialchars(team_role_label((string)$member['role'])) . ')</strong>
                     </div>
                     <div style="font-size: 11px; color: #666; margin-left: 24px;">
                         Component: ___________________  Mark: ___ / ___  Max Mark: ___

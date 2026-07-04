@@ -8,6 +8,26 @@ session_start();
 // Make sure path to db.php is correct
 require_once __DIR__ . '/../../config/db.php';
 
+function team_role_label(string $role): string
+{
+    $role = strtolower(trim($role));
+    $labels = [
+        'leader' => 'Team Lead',
+        'member' => 'Member',
+        'frontend_developer' => 'Frontend Developer',
+        'backend_developer' => 'Backend Developer',
+        'machine_learning' => 'Machine Learning',
+        'ui_ux_designer' => 'UI/UX Designer',
+        'data_analyst' => 'Data Analyst',
+        'tester' => 'Tester',
+        'researcher' => 'Researcher',
+        'presenter' => 'Presenter',
+        'other' => 'Other',
+    ];
+
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
+}
+
 $response = [];
 
 try {
@@ -43,6 +63,11 @@ try {
     $stmt->bind_param("i", $team_id);
     $stmt->execute();
     $members = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    foreach ($members as &$member) {
+        $member['display_role'] = team_role_label((string)($member['role'] ?? 'member'));
+    }
+    unset($member);
 
     // Sort members: leader first
     usort($members, function($a, $b) {

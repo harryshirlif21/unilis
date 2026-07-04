@@ -44,6 +44,7 @@ $input = json_decode($rawInput, true) ?: $_POST;
 
 $teamId     = $input['team_id'] ?? null;
 $identifier = trim($input['identifier'] ?? '');
+$role       = strtolower(trim((string)($input['role'] ?? 'member')));
 $csrfToken  = $input['csrf_token'] ?? '';
 
 debugLog("Received input: " . json_encode($input));
@@ -53,6 +54,23 @@ if (!$teamId || !$identifier) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Missing required fields.']);
     exit;
+}
+
+$allowedRoles = [
+    'leader',
+    'member',
+    'frontend_developer',
+    'backend_developer',
+    'machine_learning',
+    'ui_ux_designer',
+    'data_analyst',
+    'tester',
+    'researcher',
+    'presenter',
+    'other'
+];
+if (!in_array($role, $allowedRoles, true)) {
+    $role = 'other';
 }
 
 // CSRF CHECK

@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "run-team-role-migration",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"teams/api/migrate_team_members_role.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "none"
+		}
+	]
+}

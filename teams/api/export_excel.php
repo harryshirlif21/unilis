@@ -11,6 +11,26 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION[
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/ensure_team_marks.php';
 
+function team_role_label(string $role): string
+{
+    $role = strtolower(trim($role));
+    $labels = [
+        'leader' => 'Team Lead',
+        'member' => 'Member',
+        'frontend_developer' => 'Frontend Developer',
+        'backend_developer' => 'Backend Developer',
+        'machine_learning' => 'Machine Learning',
+        'ui_ux_designer' => 'UI/UX Designer',
+        'data_analyst' => 'Data Analyst',
+        'tester' => 'Tester',
+        'researcher' => 'Researcher',
+        'presenter' => 'Presenter',
+        'other' => 'Other',
+    ];
+
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
+}
+
 ensure_team_marks_table($conn);
 
 try {
@@ -174,7 +194,7 @@ try {
         fputcsv($output, [
             $member['student_name'],
             $member['reg_no'],
-            ucfirst($member['role']),
+            team_role_label((string)$member['role']),
             $member['email'],
             $member['phone'] ?: 'N/A',
             date('d M Y', strtotime($member['joined_at']))
