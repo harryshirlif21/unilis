@@ -833,6 +833,18 @@ if ($action === 'upload_notes') {
     $files = $_FILES['notes_file'];
     $success_count = 0;
     $error_count = 0;
+    $uploaded_files = [];
+    $email_sent_total = 0;
+    $email_failed_total = 0;
+    $students_total = 0;
+    $notifications_sent_total = 0;
+    $notifications_failed_total = 0;
+
+    $is_ajax = (
+        (isset($_POST['ajax']) && $_POST['ajax'] === '1') ||
+        (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+        (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+    );
 
     $upload_dir = "assets/uploads/";
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
@@ -870,10 +882,19 @@ if ($action === 'upload_notes') {
                 if ($stmt->execute()) {
                     $success_count++;
                     $notes_id = $conn->insert_id;
+                    $uploaded_files[] = $file['name'];
 
                     // === SEND NOTIFICATIONS & EMAILS TO STUDENTS ===
                     $notes_title = pathinfo($filename, PATHINFO_FILENAME);
-                    notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_title, $notes_id);
+                    $notify_result = notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_title, $notes_id);
+
+                    if (is_array($notify_result)) {
+                        $email_sent_total += (int)($notify_result['emails_sent'] ?? 0);
+                        $email_failed_total += (int)($notify_result['emails_failed'] ?? 0);
+                        $students_total += (int)($notify_result['students_total'] ?? 0);
+                        $notifications_sent_total += (int)($notify_result['notifications_sent'] ?? 0);
+                        $notifications_failed_total += (int)($notify_result['notifications_failed'] ?? 0);
+                    }
 
                 } else {
                     $error_count++;
@@ -896,6 +917,25 @@ if ($action === 'upload_notes') {
         }
     } else {
         $_SESSION['upload_error'] = "Failed to upload any files.";
+    }
+
+    if ($is_ajax) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => $success_count > 0,
+            'uploaded_count' => $success_count,
+            'failed_count' => $error_count,
+            'uploaded_files' => $uploaded_files,
+            'students_targeted' => $students_total,
+            'notifications_sent' => $notifications_sent_total,
+            'notifications_failed' => $notifications_failed_total,
+            'emails_sent' => $email_sent_total,
+            'emails_failed' => $email_failed_total,
+            'message' => $success_count > 0
+                ? "$success_count file(s) uploaded successfully."
+                : 'Failed to upload any files.'
+        ]);
+        exit;
     }
 
     header("Location: lecturer/dashboard.php");

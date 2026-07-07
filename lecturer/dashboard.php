@@ -1004,6 +1004,7 @@ $stmt->close();
                 </div>
                 <div class="success-bar-text">
                     <p class="success-title">✓ Files uploaded successfully!</p>
+                    <p id="uploadEmailStatus" class="success-files-label" style="margin-top:4px;">Email notifications: pending</p>
                     <p class="success-files-label">Uploaded Files:</p>
                     <ul id="uploadedFilesList" class="uploaded-files-list"></ul>
                 </div>
@@ -1903,25 +1904,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Notes functionality
     const viewBtn = document.getElementById('view-notes-btn');
     const tiles = document.getElementById('notes-tiles');
-    const notesModal = document.getElementById('notes-modal');
 
-    viewBtn?.addEventListener('click', () => tiles?.classList.toggle('hidden'));
-
-    document.querySelectorAll('.unit-tile').forEach(tile => {
-        tile.addEventListener('click', () => {
-            const unitId = tile.dataset.unitId;
-            document.getElementById('modal-unit-name').textContent = tile.textContent;
-            const data = document.querySelector(`.unit-notes-data[data-unit-id="${unitId}"]`);
-            document.getElementById('unit-notes-list').innerHTML = data 
-                ? data.innerHTML 
-                : '<p style="color:#777;">No notes uploaded yet.</p>';
-            notesModal?.classList.remove('hidden');
-        });
-    });
-
-    notesModal?.querySelector('.close')?.addEventListener('click', () => notesModal.classList.add('hidden'));
-    notesModal?.addEventListener('click', e => {
-        if (e.target === notesModal) notesModal.classList.add('hidden');
+    viewBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        tiles?.classList.toggle('hidden');
     });
 
     // ==================== NOTES SENT FEATURE ====================
@@ -1932,6 +1918,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const notesSentModalTitle = document.getElementById('notesSentModalTitle');
     const notesSentModalClose = document.getElementById('notesSentModalClose');
     const notesData = document.getElementById('all-notes-data');
+
+    function openUnitNotesModal(unitId, unitName, iconClass = 'fa-paper-plane') {
+        notesSentModalTitle.innerHTML = `<i class="fas ${iconClass}" style="color:#6366f1;margin-right:8px;"></i> ${escapeHtml(unitName)}`;
+
+        const dataDiv = document.querySelector(`.unit-notes-data[data-unit-id="${unitId}"]`);
+        if (dataDiv && dataDiv.querySelector('tbody')) {
+            notesSentModalBody.innerHTML = `
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">File</th>
+                            <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">Status</th>
+                            <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">Uploaded</th>
+                            <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${dataDiv.querySelector('tbody').innerHTML}
+                    </tbody>
+                </table>
+            `;
+        } else {
+            notesSentModalBody.innerHTML = `
+                <div style="text-align:center;padding:40px 20px;color:#9ca3af;">
+                    <i class="fas fa-inbox" style="font-size:40px;display:block;margin-bottom:12px;color:#d1d5db;"></i>
+                    No notes uploaded yet for this unit.
+                </div>
+            `;
+        }
+
+        notesSentModal?.classList.remove('hidden');
+    }
+
+    // Click unit tile in Notes section -> open modal with uploaded files and details
+    document.querySelectorAll('.unit-tile').forEach(tile => {
+        tile.addEventListener('click', () => {
+            const unitId = tile.dataset.unitId;
+            const unitName = tile.textContent.trim();
+            openUnitNotesModal(unitId, unitName, 'fa-book');
+        });
+    });
 
     // Click sidebar "Notes Sent" -> show the notes-sent content section
     notesSentBtn?.addEventListener('click', () => {
@@ -1950,40 +1977,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tile.addEventListener('click', () => {
             const unitId = tile.dataset.unitId;
             const unitName = tile.dataset.unitName;
-
-            // Update modal title
-            notesSentModalTitle.innerHTML = `<i class="fas fa-paper-plane" style="color:#6366f1;margin-right:8px;"></i> ${escapeHtml(unitName)}`;
-
-            // Find notes data for this unit
-            const dataDiv = document.querySelector(`.unit-notes-data[data-unit-id="${unitId}"]`);
-            if (dataDiv) {
-                // Clone the table to avoid mutating the original
-                const tableHtml = dataDiv.innerHTML;
-                notesSentModalBody.innerHTML = `
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead>
-                            <tr style="background:#f3f4f6;">
-                                <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">File</th>
-                                <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">Uploaded</th>
-                                <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:600;color:#374151;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${dataDiv.querySelector('tbody').innerHTML}
-                        </tbody>
-                    </table>
-                `;
-            } else {
-                notesSentModalBody.innerHTML = `
-                    <div style="text-align:center;padding:40px 20px;color:#9ca3af;">
-                        <i class="fas fa-inbox" style="font-size:40px;display:block;margin-bottom:12px;color:#d1d5db;"></i>
-                        No notes uploaded yet for this unit.
-                    </div>
-                `;
-            }
-
-            // Show modal
-            notesSentModal?.classList.remove('hidden');
+            openUnitNotesModal(unitId, unitName, 'fa-paper-plane');
         });
     });
 
@@ -2189,6 +2183,12 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadNotesForm?.reset();
         selectedFilesPreview.style.display = 'none';
         selectedFilesList.innerHTML = '';
+        document.getElementById('uploadedFilesList').innerHTML = '';
+        const emailStatus = document.getElementById('uploadEmailStatus');
+        if (emailStatus) {
+            emailStatus.textContent = 'Email notifications: pending';
+            emailStatus.style.color = 'rgba(255, 255, 255, 0.95)';
+        }
         document.getElementById('uploadSuccessBar').style.display = 'none';
     }
 
@@ -2209,6 +2209,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const formData = new FormData(uploadNotesForm);
+        formData.append('ajax', '1');
         const uploadButton = uploadNotesForm.querySelector('button[type="submit"]');
         const originalText = uploadButton.innerHTML;
         uploadButton.disabled = true;
@@ -2217,25 +2218,58 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('../actions.php', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
             });
 
             if (response.ok) {
+                const result = await response.json();
+                if (!result.success) {
+                    alert('Upload failed: ' + (result.message || 'Unknown error'));
+                    return;
+                }
+
                 // Show success bar with uploaded file names
                 const successBar = document.getElementById('uploadSuccessBar');
                 const uploadedFilesList = document.getElementById('uploadedFilesList');
+                const uploadEmailStatus = document.getElementById('uploadEmailStatus');
                 uploadedFilesList.innerHTML = '';
 
-                Array.from(files).forEach(file => {
+                const filesToShow = Array.isArray(result.uploaded_files) && result.uploaded_files.length
+                    ? result.uploaded_files
+                    : Array.from(files).map(file => file.name);
+
+                filesToShow.forEach(fileName => {
                     const li = document.createElement('li');
                     li.className = 'uploaded-file-item';
-                    const fileIcon = window.getFileIcon(file.name);
-                    li.innerHTML = `<span class="file-icon">${fileIcon}</span><span class="file-name">${file.name}</span>`;
+                    const fileIcon = window.getFileIcon(fileName);
+                    li.innerHTML = `<span class="file-icon">${fileIcon}</span><span class="file-name">${fileName}</span>`;
                     uploadedFilesList.appendChild(li);
                 });
 
+                const emailsSent = Number(result.emails_sent || 0);
+                const emailsFailed = Number(result.emails_failed || 0);
+                const studentsTargeted = Number(result.students_targeted || 0);
+                if (uploadEmailStatus) {
+                    if (studentsTargeted === 0) {
+                        uploadEmailStatus.textContent = 'Email notifications: no enrolled/verified students to notify.';
+                        uploadEmailStatus.style.color = 'rgba(255,255,255,0.9)';
+                    } else if (emailsFailed === 0) {
+                        uploadEmailStatus.textContent = `Email notifications sent successfully to ${emailsSent} student${emailsSent !== 1 ? 's' : ''}.`;
+                        uploadEmailStatus.style.color = '#d1fae5';
+                    } else {
+                        uploadEmailStatus.textContent = `Email notifications: ${emailsSent} sent, ${emailsFailed} failed (out of ${studentsTargeted}).`;
+                        uploadEmailStatus.style.color = '#fef3c7';
+                    }
+                }
+
                 successBar.style.display = 'block';
-                resetUploadForm();
+                uploadNotesForm?.reset();
+                selectedFilesPreview.style.display = 'none';
+                selectedFilesList.innerHTML = '';
 
                 // Keep modal open to show success message for 3 seconds
                 await new Promise(resolve => setTimeout(resolve, 3000));

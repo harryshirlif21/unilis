@@ -134,6 +134,16 @@ function notify_lecturer_assignment_submitted($conn, $lecturer_id, $student_name
  */
 function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_title, $notes_id) {
     try {
+        $stats = [
+            'success' => false,
+            'students_total' => 0,
+            'notifications_sent' => 0,
+            'notifications_failed' => 0,
+            'emails_sent' => 0,
+            'emails_failed' => 0,
+            'message' => ''
+        ];
+
         // Get unit info (name + code)
         $stmt = $conn->prepare("
             SELECT name, code FROM units WHERE id = ?
@@ -143,7 +153,10 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
         $unit = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        if (!$unit) return false;
+        if (!$unit) {
+            $stats['message'] = 'Unit not found.';
+            return $stats;
+        }
 
         // Get lecturer name
         $stmt = $conn->prepare("SELECT name FROM lecturers WHERE id = ?");
@@ -179,7 +192,12 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
         }
         $stmt->close();
 
-        if (empty($students)) return false;
+        if (empty($students)) {
+            $stats['message'] = 'No enrolled students found for this unit.';
+            return $stats;
+        }
+
+        $stats['students_total'] = count($students);
 
         $title = "New Notes Uploaded";
         $message = "New notes have been uploaded for {$unit['name']}: {$notes_title}";
@@ -198,18 +216,36 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
             } else {
                 $notif_stmt->bind_param("sssi", $title, $message, $link, $notes_id);
             }
-            $notif_stmt->execute();
+            if ($notif_stmt->execute()) {
+                $stats['notifications_sent']++;
+            } else {
+                $stats['notifications_failed']++;
+            }
             
             // Send individual email with file attachment
-            $email_subject = "{$lecturer_name} sent {$unit_code}";
-            send_notes_email_with_attachment($student['email'], $student['name'], $lecturer_name, $unit_code, $notes_title, $file_path, $link);
+            $emailSent = send_notes_email_with_attachment($student['email'], $student['name'], $lecturer_name, $unit_code, $notes_title, $file_path, $link);
+            if ($emailSent) {
+                $stats['emails_sent']++;
+            } else {
+                $stats['emails_failed']++;
+            }
         }
         $notif_stmt->close();
 
-        return true;
+        $stats['success'] = ($stats['notifications_sent'] > 0 || $stats['emails_sent'] > 0);
+        $stats['message'] = 'Notifications and emails processed.';
+        return $stats;
     } catch (Exception $e) {
         error_log("Error notifying notes uploaded: " . $e->getMessage());
-        return false;
+        return [
+            'success' => false,
+            'students_total' => 0,
+            'notifications_sent' => 0,
+            'notifications_failed' => 0,
+            'emails_sent' => 0,
+            'emails_failed' => 0,
+            'message' => 'Notification/email processing failed.'
+        ];
     }
 }
 
