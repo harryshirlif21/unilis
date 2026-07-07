@@ -648,18 +648,29 @@ foreach ($teams as $team) {
     </div>
 </div>
 
-<!-- Peer Evaluation Insights -->
+<!-- Team Activity Insights -->
 <div class="team-card" style="margin-top:0;">
     <div class="team-header">
         <div>
-            <strong>Peer Evaluation Insights</strong><br>
-            <small style="color:#666;">View team-level peer evaluation performance summary.</small>
+            <strong>Team Activity Insights</strong><br>
+            <small style="color:#666;">Load full team intelligence including files, kanban, checklist, standups, heatmap, and peer evaluation.</small>
         </div>
     </div>
     <?php if (empty($teamsByUnit)): ?>
-        <p style="color:#666;">No units with teams available for peer evaluation.</p>
+        <p style="color:#666;">No units with teams available for insights.</p>
     <?php else: ?>
-        <p style="margin:0 0 0.75rem 0;color:#666;font-size:0.9rem;">Choose a unit, then select a team from the dropdown.</p>
+        <p style="margin:0 0 0.75rem 0;color:#666;font-size:0.9rem;">Choose a unit, then select a team and click Load Insights.</p>
+        <div style="margin-bottom:0.8rem;max-width:380px;">
+            <label for="insightsUnitSelect" style="display:block;font-size:0.8rem;color:#555;margin-bottom:0.25rem;">Unit selection</label>
+            <select id="insightsUnitSelect" style="padding:0.5rem;border:1px solid #d1d5db;border-radius:6px;width:100%;">
+                <option value="">-- Select Unit --</option>
+                <?php foreach ($teamsByUnit as $unitKey => $unit): ?>
+                    <option value="<?= (int)$unitKey; ?>">
+                        <?= htmlspecialchars($unit['unit_code']); ?> - <?= htmlspecialchars($unit['unit_name']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
         <div class="peer-eval-units" id="peerEvalUnitTiles">
             <?php foreach ($teamsByUnit as $unitKey => $unit): ?>
                 <button type="button"
@@ -697,7 +708,7 @@ foreach ($teams as $team) {
             <button type="button" class="global-export-btn export-all-excel" id="exportPeerCsvBtn" style="padding:0.6rem 1rem;">Export CSV</button>
         </div>
     <?php endif; ?>
-    <p id="peerEvalInsightsStatus" style="margin:0.75rem 0 0.5rem 0;color:#666;">Select a unit and team to load peer evaluation summary.</p>
+    <p id="peerEvalInsightsStatus" style="margin:0.75rem 0 0.5rem 0;color:#666;">Select a unit and team to load team activity insights.</p>
     <div id="peerEvalInsightsBody"></div>
 </div>
 
@@ -1439,16 +1450,41 @@ function generateExcel(teamId) {
     window.open('../../teams/api/export_excel.php?team_id=' + teamId, '_blank');
 }
 
+function escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = value == null ? '' : String(value);
+    return div.innerHTML;
+}
+
+function formatDateTime(value) {
+    if (!value) return 'N/A';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleString();
+}
+
+function renderHeatmap(heatmap) {
+    const entries = Object.entries(heatmap || {});
+    if (!entries.length) return '<p style="color:#666;">No heatmap data.</p>';
+    const max = Math.max(...entries.map(([, c]) => Number(c) || 0), 1);
+    const cells = entries.map(([day, count]) => {
+        const ratio = (Number(count) || 0) / max;
+        const alpha = ratio === 0 ? 0.08 : Math.min(0.9, 0.2 + ratio * 0.7);
+        return `<div title="${escapeHtml(day)}: ${Number(count) || 0} activities" style="width:16px;height:16px;border-radius:3px;background:rgba(16,185,129,${alpha});border:1px solid rgba(6,78,59,0.15);"></div>`;
+    });
+    return `<div style="display:flex;flex-wrap:wrap;gap:4px;max-width:320px;">${cells.join('')}</div>`;
+}
+
 async function loadPeerEvalInsights(teamId) {
     const statusEl = document.getElementById('peerEvalInsightsStatus');
     const bodyEl = document.getElementById('peerEvalInsightsBody');
     if (!statusEl || !bodyEl) return;
 
-    statusEl.textContent = 'Loading peer evaluation summary...';
+    statusEl.textContent = 'Loading team activity insights...';
     bodyEl.innerHTML = '';
 
     try {
-        const res = await fetch(`../../teams/api/peer_evaluation_report.php?team_id=${encodeURIComponent(teamId)}&format=json`, {
+        const res = await fetch(`../../teams/api/lecturer_team_insights.php?team_id=${encodeURIComponent(teamId)}`, {
             credentials: 'same-origin'
         });
         const data = await res.json().catch(() => null);
@@ -1456,59 +1492,165 @@ async function loadPeerEvalInsights(teamId) {
             throw new Error(data?.error || ('HTTP ' + res.status));
         }
 
-        const rows = data.summary || [];
-        if (rows.length === 0) {
-            statusEl.textContent = 'No peer evaluations yet for this team.';
-            return;
-        }
+        const team = data.team || {};
+        const summary = data.summary || {};
+        const members = data.members || [];
+        const recentFiles = (data.files || []).slice(0, 8);
+        const recentActivities = (data.activities || []).slice(0, 12);
+        const recentStandups = (data.standups || []).slice(0, 8);
+        const peerRows = data.peer_summary || [];
+
         statusEl.textContent = '';
 
-        const sorted = [...rows].sort((a, b) => Number(b.avg_overall || 0) - Number(a.avg_overall || 0));
-        const top = sorted[0];
-        const low = sorted[sorted.length - 1];
+        const sortedPeer = [...peerRows].sort((a, b) => Number(b.avg_overall || 0) - Number(a.avg_overall || 0));
+        const top = sortedPeer[0];
+        const low = sortedPeer[sortedPeer.length - 1];
+
+        const memberCards = members.map(member => {
+            const activityTypes = member.activity_types || {};
+            const activityTypeChips = Object.keys(activityTypes).length
+                ? Object.entries(activityTypes)
+                    .map(([k, v]) => `<span style="display:inline-block;margin:2px;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;">${escapeHtml(k)}: ${Number(v) || 0}</span>`)
+                    .join('')
+                : '<span style="color:#9ca3af;font-size:12px;">No activity tags yet</span>';
+
+            const files = (member.recent_files || []).map(file =>
+                `<li style="margin-bottom:3px;">${escapeHtml(file.file_name || 'File')} <span style="color:#9ca3af;">(${formatDateTime(file.uploaded_at)})</span></li>`
+            ).join('') || '<li style="color:#9ca3af;">No uploads</li>';
+
+            return `
+                <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                        <div>
+                            <div style="font-weight:700;color:#0f172a;">${escapeHtml(member.student_name || 'Student')}</div>
+                            <div style="font-size:12px;color:#64748b;">${escapeHtml(member.reg_no || '')} • ${escapeHtml(member.role || 'member')}</div>
+                        </div>
+                        <div style="font-size:12px;color:#6b7280;text-align:right;">Last active<br><strong>${formatDateTime(member.last_activity_at)}</strong></div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0;">
+                        <div style="background:#f8fafc;border-radius:6px;padding:8px;font-size:12px;">Files<br><strong>${Number(member.files_uploaded) || 0}</strong></div>
+                        <div style="background:#f8fafc;border-radius:6px;padding:8px;font-size:12px;">Tasks Created<br><strong>${Number(member.tasks_created) || 0}</strong></div>
+                        <div style="background:#f8fafc;border-radius:6px;padding:8px;font-size:12px;">Tasks Assigned<br><strong>${Number(member.tasks_assigned) || 0}</strong></div>
+                        <div style="background:#f8fafc;border-radius:6px;padding:8px;font-size:12px;">Standups<br><strong>${Number(member.standups_count) || 0}</strong></div>
+                        <div style="background:#f8fafc;border-radius:6px;padding:8px;font-size:12px;">Checklist Signoffs<br><strong>${Number(member.checklist_signoffs) || 0}</strong></div>
+                        <div style="background:#f8fafc;border-radius:6px;padding:8px;font-size:12px;">Activity (14d)<br><strong>${Number(member.activity_count_14d) || 0}</strong></div>
+                    </div>
+
+                    <div style="margin:8px 0;">${activityTypeChips}</div>
+                    <div style="font-size:12px;color:#334155;margin-top:6px;">
+                        <strong>Recent uploads</strong>
+                        <ul style="margin:4px 0 0 16px;padding:0;">${files}</ul>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const peerHtml = peerRows.length ? `
+            <div style="margin-top:14px;">
+                <h4 style="margin:0 0 8px 0;color:#0f172a;">Peer Evaluation Snapshot</h4>
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                    <div style="flex:1;min-width:220px;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:10px;">
+                        <div style="font-weight:700;color:#166534;">Top performer</div>
+                        <div>${escapeHtml(top?.evaluatee_name || 'N/A')} — ${Number(top?.avg_overall || 0).toFixed(2)} / 5</div>
+                    </div>
+                    <div style="flex:1;min-width:220px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px;">
+                        <div style="font-weight:700;color:#9a3412;">Needs support</div>
+                        <div>${escapeHtml(low?.evaluatee_name || 'N/A')} — ${Number(low?.avg_overall || 0).toFixed(2)} / 5</div>
+                    </div>
+                </div>
+                <table class="marks-table">
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Responses</th>
+                            <th>Contribution</th>
+                            <th>Communication</th>
+                            <th>Quality</th>
+                            <th>Reliability</th>
+                            <th>Overall</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${peerRows.map(r => `
+                            <tr>
+                                <td>${escapeHtml(r.evaluatee_name)}</td>
+                                <td>${Number(r.responses) || 0}</td>
+                                <td>${escapeHtml(r.avg_contribution)}</td>
+                                <td>${escapeHtml(r.avg_communication)}</td>
+                                <td>${escapeHtml(r.avg_quality)}</td>
+                                <td>${escapeHtml(r.avg_reliability)}</td>
+                                <td><strong>${escapeHtml(r.avg_overall)}</strong></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        ` : '<div style="margin-top:14px;color:#6b7280;">No peer evaluations yet for this team.</div>';
+
+        const activitiesHtml = recentActivities.length
+            ? `<ul style="margin:6px 0 0 16px;padding:0;">${recentActivities.map(a => `<li style="margin-bottom:4px;"><strong>${escapeHtml(a.user_name || ('User #' + (a.user_id || '')))}</strong> • ${escapeHtml(a.action_type || '')} <span style="color:#94a3b8;">(${formatDateTime(a.created_at)})</span><br><span style="color:#475569;">${escapeHtml(a.action_detail || '')}</span></li>`).join('')}</ul>`
+            : '<p style="color:#9ca3af;">No recent activities.</p>';
+
+        const filesHtml = recentFiles.length
+            ? `<ul style="margin:6px 0 0 16px;padding:0;">${recentFiles.map(f => `<li style="margin-bottom:4px;">${escapeHtml(f.file_name || 'File')} • by ${escapeHtml(f.uploader_name || ('User #' + (f.uploader_id || '')))} <span style="color:#94a3b8;">(${formatDateTime(f.uploaded_at)})</span></li>`).join('')}</ul>`
+            : '<p style="color:#9ca3af;">No files uploaded yet.</p>';
+
+        const standupsHtml = recentStandups.length
+            ? `<ul style="margin:6px 0 0 16px;padding:0;">${recentStandups.map(s => `<li style="margin-bottom:4px;"><strong>${escapeHtml(s.user_name || ('User #' + (s.user_id || '')))}</strong> <span style="color:#94a3b8;">(${formatDateTime(s.created_at)})</span><br><span style="color:#475569;">Yesterday: ${escapeHtml(s.yesterday || '-')} | Today: ${escapeHtml(s.today || '-')} | Blockers: ${escapeHtml(s.blockers || '-')}</span></li>`).join('')}</ul>`
+            : '<p style="color:#9ca3af;">No standups yet.</p>';
 
         let html = `
-            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
-                <div style="flex:1;min-width:220px;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:10px;">
-                    <div style="font-weight:700;color:#166534;">Top performer</div>
-                    <div>${top.evaluatee_name} — ${Number(top.avg_overall).toFixed(2)} / 5</div>
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+                <div>
+                    <h3 style="margin:0;color:#0f172a;">${escapeHtml(team.title || 'Team')}</h3>
+                    <div style="color:#64748b;font-size:13px;">${escapeHtml(team.unit_code || '')} ${escapeHtml(team.unit_name || '')} • ${escapeHtml(team.assessment_type || 'General')} • ${escapeHtml(team.status || '')}</div>
                 </div>
-                <div style="flex:1;min-width:220px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px;">
-                    <div style="font-weight:700;color:#9a3412;">Needs support</div>
-                    <div>${low.evaluatee_name} — ${Number(low.avg_overall).toFixed(2)} / 5</div>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;min-width:210px;">
+                    <div style="font-size:12px;color:#475569;">Team Health Score</div>
+                    <div style="font-size:24px;font-weight:800;color:#111827;">${Number(data.health?.score || 0)}%</div>
+                    <div style="font-size:12px;color:#64748b;">Done tasks: ${Number(data.health?.tasks_done || 0)} • Activity (7d): ${Number(data.health?.activity_7d || 0)}</div>
                 </div>
             </div>
-            <table class="marks-table">
-                <thead>
-                    <tr>
-                        <th>Member</th>
-                        <th>Responses</th>
-                        <th>Contribution</th>
-                        <th>Communication</th>
-                        <th>Quality</th>
-                        <th>Reliability</th>
-                        <th>Overall</th>
-                    </tr>
-                </thead>
-                <tbody>
+
+            <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:10px;">
+                <div style="background:#f8fafc;border-radius:8px;padding:10px;"><div style="font-size:12px;color:#64748b;">Members</div><div style="font-weight:700;">${Number(summary.member_count) || 0}</div></div>
+                <div style="background:#f8fafc;border-radius:8px;padding:10px;"><div style="font-size:12px;color:#64748b;">Files</div><div style="font-weight:700;">${Number(summary.file_count) || 0}</div></div>
+                <div style="background:#f8fafc;border-radius:8px;padding:10px;"><div style="font-size:12px;color:#64748b;">Kanban Tasks</div><div style="font-weight:700;">${Number(summary.task_count) || 0}</div></div>
+                <div style="background:#f8fafc;border-radius:8px;padding:10px;"><div style="font-size:12px;color:#64748b;">Standups</div><div style="font-weight:700;">${Number(summary.standup_count) || 0}</div></div>
+                <div style="background:#f8fafc;border-radius:8px;padding:10px;"><div style="font-size:12px;color:#64748b;">Activity Events</div><div style="font-weight:700;">${Number(summary.activity_count) || 0}</div></div>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;">
+                <div style="min-width:260px;flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;">
+                    <h4 style="margin:0 0 8px 0;">Activity Heatmap (14 days)</h4>
+                    ${renderHeatmap(data.health?.heatmap || {})}
+                </div>
+                <div style="min-width:260px;flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;">
+                    <h4 style="margin:0 0 8px 0;">Kanban Snapshot</h4>
+                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;font-size:13px;">
+                        <div>Backlog: <strong>${Number(summary.kanban_counts?.['Backlog'] || 0)}</strong></div>
+                        <div>In Progress: <strong>${Number(summary.kanban_counts?.['In Progress'] || 0)}</strong></div>
+                        <div>In Review: <strong>${Number(summary.kanban_counts?.['In Review'] || 0)}</strong></div>
+                        <div>Done: <strong>${Number(summary.kanban_counts?.['Done'] || 0)}</strong></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin:10px 0 8px;font-weight:700;color:#0f172a;">Per-Student Activity</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;">${memberCards}</div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:14px;">
+                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;"><h4 style="margin:0 0 6px 0;">Recent Files</h4>${filesHtml}</div>
+                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;"><h4 style="margin:0 0 6px 0;">Recent Standups</h4>${standupsHtml}</div>
+                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;"><h4 style="margin:0 0 6px 0;">Recent Activity Log</h4>${activitiesHtml}</div>
+            </div>
+
+            ${peerHtml}
         `;
-        rows.forEach(r => {
-            html += `
-                <tr>
-                    <td>${r.evaluatee_name}</td>
-                    <td>${r.responses}</td>
-                    <td>${r.avg_contribution}</td>
-                    <td>${r.avg_communication}</td>
-                    <td>${r.avg_quality}</td>
-                    <td>${r.avg_reliability}</td>
-                    <td><strong>${r.avg_overall}</strong></td>
-                </tr>
-            `;
-        });
-        html += '</tbody></table>';
         bodyEl.innerHTML = html;
     } catch (err) {
-        statusEl.textContent = 'Failed to load peer evaluation insights: ' + err.message;
+        statusEl.textContent = 'Failed to load team insights: ' + err.message;
     }
 }
 
@@ -1520,34 +1662,56 @@ function getSelectedPeerEvalTeamId() {
 function initPeerEvalUnitTiles() {
     const tiles = document.querySelectorAll('.peer-eval-unit-tile');
     const pickers = document.querySelectorAll('.peer-eval-team-picker');
+    const unitSelect = document.getElementById('insightsUnitSelect');
+
+    function activateUnit(unitKey, clearStatus = false) {
+        tiles.forEach(t => {
+            const active = t.dataset.unitKey === unitKey;
+            t.classList.toggle('active', active);
+            t.setAttribute('aria-expanded', active ? 'true' : 'false');
+        });
+        pickers.forEach(p => p.classList.toggle('visible', p.dataset.unitKey === unitKey));
+        if (unitSelect && unitSelect.value !== unitKey) {
+            unitSelect.value = unitKey;
+        }
+        if (clearStatus) {
+            const statusEl = document.getElementById('peerEvalInsightsStatus');
+            if (statusEl) statusEl.textContent = 'Select a team and click Load Insights.';
+            const bodyEl = document.getElementById('peerEvalInsightsBody');
+            if (bodyEl) bodyEl.innerHTML = '';
+        }
+    }
 
     tiles.forEach(tile => {
         tile.addEventListener('click', () => {
             const unitKey = tile.dataset.unitKey;
             const isActive = tile.classList.contains('active');
 
-            tiles.forEach(t => {
-                t.classList.remove('active');
-                t.setAttribute('aria-expanded', 'false');
-            });
-            pickers.forEach(p => p.classList.remove('visible'));
-
             if (isActive) {
+                activateUnit('', true);
+                if (unitSelect) unitSelect.value = '';
                 const statusEl = document.getElementById('peerEvalInsightsStatus');
-                if (statusEl) statusEl.textContent = 'Select a unit and team to load peer evaluation summary.';
+                if (statusEl) statusEl.textContent = 'Select a unit and team to load team activity insights.';
                 return;
             }
 
-            tile.classList.add('active');
-            tile.setAttribute('aria-expanded', 'true');
-
+            activateUnit(unitKey, true);
             const picker = document.getElementById('peerEvalTeams-' + unitKey);
-            if (picker) {
-                picker.classList.add('visible');
-                const select = picker.querySelector('.peer-eval-team-select');
-                if (select) select.focus();
-            }
+            const select = picker?.querySelector('.peer-eval-team-select');
+            if (select) select.focus();
         });
+    });
+
+    unitSelect?.addEventListener('change', () => {
+        const selectedKey = unitSelect.value;
+        if (!selectedKey) {
+            activateUnit('', true);
+            return;
+        }
+        activateUnit(selectedKey, true);
+        const picker = document.getElementById('peerEvalTeams-' + selectedKey);
+        const select = picker?.querySelector('.peer-eval-team-select');
+        if (select) select.focus();
     });
 }
 
