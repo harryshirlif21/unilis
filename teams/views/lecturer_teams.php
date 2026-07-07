@@ -44,6 +44,71 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION[
 $lecturerId = $_SESSION['user_id'];
 
 /* =========================
+   AUTO-ASSIGN MISSING TEAM LEADS
+========================= */
+$missingLeadSql = "
+SELECT DISTINCT t.id AS team_id
+FROM teams t
+JOIN lecturer_units lu ON lu.unit_id = t.unit_id
+WHERE lu.lecturer_id = ?
+  AND EXISTS (
+      SELECT 1 FROM team_members tm_exists WHERE tm_exists.team_id = t.id
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM team_members tm_lead
+      WHERE tm_lead.team_id = t.id
+        AND LOWER(COALESCE(tm_lead.role, '')) = 'leader'
+  )
+";
+
+$missingLeadStmt = $conn->prepare($missingLeadSql);
+if ($missingLeadStmt) {
+    $missingLeadStmt->bind_param("i", $lecturerId);
+    $missingLeadStmt->execute();
+    $missingLeadResult = $missingLeadStmt->get_result();
+
+    while ($missingLeadTeam = $missingLeadResult->fetch_assoc()) {
+        $teamIdForLead = (int)($missingLeadTeam['team_id'] ?? 0);
+        if ($teamIdForLead <= 0) {
+            continue;
+        }
+
+        $firstMemberSql = "
+            SELECT student_id
+            FROM team_members
+            WHERE team_id = ?
+            ORDER BY joined_at ASC, student_id ASC
+            LIMIT 1
+        ";
+        $firstMemberStmt = $conn->prepare($firstMemberSql);
+        if (!$firstMemberStmt) {
+            continue;
+        }
+        $firstMemberStmt->bind_param("i", $teamIdForLead);
+        $firstMemberStmt->execute();
+        $firstMember = $firstMemberStmt->get_result()->fetch_assoc();
+        $firstMemberStmt->close();
+
+        $firstStudentId = (int)($firstMember['student_id'] ?? 0);
+        if ($firstStudentId <= 0) {
+            continue;
+        }
+
+        $assignLeadSql = "UPDATE team_members SET role = 'leader' WHERE team_id = ? AND student_id = ?";
+        $assignLeadStmt = $conn->prepare($assignLeadSql);
+        if (!$assignLeadStmt) {
+            continue;
+        }
+        $assignLeadStmt->bind_param("ii", $teamIdForLead, $firstStudentId);
+        $assignLeadStmt->execute();
+        $assignLeadStmt->close();
+    }
+
+    $missingLeadStmt->close();
+}
+
+/* =========================
    CSRF TOKEN
 ========================= */
 if (empty($_SESSION['csrf_token'])) {
@@ -849,6 +914,7 @@ foreach ($teams as $team) {
                         <button class="ellipsis-btn" onclick="toggleMenu(<?= $team['team_id']; ?>)">⋮</button>
                         <div id="menu-<?= $team['team_id']; ?>" class="ellipsis-content">
                             <a href="#" onclick="generatePDF(<?= $team['team_id']; ?>); return false;">📄 Export PDF</a>
+                            <a href="../../teams/api/export_group_members_pdf.php?team_id=<?= $team['team_id']; ?>" target="_blank">👥 Download Group Members PDF</a>
                             <a href="#" onclick="generateExcel(<?= $team['team_id']; ?>); return false;">📊 Export Excel</a>
                             <a href="../../teams/api/peer_evaluation_report.php?team_id=<?= $team['team_id']; ?>&format=json" target="_blank">🧾 Peer Eval (JSON)</a>
                             <a href="../../teams/api/peer_evaluation_report.php?team_id=<?= $team['team_id']; ?>&format=csv" target="_blank">📥 Peer Eval (CSV)</a>
