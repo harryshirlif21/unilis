@@ -910,6 +910,13 @@ foreach ($teams as $team) {
                     <span class="badge <?= htmlspecialchars($team['status']); ?>">
                         <?= ucfirst($team['status']); ?>
                     </span>
+                    <div style="margin-top:0.5rem;">
+                        <a href="../../teams/api/export_group_members_pdf.php?team_id=<?= $team['team_id']; ?>"
+                           target="_blank"
+                           style="display:inline-block;background:#0ea5e9;color:white;text-decoration:none;padding:0.45rem 0.7rem;border-radius:6px;font-size:0.78rem;font-weight:600;">
+                            👥 Group Members PDF
+                        </a>
+                    </div>
                     <div class="ellipsis-menu" style="margin-top: 0.5rem;">
                         <button class="ellipsis-btn" onclick="toggleMenu(<?= $team['team_id']; ?>)">⋮</button>
                         <div id="menu-<?= $team['team_id']; ?>" class="ellipsis-content">
