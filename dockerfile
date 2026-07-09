@@ -24,8 +24,8 @@ RUN apt-get update && apt-get install -y \
         zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Enable Apache mod_rewrite
-RUN a2enmod rewrite
+# Enable Apache modules required for PHP routing and Python meeting proxying
+RUN a2enmod rewrite proxy proxy_http proxy_wstunnel headers
 # Copy and enable custom Apache config
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
 RUN a2ensite 000-default.conf

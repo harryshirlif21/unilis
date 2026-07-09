@@ -16,9 +16,20 @@ if (!$host) {
     }
 }
 
-$user = getenv('MYSQL_USER') ?: 'unilisuser';
-$password = getenv('MYSQL_PASSWORD') ?: 'unilispass';
-$dbname = getenv('MYSQL_DATABASE') ?: 'unilis';
+$user = getenv('MYSQL_USER');
+if ($user === false || $user === '') {
+    $user = 'unilisuser';
+}
+
+$password = getenv('MYSQL_PASSWORD');
+if ($password === false) {
+    $password = 'unilispass';
+}
+
+$dbname = getenv('MYSQL_DATABASE');
+if ($dbname === false || $dbname === '') {
+    $dbname = 'unilis';
+}
 
 // Connection retry loop with improved error handling
 $conn = null;

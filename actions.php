@@ -1197,8 +1197,14 @@ if ($action === 'schedule_meeting') {
     $lecturer_id = (int)$_SESSION['user_id'];
     $custom_link = trim($_POST['meeting_link'] ?? '');
 
-    if ($title === '' || $unit_id <= 0 || $scheduled_time === '') {
+    if ($title === '' || $unit_id <= 0 || $scheduled_time === '' || $custom_link === '') {
         $_SESSION['meeting_error'] = 'Please fill in all required fields.';
+        header('Location: lecturer/dashboard.php?tab=meetings');
+        exit;
+    }
+
+    if (!filter_var($custom_link, FILTER_VALIDATE_URL)) {
+        $_SESSION['meeting_error'] = 'Provide a valid external meeting URL.';
         header('Location: lecturer/dashboard.php?tab=meetings');
         exit;
     }
@@ -1239,11 +1245,7 @@ if ($action === 'schedule_meeting') {
     $meeting_id = (int)$conn->insert_id;
     $stmt->close();
 
-    if ($custom_link !== '') {
-        $meeting_link = $custom_link;
-    } else {
-        $meeting_link = getMeetingHostUrl($meeting_id);
-    }
+    $meeting_link = $custom_link;
 
     $student_link = getMeetingStudentJoinUrl($meeting_id);
 

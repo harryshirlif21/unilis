@@ -26,9 +26,9 @@ services:
       MYSQL_USER: unilisuser
       MYSQL_PASSWORD: unilispass
       MYSQL_DATABASE: unilis
+      MEETING_PYTHON_APP_URL: https://unilis.jhubafrica.com
       MEETING_MEDIA_PORT: "8765"
-      # Set MEETING_MEDIA_WS_URL when deploying behind HTTPS / reverse proxy, e.g.:
-      # MEETING_MEDIA_WS_URL: wss://your-domain.com:8765/ws/media
+      MEETING_MEDIA_WS_URL: wss://unilis.jhubafrica.com/ws/media
 
   meeting-server:
     build:

@@ -871,6 +871,7 @@ $stmt->close();
                                     while ($meeting = $res->fetch_assoc()) {
                                         $timeFormatted = date("d M Y • h:i A", strtotime($meeting['scheduled_time']));
                                         $studentJoinUrl = getMeetingStudentJoinUrl((int)$meeting['id']);
+                                        $hostJoinUrl = getMeetingHostUrl((int)$meeting['id']);
                                         $meetingId = (int)$meeting['id'];
                                         $inputId = 'studentMeetingLink' . $meetingId;
 
@@ -911,15 +912,11 @@ $stmt->close();
                                             echo "<a class='inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200' ";
                                             if ($isActive) {
                                                 echo "style='background:linear-gradient(135deg,#16a34a,#15803d);color:white;box-shadow:0 2px 8px rgba(22,163,74,0.3);' ";
-                                                echo "href='meeting_ide.php?meeting_id={$meetingId}' ";
-                                                echo "data-meeting-id='{$meetingId}' ";
-                                                echo "onclick='startOrJoinMeeting({$meetingId}, this)'>";
+                                                echo "href='" . htmlspecialchars($hostJoinUrl, ENT_QUOTES) . "'>";
                                                 echo "<span class='live-dot' style='display:inline-block;width:8px;height:8px;background:#ff4444;border-radius:50%;animation:pulse-dot 1.5s infinite;margin-right:4px;'></span> Join Meeting";
                                             } else {
                                                 echo "style='background:linear-gradient(135deg,#f59e0b,#d97706);color:white;box-shadow:0 2px 8px rgba(245,158,11,0.3);animation:pulse-glow 2s infinite;' ";
-                                                echo "href='meeting_ide.php?meeting_id={$meetingId}' ";
-                                                echo "data-meeting-id='{$meetingId}' ";
-                                                echo "onclick='startOrJoinMeeting({$meetingId}, this)'>";
+                                                echo "href='" . htmlspecialchars($hostJoinUrl, ENT_QUOTES) . "'>";
                                                 echo "<span class='btn-icon' style='font-size:14px;'>▶</span> Start Meeting";
                                             }
                                             echo "</a>";
@@ -928,7 +925,7 @@ $stmt->close();
                                         }
                                         // Always-visible Join button
                                         $joinBtnStyle = "display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1.5px solid #6366f1;border-radius:8px;font-size:12px;font-weight:600;color:#6366f1;background:#fff;text-decoration:none;transition:all 0.2s;";
-                                        echo "<a href='meeting_ide.php?meeting_id={$meetingId}' style='{$joinBtnStyle}' onmouseover=\"this.style.background='#eef2ff'\" onmouseout=\"this.style.background='#fff'\"><i class='fas fa-sign-in-alt' style='font-size:11px;'></i> Join</a>";
+                                        echo "<a href='" . htmlspecialchars($hostJoinUrl, ENT_QUOTES) . "' style='{$joinBtnStyle}' onmouseover=\"this.style.background='#eef2ff'\" onmouseout=\"this.style.background='#fff'\"><i class='fas fa-sign-in-alt' style='font-size:11px;'></i> Join</a>";
                                         echo "</div>";
                                         echo "</td>";
                                         echo "</tr>";
@@ -1722,8 +1719,8 @@ $stmt->close();
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Meeting Link / Location (optional)</label>
-                    <input type="url" name="meeting_link" placeholder="https://meet.google.com/...">
+                    <label>Meeting Link / Location <span class="text-red-500">*</span></label>
+                    <input type="url" name="meeting_link" placeholder="https://meet.google.com/..." required>
                 </div>
                 <div class="form-group">
                     <label>Notes / Agenda</label>
@@ -2404,41 +2401,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-
-/**
- * Start or Join Meeting - marks meeting as active and navigates to IDE
- * This function is called when clicking "Start Meeting" or "Join Meeting" buttons
- */
-function startOrJoinMeeting(meetingId, btnElement) {
-    // Update button to show loading state
-    const originalHtml = btnElement.innerHTML;
-    btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
-    btnElement.style.pointerEvents = 'none';
-    btnElement.style.opacity = '0.7';
-
-    // Mark meeting as active in database
-    fetch('../api/meeting_state.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            action: 'start_meeting',
-            meeting_id: meetingId,
-            user_id: <?= (int)$lecturer_id ?>
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Navigate to the IDE regardless of API result
-        window.location.href = btnElement.getAttribute('href');
-    })
-    .catch(error => {
-        console.error('Error starting meeting:', error);
-        // Navigate anyway even if API call fails
-        window.location.href = btnElement.getAttribute('href');
-    });
-
-    return false; // Prevent default link navigation
-}
 
 // Global notification mark-as-read function (called from onclick)
 function quickMarkRead(notificationId) {

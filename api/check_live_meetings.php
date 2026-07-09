@@ -27,6 +27,11 @@ try {
 
     $student_id = (int)$_SESSION['user_id'];
     $last_check = isset($_GET['last_check']) ? $_GET['last_check'] : null;
+    $enrollmentTable = getStudentEnrollmentTable($conn);
+
+    if ($enrollmentTable === null) {
+        throw new Exception('Student enrollment table is not available');
+    }
 
     $now = date('Y-m-d H:i:s');
 
@@ -38,7 +43,7 @@ try {
                m.started_at
         FROM meetings m
         JOIN units u ON m.unit_id = u.id
-        JOIN student_unit_enrollments sue ON sue.unit_id = u.id AND sue.student_id = ?
+         JOIN {$enrollmentTable} sue ON sue.unit_id = u.id AND sue.student_id = ?
         LEFT JOIN lecturers l ON m.lecturer_id = l.id
         WHERE COALESCE(m.ended, 0) = 0
           AND (

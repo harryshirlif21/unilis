@@ -82,7 +82,7 @@ try {
                                 <td class='py-3 px-4'>" . htmlspecialchars($meeting['unit_name']) . "</td>
                                 <td class='py-3 px-4 text-sm'>" . date("d M Y, h:i A", strtotime($meeting['scheduled_time'])) . "</td>
                                 <td class='py-3 px-4'>
-                                    <a href='meeting_ide.php?meeting_id=" . htmlspecialchars($meeting['id']) . "' target='_blank' class='text-orange-500 hover:underline font-medium'>Join Meeting</a>
+                                    <a href='meeting_join.php?meeting_id=" . htmlspecialchars($meeting['id']) . "' target='_blank' class='text-orange-500 hover:underline font-medium'>Join Meeting</a>
                                 </td>
                               </tr>";
                     }

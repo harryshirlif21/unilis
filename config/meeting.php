@@ -39,6 +39,87 @@ function getMeetingStudentJoinUrl(int $meetingId): string
     return getMeetingAppBaseUrl() . '/student/meeting_join.php?meeting_id=' . $meetingId;
 }
 
+function isInternalMeetingUrl(string $url): bool
+{
+    $trimmed = trim($url);
+    if ($trimmed === '') {
+        return true;
+    }
+
+    $path = parse_url($trimmed, PHP_URL_PATH);
+    if (!is_string($path) || $path === '') {
+        return false;
+    }
+
+    $normalized = '/' . ltrim(str_replace('\\', '/', $path), '/');
+    $internalPaths = [
+        '/meeting_ide.php',
+        '/lecturer/meeting_host.php',
+        '/student/meeting_join.php',
+        '/lecturer/meeting_ide.php',
+        '/student/meeting_ide.php',
+    ];
+
+    foreach ($internalPaths as $internalPath) {
+        if (substr($normalized, -strlen($internalPath)) === $internalPath) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function hasLaunchableMeetingLink(?string $url): bool
+{
+    return $url !== null && trim($url) !== '' && !isInternalMeetingUrl($url);
+}
+
+function getMeetingPythonAppBaseUrl(): string
+{
+    $explicit = getenv('MEETING_PYTHON_APP_URL');
+    if ($explicit !== false && $explicit !== '') {
+        return rtrim($explicit, '/');
+    }
+
+    if (PHP_SAPI === 'cli') {
+        return 'http://127.0.0.1:8765';
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+        ? 'https' : 'http';
+
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $host = preg_replace('/:\d+$/', '', $host);
+
+    return $scheme . '://' . $host . ':8765';
+}
+
+function buildMeetingPythonUiUrl(
+    string $role,
+    array $meeting,
+    int $userId,
+    string $displayName,
+    string $backUrl
+): string {
+    $path = $role === 'lecturer' ? '/meeting-ui/host' : '/meeting-ui/join';
+    $params = [
+        'meeting_id' => (int)($meeting['id'] ?? 0),
+        'user_id' => $userId,
+        'role' => $role,
+        'display_name' => $displayName,
+        'title' => (string)($meeting['title'] ?? ''),
+        'unit_name' => (string)($meeting['unit_name'] ?? ''),
+        'lecturer_name' => (string)($meeting['lecturer_name'] ?? ''),
+        'scheduled_time' => (string)($meeting['scheduled_time'] ?? ''),
+        'duration' => (int)($meeting['duration'] ?? 0),
+        'external_link' => (string)($meeting['meeting_link'] ?? ''),
+        'back_url' => $backUrl,
+    ];
+
+    return getMeetingPythonAppBaseUrl() . $path . '?' . http_build_query($params);
+}
+
 /**
  * Whether a student can enter the live meeting room.
  */
@@ -52,6 +133,29 @@ function meetingsTableHasColumn(mysqli $conn, string $column): bool
     $result = $conn->query("SHOW COLUMNS FROM meetings LIKE '{$safe}'");
     $cache[$column] = $result && $result->num_rows > 0;
     return $cache[$column];
+}
+
+function getStudentEnrollmentTable(mysqli $conn): ?string
+{
+    static $table = null;
+    static $resolved = false;
+
+    if ($resolved) {
+        return $table;
+    }
+
+    foreach (['student_unit_enrollments', 'student_units'] as $candidate) {
+        $safe = $conn->real_escape_string($candidate);
+        $result = $conn->query("SHOW TABLES LIKE '{$safe}'");
+        if ($result && $result->num_rows > 0) {
+            $table = $candidate;
+            $resolved = true;
+            return $table;
+        }
+    }
+
+    $resolved = true;
+    return null;
 }
 
 /**
@@ -95,6 +199,11 @@ function fetchStudentMeetingsByUnit(mysqli $conn, int $studentId): array
     $now = date('Y-m-d H:i:s');
     $grouped = [];
     $statusSelect = meetingsTableHasColumn($conn, 'meeting_status') ? ', m.meeting_status' : '';
+    $enrollmentTable = getStudentEnrollmentTable($conn);
+
+    if ($enrollmentTable === null) {
+        return [];
+    }
 
     $sql = "
         SELECT m.id, m.title, m.scheduled_time, m.duration, m.meeting_link,
@@ -103,7 +212,7 @@ function fetchStudentMeetingsByUnit(mysqli $conn, int $studentId): array
                l.name AS lecturer_name
         FROM meetings m
         JOIN units u ON m.unit_id = u.id
-        JOIN student_unit_enrollments sue ON sue.unit_id = u.id AND sue.student_id = ?
+        JOIN {$enrollmentTable} sue ON sue.unit_id = u.id AND sue.student_id = ?
         LEFT JOIN lecturers l ON m.lecturer_id = l.id
         WHERE COALESCE(m.ended, 0) = 0
           AND DATE_ADD(m.scheduled_time, INTERVAL m.duration MINUTE) >= ?

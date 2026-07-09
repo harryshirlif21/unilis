@@ -1,6 +1,6 @@
 <?php
 /**
- * Database configuration for WebRTC Meeting System
+ * Database configuration for the meeting module
  * Docker-compatible + keeps Database class for executeQuery()
  */
 
