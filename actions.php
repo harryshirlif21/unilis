@@ -1197,13 +1197,13 @@ if ($action === 'schedule_meeting') {
     $lecturer_id = (int)$_SESSION['user_id'];
     $custom_link = trim($_POST['meeting_link'] ?? '');
 
-    if ($title === '' || $unit_id <= 0 || $scheduled_time === '' || $custom_link === '') {
+    if ($title === '' || $unit_id <= 0 || $scheduled_time === '') {
         $_SESSION['meeting_error'] = 'Please fill in all required fields.';
         header('Location: lecturer/dashboard.php?tab=meetings');
         exit;
     }
 
-    if (!filter_var($custom_link, FILTER_VALIDATE_URL)) {
+    if ($custom_link !== '' && !filter_var($custom_link, FILTER_VALIDATE_URL)) {
         $_SESSION['meeting_error'] = 'Provide a valid external meeting URL.';
         header('Location: lecturer/dashboard.php?tab=meetings');
         exit;
@@ -1245,9 +1245,9 @@ if ($action === 'schedule_meeting') {
     $meeting_id = (int)$conn->insert_id;
     $stmt->close();
 
-    $meeting_link = $custom_link;
-
+    $host_link = getMeetingHostUrl($meeting_id);
     $student_link = getMeetingStudentJoinUrl($meeting_id);
+    $meeting_link = $custom_link !== '' ? $custom_link : $student_link;
 
     $upd = $conn->prepare('UPDATE meetings SET meeting_link = ? WHERE id = ? AND lecturer_id = ?');
     $upd->bind_param('sii', $meeting_link, $meeting_id, $lecturer_id);
@@ -1255,8 +1255,9 @@ if ($action === 'schedule_meeting') {
     $upd->close();
 
     $_SESSION['meeting_success'] = 'Meeting scheduled successfully.';
-    $_SESSION['meeting_link'] = $meeting_link;
+    $_SESSION['meeting_link'] = $host_link;
     $_SESSION['meeting_student_link'] = $student_link;
+    $_SESSION['meeting_launch_link'] = $meeting_link;
     $_SESSION['meeting_unit_name'] = '';
     $unitNameStmt = $conn->prepare('SELECT name FROM units WHERE id = ? LIMIT 1');
     $unitNameStmt->bind_param('i', $unit_id);

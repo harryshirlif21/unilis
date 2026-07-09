@@ -117,7 +117,7 @@ def render_meeting_page(
                 "back_url": html.escape(back_url),
         }
         can_launch = has_launchable_meeting_link(external_link)
-        action_label = "Open Meeting Link" if page_role == "lecturer" else "Join External Meeting"
+        action_label = "Open External Meeting Link" if page_role == "lecturer" else "Open External Meeting Link"
         eyebrow = "Python Meeting Host" if page_role == "lecturer" else "Python Meeting Join"
         copy = (
                 "This meeting page is served by the Python meeting server. "
@@ -137,13 +137,13 @@ def render_meeting_page(
                 else ""
         )
         notice_html = (
-                "<div class=\"notice notice-success\">"
-                "Python is serving the meeting app UI and the presence signaling socket for this room is connected below."
-                "</div>"
-                if can_launch
-                else "<div class=\"notice notice-warning\">"
-                "No valid external meeting link is configured for this session yet."
-                "</div>"
+            "<div class=\"notice notice-success\">"
+            "Python is serving the meeting app UI and the presence signaling socket for this room is connected below."
+            "</div>"
+            if can_launch
+            else "<div class=\"notice notice-success\">"
+            "Python is serving this meeting room directly. No extra external meeting link is required."
+            "</div>"
         )
 
         return f"""<!DOCTYPE html>

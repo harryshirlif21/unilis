@@ -103,7 +103,7 @@ if (isset($_SESSION['meeting_error'])) {
     <input type="number" name="duration" min="5" max="300" value="60" required><br>
 
     <label>Meeting Link:</label><br>
-    <input type="url" name="meeting_link" required placeholder="https://meet.google.com/..." style="width:60%;"><br>
+    <input type="url" name="meeting_link" placeholder="Leave blank to auto-generate a UNILIS meeting link" style="width:60%;"><br>
 
     <button type="submit" class="btn">Schedule</button>
 </form>
