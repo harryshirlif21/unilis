@@ -74,11 +74,50 @@ function hasLaunchableMeetingLink(?string $url): bool
     return $url !== null && trim($url) !== '' && !isInternalMeetingUrl($url);
 }
 
+function isLocalMeetingHost(string $host): bool
+{
+    $normalized = strtolower(trim($host));
+    return in_array($normalized, ['localhost', '127.0.0.1', '::1'], true);
+}
+
+function normalizeMeetingPythonBaseUrl(string $baseUrl): string
+{
+    $trimmed = trim($baseUrl);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    $trimmed = rtrim($trimmed, '/');
+    $parseTarget = $trimmed;
+    $hasScheme = preg_match('#^[a-z][a-z0-9+.-]*://#i', $parseTarget) === 1;
+    if (!$hasScheme && strpos($parseTarget, '//') !== 0) {
+        // Accept values like "example.com:8765" by adding a temporary scheme for parsing.
+        $parseTarget = 'https://' . $parseTarget;
+    }
+
+    $parts = parse_url($parseTarget);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return $trimmed;
+    }
+
+    $scheme = $hasScheme ? ($parts['scheme'] ?? 'https') : 'https';
+    $host = $parts['host'];
+    $path = isset($parts['path']) ? rtrim($parts['path'], '/') : '';
+    $port = $parts['port'] ?? null;
+
+    // Production should prefer the proxied app domain over direct :8765 access.
+    if ($port === 8765 && !isLocalMeetingHost($host)) {
+        return $scheme . '://' . $host . $path;
+    }
+
+    return $trimmed;
+}
+
 function getMeetingPythonAppBaseUrl(): string
 {
     $explicit = getenv('MEETING_PYTHON_APP_URL');
     if ($explicit !== false && $explicit !== '') {
-        return rtrim($explicit, '/');
+        return normalizeMeetingPythonBaseUrl($explicit);
     }
 
     if (PHP_SAPI === 'cli') {
@@ -92,7 +131,11 @@ function getMeetingPythonAppBaseUrl(): string
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $host = preg_replace('/:\d+$/', '', $host);
 
-    return $scheme . '://' . $host . ':8765';
+    if (isLocalMeetingHost($host)) {
+        return $scheme . '://' . $host . ':8765';
+    }
+
+    return $scheme . '://' . $host;
 }
 
 function buildMeetingPythonUiUrl(
@@ -274,5 +317,9 @@ function getMeetingMediaWsUrl(): string
 
     $scheme = $isSecure ? 'wss' : 'ws';
 
-    return "{$scheme}://{$host}:{$port}{$path}";
+    if (isLocalMeetingHost($host)) {
+        return "{$scheme}://{$host}:{$port}{$path}";
+    }
+
+    return "{$scheme}://{$host}{$path}";
 }

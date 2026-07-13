@@ -5,8 +5,14 @@ define('TOKEN_EXPIRY_MINUTES', 60); // <-- set to your desired expiry
 $maxRetries = 5;
 $retryDelay = 3; // seconds
 
+$dbTarget = strtolower((string)(getenv('DB_TARGET') ?: getenv('DB_CONNECTION') ?: ''));
+$appEnv = strtolower((string)(getenv('APP_ENV') ?: ''));
+$useProductionDb = ($dbTarget === 'db-production') || ($appEnv === 'production');
+
 // Get environment variables with fallbacks for Docker
-$host = getenv('DB_HOST') ?: '127.0.0.1';
+$host = $useProductionDb
+    ? (getenv('DB_PRODUCTION_HOST') ?: getenv('DB_HOST') ?: '127.0.0.1')
+    : (getenv('DB_HOST') ?: '127.0.0.1');
 if (!$host) {
     // Check if running in Docker
     if (file_exists('/.dockerenv')) {
@@ -16,17 +22,25 @@ if (!$host) {
     }
 }
 
-$user = getenv('MYSQL_USER');
+$user = $useProductionDb
+    ? (getenv('DB_PRODUCTION_USER') ?: getenv('MYSQL_USER'))
+    : getenv('MYSQL_USER');
 if ($user === false || $user === '') {
     $user = 'unilisuser';
 }
 
-$password = getenv('MYSQL_PASSWORD');
+$productionPassword = getenv('DB_PRODUCTION_PASSWORD');
+$defaultPassword = getenv('MYSQL_PASSWORD');
+$password = $useProductionDb
+    ? ($productionPassword !== false ? $productionPassword : $defaultPassword)
+    : $defaultPassword;
 if ($password === false) {
     $password = 'unilispass';
 }
 
-$dbname = getenv('MYSQL_DATABASE');
+$dbname = $useProductionDb
+    ? (getenv('DB_PRODUCTION_NAME') ?: getenv('MYSQL_DATABASE'))
+    : getenv('MYSQL_DATABASE');
 if ($dbname === false || $dbname === '') {
     $dbname = 'unilis';
 }
