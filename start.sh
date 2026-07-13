@@ -2,8 +2,22 @@
 
 set -e
 
-PROXY_HOST="${MEETING_PROXY_HOST:-127.0.0.1}"
 PROXY_PORT="${MEETING_PROXY_PORT:-8765}"
+
+if [ -n "${MEETING_PROXY_HOST:-}" ]; then
+	PROXY_HOST="${MEETING_PROXY_HOST}"
+else
+	# Pick a sensible default upstream based on where the meeting service is resolvable.
+	for candidate in meeting-server unilis-meeting-media host.docker.internal 127.0.0.1; do
+		if [ "$candidate" = "127.0.0.1" ] || getent hosts "$candidate" >/dev/null 2>&1; then
+			PROXY_HOST="$candidate"
+			break
+		fi
+	done
+	PROXY_HOST="${PROXY_HOST:-127.0.0.1}"
+fi
+
+echo "[unilis] Meeting proxy upstream: ${PROXY_HOST}:${PROXY_PORT}"
 
 if [ -f /etc/apache2/sites-available/000-default.conf.template ]; then
 	sed \
