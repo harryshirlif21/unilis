@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y \
 RUN a2enmod rewrite proxy proxy_http proxy_wstunnel headers
 # Copy and enable custom Apache config
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
+RUN cp /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/000-default.conf.template
 RUN a2ensite 000-default.conf
 # Configure Postfix
 RUN postconf -e "myhostname = unilis.jhubafrica.com" \

@@ -26,6 +26,8 @@ services:
       MYSQL_USER: unilisuser
       MYSQL_PASSWORD: unilispass
       MYSQL_DATABASE: unilis
+      MEETING_PROXY_HOST: meeting-server
+      MEETING_PROXY_PORT: "8765"
       MEETING_PYTHON_APP_URL: https://unilis.jhubafrica.com
       MEETING_MEDIA_PORT: "8765"
       MEETING_MEDIA_WS_URL: wss://unilis.jhubafrica.com/ws/media
