@@ -1,0 +1,42 @@
+# Live Engagement Module - Apache Configuration
+# Protect sensitive directories
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Block direct access to sensitive directories
+    RewriteRule ^(database|config|helpers|models|services|storage)/ - [F,L]
+    
+    # Block access to PHP files in uploads
+    RewriteRule ^uploads/.*\.php$ - [F,L]
+    
+    # Allow API access
+    RewriteRule ^api/(.*)$ api/$1 [L]
+</IfModule>
+
+# Protect files
+<FilesMatch "\.(sql|md|log|env)$">
+    Require all denied
+</FilesMatch>
+
+# PHP settings
+<IfModule mod_php.c>
+    php_value upload_max_filesize 50M
+    php_value post_max_size 55M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>
+
+# Caching for assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+</IfModule>
+
+# Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json
+</IfModule>

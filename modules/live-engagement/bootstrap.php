@@ -1,0 +1,302 @@
+<?php
+/**
+ * Live Engagement Module - Bootstrap
+ * 
+ * Initializes the module, loads configuration, and sets up autoloading.
+ * Include this file at the top of any Live Engagement page.
+ * 
+ * @package UNILIS\LiveEngagement
+ * @version 1.0.0
+ */
+
+// Prevent direct access
+if (!defined('UNILIS_ACCESS')) {
+    define('UNILIS_ACCESS', true);
+}
+
+// Module base path
+define('LE_MODULE_PATH', __DIR__);
+define('LE_MODULE_URL', 'modules/live-engagement');
+
+// Load configuration
+$leConfig = require __DIR__ . '/config/module.php';
+
+// Load database helper
+require_once __DIR__ . '/config/database_helper.php';
+
+// Load helpers
+require_once __DIR__ . '/helpers/security_helper.php';
+require_once __DIR__ . '/helpers/session_helper.php';
+
+// Load CSRF token
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Initialize CSRF token
+if (!isset($_SESSION[LE_CSRF_TOKEN_NAME])) {
+    $_SESSION[LE_CSRF_TOKEN_NAME] = bin2hex(random_bytes(32));
+}
+
+/**
+ * Simple autoloader for Live Engagement classes
+ * 
+ * Maps namespaces to directories:
+ *   LE\Models\*     -> models/
+ *   LE\Services\*   -> services/
+ *   LE\Controllers\* -> controllers/
+ *   LE\Helpers\*    -> helpers/
+ *   LE\Components\* -> components/
+ */
+spl_autoload_register(function (string $class) {
+    $prefix = 'LE\\';
+    $baseDir = __DIR__ . '/';
+
+    if (strncmp($prefix, $class, strlen($prefix)) !== 0) {
+        return;
+    }
+
+    $relativeClass = substr($class, strlen($prefix));
+    $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+
+    if (file_exists($file)) {
+        require_once $file;
+    }
+}, true, true);
+
+/**
+ * Check if the current user is authenticated
+ * 
+ * @return bool
+ */
+function le_is_authenticated(): bool
+{
+    return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
+}
+
+/**
+ * Get current user ID
+ * 
+ * @return int|null
+ */
+function le_current_user_id(): ?int
+{
+    return $_SESSION['user_id'] ?? null;
+}
+
+/**
+ * Get current user role
+ * 
+ * @return string|null
+ */
+function le_current_user_role(): ?string
+{
+    return $_SESSION['role'] ?? null;
+}
+
+/**
+ * Get current user name
+ * 
+ * @return string|null
+ */
+function le_current_user_name(): ?string
+{
+    return $_SESSION['name'] ?? null;
+}
+
+/**
+ * Get current user email
+ * 
+ * @return string|null
+ */
+function le_current_user_email(): ?string
+{
+    return $_SESSION['email'] ?? null;
+}
+
+/**
+ * Require authentication - redirects if not logged in
+ * 
+ * @param string $redirectUrl URL to redirect to
+ */
+function le_require_auth(string $redirectUrl = '/login.php'): void
+{
+    if (!le_is_authenticated()) {
+        header('Location: ' . $redirectUrl);
+        exit;
+    }
+}
+
+/**
+ * Check if user has a specific role
+ * 
+ * @param string|array $roles Role(s) to check
+ * @return bool
+ */
+function le_has_role($roles): bool
+{
+    if (!le_is_authenticated()) {
+        return false;
+    }
+
+    $userRole = le_current_user_role();
+    
+    if (is_array($roles)) {
+        return in_array($userRole, $roles, true);
+    }
+    
+    return $userRole === $roles;
+}
+
+/**
+ * Generate a unique session code
+ * 
+ * @param int $length Code length
+ * @return string
+ */
+function le_generate_session_code(int $length = 8): string
+{
+    $characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $code = '';
+    $maxIndex = strlen($characters) - 1;
+    
+    for ($i = 0; $i < $length; $i++) {
+        $code .= $characters[random_int(0, $maxIndex)];
+    }
+    
+    // Ensure uniqueness in database
+    $db = le_db();
+    $exists = $db->fetchOne(
+        "SELECT 1 FROM live_sessions WHERE session_code = ? LIMIT 1",
+        [$code]
+    );
+    
+    if ($exists) {
+        return le_generate_session_code($length);
+    }
+    
+    return $code;
+}
+
+/**
+ * Format time duration for display
+ * 
+ * @param int $seconds Duration in seconds
+ * @return string Formatted duration
+ */
+function le_format_duration(int $seconds): string
+{
+    if ($seconds < 60) {
+        return "{$seconds}s";
+    }
+    
+    $minutes = floor($seconds / 60);
+    $remainingSeconds = $seconds % 60;
+    
+    if ($minutes < 60) {
+        return $remainingSeconds > 0 
+            ? "{$minutes}m {$remainingSeconds}s" 
+            : "{$minutes}m";
+    }
+    
+    $hours = floor($minutes / 60);
+    $remainingMinutes = $minutes % 60;
+    
+    return $remainingMinutes > 0 
+        ? "{$hours}h {$remainingMinutes}m" 
+        : "{$hours}h";
+}
+
+/**
+ * Get module asset URL
+ * 
+ * @param string $path Asset path relative to assets folder
+ * @return string Full URL
+ */
+function le_asset_url(string $path): string
+{
+    $baseUrl = '';
+    
+    if (isset($_SERVER['HTTP_HOST'])) {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . '/unilis/';
+    }
+    
+    return $baseUrl . LE_MODULE_URL . '/assets/' . ltrim($path, '/');
+}
+
+/**
+ * Get module config value with dot notation
+ * 
+ * @param string $key Config key (e.g., 'module.name')
+ * @param mixed $default Default value
+ * @return mixed
+ */
+function le_config(string $key, $default = null)
+{
+    static $config = null;
+    
+    if ($config === null) {
+        $config = require __DIR__ . '/config/module.php';
+    }
+    
+    $keys = explode('.', $key);
+    $value = $config;
+    
+    foreach ($keys as $segment) {
+        if (!is_array($value) || !array_key_exists($segment, $value)) {
+            return $default;
+        }
+        $value = $value[$segment];
+    }
+    
+    return $value;
+}
+
+/**
+ * Get module version
+ * 
+ * @return string
+ */
+function le_version(): string
+{
+    return le_config('module.version', '1.0.0');
+}
+
+/**
+ * Check if a database table exists
+ * 
+ * @param string $tableName
+ * @return bool
+ */
+function le_table_exists(string $tableName): bool
+{
+    try {
+        return le_db()->tableExists($tableName);
+    } catch (Exception $e) {
+        error_log("le_table_exists check failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Run database installation if needed
+ * 
+ * @return array{success: bool, messages: string[]}
+ */
+function le_install_database(): array
+{
+    require_once __DIR__ . '/database/install.php';
+    return installLiveEngagementTables(le_db()->getConnection());
+}
+
+/**
+ * Run database updates if needed
+ * 
+ * @return array{success: bool, messages: string[]}
+ */
+function le_update_database(): array
+{
+    require_once __DIR__ . '/database/update.php';
+    return updateLiveEngagementTables(le_db()->getConnection());
+}
