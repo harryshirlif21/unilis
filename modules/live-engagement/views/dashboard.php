@@ -23,6 +23,9 @@ if ($role !== 'lecturer' && $role !== 'admin') {
 $sessionModel = new \LE\Models\SessionModel();
 $activeSessions = $sessionModel->getLecturerActiveSessions($userId);
 $sessionHistory = $sessionModel->getLecturerHistory($userId);
+$autoCreate = isset($_GET['create']) && $_GET['create'] === '1';
+$defaultSessionType = le_get('type', 'mixed');
+$defaultUnitId = (int)le_get('unit_id', 0, true);
 
 // Get courses for dropdown
 $db = le_db();
@@ -53,10 +56,10 @@ include __DIR__ . '/../../includes/header.php';
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
             <div>
                 <h1 style="font-size: 1.8rem; margin: 0;">Live Engagement</h1>
-                <p style="color: var(--le-gray-600); margin: 4px 0 0;">Create and manage interactive live sessions</p>
+                <p style="color: var(--le-gray-600); margin: 4px 0 0;">Create presentations and run interactive live sessions</p>
             </div>
             <button class="le-btn le-btn-primary le-btn-lg" onclick="showCreateSessionModal()">
-                <span>+</span> New Session
+                <span>+</span> Create Presentation
             </button>
         </div>
     </div>
@@ -77,7 +80,7 @@ include __DIR__ . '/../../includes/header.php';
                     <div class="le-empty-title">No Active Sessions</div>
                     <div class="le-empty-text">Create a new session to start engaging with your students in real-time.</div>
                     <button class="le-btn le-btn-primary" style="margin-top: 16px;" onclick="showCreateSessionModal()">
-                        Create Session
+                        Create Presentation
                     </button>
                 </div>
             <?php else: ?>
@@ -245,7 +248,7 @@ include __DIR__ . '/../../includes/header.php';
                 </div>
                 <div class="le-form-group">
                     <label class="le-label">Session Type</label>
-                    <select class="le-select" name="session_type">
+                    <select class="le-select" name="session_type" id="sessionTypeSelect">
                         <option value="mixed">Mixed (All Features)</option>
                         <option value="presentation">Presentation Only</option>
                         <option value="poll">Polling Only</option>
@@ -281,6 +284,10 @@ include __DIR__ . '/../../includes/header.php';
 
 <script src="<?= le_asset_url('js/live-engagement.js') ?>"></script>
 <script>
+    const AUTO_CREATE_PRESENTATION = <?= json_encode($autoCreate) ?>;
+    const DEFAULT_SESSION_TYPE = <?= json_encode($defaultSessionType) ?>;
+    const DEFAULT_UNIT_ID = <?= json_encode($defaultUnitId) ?>;
+
     // Initialize
     LiveEngagement.init({
         isPresenter: true,
@@ -288,6 +295,16 @@ include __DIR__ . '/../../includes/header.php';
 
     // Show create session modal
     function showCreateSessionModal() {
+        const sessionTypeSelect = document.getElementById('sessionTypeSelect');
+        if (sessionTypeSelect && DEFAULT_SESSION_TYPE) {
+            sessionTypeSelect.value = DEFAULT_SESSION_TYPE;
+        }
+
+        const unitSelect = document.getElementById('unitSelect');
+        if (unitSelect && DEFAULT_UNIT_ID) {
+            unitSelect.value = String(DEFAULT_UNIT_ID);
+        }
+
         document.getElementById('createSessionModal').style.display = 'flex';
     }
 
@@ -354,6 +371,10 @@ include __DIR__ . '/../../includes/header.php';
                 option.style.display = 'none';
             }
         });
+    }
+
+    if (AUTO_CREATE_PRESENTATION) {
+        showCreateSessionModal();
     }
 </script>
 

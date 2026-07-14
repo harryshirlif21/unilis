@@ -586,7 +586,7 @@ $stmt->close();
         </a>
     </li>
     <li class="golden">
-        <a href="../modules/live-engagement/index.php?page=dashboard" style="color:inherit;text-decoration:none;">
+        <a href="../modules/live-engagement/index.php?page=dashboard&create=1&type=presentation" style="color:inherit;text-decoration:none;">
             <i class="fas fa-chalkboard"></i><span>Live Engagement</span>
         </a>
     </li>
@@ -636,7 +636,7 @@ $stmt->close();
                     <a href="upload_notes.php" class="btn btn-secondary" id="view-notes-btn">
                         View Interactive Notes
                     </a>
-                    <a href="../modules/live-engagement/index.php?page=dashboard" class="btn btn-secondary">
+                    <a href="../modules/live-engagement/index.php?page=dashboard&create=1&type=presentation" class="btn btn-secondary">
                         Create Live Presentation
                     </a>
                     <button id="uploadNotesBtn" class="btn btn-green">Upload Notes</button>

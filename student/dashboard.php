@@ -1316,6 +1316,10 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
                             Join when live
                         </button>
                     <?php endif; ?>
+                    <a href="../modules/live-engagement/index.php?page=join" class="btn btn-primary">
+                        <span class="material-symbols-outlined">group</span>
+                        Join Presentation
+                    </a>
                     <a href="my_units.php" class="btn btn-secondary">
                         <span class="material-symbols-outlined">menu_book</span>
                         My Units
