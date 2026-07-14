@@ -585,6 +585,11 @@ $stmt->close();
             <i class="fas fa-file-contract"></i><span>📁 Request Files</span>
         </a>
     </li>
+    <li class="golden">
+        <a href="../modules/live-engagement/index.php?page=dashboard" style="color:inherit;text-decoration:none;">
+            <i class="fas fa-chalkboard"></i><span>Live Engagement</span>
+        </a>
+    </li>
     <!-- NEW: Notes Sent sidebar item -->
     <li class="notes-sent-btn" id="sidebarNotesSent">
         <i class="fas fa-paper-plane" style="color:#6366f1;"></i><span>Notes Sent</span>
@@ -631,8 +636,14 @@ $stmt->close();
                     <a href="upload_notes.php" class="btn btn-secondary" id="view-notes-btn">
                         View Interactive Notes
                     </a>
+                    <a href="../modules/live-engagement/index.php?page=dashboard" class="btn btn-secondary">
+                        Create Live Presentation
+                    </a>
                     <button id="uploadNotesBtn" class="btn btn-green">Upload Notes</button>
                 </div>
+                <p style="margin-top: 10px; color: #6b7280; font-size: 13px; text-align: center;">
+                    Use Create Live Presentation, then click New Session and select your unit.
+                </p>
             </div>
 
             <div id="notes-tiles" class="hidden">
