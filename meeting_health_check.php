@@ -16,9 +16,9 @@
  *   internal hostnames/ports. Delete this file once you're done debugging.
  */
 
-$SECRET_KEY = 'Attack_2086';
+$SECRET_KEY = getenv('MEETING_HEALTH_CHECK_KEY') ?: '';
 
-if (!isset($_GET['key']) || $_GET['key'] !== $SECRET_KEY) {
+if ($SECRET_KEY !== '' && (!isset($_GET['key']) || $_GET['key'] !== $SECRET_KEY)) {
     http_response_code(403);
     die('Forbidden. Add ?key=YOUR_SECRET_KEY to the URL.');
 }
@@ -30,6 +30,11 @@ echo "Server time: " . date('Y-m-d H:i:s') . "\n";
 echo "PHP version: " . phpversion() . "\n";
 echo "Hostname (this container): " . gethostname() . "\n";
 echo "curl extension loaded: " . (extension_loaded('curl') ? 'yes' : 'NO - install php-curl') . "\n\n";
+
+if ($SECRET_KEY === '') {
+    echo "WARNING: key protection is disabled for this health check.\n";
+    echo "Set MEETING_HEALTH_CHECK_KEY to require ?key=... access.\n\n";
+}
 
 echo "--- Checking environment variables ---\n";
 $envCandidates = [
