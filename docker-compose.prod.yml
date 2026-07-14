@@ -1,0 +1,37 @@
+services:
+  app:
+    image: hilkim21/unilis-app:1.0
+    container_name: unilis-app
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      MEETING_PROXY_HOST: meeting-server
+      MEETING_PROXY_PORT: "8765"
+    depends_on:
+      meeting-server:
+        condition: service_healthy
+    networks:
+      - unilis-net
+
+  meeting-server:
+    image: hilkim21/unilis-meeting-media:1.0
+    container_name: unilis-meeting-media
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - unilis-net
+
+networks:
+  unilis-net:
+    name: unilis-net

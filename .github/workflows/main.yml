@@ -45,14 +45,16 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
+      - name: Upload production compose file
+        run: |
+          scp docker-compose.prod.yml ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}:~/unilis/docker-compose.prod.yml
+
       - name: Deploy to Production Server
         run: |
           ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} << 'EOF'
-            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
-            docker stop unilis-app || true
-            docker rm unilis-app || true
-            docker run -d \
-              --name unilis-app \
-              -p 80:80 \
-              ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
+            mkdir -p ~/unilis
+            cd ~/unilis
+
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
           EOF
