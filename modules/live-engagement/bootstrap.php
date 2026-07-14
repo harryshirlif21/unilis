@@ -91,7 +91,11 @@ function le_current_user_id(): ?int
  */
 function le_current_user_role(): ?string
 {
-    return $_SESSION['role'] ?? null;
+    $role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? null;
+    if (!is_string($role) || $role === '') {
+        return null;
+    }
+    return strtolower(trim($role));
 }
 
 /**
@@ -101,7 +105,7 @@ function le_current_user_role(): ?string
  */
 function le_current_user_name(): ?string
 {
-    return $_SESSION['name'] ?? null;
+    return $_SESSION['user_name'] ?? $_SESSION['name'] ?? null;
 }
 
 /**
@@ -140,12 +144,16 @@ function le_has_role($roles): bool
     }
 
     $userRole = le_current_user_role();
-    
-    if (is_array($roles)) {
-        return in_array($userRole, $roles, true);
+    if ($userRole === null) {
+        return false;
     }
     
-    return $userRole === $roles;
+    if (is_array($roles)) {
+        $normalizedRoles = array_map(static fn($r) => is_string($r) ? strtolower(trim($r)) : $r, $roles);
+        return in_array($userRole, $normalizedRoles, true);
+    }
+
+    return is_string($roles) && $userRole === strtolower(trim($roles));
 }
 
 /**
