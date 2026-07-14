@@ -47,7 +47,8 @@ jobs:
 
       - name: Upload production compose file
         run: |
-          scp docker-compose.prod.yml ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}:~/unilis/docker-compose.prod.yml
+          ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "mkdir -p ~/unilis"
+          ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} 'cat > ~/unilis/docker-compose.prod.yml' < docker-compose.prod.yml
 
       - name: Deploy to Production Server
         run: |
