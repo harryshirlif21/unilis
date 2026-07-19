@@ -61,6 +61,22 @@ class SessionModel extends BaseModel
     }
 
     /**
+     * Get sessions a lecturer has created but has not started yet.
+     */
+    public function getLecturerScheduledSessions(int $lecturerId): array
+    {
+        return $this->db->select(
+            "SELECT s.*,
+                    (SELECT COUNT(*) FROM live_participants p WHERE p.session_id = s.id) AS total_participants
+             FROM live_sessions s
+             WHERE s.lecturer_id = ? AND s.status = 'scheduled'
+             ORDER BY s.created_at DESC",
+            [$lecturerId],
+            'i'
+        ) ?? [];
+    }
+
+    /**
      * Get session history for a lecturer
      * 
      * @param int $lecturerId

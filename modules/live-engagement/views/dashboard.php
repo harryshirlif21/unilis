@@ -12,6 +12,7 @@
 require_once __DIR__ . '/../bootstrap.php';
 le_require_auth();
 
+use LE\Components\Layout;
 use LE\Components\UI;
 
 $userId = le_current_user_id();
@@ -19,13 +20,16 @@ $role = le_current_user_role();
 
 // Only lecturers can access this dashboard
 if ($role !== 'lecturer' && $role !== 'admin') {
-    header('Location: ' . getMeetingAppBaseUrl() . '/login.php');
+    header('Location: ' . le_page_url('join'));
     exit;
 }
 
 $sessionModel = new \LE\Models\SessionModel();
 $activeSessions = $sessionModel->getLecturerActiveSessions($userId);
+$scheduledSessions = $sessionModel->getLecturerScheduledSessions($userId);
 $sessionHistory = $sessionModel->getLecturerHistory($userId);
+$allSessions = array_merge($scheduledSessions, $activeSessions, $sessionHistory);
+usort($allSessions, static fn(array $a, array $b): int => strtotime($b['created_at']) <=> strtotime($a['created_at']));
 $autoCreate = isset($_GET['create']) && $_GET['create'] === '1';
 $defaultSessionType = le_get('type', 'mixed');
 $defaultUnitId = (int)le_get('unit_id', 0, true);
@@ -33,9 +37,10 @@ $defaultUnitId = (int)le_get('unit_id', 0, true);
 // Get courses for dropdown
 $db = le_db();
 $courses = $db->select(
-    "SELECT c.id, c.name FROM courses c 
-     JOIN lecturers l ON c.id = l.course_id 
-     WHERE l.id = ? ORDER BY c.name",
+    "SELECT DISTINCT c.id, c.name FROM courses c
+     JOIN units u ON u.course_id = c.id
+     JOIN lecturer_units lu ON lu.unit_id = u.id
+     WHERE lu.lecturer_id = ? ORDER BY c.name",
     [$userId],
     'i'
 );
@@ -48,11 +53,12 @@ $units = $db->select(
     'i'
 );
 
-include __DIR__ . '/../../includes/header.php';
+Layout::start([
+    'title' => 'Dashboard',
+    'layout' => 'app',
+    'activeNav' => 'dashboard',
+]);
 ?>
-<link rel="stylesheet" href="<?= le_asset_url('css/live-engagement.css') ?>">
-<?= le_csrf_meta() ?>
-<?= UI::inlineScript() ?>
 
 <div class="le-container le-page-enter">
     <!-- ============================================================ -->
@@ -81,6 +87,10 @@ include __DIR__ . '/../../includes/header.php';
                     <span class="material-symbols-rounded" style="font-size: 20px;">terminal</span>
                     Commands
                 </button>
+                <button class="le-btn le-btn-secondary le-btn-lg" onclick="showSessionsModal()">
+                    <span class="material-symbols-rounded" style="font-size: 20px;">format_list_bulleted</span>
+                    My Sessions
+                </button>
                 <button class="le-btn le-btn-primary le-btn-lg" onclick="showCreateSessionModal()">
                     <span class="material-symbols-rounded" style="font-size: 20px;">add</span>
                     Create Session
@@ -95,6 +105,7 @@ include __DIR__ . '/../../includes/header.php';
     <div class="le-grid le-grid-4" style="margin-bottom: var(--le-space-4);">
         <?php
         $totalActive = count($activeSessions);
+        $totalScheduled = count($scheduledSessions);
         $totalOnline = array_sum(array_column($activeSessions, 'online_count'));
         $totalPast = count($sessionHistory);
         $totalParticipants = array_sum(array_column($sessionHistory, 'total_participants'));
@@ -105,6 +116,49 @@ include __DIR__ . '/../../includes/header.php';
         echo UI::statCard('Past Sessions', (string)$totalPast, 'history', '', 'info');
         echo UI::statCard('Engagement Rate', $totalPast > 0 ? "{$engagementAvg}%" : 'N/A', 'trending_up', $engagementAvg > 50 ? '↑ Great' : '↓ Needs improvement', $engagementAvg > 50 ? 'success' : 'warning');
         ?>
+    </div>
+
+    <!-- Created sessions are shown at the top of the dashboard -->
+    <div id="createdSessions" class="le-card-solid" style="margin-bottom: var(--le-space-4);">
+        <div class="le-card-header">
+            <h2 class="le-card-title">
+                <span class="material-symbols-rounded" style="font-size: 22px; color: var(--le-primary);">event_available</span>
+                Created Sessions
+            </h2>
+            <span class="le-badge le-badge-neutral"><?= count($allSessions) ?> session<?= count($allSessions) === 1 ? '' : 's' ?></span>
+        </div>
+        <?php if (empty($allSessions)): ?>
+            <p style="margin: 0; color: var(--le-gray-500); font-size: var(--le-font-size-sm);">No sessions have been created yet.</p>
+        <?php else: ?>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--le-space-2);">
+                <?php foreach ($allSessions as $session): ?>
+                    <div style="border: 1px solid var(--le-gray-200); border-radius: var(--le-radius-xl); padding: var(--le-space-3);">
+                        <div class="le-flex-between" style="gap: var(--le-space-2); margin-bottom: var(--le-space-2);">
+                            <strong style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= UI::escape($session['title']) ?></strong>
+                            <span class="le-badge le-badge-<?= UI::escape($session['status']) ?>"><?= UI::escape(ucfirst($session['status'])) ?></span>
+                        </div>
+                        <div style="color: var(--le-gray-500); font-size: var(--le-font-size-sm); margin-bottom: var(--le-space-2);">
+                            <?= UI::sessionCode($session['session_code'], true) ?>
+                        </div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <button type="button" class="le-btn le-btn-sm le-btn-primary" data-le-session-action="open" data-session-id="<?= (int) $session['id'] ?>">Open Session</button>
+                            <button type="button" class="le-btn le-btn-sm le-btn-secondary" data-le-session-action="edit" data-session-id="<?= (int) $session['id'] ?>">
+                                <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
+                                Edit
+                            </button>
+                            <a href="<?= le_page_url('presentations', ['session_id' => (int)$session['id']]) ?>" class="le-btn le-btn-sm le-btn-secondary" style="text-decoration: none;">
+                                <span class="material-symbols-rounded" style="font-size: 16px;">slideshow</span>
+                                Slides
+                            </a>
+                            <button type="button" class="le-btn le-btn-sm le-btn-ghost" style="color: var(--le-danger);" data-le-session-action="delete" data-session-id="<?= (int) $session['id'] ?>">
+                                <span class="material-symbols-rounded" style="font-size: 16px;">delete</span>
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </div>
 
     <!-- ============================================================ -->
@@ -223,7 +277,7 @@ include __DIR__ . '/../../includes/header.php';
                     </h2>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: var(--le-space-2);">
-                    <?php if (empty($sessionHistory) && empty($activeSessions)): ?>
+                    <?php if (empty($sessionHistory) && empty($activeSessions) && empty($scheduledSessions)): ?>
                         <div style="text-align: center; padding: var(--le-space-3); color: var(--le-gray-400); font-size: var(--le-font-size-sm);">
                             No recent activity. Create your first session to get started!
                         </div>
@@ -231,6 +285,7 @@ include __DIR__ . '/../../includes/header.php';
                         <?php 
                         $recentItems = array_merge(
                             array_map(function($s) { return ['type' => 'active', 'data' => $s, 'time' => $s['actual_start'] ?? $s['created_at']]; }, $activeSessions),
+                            array_map(function($s) { return ['type' => 'scheduled', 'data' => $s, 'time' => $s['created_at']]; }, $scheduledSessions),
                             array_map(function($s) { return ['type' => 'past', 'data' => $s, 'time' => $s['actual_end'] ?? $s['created_at']]; }, $sessionHistory)
                         );
                         usort($recentItems, function($a, $b) { return strtotime($b['time']) - strtotime($a['time']); });
@@ -254,7 +309,7 @@ include __DIR__ . '/../../includes/header.php';
                                         <?php if ($isActive): ?>
                                             <span style="color: var(--le-success);">● Live</span> · 
                                         <?php endif; ?>
-                                        <?= LiveEngagement::timeAgo($item['time']) ?>
+                                        <?= le_time_ago($item['time']) ?>
                                     </div>
                                 </div>
                                 <?php if ($isActive): ?>
@@ -325,6 +380,62 @@ include __DIR__ . '/../../includes/header.php';
     </div>
 </div>
 
+<!-- Existing sessions modal -->
+<div id="sessionsModal" class="le-modal-overlay" style="display: none;">
+    <div class="le-modal le-modal-lg">
+        <div class="le-modal-header">
+            <h3 class="le-card-title">My Sessions</h3>
+            <button class="le-modal-close" onclick="closeModal('sessionsModal')">&times;</button>
+        </div>
+        <div class="le-modal-body">
+            <?php if (empty($allSessions)): ?>
+                <p style="margin: 0; color: var(--le-gray-500);">You have not created any sessions yet.</p>
+            <?php else: ?>
+                <div style="display: flex; flex-direction: column; gap: var(--le-space-2);">
+                    <?php foreach ($allSessions as $session): ?>
+                        <div class="le-flex-between" style="gap: var(--le-space-2); border: 1px solid var(--le-gray-200); border-radius: var(--le-radius-lg); padding: var(--le-space-2);">
+                            <div style="min-width: 0;">
+                                <strong style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= UI::escape($session['title']) ?></strong>
+                                <span style="font-size: var(--le-font-size-sm); color: var(--le-gray-500);">
+                                    <?= UI::escape($session['session_code']) ?> &middot; <?= UI::escape(ucfirst($session['status'])) ?>
+                                </span>
+                            </div>
+                            <button class="le-btn le-btn-sm le-btn-secondary" onclick="showEditSessionModal(<?= (int) $session['id'] ?>)">
+                                <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
+                                Edit
+                            </button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- Edit session modal -->
+<div id="editSessionModal" class="le-modal-overlay" style="display: none;">
+    <div class="le-modal">
+        <div class="le-modal-header">
+            <h3 class="le-card-title">Edit Session</h3>
+            <button class="le-modal-close" onclick="closeModal('editSessionModal')">&times;</button>
+        </div>
+        <form id="editSessionForm" data-le-edit-session-form>
+            <div class="le-modal-body">
+                <input type="hidden" name="id" id="editSessionId">
+                <div id="editSessionStatus" role="status" aria-live="polite" hidden style="margin-bottom: var(--le-space-3); color: var(--le-danger);"></div>
+                <div class="le-form-group"><label class="le-label le-label-required">Session Title</label><input class="le-input" type="text" name="title" id="editSessionTitle" required></div>
+                <div class="le-form-group"><label class="le-label">Description</label><textarea class="le-textarea" name="description" id="editSessionDescription" rows="3"></textarea></div>
+                <div class="le-form-group"><label class="le-label">Session Type</label><select class="le-select" name="session_type" id="editSessionType"><option value="mixed">All Features</option><option value="presentation">Presentation</option><option value="poll">Polling</option><option value="quiz">Quiz</option><option value="whiteboard">Whiteboard</option></select></div>
+                <div class="le-grid le-grid-2">
+                    <div class="le-form-group"><label class="le-label">Duration (minutes)</label><input class="le-input" type="number" name="duration_minutes" id="editSessionDuration" min="5" max="480"></div>
+                    <div class="le-form-group"><label class="le-label">Max Participants</label><input class="le-input" type="number" name="max_participants" id="editSessionMaxParticipants" min="0"></div>
+                </div>
+            </div>
+            <div class="le-modal-footer"><button type="button" class="le-btn le-btn-secondary" onclick="closeModal('editSessionModal')">Cancel</button><button type="submit" class="le-btn le-btn-primary" id="saveSessionBtn">Save Changes</button></div>
+        </form>
+    </div>
+</div>
+
 <!-- ============================================================ -->
 <!-- Create Session Modal (Premium) -->
 <!-- ============================================================ -->
@@ -341,6 +452,12 @@ include __DIR__ . '/../../includes/header.php';
         </div>
         <form id="createSessionForm" onsubmit="createSession(event)">
             <div class="le-modal-body">
+                <div id="createSessionStatus" role="status" aria-live="polite" hidden
+                     style="margin-bottom: var(--le-space-3); padding: var(--le-space-2) var(--le-space-3); border-radius: var(--le-radius-lg); font-size: var(--le-font-size-sm); display: flex; align-items: flex-start; gap: var(--le-space-2);">
+                    <span id="createSessionStatusMessage" style="flex: 1;"></span>
+                    <button type="button" onclick="closeCreateSessionStatus()" aria-label="Dismiss message"
+                            style="background: transparent; border: 0; color: inherit; cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0;">&times;</button>
+                </div>
                 <div class="le-form-group">
                     <label class="le-label le-label-required">Session Title</label>
                     <input type="text" class="le-input" name="title" required placeholder="e.g. Introduction to Algorithms - Live Q&A">
@@ -424,10 +541,11 @@ include __DIR__ . '/../../includes/header.php';
     </div>
 </div>
 
-<script src="<?= le_asset_url('js/live-engagement.js') ?>"></script>
 <script>
-    // Initialize
-    LiveEngagement.init({ isPresenter: true });
+    // Keep page actions available while the shared script finishes loading.
+    if (typeof LiveEngagement !== 'undefined') {
+        LiveEngagement.init({ isPresenter: true });
+    }
 
     // Auto-show create modal if triggered
     const AUTO_CREATE = <?= json_encode($autoCreate) ?>;
@@ -474,6 +592,89 @@ include __DIR__ . '/../../includes/header.php';
         document.getElementById(id).style.display = 'none';
     }
 
+    function showSessionsModal() {
+        document.getElementById('sessionsModal').style.display = 'flex';
+    }
+
+    async function showEditSessionModal(sessionId) {
+        const modal = document.getElementById('editSessionModal');
+        const status = document.getElementById('editSessionStatus');
+        modal.style.display = 'flex';
+        status.textContent = 'Loading session details...';
+        status.style.color = 'var(--le-gray-500)';
+        status.hidden = false;
+
+        try {
+            const response = await fetch('<?= le_module_url('api/session.php') ?>?action=view&id=' + encodeURIComponent(sessionId));
+            const result = await response.json();
+            if (!response.ok || !result.data) {
+                throw new Error(result.error || 'Session details could not be loaded.');
+            }
+
+            const session = result.data;
+            document.getElementById('editSessionId').value = session.id;
+            document.getElementById('editSessionTitle').value = session.title || '';
+            document.getElementById('editSessionDescription').value = session.description || '';
+            document.getElementById('editSessionType').value = session.session_type || 'mixed';
+            document.getElementById('editSessionDuration').value = session.duration_minutes || '';
+            document.getElementById('editSessionMaxParticipants').value = session.max_participants || 0;
+            closeModal('sessionsModal');
+            status.hidden = true;
+        } catch (error) {
+            status.textContent = error.message || 'Session details could not be loaded.';
+            status.style.color = 'var(--le-danger)';
+        }
+    }
+
+    async function saveSessionEdits(event) {
+        event.preventDefault();
+        const form = event.target;
+        const data = Object.fromEntries(new FormData(form).entries());
+        const sessionId = data.id;
+        delete data.id;
+
+        const status = document.getElementById('editSessionStatus');
+        const button = document.getElementById('saveSessionBtn');
+        status.hidden = true;
+        button.disabled = true;
+        button.textContent = 'Saving...';
+
+        try {
+            await LiveEngagement.updateSession(sessionId, data);
+            status.textContent = 'Changes saved successfully. Refreshing your session list...';
+            status.style.color = 'var(--le-success)';
+            status.hidden = false;
+            LiveEngagement.showToast('Session updated successfully.', 'success', 12000);
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (error) {
+            status.textContent = error.message || 'Unable to save changes.';
+            status.style.color = 'var(--le-danger)';
+            status.hidden = false;
+        } finally {
+            button.disabled = false;
+            button.textContent = 'Save Changes';
+        }
+    }
+
+    let createSessionRefreshTimer = null;
+
+    function setCreateSessionStatus(message, type) {
+        const status = document.getElementById('createSessionStatus');
+        document.getElementById('createSessionStatusMessage').textContent = message;
+        status.hidden = !message;
+        status.style.background = type === 'success' ? 'var(--le-success-lighter)' : 'var(--le-danger-lighter)';
+        status.style.color = type === 'success' ? 'var(--le-success)' : 'var(--le-danger)';
+        status.style.border = '1px solid ' + (type === 'success' ? 'var(--le-success)' : 'var(--le-danger)');
+    }
+
+    function closeCreateSessionStatus() {
+        document.getElementById('createSessionStatus').hidden = true;
+        if (createSessionRefreshTimer) {
+            clearTimeout(createSessionRefreshTimer);
+            createSessionRefreshTimer = null;
+        }
+    }
+
     // ============================================================
     // Create Session
     // ============================================================
@@ -483,18 +684,23 @@ include __DIR__ . '/../../includes/header.php';
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
         const btn = document.getElementById('createSessionBtn');
+
+        setCreateSessionStatus('', 'error');
         
         btn.disabled = true;
         btn.innerHTML = '<div class="le-spinner le-spinner-sm" style="border-color: rgba(255,255,255,0.3); border-top-color: white;"></div> Creating...';
 
         try {
             const session = await LiveEngagement.createSession(data);
-            LiveEngagement.showToast('Session created! Code: ' + session.session_code, 'success');
-            closeModal('createSessionModal');
-            setTimeout(() => window.location.reload(), 1000);
+            const message = 'Session created successfully. Session code: ' + session.session_code;
+            setCreateSessionStatus(message, 'success');
+            LiveEngagement.showToast(message, 'success', 12000);
+            createSessionRefreshTimer = setTimeout(() => window.location.reload(), 10000);
         } catch (error) {
             console.error('Failed to create session:', error);
-            LiveEngagement.showToast(error.message || 'Failed to create session', 'error');
+            const message = error.message || 'Unable to create the session. Please try again.';
+            setCreateSessionStatus(message, 'error');
+            LiveEngagement.showToast(message, 'error', 12000);
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<span class="material-symbols-rounded" style="font-size: 20px;">rocket_launch</span> Create Session';
@@ -512,20 +718,21 @@ include __DIR__ . '/../../includes/header.php';
         if (!confirm('Delete this session and all its data? This action cannot be undone.')) return;
         
         try {
-            const response = await fetch('<?= LE_MODULE_URL ?>/api/session.php?action=delete&id=' + sessionId, {
+            const response = await fetch('<?= le_module_url('api/session.php') ?>?action=delete&id=' + sessionId, {
                 method: 'DELETE',
                 headers: { 
                     'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
             });
-            if (response.ok) {
-                LiveEngagement.showToast('Session deleted', 'success');
-                setTimeout(() => window.location.reload(), 1000);
-            }
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Failed to delete session');
+
+            LiveEngagement.showToast(result.message || 'Session deleted', 'success', 12000);
+            setTimeout(() => window.location.reload(), 1000);
         } catch (error) {
             console.error('Delete failed:', error);
-            LiveEngagement.showToast('Failed to delete session', 'error');
+            LiveEngagement.showToast(error.message || 'Failed to delete session', 'error', 12000);
         }
     }
 
@@ -545,16 +752,38 @@ include __DIR__ . '/../../includes/header.php';
     }
 
     // ============================================================
+    // Create Presentation — redirects to presentations page filtered
+    // ============================================================
+    function showCreatePresentationModal(sessionId) {
+        if (sessionId) {
+            window.location.href = '<?= le_page_url('presentations') ?>&session_id=' + sessionId;
+        } else {
+            window.location.href = '<?= le_page_url('presentations') ?>';
+        }
+    }
+
+    // ============================================================
     // Command Palette
     // ============================================================
     function openCommandPalette() {
         LiveEngagement.openCommandPalette();
     }
 
-    // Auto-show create modal
-    if (AUTO_CREATE) {
+    // Auto-show create presentation modal if ?create=1&type=presentation
+    if (AUTO_CREATE && DEFAULT_SESSION_TYPE === 'presentation') {
+        // Show presentation creation — requires a session to exist first
+        const sessions = <?= json_encode(array_map(function($s) {
+            return ['id' => $s['id'], 'title' => $s['title'], 'code' => $s['session_code']];
+        }, $allSessions)) ?>;
+        if (sessions.length > 0) {
+            showCreatePresentationModal(sessions[0].id);
+        } else {
+            showCreateSessionModal();
+        }
+    } else if (AUTO_CREATE) {
         showCreateSessionModal();
     }
 </script>
 
-<?php include __DIR__ . '/../../includes/footer.php'; ?>
+<?php
+Layout::end();

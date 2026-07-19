@@ -108,6 +108,111 @@ class PresentationModel extends BaseModel
         
         return $pres;
     }
+
+    /**
+     * Get a lecturer's presentation library.
+     *
+     * Presentations belong to a live session, so ownership and course data
+     * are derived from the associated session rather than duplicated on the
+     * presentation record.
+     *
+     * @param int $userId Lecturer or administrator ID
+     * @param string $search Title, description, or original filename search
+     * @param int $courseId Optional course filter
+     * @param string $sort Sort option from the library UI
+     * @param int $page One-based page number
+     * @param int $perPage Number of records per page
+     * @return array
+     */
+    public function getUserPresentations(
+        int $userId,
+        string $search = '',
+        int $courseId = 0,
+        string $sort = 'newest',
+        int $page = 1,
+        int $perPage = 20
+    ): array {
+        $where = ['s.lecturer_id = ?'];
+        $params = [$userId];
+        $types = 'i';
+
+        if ($search !== '') {
+            $where[] = '(p.title LIKE ? OR p.description LIKE ? OR p.original_filename LIKE ?)';
+            $term = '%' . $search . '%';
+            array_push($params, $term, $term, $term);
+            $types .= 'sss';
+        }
+
+        if ($courseId > 0) {
+            $where[] = 's.course_id = ?';
+            $params[] = $courseId;
+            $types .= 'i';
+        }
+
+        $orderBy = [
+            'oldest' => 'p.created_at ASC',
+            'name' => 'p.title ASC',
+            // View tracking is not yet stored for presentations; newest is
+            // the stable fallback until that feature is added to the schema.
+            'views' => 'p.created_at DESC',
+            'newest' => 'p.created_at DESC',
+        ][$sort] ?? 'p.created_at DESC';
+
+        $page = max(1, $page);
+        $perPage = max(1, min($perPage, 100));
+        $offset = ($page - 1) * $perPage;
+        $whereSql = implode(' AND ', $where);
+
+        $sql = "SELECT p.*, s.course_id, c.name AS course_name,
+                       0 AS views, 1 AS version, 'private' AS visibility,
+                       NULL AS thumbnail_path
+                FROM live_presentations p
+                INNER JOIN live_sessions s ON s.id = p.session_id
+                LEFT JOIN courses c ON c.id = s.course_id
+                WHERE {$whereSql}
+                ORDER BY {$orderBy}
+                LIMIT ? OFFSET ?";
+
+        $params[] = $perPage;
+        $params[] = $offset;
+        $types .= 'ii';
+
+        return $this->db->select($sql, $params, $types) ?? [];
+    }
+
+    /**
+     * Count a lecturer's presentations using the same filters as the library.
+     */
+    public function countUserPresentations(int $userId, string $search = '', int $courseId = 0): int
+    {
+        $where = ['s.lecturer_id = ?'];
+        $params = [$userId];
+        $types = 'i';
+
+        if ($search !== '') {
+            $where[] = '(p.title LIKE ? OR p.description LIKE ? OR p.original_filename LIKE ?)';
+            $term = '%' . $search . '%';
+            array_push($params, $term, $term, $term);
+            $types .= 'sss';
+        }
+
+        if ($courseId > 0) {
+            $where[] = 's.course_id = ?';
+            $params[] = $courseId;
+            $types .= 'i';
+        }
+
+        $row = $this->db->fetchOne(
+            'SELECT COUNT(*) AS total
+             FROM live_presentations p
+             INNER JOIN live_sessions s ON s.id = p.session_id
+             WHERE ' . implode(' AND ', $where),
+            $params,
+            $types
+        );
+
+        return (int) ($row['total'] ?? 0);
+    }
 }
 
 /**

@@ -225,7 +225,8 @@ error_log("=== EMAIL RESULT: " . ($email_sent ? 'SUCCESS' : 'FAILED') . " ===");
 if ($action === 'universal_login') {
     $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
     $password = $_POST['password'] ?? '';
-    $return   = $_GET['return'] ?? '';  // THIS IS THE KEY LINE
+    $return   = $_GET['return'] ?? '';  // URL query param
+    $leRedirect = $_POST['le_redirect'] ?? ''; // Session-based redirect from Live Engagement
 
     if (!$email) {
         $_SESSION['login_error'] = "Please enter a valid email.";
@@ -295,9 +296,11 @@ if ($action === 'universal_login') {
                 }
             }
 
-            // FINAL REDIRECT: If return URL exists AND it's the auto-mark page -> go there!
-            if ($return && strpos($return, 'student_auto_mark.php') !== false) {
-                header("Location: " . $return);
+            // FINAL REDIRECT: Check for return URL or session-based redirect (from Live Engagement)
+            $redirectUrl = $return ?: $leRedirect ?: '';
+            if (!empty($redirectUrl)) {
+                unset($_SESSION['le_login_redirect']);
+                header("Location: " . $redirectUrl);
                 exit;
             }
 

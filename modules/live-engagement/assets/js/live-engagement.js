@@ -24,7 +24,9 @@ const LiveEngagement = (function() {
     // Configuration
     // ============================================================
     const config = {
-        apiBase: 'modules/live-engagement/api/',
+        // Resolve from the current module URL so this works both at the web
+        // root and when UNILIS is installed in a subdirectory.
+        apiBase: window.LE_API_BASE || new URL('api/', window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/')) + '/').toString(),
         pollingInterval: 3000,
         reconnectAttempts: 5,
         reconnectDelay: 2000,
@@ -66,6 +68,7 @@ const LiveEngagement = (function() {
         
         // Setup all event listeners
         setupGlobalListeners();
+        setupDashboardSessionActions();
         setupKeyboardShortcuts();
         setupRippleEffect();
         setupDragAndDrop();
@@ -669,6 +672,113 @@ const LiveEngagement = (function() {
     }
 
     // ============================================================
+    // Dashboard session actions
+    // ============================================================
+    function setupDashboardSessionActions() {
+        if (document.documentElement.dataset.leSessionActionsBound === '1') return;
+        document.documentElement.dataset.leSessionActionsBound = '1';
+
+        document.addEventListener('click', async function(event) {
+            const button = event.target.closest('[data-le-session-action]');
+            if (!button) return;
+
+            const sessionId = button.dataset.sessionId;
+            if (!sessionId) return;
+
+            const action = button.dataset.leSessionAction;
+            if (action === 'open') {
+                window.location.href = '?page=presenter&id=' + encodeURIComponent(sessionId);
+                return;
+            }
+
+            if (action === 'edit') {
+                await openDashboardSessionEditor(sessionId);
+                return;
+            }
+
+            if (action === 'delete') {
+                await deleteDashboardSession(sessionId);
+            }
+        });
+
+        document.addEventListener('submit', async function(event) {
+            const form = event.target.closest('[data-le-edit-session-form]');
+            if (!form) return;
+            event.preventDefault();
+            await saveDashboardSessionEditor(form);
+        });
+    }
+
+    async function openDashboardSessionEditor(sessionId) {
+        const modal = document.getElementById('editSessionModal');
+        const status = document.getElementById('editSessionStatus');
+        if (!modal || !status) return;
+
+        modal.style.display = 'flex';
+        status.textContent = 'Loading session details...';
+        status.style.color = 'var(--le-gray-500)';
+        status.hidden = false;
+
+        try {
+            const result = await apiRequest(`session.php?action=view&id=${encodeURIComponent(sessionId)}`);
+            const session = result.data;
+            if (!session) throw new Error('Session details could not be loaded.');
+
+            document.getElementById('editSessionId').value = session.id;
+            document.getElementById('editSessionTitle').value = session.title || '';
+            document.getElementById('editSessionDescription').value = session.description || '';
+            document.getElementById('editSessionType').value = session.session_type || 'mixed';
+            document.getElementById('editSessionDuration').value = session.duration_minutes || '';
+            document.getElementById('editSessionMaxParticipants').value = session.max_participants || 0;
+            status.hidden = true;
+        } catch (error) {
+            status.textContent = error.message || 'Session details could not be loaded.';
+            status.style.color = 'var(--le-danger)';
+            status.hidden = false;
+        }
+    }
+
+    async function saveDashboardSessionEditor(form) {
+        const formData = new FormData(form);
+        const sessionId = formData.get('id');
+        const button = document.getElementById('saveSessionBtn');
+        const status = document.getElementById('editSessionStatus');
+        const data = Object.fromEntries(formData.entries());
+        delete data.id;
+
+        button.disabled = true;
+        button.textContent = 'Saving...';
+        status.hidden = true;
+
+        try {
+            await updateSession(sessionId, data);
+            status.textContent = 'Changes saved successfully. Refreshing your session list...';
+            status.style.color = 'var(--le-success)';
+            status.hidden = false;
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (error) {
+            status.textContent = error.message || 'Unable to save changes.';
+            status.style.color = 'var(--le-danger)';
+            status.hidden = false;
+        } finally {
+            button.disabled = false;
+            button.textContent = 'Save Changes';
+        }
+    }
+
+    async function deleteDashboardSession(sessionId) {
+        if (!window.confirm('Delete this session and all its data? This action cannot be undone.')) return;
+
+        try {
+            await apiRequest(`session.php?action=delete&id=${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+            showToast('Session deleted successfully.', 'success', 12000);
+            setTimeout(() => window.location.reload(), 800);
+        } catch (error) {
+            showToast(error.message || 'Failed to delete session.', 'error', 12000);
+        }
+    }
+
+    // ============================================================
     // API Request Helper
     // ============================================================
     async function apiRequest(endpoint, options = {}) {
@@ -695,7 +805,14 @@ const LiveEngagement = (function() {
 
         try {
             const response = await fetch(config.apiBase + endpoint, fetchOptions);
-            const data = await response.json();
+            const responseText = await response.text();
+            let data;
+
+            try {
+                data = responseText ? JSON.parse(responseText) : {};
+            } catch (parseError) {
+                throw new Error(`The server returned an invalid response (HTTP ${response.status}).`);
+            }
             
             if (!response.ok) {
                 throw new Error(data.error || `HTTP ${response.status}`);
@@ -732,6 +849,14 @@ const LiveEngagement = (function() {
             method: 'POST',
             body: { ...sessionData, action: 'create' },
             optimistic: true,
+        });
+        return result.data;
+    }
+
+    async function updateSession(sessionId, sessionData) {
+        const result = await apiRequest(`session.php?id=${encodeURIComponent(sessionId)}`, {
+            method: 'PUT',
+            body: { ...sessionData, action: 'update' },
         });
         return result.data;
     }
@@ -1258,6 +1383,7 @@ const LiveEngagement = (function() {
         
         // Session
         createSession,
+        updateSession,
         joinSession,
         leaveSession,
         startSession,

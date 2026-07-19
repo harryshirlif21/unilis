@@ -10,19 +10,21 @@
  */
 
 require_once __DIR__ . '/../bootstrap.php';
-le_require_auth();
 
+use LE\Components\Layout;
 use LE\Components\UI;
 
 $userId = le_current_user_id();
-$userName = le_current_user_name() ?? 'Student';
+$userName = le_current_user_name() ?? '';
 $userEmail = le_current_user_email() ?? '';
+$isAuthenticated = le_is_authenticated();
 
-include __DIR__ . '/../../includes/header.php';
+Layout::start([
+    'title' => 'Join Session',
+    'layout' => 'minimal',
+    'activeNav' => 'join',
+]);
 ?>
-<link rel="stylesheet" href="<?= le_asset_url('css/live-engagement.css') ?>">
-<?= le_csrf_meta() ?>
-<?= UI::inlineScript() ?>
 
 <div class="le-join-page">
     <!-- Animated background particles -->
@@ -91,18 +93,20 @@ include __DIR__ . '/../../includes/header.php';
             <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
         </div>
 
-        <a href="?page=dashboard" style="display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.6); font-size: 0.9rem; transition: color 0.2s;" 
+        <a href="<?= $isAuthenticated && le_has_role(['lecturer', 'admin']) ? le_page_url('dashboard') : (le_base_url() . '/login.php?redirect=' . rawurlencode(le_page_url('join'))) ?>"
+           style="display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.6); font-size: 0.9rem; transition: color 0.2s;"
            onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">
             <span class="material-symbols-rounded" style="font-size: 18px;">arrow_back</span>
-            Back to Dashboard
+            <?= $isAuthenticated && le_has_role(['lecturer', 'admin']) ? 'Back to Dashboard' : 'Sign in to UNILIS' ?>
         </a>
     </div>
 
     <!-- Available Sessions (for logged-in students) -->
     <?php
-    $sessionModel = new \LE\Models\SessionModel();
-    $availableSessions = $sessionModel->getStudentAvailableSessions($userId);
-    if (!empty($availableSessions)):
+    if ($isAuthenticated && $userId) {
+        $sessionModel = new \LE\Models\SessionModel();
+        $availableSessions = $sessionModel->getStudentAvailableSessions($userId);
+        if (!empty($availableSessions)):
     ?>
     <div style="position: absolute; bottom: var(--le-space-4); left: 50%; transform: translateX(-50%); width: 90%; max-width: 500px;">
         <div class="le-card" style="background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); padding: var(--le-space-3);">
@@ -137,10 +141,13 @@ include __DIR__ . '/../../includes/header.php';
             </div>
         </div>
     </div>
-    <?php endif; ?>
+    <?php
+        endif;
+    }
+    ?>
 </div>
 
-<script src="<?= le_asset_url('js/live-engagement.js') ?>"></script>
+
 <script>
     LiveEngagement.init();
 
@@ -236,4 +243,5 @@ include __DIR__ . '/../../includes/header.php';
     document.getElementById('sessionCode').focus();
 </script>
 
-<?php include __DIR__ . '/../../includes/footer.php'; ?>
+<?php
+Layout::end();

@@ -123,9 +123,62 @@ function le_current_user_email(): ?string
  * 
  * @param string $redirectUrl URL to redirect to
  */
-function le_require_auth(string $redirectUrl = '/login.php'): void
+function le_base_url(): string
+{
+    static $baseUrl = null;
+
+    if ($baseUrl !== null) {
+        return $baseUrl;
+    }
+
+    if (!isset($_SERVER['HTTP_HOST'])) {
+        $baseUrl = '/unilis';
+        return $baseUrl;
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/unilis/modules/live-engagement/index.php');
+    $moduleDir = dirname($scriptName);
+    $appRoot = dirname(dirname($moduleDir));
+
+    $baseUrl = rtrim($scheme . '://' . $_SERVER['HTTP_HOST'] . $appRoot, '/');
+    return $baseUrl;
+}
+
+/**
+ * Get a URL within this module
+ *
+ * @param string $path Path relative to the module root
+ */
+function le_module_url(string $path = ''): string
+{
+    $path = ltrim(str_replace('\\', '/', $path), '/');
+    $base = le_base_url() . '/' . LE_MODULE_URL;
+
+    return $path === '' ? $base : $base . '/' . $path;
+}
+
+/**
+ * Build a router URL for this module
+ *
+ * @param string $page Page key for index.php routing
+ * @param array<string, scalar|null> $params
+ */
+function le_page_url(string $page = 'dashboard', array $params = []): string
+{
+    $params['page'] = $page;
+
+    return le_module_url('index.php') . '?' . http_build_query($params);
+}
+
+function le_require_auth(?string $redirectUrl = null): void
 {
     if (!le_is_authenticated()) {
+        if ($redirectUrl === null) {
+            $returnTo = $_SERVER['REQUEST_URI'] ?? le_page_url();
+            $redirectUrl = le_base_url() . '/login.php?redirect=' . rawurlencode($returnTo);
+        }
+
         header('Location: ' . $redirectUrl);
         exit;
     }
@@ -223,14 +276,7 @@ function le_format_duration(int $seconds): string
  */
 function le_asset_url(string $path): string
 {
-    $baseUrl = '';
-    
-    if (isset($_SERVER['HTTP_HOST'])) {
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . '/unilis/';
-    }
-    
-    return $baseUrl . LE_MODULE_URL . '/assets/' . ltrim($path, '/');
+    return le_module_url('assets/' . ltrim($path, '/'));
 }
 
 /**
@@ -307,4 +353,40 @@ function le_update_database(): array
 {
     require_once __DIR__ . '/database/update.php';
     return updateLiveEngagementTables(le_db()->getConnection());
+}
+
+/**
+ * Format a date/timestamp as a relative time string ("2h ago", "just now", etc.)
+ * 
+ * @param string|int|null $time A date string, Unix timestamp, or null
+ * @return string Relative time string
+ */
+function le_time_ago($time): string
+{
+    if ($time === null || $time === '') {
+        return 'N/A';
+    }
+
+    // Convert to Unix timestamp if it's a date string
+    $timestamp = is_numeric($time) ? (int)$time : strtotime((string)$time);
+    if ($timestamp === false) {
+        return 'N/A';
+    }
+
+    $seconds = time() - $timestamp;
+
+    if ($seconds < 0) {
+        $seconds = abs($seconds);
+        if ($seconds < 60) return 'just now';
+        if ($seconds < 3600) return ceil($seconds / 60) . 'm';
+        if ($seconds < 86400) return ceil($seconds / 3600) . 'h';
+        return ceil($seconds / 86400) . 'd';
+    }
+
+    if ($seconds < 60) return 'just now';
+    if ($seconds < 3600) return floor($seconds / 60) . 'm ago';
+    if ($seconds < 86400) return floor($seconds / 3600) . 'h ago';
+    if ($seconds < 2592000) return floor($seconds / 86400) . 'd ago';
+
+    return date('M j, Y', $timestamp);
 }

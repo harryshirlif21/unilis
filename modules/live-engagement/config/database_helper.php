@@ -43,7 +43,9 @@ class DatabaseHelper
             $this->conn = $GLOBALS['conn'];
         } else {
             // Try to load the UNILIS database config
-            $dbConfigPath = __DIR__ . '/../../config/db.php';
+            // config/ is at the application root, three levels above this
+            // module's config directory.
+            $dbConfigPath = __DIR__ . '/../../../config/db.php';
             if (file_exists($dbConfigPath)) {
                 require_once $dbConfigPath;
                 if (isset($conn) && $conn instanceof mysqli) {

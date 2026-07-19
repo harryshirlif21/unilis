@@ -24,7 +24,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
-$action = le_get('action', '');
+$requestInput = in_array($method, ['POST', 'PUT'], true)
+    ? (le_get_json_input() ?? $_POST)
+    : [];
+$action = le_get('action', $requestInput['action'] ?? '');
 $sessionId = le_get('id', 0, true);
 $code = le_get('code', '');
 
@@ -39,15 +42,15 @@ try {
             break;
         case 'POST':
             le_require_csrf();
-            handleSessionPost($action, $sessionModel, $userId);
+            handleSessionPost($action, $sessionModel, $userId, $requestInput);
             break;
         case 'PUT':
             le_require_csrf();
-            handleSessionPut($action, $sessionId, $sessionModel, $userId);
+            handleSessionPut($action, $sessionId, $sessionModel, $userId, $role, $requestInput);
             break;
         case 'DELETE':
             le_require_csrf();
-            handleSessionDelete($action, $sessionId, $sessionModel, $userId);
+            handleSessionDelete($action, $sessionId, $sessionModel, $userId, $role);
             break;
         default:
             le_error_response('Method not allowed', 405);
@@ -147,10 +150,8 @@ function handleSessionGet(string $action, int $sessionId, string $code, \LE\Mode
 /**
  * Handle POST requests
  */
-function handleSessionPost(string $action, \LE\Models\SessionModel $model, int $userId): void
+function handleSessionPost(string $action, \LE\Models\SessionModel $model, int $userId, array $input): void
 {
-    $input = le_get_json_input() ?? $_POST;
-
     switch ($action) {
         case 'create':
             if (empty($input['title'])) le_error_response('Title is required');
@@ -256,19 +257,21 @@ function handleSessionPost(string $action, \LE\Models\SessionModel $model, int $
 /**
  * Handle PUT requests
  */
-function handleSessionPut(string $action, int $sessionId, \LE\Models\SessionModel $model, int $userId): void
+function handleSessionPut(string $action, int $sessionId, \LE\Models\SessionModel $model, int $userId, ?string $role, array $input): void
 {
-    $input = le_get_json_input() ?? $_POST;
-
     switch ($action) {
         case 'update':
             if (!$sessionId) le_error_response('Session ID required');
+            $session = $model->find($sessionId);
+            if (!$session) le_error_response('Session not found', 404);
+            if ((int) $session['lecturer_id'] !== $userId && $role !== 'admin') le_error_response('Unauthorized', 403);
+
             $allowed = ['title', 'description', 'session_type', 'duration_minutes', 'passcode', 'max_participants'];
             $updateData = array_intersect_key($input, array_flip($allowed));
             
             if (empty($updateData)) le_error_response('No valid fields to update');
             
-            if ($model->update($sessionId, $updateData)) {
+            if ($model->update($sessionId, $updateData) !== false) {
                 le_success_response($model->find($sessionId), 'Session updated');
             }
             le_error_response('Failed to update session');
@@ -277,7 +280,6 @@ function handleSessionPut(string $action, int $sessionId, \LE\Models\SessionMode
         default:
             if ($sessionId && empty($action)) {
                 // Default update
-                $input = le_get_json_input() ?? $_POST;
                 unset($input['action']);
                 if ($model->update($sessionId, $input)) {
                     le_success_response($model->find($sessionId), 'Session updated');
@@ -291,14 +293,14 @@ function handleSessionPut(string $action, int $sessionId, \LE\Models\SessionMode
 /**
  * Handle DELETE requests
  */
-function handleSessionDelete(string $action, int $sessionId, \LE\Models\SessionModel $model, int $userId): void
+function handleSessionDelete(string $action, int $sessionId, \LE\Models\SessionModel $model, int $userId, ?string $role): void
 {
     switch ($action) {
         case 'delete':
             if (!$sessionId) le_error_response('Session ID required');
             $session = $model->find($sessionId);
             if (!$session) le_error_response('Session not found', 404);
-            if ($session['lecturer_id'] !== $userId && $role !== 'admin') {
+            if ((int) $session['lecturer_id'] !== $userId && $role !== 'admin') {
                 le_error_response('Unauthorized', 403);
             }
             if ($model->delete($sessionId)) {

@@ -5,90 +5,10 @@
  * Authenticated users are routed directly to dashboard by index.php.
  */
 
-require_once __DIR__ . '/bootstrap.php';
-
 use LE\Components\Layout;
-
-/*
- * Authenticated module pages are handled here; the public landing page below
- * remains available to visitors who have not signed in yet.
- */
-$requestedPage = le_get('page', '');
-if ($requestedPage !== '' || le_is_authenticated()) {
-    le_require_auth();
-
-    $page = $requestedPage ?: 'dashboard';
-    $sessionId = (int) le_get('id', 0, true);
-    $code = le_get('code', '');
-
-    switch ($page) {
-        case 'dashboard':
-            include __DIR__ . '/views/' . (le_has_role(['lecturer', 'admin']) ? 'dashboard.php' : 'join.php');
-            break;
-
-        case 'presenter':
-            if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
-                header('Location: ' . le_page_url('dashboard'));
-                exit;
-            }
-            include __DIR__ . '/views/presenter.php';
-            break;
-
-        case 'join':
-            include __DIR__ . '/views/join.php';
-            break;
-
-        case 'session':
-            if (!$sessionId && $code === '') {
-                header('Location: ' . le_page_url('join'));
-                exit;
-            }
-            include __DIR__ . '/views/session.php';
-            break;
-
-        case 'presentations':
-        case 'reports':
-            if (!le_has_role(['lecturer', 'admin'])) {
-                header('Location: ' . le_page_url('join'));
-                exit;
-            }
-            include __DIR__ . '/views/' . ($page === 'presentations' ? 'presentations.php' : 'reports_overview.php');
-            break;
-
-        case 'create_presentation':
-            include __DIR__ . '/views/create_presentation.php';
-            break;
-
-        case 'edit_presentation':
-            if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
-                header('Location: ' . le_page_url('presentations'));
-                exit;
-            }
-            include __DIR__ . '/views/edit_presentation.php';
-            break;
-
-        case 'report':
-            if (!$sessionId) {
-                header('Location: ' . le_page_url('dashboard'));
-                exit;
-            }
-            include __DIR__ . '/views/report.php';
-            break;
-
-        default:
-            http_response_code(404);
-            exit('Page not found.');
-    }
-
-    exit;
-}
 
 // Auto-open auth modal if redirected here with ?auth=1
 $openAuthModal = !empty($_GET['auth']);
-
-// Store Live Engagement redirect URL in session for the UNILIS login flow
-// Use a relative path (no full URL) to avoid header redirect issues
-$_SESSION['le_login_redirect'] = LE_MODULE_URL . '/index.php?page=dashboard&create=1&type=presentation';
 
 Layout::start([
     'title'     => 'Live Engagement',
@@ -574,7 +494,7 @@ body.le-home-page {
                 Create account
             </button>
 
-            <p style="text-align:center;margin:.75rem 0;color:var(--text-muted);font-size:.75rem;">already have a UNILIS account?</p>
+            <div class="le-divider">already have a UNILIS account?</div>
             <button class="le-btn-unilis" onclick="goUnilisLogin()">
                 <span class="le-unilis-badge">UNILIS</span>
                 Sign in with UNILIS
@@ -602,7 +522,7 @@ body.le-home-page {
                 Log in
             </button>
 
-            <p style="text-align:center;margin:.75rem 0;color:var(--text-muted);font-size:.75rem;">or use your UNILIS account</p>
+            <div class="le-divider">or use your UNILIS account</div>
             <button class="le-btn-unilis" onclick="goUnilisLogin()">
                 <span class="le-unilis-badge">UNILIS</span>
                 Sign in with UNILIS
@@ -656,7 +576,8 @@ function switchModalTab(id, el) {
 
 function goUnilisLogin() {
     // Redirect to UNILIS auth; it will redirect back after login
-    window.location.href = '/login.php';
+    window.location.href = '/auth/login?redirect=' +
+        encodeURIComponent('<?= le_page_url('dashboard') ?>');
 }
 
 // ── Sign up ─────────────────────────────────────────────────
@@ -756,7 +677,7 @@ document.getElementById('join-code').addEventListener('keydown', e => {
 // Auto-open if redirected here with ?auth=1
 <?php if ($openAuthModal): ?>
 openAuthModal();
- <?php endif; ?>
+<?php endif; ?>
 </script>
 
 <?php Layout::end(); ?>

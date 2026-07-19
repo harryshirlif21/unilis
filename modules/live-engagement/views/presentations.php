@@ -12,6 +12,7 @@
 require_once __DIR__ . '/../bootstrap.php';
 le_require_auth();
 
+use LE\Components\Layout;
 use LE\Components\UI;
 
 $userId = le_current_user_id();
@@ -24,20 +25,21 @@ $presentationModel = new \LE\Models\PresentationModel();
 $search = le_get('search', '');
 $courseFilter = (int)le_get('course_id', 0, true);
 $sort = le_get('sort', 'newest');
-$page = max(1, (int)le_get('page', 1, true));
+$currentPage = max(1, (int)le_get('p', 1, true));
 $perPage = 20;
 
-$presentations = $presentationModel->getUserPresentations($userId, $search, $courseFilter, $sort, $page, $perPage);
+$presentations = $presentationModel->getUserPresentations($userId, $search, $courseFilter, $sort, $currentPage, $perPage);
 $totalPresentations = $presentationModel->countUserPresentations($userId, $search, $courseFilter);
 
 // Get courses for filter
 $courses = $db->select("SELECT id, name FROM courses ORDER BY name");
 
-include __DIR__ . '/../../includes/header.php';
+Layout::start([
+    'title' => 'Presentations',
+    'layout' => 'app',
+    'activeNav' => 'presentations',
+]);
 ?>
-<link rel="stylesheet" href="<?= le_asset_url('css/live-engagement.css') ?>">
-<?= le_csrf_meta() ?>
-<?= UI::inlineScript() ?>
 
 <div class="le-container le-page-enter">
     <!-- ============================================================ -->
@@ -206,7 +208,7 @@ include __DIR__ . '/../../includes/header.php';
         <div style="display: flex; justify-content: center; gap: var(--le-space-1); margin-top: var(--le-space-4);">
             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                 <a href="?page=presentations&p=<?= $i ?>&search=<?= urlencode($search) ?>&course_id=<?= $courseFilter ?>&sort=<?= $sort ?>"
-                   class="le-btn le-btn-sm <?= $i === $page ? 'le-btn-primary' : 'le-btn-ghost' ?>"
+                   class="le-btn le-btn-sm <?= $i === $currentPage ? 'le-btn-primary' : 'le-btn-ghost' ?>"
                    style="min-width: 36px;">
                     <?= $i ?>
                 </a>
@@ -297,16 +299,126 @@ include __DIR__ . '/../../includes/header.php';
     </div>
 </div>
 
-<script src="<?= le_asset_url('js/live-engagement.js') ?>"></script>
+
+<!-- ============================================================ -->
+<!-- Create Presentation Modal -->
+<!-- ============================================================ -->
+<div id="createPresModal" class="le-modal-overlay" style="display: none;">
+    <div class="le-modal">
+        <div class="le-modal-header">
+            <div style="display: flex; align-items: center; gap: var(--le-space-2);">
+                <div style="width: 40px; height: 40px; border-radius: var(--le-radius-lg); background: var(--le-primary-lighter); display: flex; align-items: center; justify-content: center;">
+                    <span class="material-symbols-rounded" style="color: var(--le-primary); font-size: 22px;">slideshow</span>
+                </div>
+                <h3 class="le-card-title" style="font-size: 1.1rem;">New Presentation</h3>
+            </div>
+            <button class="le-modal-close" onclick="closeModal('createPresModal')">&times;</button>
+        </div>
+        <form id="createPresForm" onsubmit="createBlankPresentation(event)">
+            <div class="le-modal-body">
+                <div id="createPresStatus" role="status" aria-live="polite" hidden
+                     style="margin-bottom: var(--le-space-3); padding: var(--le-space-2) var(--le-space-3); border-radius: var(--le-radius-lg); font-size: var(--le-font-size-sm);"></div>
+                <div class="le-form-group">
+                    <label class="le-label le-label-required">Presentation Title</label>
+                    <input type="text" class="le-input" name="title" required placeholder="e.g. Presentation 1 - Introduction to ...">
+                </div>
+                <div class="le-form-group">
+                    <label class="le-label">Description (optional)</label>
+                    <textarea class="le-textarea" name="description" placeholder="Brief description of this presentation" rows="3"></textarea>
+                </div>
+                <div class="le-form-group">
+                    <label class="le-label le-label-required">Session</label>
+                    <select class="le-select" name="session_id" required>
+                        <option value="">Select a session</option>
+                        <?php
+                        // Get lecturer's sessions for the dropdown
+                        $sessionModel = new \LE\Models\SessionModel();
+                        $sessions = $sessionModel->getLecturerActiveSessions($userId);
+                        $sessions = array_merge($sessions, $sessionModel->getLecturerScheduledSessions($userId));
+                        foreach ($sessions as $s):
+                        ?>
+                        <option value="<?= (int)$s['id'] ?>" <?= ((int)le_get('session_id', 0, true) === (int)$s['id']) ? 'selected' : '' ?>>
+                            <?= UI::escape($s['title']) ?> (<?= UI::escape($s['session_code']) ?>)
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="le-grid le-grid-2">
+                    <div class="le-form-group">
+                        <label class="le-label">Total Slides</label>
+                        <input type="number" class="le-input" name="total_slides" value="5" min="1" max="100">
+                    </div>
+                    <div class="le-form-group">
+                        <label class="le-label">Slide Duration (sec)</label>
+                        <input type="number" class="le-input" name="slide_duration" value="30" min="5" max="600">
+                    </div>
+                </div>
+                <?= le_csrf_field() ?>
+            </div>
+            <div class="le-modal-footer">
+                <button type="button" class="le-btn le-btn-secondary" onclick="closeModal('createPresModal')">Cancel</button>
+                <button type="submit" class="le-btn le-btn-primary" id="createPresBtn">
+                    <span class="material-symbols-rounded" style="font-size: 20px;">slideshow</span>
+                    Create Presentation
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-    LiveEngagement.init({ isPresenter: true });
+    if (typeof LiveEngagement !== 'undefined') {
+        LiveEngagement.init({ isPresenter: true });
+    }
+
+    async function createBlankPresentation(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        const btn = document.getElementById('createPresBtn');
+        const status = document.getElementById('createPresStatus');
+
+        status.hidden = true;
+        btn.disabled = true;
+        btn.innerHTML = '<div class="le-spinner le-spinner-sm" style="border-color: rgba(255,255,255,0.3); border-top-color: white;"></div> Creating...';
+
+        try {
+            const response = await fetch('<?= le_module_url('api/presentation.php') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new URLSearchParams({ action: 'create', ...data }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Failed to create presentation');
+            }
+            status.textContent = 'Presentation created successfully!';
+            status.style.color = 'var(--le-success)';
+            status.hidden = false;
+            LiveEngagement.showToast('Presentation created', 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (error) {
+            status.textContent = error.message || 'Unable to create presentation.';
+            status.style.color = 'var(--le-danger)';
+            status.hidden = false;
+            LiveEngagement.showToast(error.message || 'Failed to create', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-rounded" style="font-size: 20px;">slideshow</span> Create Presentation';
+        }
+    }
 
     function showUploadModal() {
         document.getElementById('uploadModal').style.display = 'flex';
     }
 
     function showCreateModal() {
-        window.location.href = '?page=dashboard&create=1&type=presentation';
+        window.location.href = '<?= le_page_url('create_presentation') ?>' + (<?= json_encode($selectedSessionId ?: 0) ?> ? '&session_id=' + <?= json_encode($selectedSessionId ?: 0) ?> : '');
     }
 
     function closeModal(id) {
@@ -407,4 +519,5 @@ include __DIR__ . '/../../includes/header.php';
     }
 </script>
 
-<?php include __DIR__ . '/../../includes/footer.php'; ?>
+<?php
+Layout::end();

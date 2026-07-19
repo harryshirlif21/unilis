@@ -12,6 +12,7 @@
 require_once __DIR__ . '/../bootstrap.php';
 le_require_auth();
 
+use LE\Components\Layout;
 use LE\Components\UI;
 
 $userId = le_current_user_id();
@@ -19,7 +20,7 @@ $userName = le_current_user_name() ?? 'Student';
 $sessionId = (int)le_get('id', 0, true);
 
 if (!$sessionId) {
-    header('Location: ?page=join');
+    header('Location: ' . le_page_url('join'));
     exit;
 }
 
@@ -27,17 +28,17 @@ $sessionModel = new \LE\Models\SessionModel();
 $session = $sessionModel->getById($sessionId);
 
 if (!$session) {
-    header('Location: ?page=join');
+    header('Location: ' . le_page_url('join'));
     exit;
 }
 
-include __DIR__ . '/../../includes/header.php';
+Layout::start([
+    'title' => $session['title'] ?? 'Live Session',
+    'layout' => 'immersive',
+]);
 ?>
-<link rel="stylesheet" href="<?= le_asset_url('css/live-engagement.css') ?>">
-<?= le_csrf_meta() ?>
-<?= UI::inlineScript() ?>
 
-<div class="le-student-layout" style="min-height: calc(100vh - var(--le-header-height)); padding: var(--le-space-3);">
+<div class="le-student-layout" style="min-height: 100vh; padding: var(--le-space-3);">
     <!-- ============================================================ -->
     <!-- Main Content Area -->
     <!-- ============================================================ -->
@@ -147,7 +148,7 @@ include __DIR__ . '/../../includes/header.php';
     </button>
 </nav>
 
-<script src="<?= le_asset_url('js/live-engagement.js') ?>"></script>
+
 <script>
     const SESSION_ID = <?= $sessionId ?>;
     const USER_NAME = <?= json_encode($userName) ?>;
@@ -256,4 +257,5 @@ include __DIR__ . '/../../includes/header.php';
     }
 </script>
 
-<?php include __DIR__ . '/../../includes/footer.php'; ?>
+<?php
+Layout::end();

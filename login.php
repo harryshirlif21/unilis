@@ -2,8 +2,17 @@
 session_start();
 include 'actions.php';
 
+// Set by the Live Engagement landing page before it sends users here.
+$leRedirect = $_SESSION['le_login_redirect'] ?? '';
+
 // Redirect if already logged in (any role)
 if (isset($_SESSION['user_id']) || isset($_SESSION['user_role'])) {
+    if ($leRedirect) {
+        unset($_SESSION['le_login_redirect']);
+        header('Location: ' . $leRedirect);
+        exit;
+    }
+
     switch ($_SESSION['user_role'] ?? '') {
         case 'student':
             header("Location: student/dashboard.php");
@@ -102,6 +111,9 @@ unset($_SESSION['login_error']); // Clear after display
 
             <form method="POST" action="actions.php" class="w-full max-w-sm">
                 <input type="hidden" name="action" value="universal_login">
+                <?php if ($leRedirect): ?>
+                <input type="hidden" name="le_redirect" value="<?= htmlspecialchars($leRedirect) ?>">
+                <?php endif; ?>
                 
                 <div class="mb-4">
                     <label for="email" class="block text-gray-700 text-sm font-medium mb-2 text-left">Email:</label>

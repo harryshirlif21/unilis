@@ -294,6 +294,175 @@ a:hover { color: var(--le-primary-light); }
    3. Layout System
    ============================================================ */
 
+/* Standalone app shell */
+body.le-standalone {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--le-gray-50);
+  color: var(--le-gray-900);
+  font-family: var(--le-font-family);
+}
+
+.le-app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--le-header-height);
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--le-gray-200);
+  backdrop-filter: blur(12px);
+}
+
+[data-theme="dark"] .le-app-header {
+  background: rgba(17, 24, 39, 0.92);
+  border-bottom-color: var(--le-gray-700);
+}
+
+.le-app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--le-space-2);
+  max-width: var(--le-container-max);
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 var(--le-space-3);
+}
+
+.le-app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--le-space-2);
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.le-app-brand-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--le-radius-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--le-primary), var(--le-primary-light));
+  color: white;
+  box-shadow: 0 4px 12px rgba(27, 94, 32, 0.25);
+}
+
+.le-app-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.le-app-brand-text strong {
+  font-size: var(--le-font-size-sm);
+  font-weight: var(--le-font-weight-bold);
+}
+
+.le-app-brand-text small {
+  font-size: var(--le-font-size-xs);
+  color: var(--le-gray-500);
+}
+
+.le-app-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.le-app-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--le-radius-full);
+  color: var(--le-gray-600);
+  text-decoration: none;
+  font-size: var(--le-font-size-sm);
+  font-weight: var(--le-font-weight-medium);
+  white-space: nowrap;
+  transition: background var(--le-transition), color var(--le-transition);
+}
+
+.le-app-nav-link:hover,
+.le-app-nav-link.is-active {
+  background: var(--le-primary-lighter);
+  color: var(--le-primary);
+}
+
+.le-app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--le-space-2);
+}
+
+.le-app-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.le-app-user-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.le-app-user-meta strong,
+.le-app-user-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.le-app-user-meta strong {
+  font-size: var(--le-font-size-sm);
+}
+
+.le-app-user-meta small {
+  font-size: var(--le-font-size-xs);
+  color: var(--le-gray-500);
+}
+
+.le-app-main {
+  min-height: calc(100vh - var(--le-header-height));
+}
+
+body[data-le-layout="minimal"] .le-app-main,
+body[data-le-layout="immersive"] .le-app-main {
+  min-height: 100vh;
+  padding: 0;
+}
+
+.le-404-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.le-404-content {
+  text-align: center;
+  max-width: 420px;
+  padding: var(--le-space-4);
+}
+
+@media (max-width: 900px) {
+  .le-app-nav-link span:last-child {
+    display: none;
+  }
+
+  .le-app-user-meta {
+    display: none;
+  }
+}
+
 /* Container */
 .le-container {
   width: 100%;
