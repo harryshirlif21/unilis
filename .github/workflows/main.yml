@@ -29,14 +29,25 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and Push Docker Image
+      - name: Build and Push App Image
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
+            hilkim21/unilis-app:1.0
+            hilkim21/unilis-app:${{ github.sha }}
+
+      - name: Build and Push Meeting Service Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./meeting-server
+          file: ./meeting-server/Dockerfile
+          push: true
+          tags: |
+            hilkim21/unilis-meeting-media:1.0
+            hilkim21/unilis-meeting-media:${{ github.sha }}
 
       - name: Setup SSH
         run: |
@@ -58,4 +69,7 @@ jobs:
 
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "--- Container status after deploy ---"
+            docker compose -f docker-compose.prod.yml ps
           EOF
