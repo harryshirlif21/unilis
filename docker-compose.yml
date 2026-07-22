@@ -13,6 +13,7 @@ services:
       - ./assets/assignments:/var/www/html/assets/assignments
       - ./assets/meetings:/var/www/html/assets/meetings
       - ./assets/requested_files:/var/www/html/assets/requested_files
+      - ./apache.conf:/etc/apache2/sites-available/000-default.conf.template
     depends_on:
       db:
         condition: service_started
