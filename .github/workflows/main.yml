@@ -29,27 +29,14 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and Push App Image
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
           push: true
           tags: |
-            hilkim21/unilis-app:latest
-            hilkim21/unilis-app:1.0
-            hilkim21/unilis-app:${{ github.sha }}
-
-      - name: Build and Push Meeting Service Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./meeting-server
-          file: ./meeting-server/Dockerfile
-          push: true
-          tags: |
-            hilkim21/unilis-meeting-media:latest
-            hilkim21/unilis-meeting-media:1.0
-            hilkim21/unilis-meeting-media:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
 
       - name: Setup SSH
         run: |
@@ -58,31 +45,14 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      - name: Fix remote shell (guard .bashrc and .profile)
-        run: ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "grep -q 'interactive.*return' ~/.bashrc 2>/dev/null || sed -i '1i# non-interactive guard\\n[[ \\$- == *i* ]] || return 0\\n' ~/.bashrc; grep -q 'interactive.*return' ~/.profile 2>/dev/null || sed -i '1i# non-interactive guard\\n[[ \\$- == *i* ]] || return 0\\n' ~/.profile; grep -q 'interactive.*return' ~/.bash_profile 2>/dev/null || sed -i '1i# non-interactive guard\\n[[ \\$- == *i* ]] || return 0\\n' ~/.bash_profile; echo done"
-
-      - name: Upload docker-compose.yml
-        run: |
-          ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "mkdir -p ~/unilis && rm -f ~/unilis/docker-compose.yml"
-          ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} 'cat > ~/unilis/docker-compose.yml' < docker-compose.yml
-
-      - name: Sync live-engagement module
-        run: |
-          ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "mkdir -p ~/unilis/modules/live-engagement"
-          tar -czf - modules/live-engagement/ | ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "tar -xzf - -C ~/unilis/modules/live-engagement/"
-
-      - name: Sync apache.conf
-        run: ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} 'cat > ~/unilis/apache.conf' < apache.conf
-
       - name: Deploy to Production Server
         run: |
           ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} << 'EOF'
-            set -e
-            cd ~/unilis
-
-            docker compose -f docker-compose.yml pull
-            docker compose -f docker-compose.yml up -d --force-recreate --remove-orphans
-
-            echo "--- Container status after deploy ---"
-            docker compose -f docker-compose.yml ps
+            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
+            docker stop unilis-app || true
+            docker rm unilis-app || true
+            docker run -d \
+              --name unilis-app \
+              -p 80:80 \
+              ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
           EOF
