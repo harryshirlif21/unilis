@@ -56,20 +56,42 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      - name: Upload production compose file
+      - name: Fix remote shell for non-interactive sessions
         run: |
-          ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "mkdir -p ~/unilis"
-          ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} 'cat > ~/unilis/docker-compose.prod.yml' < docker-compose.prod.yml
+          ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} \
+            "grep -q 'interactive' ~/.bashrc 2>/dev/null || \
+             printf '\\n# non-interactive guard\\n[[ \$- == *i* ]] || return 0\\n' >> ~/.bashrc"
+
+      - name: Upload docker-compose.yml
+        run: |
+          ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "mkdir -p ~/unilis"
+          scp -o StrictHostKeyChecking=no -o LogLevel=ERROR \
+            docker-compose.yml \
+            ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}:~/unilis/docker-compose.yml
+
+      - name: Sync live-engagement module
+        run: |
+          ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} \
+            "mkdir -p ~/unilis/modules/live-engagement"
+          tar -czf - modules/live-engagement/ | \
+            ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} \
+              "tar -xzf - -C ~/unilis/modules/live-engagement/"
+
+      - name: Sync apache.conf
+        run: |
+          scp -o StrictHostKeyChecking=no -o LogLevel=ERROR \
+            apache.conf \
+            ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}:~/unilis/apache.conf
 
       - name: Deploy to Production Server
         run: |
           ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} << 'EOF'
-            mkdir -p ~/unilis
+            set -e
             cd ~/unilis
 
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.yml pull
+            docker compose -f docker-compose.yml up -d --remove-orphans
 
             echo "--- Container status after deploy ---"
-            docker compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.yml ps
           EOF
