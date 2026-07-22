@@ -138,10 +138,23 @@ function le_base_url(): string
 
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/unilis/modules/live-engagement/index.php');
-    $moduleDir = dirname($scriptName);
-    $appRoot = dirname(dirname($moduleDir));
 
-    $baseUrl = rtrim($scheme . '://' . $_SERVER['HTTP_HOST'] . $appRoot, '/');
+    // Determine the application root by trimming the module path from SCRIPT_NAME.
+    // SCRIPT_NAME examples:
+    //   /unilis/modules/live-engagement/index.php  → app root: /unilis
+    //   /modules/live-engagement/index.php         → app root: '' (web root)
+    $modulePath = '/modules/live-engagement';
+    $pos = strpos($scriptName, $modulePath);
+    if ($pos !== false) {
+        $appRoot = substr($scriptName, 0, $pos);
+    } else {
+        // Fallback: walk up from the script dir
+        $moduleDir = dirname($scriptName);
+        $appRoot = dirname(dirname($moduleDir));
+    }
+
+    $appRoot = rtrim($appRoot, '/');
+    $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $appRoot;
     return $baseUrl;
 }
 
