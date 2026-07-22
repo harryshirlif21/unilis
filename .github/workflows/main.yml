@@ -63,17 +63,8 @@ jobs:
 
       - name: Sync application code to production server
         run: |
-          rsync -avz --delete \
-            --exclude 'node_modules' \
-            --exclude 'vendor' \
-            --exclude '.git' \
-            --exclude '.env' \
-            --exclude 'uploads/*' \
-            --exclude 'assets/uploads/*' \
-            --exclude 'assets/assignments/*' \
-            --exclude 'assets/meetings/*' \
-            --exclude 'assets/requested_files/*' \
-            ./ ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}:~/unilis/
+          ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "mkdir -p ~/unilis/modules/live-engagement"
+          scp -r modules/live-engagement/ ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}:~/unilis/modules/live-engagement/
 
       - name: Deploy to Production Server
         run: |
