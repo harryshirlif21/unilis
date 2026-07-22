@@ -1,10 +1,84 @@
 <?php
 /**
- * Live Engagement — Landing Page
+ * Live Engagement — Landing Page with routing
  */
 require_once __DIR__ . '/bootstrap.php';
 
 use LE\Components\Layout;
+
+/*
+ * Route authenticated users to the appropriate page.
+ * The landing page (no ?page=) is always shown to everyone.
+ */
+$requestedPage = le_get('page', '');
+if ($requestedPage !== '' || le_is_authenticated()) {
+    le_require_auth();
+
+    $page = $requestedPage ?: 'dashboard';
+    $sessionId = (int) le_get('id', 0, true);
+    $code = le_get('code', '');
+
+    switch ($page) {
+        case 'dashboard':
+            include __DIR__ . '/views/' . (le_has_role(['lecturer', 'admin']) ? 'dashboard.php' : 'join.php');
+            break;
+
+        case 'presenter':
+            if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
+                header('Location: ' . le_page_url('dashboard'));
+                exit;
+            }
+            include __DIR__ . '/views/presenter.php';
+            break;
+
+        case 'join':
+            include __DIR__ . '/views/join.php';
+            break;
+
+        case 'session':
+            if (!$sessionId && $code === '') {
+                header('Location: ' . le_page_url('join'));
+                exit;
+            }
+            include __DIR__ . '/views/session.php';
+            break;
+
+        case 'presentations':
+        case 'reports':
+            if (!le_has_role(['lecturer', 'admin'])) {
+                header('Location: ' . le_page_url('join'));
+                exit;
+            }
+            include __DIR__ . '/views/' . ($page === 'presentations' ? 'presentations.php' : 'reports_overview.php');
+            break;
+
+        case 'create_presentation':
+            include __DIR__ . '/views/create_presentation.php';
+            break;
+
+        case 'edit_presentation':
+            if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
+                header('Location: ' . le_page_url('presentations'));
+                exit;
+            }
+            include __DIR__ . '/views/edit_presentation.php';
+            break;
+
+        case 'report':
+            if (!$sessionId) {
+                header('Location: ' . le_page_url('dashboard'));
+                exit;
+            }
+            include __DIR__ . '/views/report.php';
+            break;
+
+        default:
+            http_response_code(404);
+            exit('Page not found.');
+    }
+
+    exit;
+}
 
 // Auto-open auth modal if redirected here with ?auth=1
 $openAuthModal = !empty($_GET['auth']);
