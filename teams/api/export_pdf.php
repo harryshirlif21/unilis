@@ -87,7 +87,6 @@ try {
             s.name AS student_name,
             s.reg_no,
             s.email,
-            s.phone,
             tm.role,
             tm.joined_at
         FROM team_members tm
@@ -204,7 +203,6 @@ try {
                 <th>Registration No</th>
                 <th>Role</th>
                 <th>Email</th>
-                <th>Phone</th>
                 <th>Joined Date</th>
             </tr>';
     
@@ -216,7 +214,6 @@ try {
                 <td>' . htmlspecialchars($member['reg_no']) . '</td>
                 <td>' . htmlspecialchars(team_role_label((string)$member['role'])) . '</td>
                 <td>' . htmlspecialchars($member['email']) . '</td>
-                <td>' . htmlspecialchars($member['phone'] ?: 'N/A') . '</td>
                 <td>' . date('d M Y', strtotime($member['joined_at'])) . '</td>
             </tr>';
     }

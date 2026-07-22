@@ -83,7 +83,6 @@ try {
             s.name AS student_name,
             s.reg_no,
             s.email,
-            s.phone,
             tm.role,
             tm.joined_at
         FROM team_members tm
@@ -189,14 +188,13 @@ try {
 
     // Sheet 2: Members
     fputcsv($output, ['Team Members']);
-    fputcsv($output, ['Name', 'Registration No', 'Role', 'Email', 'Phone', 'Joined Date']);
+    fputcsv($output, ['Name', 'Registration No', 'Role', 'Email', 'Joined Date']);
     foreach ($members as $member) {
         fputcsv($output, [
             $member['student_name'],
             $member['reg_no'],
             team_role_label((string)$member['role']),
             $member['email'],
-            $member['phone'] ?: 'N/A',
             date('d M Y', strtotime($member['joined_at']))
         ]);
     }

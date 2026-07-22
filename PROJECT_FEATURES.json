@@ -1,0 +1,1053 @@
+{
+  "project_name": "UNILIS - Unified Learning and Innovation Lab Information System",
+  "version": "2.0.0",
+  "last_updated": "2026-07-20",
+  "description": "Comprehensive feature inventory for the UNILIS LMS system including Traditional LMS, SmartLab (SmartLab), Live Engagement, Teams, and ICLM (Self-Paced Online Courses) modules.",
+  "modules": [
+    {
+      "name": "Traditional LMS",
+      "description": "Core learning management system with student, lecturer, and admin dashboards",
+      "features": [
+        {
+          "id": "lms-auth",
+          "name": "Authentication System",
+          "status": "implemented",
+          "description": "Session-based email/password authentication with role-based access control (student/lecturer/admin)",
+          "files": ["login.php", "logout.php", "forgot_password.php", "update_password.php", "includes/auth.php"],
+          "sub_features": [
+            {"name": "Password Reset Flow", "status": "implemented"},
+            {"name": "Session Management", "status": "implemented"},
+            {"name": "Role-based Redirects", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "lms-student-dashboard",
+          "name": "Student Dashboard",
+          "status": "implemented",
+          "description": "Overview of enrolled units, announcements, upcoming deadlines, and grades summary",
+          "files": ["student/dashboard.php"],
+          "sub_features": [
+            {"name": "Enrolled Units Display", "status": "implemented"},
+            {"name": "Upcoming Deadlines", "status": "implemented"},
+            {"name": "Grades Summary", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "lms-student-assignments",
+          "name": "Student Assignments",
+          "status": "implemented",
+          "description": "View assignment details, submit work (text/file), track submission status",
+          "files": ["student/view_assignments.php", "includes/assignment_handler.php"],
+          "sub_features": [
+            {"name": "Assignment Listing with Deadlines", "status": "implemented"},
+            {"name": "File Upload Submission", "status": "implemented"},
+            {"name": "Text Submission", "status": "implemented"},
+            {"name": "Submission Status Tracking", "status": "implemented"},
+            {"name": "Plagiarism Detection", "status": "not-started"},
+            {"name": "Draft Saving", "status": "not-started"},
+            {"name": "Resubmit Before Deadline", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-student-grades",
+          "name": "Student Grades",
+          "status": "implemented",
+          "description": "View graded assignments, unit grades, GPA calculation, and detailed feedback",
+          "files": ["student/view_grades.php"],
+          "sub_features": [
+            {"name": "Assignment Grades", "status": "implemented"},
+            {"name": "Unit Grade Aggregation", "status": "implemented"},
+            {"name": "Grade Analytics", "status": "not-started"},
+            {"name": "Grade Appeal Workflow", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-student-attendance",
+          "name": "Student Attendance Tracking",
+          "status": "partial",
+          "description": "View attendance records per unit, mark attendance via QR/RFID/biometric/code",
+          "files": ["student/attendance.php", "student/attendance_submit.php", "smart-lab/controllers/QrAuthController.php"],
+          "sub_features": [
+            {"name": "Attendance Record View", "status": "implemented"},
+            {"name": "QR Code Attendance", "status": "implemented"},
+            {"name": "RFID Card Attendance", "status": "implemented"},
+            {"name": "Biometric Attendance", "status": "implemented"},
+            {"name": "Manual Code Entry", "status": "implemented"},
+            {"name": "Attendance Analytics", "status": "not-started"},
+            {"name": "Exemption Requests", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-student-content",
+          "name": "Course Content Access",
+          "status": "implemented",
+          "description": "Access course notes, lecture recordings, slides, and learning materials",
+          "files": ["student/view_content.php", "student/lesson_view.php", "student/unit_notes.php"]
+        },
+        {
+          "id": "lms-student-notifications",
+          "name": "Student Notifications",
+          "status": "partial",
+          "description": "View announcements, assignment reminders, grade notifications, meeting invitations",
+          "files": ["student/notifications.php", "includes/notifications.php"],
+          "sub_features": [
+            {"name": "In-app Notifications", "status": "implemented"},
+            {"name": "Email Notifications", "status": "implemented"},
+            {"name": "Real-time WebSocket Notifications", "status": "not-started"},
+            {"name": "Notification Preferences", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-student-profile",
+          "name": "Student Profile Management",
+          "status": "implemented",
+          "description": "Update personal info, change password, manage notification preferences",
+          "files": ["profile.php"]
+        },
+        {
+          "id": "lms-lecturer-dashboard",
+          "name": "Lecturer Dashboard",
+          "status": "implemented",
+          "description": "Overview of teaching load, recent submissions, upcoming assessments, class announcements",
+          "files": ["lecturer/dashboard.php", "lecturer/lecturer_dashboard.php"]
+        },
+        {
+          "id": "lms-lecturer-course-management",
+          "name": "Course & Unit Management",
+          "status": "implemented",
+          "description": "Create/edit courses, add units, set schedules, enroll students",
+          "files": ["lecturer/course_builder.php", "lecturer/course_outline.php", "lecturer/module_manager.php", "lecturer/ajax/save_module.php"],
+          "sub_features": [
+            {"name": "Course Creation/Editing", "status": "implemented"},
+            {"name": "Unit Management", "status": "implemented"},
+            {"name": "Student Enrollment", "status": "implemented"},
+            {"name": "Bulk CSV Enrollment", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-lecturer-content",
+          "name": "Course Content Management",
+          "status": "implemented",
+          "description": "Upload lecture slides, recordings, notes; organize by week/topic",
+          "files": ["lecturer/coursenotes.php", "lecturer/saveClassnotes.php", "lecturer/lesson_editor.php"],
+          "sub_features": [
+            {"name": "File Upload", "status": "implemented"},
+            {"name": "Content Organization", "status": "implemented"},
+            {"name": "Drag-drop Reordering", "status": "not-started"},
+            {"name": "Folder Organization", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-lecturer-assignments",
+          "name": "Assignment Creation & Management",
+          "status": "implemented",
+          "description": "Create assignments with rubric, instructions, deadlines; configure grading settings",
+          "files": ["lecturer/create_assignment.php", "lecturer/assessment_builder.php"],
+          "sub_features": [
+            {"name": "Assignment Creation with Rubric", "status": "implemented"},
+            {"name": "Deadline Configuration", "status": "implemented"},
+            {"name": "Submission Type Configuration", "status": "implemented"},
+            {"name": "AI Grading Templates", "status": "implemented"},
+            {"name": "Reusable Assignment Templates", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-lecturer-grading",
+          "name": "Assignment Grading",
+          "status": "implemented",
+          "description": "View submissions, enter grades, provide feedback, AI-assisted grading",
+          "files": ["lecturer/grade_submission.php", "lecturer/review_assignments.php", "lecturer/submissions.php", "includes/ai_grading.php"],
+          "sub_features": [
+            {"name": "Submission List View", "status": "implemented"},
+            {"name": "Grade Entry & Feedback", "status": "implemented"},
+            {"name": "AI-Assisted Grading", "status": "implemented"},
+            {"name": "Batch Grading", "status": "implemented"},
+            {"name": "Rubric-based Grading UI", "status": "not-started"},
+            {"name": "Grade Appeal Workflow", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-lecturer-meetings",
+          "name": "Online Meetings (WebRTC)",
+          "status": "partial",
+          "description": "Schedule meetings, start WebRTC sessions, record meetings, share screen, live coding IDE",
+          "files": ["lecturer/meetings.php", "lecturer/meeting_host.php", "lecturer/meeting_ide.php", "config/meeting.php", "api/check_live_meetings.php"],
+          "sub_features": [
+            {"name": "Meeting Scheduling", "status": "implemented"},
+            {"name": "WebRTC Session Hosting", "status": "partial"},
+            {"name": "Meeting Recordings", "status": "implemented"},
+            {"name": "Screen Sharing", "status": "partial"},
+            {"name": "Live Coding IDE", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "lms-lecturer-attendance",
+          "name": "Attendance Management",
+          "status": "partial",
+          "description": "View unit attendance reports, export records, set exemptions",
+          "files": ["lecturer/lecturer_take_attendance.php", "lecturer/lecturer_attendance_report.php", "lecturer/attendance_functions.php"],
+          "sub_features": [
+            {"name": "Attendance Reports", "status": "implemented"},
+            {"name": "Attendance Export", "status": "implemented"},
+            {"name": "Advanced Analytics", "status": "not-started"},
+            {"name": "Exemption Workflow", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-lecturer-file-requests",
+          "name": "File Requests",
+          "status": "implemented",
+          "description": "Request student files for grading/archival with deadline tracking",
+          "files": ["lecturer/request_files.php"],
+          "sub_features": [
+            {"name": "File Request Creation", "status": "implemented"},
+            {"name": "Deadline Tracking", "status": "implemented"},
+            {"name": "Submission Tracking", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "lms-lecturer-exams",
+          "name": "Exam & CAT Management",
+          "status": "implemented",
+          "description": "Create exams/CATs, generate questions, manage exam reports, export scores",
+          "files": ["lecturer/create_cat.php", "lecturer/create_questions.php", "lecturer/exam_reports.php", "lecturer/export_scores.php", "lecturer/assgenpdf.php"]
+        },
+        {
+          "id": "lms-lecturer-practicals",
+          "name": "Lecturer Practicals Management",
+          "status": "implemented",
+          "description": "Create and manage lab practicals via SmartLab integration (view, grade, monitor)",
+          "files": ["lecturer/dashboard.php", "smart-lab/controllers/PracticalController.php", "smart-lab/views/practicals/index.php"],
+          "sub_features": [
+            {"name": "Practical Creation", "status": "implemented"},
+            {"name": "Student Enrollment View", "status": "implemented"},
+            {"name": "Grading Queue", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "lms-admin-dashboard",
+          "name": "Admin Dashboard",
+          "status": "implemented",
+          "description": "System overview with user counts, active courses, system health, pending requests",
+          "files": ["admin/dashboard.php"]
+        },
+        {
+          "id": "lms-admin-user-management",
+          "name": "User Management",
+          "status": "partial",
+          "description": "Add/edit users, manage roles, enable/disable accounts, reset passwords",
+          "files": ["admin/add_lecturer.php", "admin/profile.php", "admin/update_password.php"],
+          "sub_features": [
+            {"name": "User CRUD", "status": "implemented"},
+            {"name": "Role Management", "status": "implemented"},
+            {"name": "Bulk User Import", "status": "not-started"},
+            {"name": "Email Verification", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-admin-institution",
+          "name": "Institution Management",
+          "status": "implemented",
+          "description": "Add universities, manage departments, assign department heads",
+          "files": ["admin/add_university.php", "admin/add_department.php"],
+          "sub_features": [
+            {"name": "University CRUD", "status": "implemented"},
+            {"name": "Department Management", "status": "implemented"},
+            {"name": "Department Head Assignment", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "lms-admin-courses",
+          "name": "Course & Unit Administration",
+          "status": "implemented",
+          "description": "Add courses, configure units, assign lecturers, manage prerequisites",
+          "files": ["admin/add_course.php", "admin/fetch_units.php"]
+        },
+        {
+          "id": "lms-admin-requests",
+          "name": "Pending Requests Management",
+          "status": "implemented",
+          "description": "Review and approve/reject team membership requests, file access requests, student appeals",
+          "files": ["admin/pendingreq.php"],
+          "sub_features": [
+            {"name": "Request Listing", "status": "implemented"},
+            {"name": "Approve/Reject Workflow", "status": "implemented"},
+            {"name": "Unified Request System", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-admin-audit",
+          "name": "Audit Logs",
+          "status": "not-started",
+          "description": "View system audit logs: user actions, logins, data changes, errors",
+          "sub_features": [
+            {"name": "Comprehensive Audit Trail", "status": "not-started"},
+            {"name": "Audit Log Viewing", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "lms-admin-reports",
+          "name": "Admin Reports",
+          "status": "not-started",
+          "description": "Generate reports: user statistics, course performance, system usage",
+          "sub_features": [
+            {"name": "Reporting Dashboard", "status": "not-started"},
+            {"name": "Export Capabilities", "status": "not-started"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SmartLab Module",
+      "description": "Advanced laboratory management system with practicals, notebooks, asset tracking, biometric authentication, and blockchain audit trail",
+      "features": [
+        {
+          "id": "smartlab-auth",
+          "name": "Multi-Modal Authentication",
+          "status": "implemented",
+          "description": "Six authentication methods: password, QR code, RFID, biometric, OTP, and session codes with MFA support",
+          "files": ["smart-lab/auth/Auth.php", "smart-lab/controllers/AuthController.php", "smart-lab/controllers/QrAuthController.php"],
+          "sub_features": [
+            {"name": "Password Login", "status": "implemented"},
+            {"name": "QR Code Login (Dynamic)", "status": "implemented"},
+            {"name": "RFID Card Login", "status": "implemented"},
+            {"name": "Biometric/Fingerprint Login", "status": "implemented"},
+            {"name": "OTP Email Login", "status": "implemented"},
+            {"name": "Session Code Login", "status": "implemented"},
+            {"name": "Multi-Factor Authentication", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-practical-lifecycle",
+          "name": "Practical Lifecycle Management",
+          "status": "implemented",
+          "description": "Complete practical management from experiment definition to grading with strict academic integrity workflow",
+          "files": ["smart-lab/controllers/PracticalController.php", "smart-lab/controllers/WorkflowController.php", "smart-lab/includes/WorkflowEngine.php"],
+          "sub_features": [
+            {"name": "Experiment Definition (Technician)", "status": "implemented"},
+            {"name": "Practical Creation (Lecturer)", "status": "implemented"},
+            {"name": "Lab Availability Checking", "status": "implemented"},
+            {"name": "Scheduling & Notification", "status": "implemented"},
+            {"name": "Student Attendance Verification", "status": "implemented"},
+            {"name": "Practical Execution Interface", "status": "implemented"},
+            {"name": "Report Submission", "status": "implemented"},
+            {"name": "Grading & Feedback", "status": "implemented"},
+            {"name": "Datasheet Generation", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-workflow",
+          "name": "Academic Integrity Workflow Engine",
+          "status": "implemented",
+          "description": "Strict state machine enforcing physical-presence-only attendance verification with 11 workflow states (Scheduled → Graded)",
+          "files": ["smart-lab/includes/WorkflowEngine.php", "smart-lab/controllers/WorkflowController.php", "smart-lab/migrations/workflow/001_strict_workflow_tables.sql"],
+          "sub_features": [
+            {"name": "11-State Workflow", "status": "implemented"},
+            {"name": "Physical Presence Verification Only", "status": "implemented"},
+            {"name": "Verification Window Enforcement", "status": "implemented"},
+            {"name": "Automatic Verification Expiry", "status": "implemented"},
+            {"name": "Background Checks for Practical Start", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-attendance",
+          "name": "Attendance Verification (Multi-Method)",
+          "status": "implemented",
+          "description": "Mark attendance via Dynamic QR (15-sec refresh), RFID card, biometric fingerprint, technician code, or NFC",
+          "files": ["smart-lab/controllers/QrAuthController.php", "smart-lab/includes/DynamicQRService.php"],
+          "sub_features": [
+            {"name": "Dynamic QR Code (15-sec refresh)", "status": "implemented"},
+            {"name": "RFID Card Tap", "status": "implemented"},
+            {"name": "Biometric Fingerprint", "status": "implemented"},
+            {"name": "Technician Confirmation Code", "status": "implemented"},
+            {"name": "NFC Verification", "status": "implemented"},
+            {"name": "Nonce-based Anti-replay", "status": "implemented"},
+            {"name": "HMAC-SHA256 Digital Signatures", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-datasheet",
+          "name": "Datasheet Generation & Verification",
+          "status": "implemented",
+          "description": "Professional JKUAT-branded PDF lab datasheets with QR codes, SHA256 digital signatures, and public verification portal",
+          "files": ["smart-lab/includes/DatasheetGenerator.php", "smart-lab/includes/DatasheetPDFGenerator.php", "smart-lab/includes/DigitalSignature.php", "smart-lab/includes/DynamicQRService.php", "smart-lab/views/workflow/datasheet_verify.php"],
+          "sub_features": [
+            {"name": "TCPDF PDF Generation", "status": "implemented"},
+            {"name": "SHA256 Digital Signatures", "status": "implemented"},
+            {"name": "Embedded QR Codes", "status": "implemented"},
+            {"name": "Public Verification Portal", "status": "implemented"},
+            {"name": "Auto-Approval for Physical Methods", "status": "implemented"},
+            {"name": "Manual Approval for Password Auth", "status": "implemented"},
+            {"name": "365-day QR Token Expiry", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-blockchain",
+          "name": "Blockchain Audit Trail",
+          "status": "implemented",
+          "description": "Immutable blockchain-based audit trail for datasheet submissions (BlockchainAuditService) and legacy asset tracking (proof-of-work)",
+          "files": ["smart-lab/includes/BlockchainAuditService.php", "smart-lab/blockchain/Block.php", "smart-lab/blockchain/Blockchain.php", "smart-lab/blockchain/AssetTracker.php"],
+          "sub_features": [
+            {"name": "Datasheet Blockchain (SHA-256 chained)", "status": "implemented"},
+            {"name": "Legacy Asset Blockchain (PoW)", "status": "implemented"},
+            {"name": "Chain Integrity Validation", "status": "implemented"},
+            {"name": "Tamper Detection", "status": "implemented"},
+            {"name": "Asset Transaction History", "status": "implemented"},
+            {"name": "Full Audit Trail with Provenance", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-notebook",
+          "name": "Digital Lab Notebook",
+          "status": "implemented",
+          "description": "Digital lab notebook system with versioning, approval workflow, group sync, and digital signatures on approval",
+          "files": ["smart-lab/controllers/NotebookController.php", "smart-lab/models/NotebookModel.php"],
+          "sub_features": [
+            {"name": "Rich Content Notebooks", "status": "implemented"},
+            {"name": "Version History Tracking", "status": "implemented"},
+            {"name": "Auto-save", "status": "implemented"},
+            {"name": "Technician Approval Workflow", "status": "implemented"},
+            {"name": "Group Notebook Sync", "status": "implemented"},
+            {"name": "Digital Signature on Approval", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-assets",
+          "name": "Asset Management",
+          "status": "implemented",
+          "description": "Laboratory asset inventory management with blockchain-based immutable audit trail (issue/return/transfer/dispose)",
+          "files": ["smart-lab/controllers/AssetController.php", "smart-lab/blockchain/AssetTracker.php"],
+          "sub_features": [
+            {"name": "Asset CRUD", "status": "implemented"},
+            {"name": "Asset Lifecycle (issue/return/transfer/dispose)", "status": "implemented"},
+            {"name": "Blockchain Tracking", "status": "implemented"},
+            {"name": "Lab-to-Lab Transfers", "status": "implemented"},
+            {"name": "Usage Logging with Duration", "status": "implemented"},
+            {"name": "Min Quantity Alerts", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-requests",
+          "name": "Practical Request System",
+          "status": "implemented",
+          "description": "Students can request enrollment in practicals they missed or need access to, with admin approval workflow",
+          "files": ["smart-lab/controllers/PracticalRequestController.php", "smart-lab/controllers/AdminPracticalRequestController.php"],
+          "sub_features": [
+            {"name": "Request Submission with Reason", "status": "implemented"},
+            {"name": "Status Tracking (pending/approved/rejected)", "status": "implemented"},
+            {"name": "Duplicate Prevention", "status": "implemented"},
+            {"name": "Activity Logging", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-scheduling",
+          "name": "Lab Scheduling & Calendar",
+          "status": "implemented",
+          "description": "Multi-view lab scheduling system with today/week/month/all views, lab filter, occupancy tracking, auth code generation",
+          "files": ["smart-lab/controllers/ScheduleController.php"],
+          "sub_features": [
+            {"name": "Today/Week/Month/All Views", "status": "implemented"},
+            {"name": "Lab Filter", "status": "implemented"},
+            {"name": "Schedule Statistics", "status": "implemented"},
+            {"name": "Lab Occupancy Tracking", "status": "implemented"},
+            {"name": "Auth Code Generation & Email", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-inventory",
+          "name": "Inventory & Lab Monitoring",
+          "status": "implemented",
+          "description": "Lab inventory oversight and CO2 sensor monitoring via Python WebSocket server with real-time dashboard widget",
+          "files": ["smart-lab/controllers/InventoryController.php", "smart-lab/web-app/smart-lab-server.py", "smart-lab/components/co2_monitor_widget.php"],
+          "sub_features": [
+            {"name": "Inventory Listing with Statistics", "status": "implemented"},
+            {"name": "CO2 Sensor Data Collection", "status": "implemented"},
+            {"name": "Real-time CO2 Monitoring Widget", "status": "implemented"},
+            {"name": "Lab Occupancy Dashboard", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-dashboards",
+          "name": "Role-Based Dashboards",
+          "status": "implemented",
+          "description": "Custom dashboards per user role (student, lecturer, technician, admin) with relevant metrics, system health, and blockchain validation status",
+          "files": ["smart-lab/controllers/DashboardController.php", "smart-lab/models/DashboardModel.php"],
+          "sub_features": [
+            {"name": "Student Dashboard", "status": "implemented"},
+            {"name": "Lecturer Dashboard", "status": "implemented"},
+            {"name": "Technician Dashboard", "status": "implemented"},
+            {"name": "Admin Dashboard", "status": "implemented"},
+            {"name": "System Health Indicators", "status": "implemented"},
+            {"name": "Blockchain Validation Status", "status": "implemented"},
+            {"name": "Weekly Activity Chart", "status": "implemented"},
+            {"name": "Lab Utilization Data", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-audit",
+          "name": "Audit & Logging",
+          "status": "implemented",
+          "description": "Comprehensive activity tracking across all system modules with 30+ action types logged to audit_logs table",
+          "files": ["smart-lab/controllers/AuditController.php", "smart-lab/models/AuditModel.php"],
+          "sub_features": [
+            {"name": "Activity Logging (30+ action types)", "status": "implemented"},
+            {"name": "Module-based Logging", "status": "implemented"},
+            {"name": "Recent Activity Display", "status": "implemented"},
+            {"name": "Weekly Activity Aggregation", "status": "implemented"},
+            {"name": "IP Address & User Agent Logging", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-experiments",
+          "name": "Experiment Management",
+          "status": "implemented",
+          "description": "Structured experiment creation by technicians with sections, apparatus list, step-by-step procedures, and results table structure",
+          "files": ["smart-lab/controllers/ExperimentController.php"],
+          "sub_features": [
+            {"name": "Experiment Definition", "status": "implemented"},
+            {"name": "Section-based Content", "status": "implemented"},
+            {"name": "Apparatus/Equipment Lists", "status": "implemented"},
+            {"name": "Step-by-Step Procedures", "status": "implemented"},
+            {"name": "Results Table Structure", "status": "implemented"},
+            {"name": "Draft/Publish Workflow", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-reports",
+          "name": "Report Submission & Grading",
+          "status": "implemented",
+          "description": "Student report submission pipeline with draft/final workflow, file upload, grading with feedback, and revision requests",
+          "files": ["smart-lab/controllers/ReportController.php", "smart-lab/controllers/ReportSubmissionController.php", "smart-lab/views/report-submission/"],
+          "sub_features": [
+            {"name": "Report Creation (Draft/Submitted)", "status": "implemented"},
+            {"name": "File Upload (PDF/DOC/DOCX)", "status": "implemented"},
+            {"name": "Deadline Tracking with Extensions", "status": "implemented"},
+            {"name": "Grading (0-100) with Feedback", "status": "implemented"},
+            {"name": "Revision Request Workflow", "status": "implemented"},
+            {"name": "Grading Statistics (avg/highest/lowest)", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-user-management",
+          "name": "User Management (SmartLab)",
+          "status": "implemented",
+          "description": "Role-based user system with registration, staff management, lab assignment, and device fingerprint tracking",
+          "files": ["smart-lab/controllers/UsersController.php", "smart-lab/auth/Auth.php", "smart-lab/create_simple_admin.php"],
+          "sub_features": [
+            {"name": "Student Registration", "status": "implemented"},
+            {"name": "Staff Registration (with secure key)", "status": "implemented"},
+            {"name": "Role-based Lab Assignment", "status": "implemented"},
+            {"name": "Account Active/Inactive Status", "status": "implemented"},
+            {"name": "Device Fingerprint Tracking", "status": "implemented"},
+            {"name": "5 User Roles (student/lecturer/technician/admin/lab_admin)", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-practical-execution",
+          "name": "Student Practical Execution",
+          "status": "implemented",
+          "description": "Student-facing practical execution with tabbed interface, auto-save, structured data entry, and submission",
+          "files": ["smart-lab/controllers/StudentPracticalController.php", "smart-lab/controllers/StudentTestPracticalController.php", "smart-lab/views/student/view_practical.php", "smart-lab/views/practicals/index.php"],
+          "sub_features": [
+            {"name": "Tabbed Practical Interface", "status": "implemented"},
+            {"name": "Auto-save per Section", "status": "implemented"},
+            {"name": "Results Table with Dynamic Columns", "status": "implemented"},
+            {"name": "Access Window Enforcement", "status": "implemented"},
+            {"name": "Draft/Submitted Status Workflow", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "smartlab-chemical-datasheet",
+          "name": "Chemical Datasheet Management",
+          "status": "implemented",
+          "description": "Chemical safety datasheet management with search, PDF generation, and download capabilities",
+          "files": ["smart-lab/controllers/DatasheetController.php", "smart-lab/models/DatasheetModel.php", "smart-lab/views/datasheets.php", "smart-lab/api/datasheet.php", "smart-lab/api/download_datasheet.php"]
+        },
+        {
+          "id": "smartlab-deployment",
+          "name": "Docker & CI/CD Deployment",
+          "status": "implemented",
+          "description": "Containerized deployment with Docker Compose (Apache/PHP + MySQL), GitHub Actions CI/CD pipeline, and production configuration",
+          "files": ["smart-lab/docker-compose.yml", "smart-lab/Dockerfile", "smart-lab/apache.conf", ".github/workflows/main.yml", "docker-compose.yml", "dockerfile"],
+          "sub_features": [
+            {"name": "Docker Compose Multi-Service Setup", "status": "implemented"},
+            {"name": "GitHub Actions Automated Deployment", "status": "implemented"},
+            {"name": "Production Environment Configuration", "status": "implemented"},
+            {"name": "Database Initialization Scripts", "status": "implemented"},
+            {"name": "Environment Auto-Detection", "status": "implemented"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Live Engagement Module",
+      "description": "Interactive live engagement module for presentations, polls, quizzes, whiteboards, word clouds, and real-time student participation",
+      "features": [
+        {
+          "id": "live-presentations",
+          "name": "Presentation Management",
+          "status": "implemented",
+          "description": "Create, edit, and deliver interactive presentations with slide support (PDF, PPTX, images, video, HTML)",
+          "files": ["modules/live-engagement/views/create_presentation.php", "modules/live-engagement/views/presentations.php", "modules/live-engagement/views/edit_presentation.php", "modules/live-engagement/models/PresentationModel.php"],
+          "sub_features": [
+            {"name": "Slide Upload (PDF/PPTX/Images/Video/HTML)", "status": "implemented"},
+            {"name": "Presentation Creation/Editing", "status": "implemented"},
+            {"name": "Slide Navigation", "status": "implemented"},
+            {"name": "Up to 200 Slides, 50MB Max", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-polls",
+          "name": "Live Polls",
+          "status": "implemented",
+          "description": "Create and manage live polls with multiple choice (up to 26 options), rating (1-10), and Likert scale types",
+          "files": ["modules/live-engagement/api/poll.php", "modules/live-engagement/models/PollModel.php"],
+          "sub_features": [
+            {"name": "Multiple Choice Polls", "status": "implemented"},
+            {"name": "Rating Polls (1-10)", "status": "implemented"},
+            {"name": "Likert Scale Polls", "status": "implemented"},
+            {"name": "Time-limited Polls (default 120s)", "status": "implemented"},
+            {"name": "Real-time Results", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-quizzes",
+          "name": "Live Quizzes",
+          "status": "implemented",
+          "description": "Create and conduct live quizzes with time limits, multiple attempts (up to 3), scoring, and up to 100 questions",
+          "files": ["modules/live-engagement/api/quiz.php", "modules/live-engagement/models/QuizModel.php"],
+          "sub_features": [
+            {"name": "Quiz Creation", "status": "implemented"},
+            {"name": "Time Limits (up to 120 min)", "status": "implemented"},
+            {"name": "Multiple Attempts (up to 3)", "status": "implemented"},
+            {"name": "Passing Score Configuration (default 50%)", "status": "implemented"},
+            {"name": "Up to 100 Questions", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-whiteboard",
+          "name": "Interactive Whiteboard",
+          "status": "implemented",
+          "description": "Real-time collaborative whiteboard with drawing tools, multiple stroke colors/widths, and text tool (up to 5000 objects)",
+          "files": ["modules/live-engagement/assets/js/live-engagement.js", "modules/live-engagement/config/module.php"],
+          "sub_features": [
+            {"name": "Drawing Tools", "status": "implemented"},
+            {"name": "8 Stroke Colors", "status": "implemented"},
+            {"name": "6 Variable Stroke Widths", "status": "implemented"},
+            {"name": "8 Font Sizes for Text Tool", "status": "implemented"},
+            {"name": "Up to 5000 Objects", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-wordcloud",
+          "name": "Word Cloud",
+          "status": "implemented",
+          "description": "Generate word clouds from participant responses with configurable stop words and up to 100 words",
+          "files": ["modules/live-engagement/models/WordCloudModel.php"],
+          "sub_features": [
+            {"name": "Word Collection", "status": "implemented"},
+            {"name": "Stop Word Filtering (40+ defaults)", "status": "implemented"},
+            {"name": "Up to 100 Words", "status": "implemented"},
+            {"name": "Min/Max Word Length Filtering", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-sessions",
+          "name": "Live Session Management",
+          "status": "implemented",
+          "description": "Create and manage live engagement sessions with 8-char session codes, participant join, and auto-close on inactivity",
+          "files": ["modules/live-engagement/views/session.php", "modules/live-engagement/api/session.php", "modules/live-engagement/models/SessionModel.php"],
+          "sub_features": [
+            {"name": "Session Creation with 8-Char Codes", "status": "implemented"},
+            {"name": "Participant Join Flow", "status": "implemented"},
+            {"name": "Session Duration Control (up to 480 min)", "status": "implemented"},
+            {"name": "Auto-close on 5-min Inactivity", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-guest-auth",
+          "name": "Guest Authentication",
+          "status": "implemented",
+          "description": "Allow guest users to join live sessions without full account registration",
+          "files": ["modules/live-engagement/api/guest_auth.php"]
+        },
+        {
+          "id": "live-theme",
+          "name": "Premium Design System",
+          "status": "implemented",
+          "description": "Modern glassmorphism design system with dark/light/high-contrast modes, WCAG AA compliance, and animated transitions",
+          "files": ["modules/live-engagement/config/module.php", "modules/live-engagement/assets/css/live-engagement.css", "modules/live-engagement/components/UI.php"],
+          "sub_features": [
+            {"name": "Dark Mode", "status": "implemented"},
+            {"name": "Light Mode", "status": "implemented"},
+            {"name": "High Contrast Mode", "status": "implemented"},
+            {"name": "Glassmorphism Effects", "status": "implemented"},
+            {"name": "WCAG AA Compliance", "status": "implemented"},
+            {"name": "Keyboard Navigation", "status": "implemented"},
+            {"name": "Screen Reader Support", "status": "implemented"},
+            {"name": "Animated Transitions & Hover Effects", "status": "implemented"},
+            {"name": "Ripple Effect & Loading Skeletons", "status": "implemented"},
+            {"name": "Material Symbols Rounded Icons", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-realtime",
+          "name": "Real-time Engagement Features",
+          "status": "implemented",
+          "description": "Real-time polling, rate limiting, and reconnection handling for live sessions",
+          "files": ["modules/live-engagement/config/module.php", "modules/live-engagement/assets/js/live-engagement.js"],
+          "sub_features": [
+            {"name": "3-second Polling Interval", "status": "implemented"},
+            {"name": "Rate Limiting (polls/responses/reactions)", "status": "implemented"},
+            {"name": "Auto-reconnect (up to 5 attempts)", "status": "implemented"},
+            {"name": "CSRF Token Protection", "status": "implemented"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Teams Module",
+      "description": "Team management and collaboration features for group projects and team-based assignments",
+      "features": [
+        {
+          "id": "teams-management",
+          "name": "Team Management",
+          "status": "implemented",
+          "description": "Create and manage student teams, team membership requests, approvals, and export group members",
+          "files": ["teams/api/export_group_members_pdf.php", "teams/api/export_pdf.php", "teams/api/export_excel.php"],
+          "sub_features": [
+            {"name": "Team Creation", "status": "implemented"},
+            {"name": "Membership Requests", "status": "implemented"},
+            {"name": "PDF Export of Group Members", "status": "implemented"},
+            {"name": "Excel Export of Group Members", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-membership-requests",
+          "name": "Team Membership Requests",
+          "status": "implemented",
+          "description": "Student team membership request workflow with admin approval",
+          "files": ["admin/pendingreq.php", "database_setup/create_team_membership_requests_table.sql", "database_setup/create_team_marks_table.sql"],
+          "sub_features": [
+            {"name": "Request Submission", "status": "implemented"},
+            {"name": "Admin Approval/Rejection", "status": "implemented"},
+            {"name": "Team Marks Tracking", "status": "implemented"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ICLM Module (Self-Paced Online Courses)",
+      "description": "Self-paced online certification courses marketplace with category-based course listings and carousel features",
+      "features": [
+        {
+          "id": "iclm-landing",
+          "name": "Course Catalog Landing Page",
+          "status": "implemented",
+          "description": "Main landing page for online certifications with navigation, featured courses carousel, and category sections",
+          "files": ["self_paced/onlinecourse.php"],
+          "sub_features": [
+            {"name": "Navigation Menu with Categories", "status": "implemented"},
+            {"name": "Category Sections (IT, Business, Design, Marketing, Language)", "status": "implemented"},
+            {"name": "Featured Certifications Carousel", "status": "implemented"},
+            {"name": "Course Cards with Image, Description, Price", "status": "implemented"},
+            {"name": "Responsive Grid Layout", "status": "implemented"},
+            {"name": "Scroll-based Carousel Navigation", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "iclm-it-courses",
+          "name": "IT & Software Certifications",
+          "status": "implemented",
+          "description": "IT and software development certification courses including Web Dev, Data Science, Cybersecurity, Python, and Cloud Computing",
+          "files": ["self_paced/onlinecourse.php"],
+          "sub_features": [
+            {"name": "Web Development Fundamentals", "status": "implemented"},
+            {"name": "Introduction to Data Science", "status": "implemented"},
+            {"name": "Cybersecurity Essentials", "status": "implemented"},
+            {"name": "Python Programming for AI", "status": "implemented"},
+            {"name": "Cloud Computing Fundamentals", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "iclm-business-courses",
+          "name": "Business Certifications",
+          "status": "implemented",
+          "description": "Business and management certification courses including Project Management (PMP) and Financial Planning",
+          "files": ["self_paced/onlinecourse.php"],
+          "sub_features": [
+            {"name": "Project Management Professional (PMP)", "status": "implemented"},
+            {"name": "Certified Financial Planner", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "iclm-design-courses",
+          "name": "Design Certifications",
+          "status": "implemented",
+          "description": "Design certification courses including Graphic Design and UI/UX Design",
+          "files": ["self_paced/onlinecourse.php"],
+          "sub_features": [
+            {"name": "Graphic Design Masterclass", "status": "implemented"},
+            {"name": "UI/UX Design Certificate", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "iclm-marketing-courses",
+          "name": "Marketing Certifications",
+          "status": "implemented",
+          "description": "Marketing certification courses including SEO and Content Marketing",
+          "files": ["self_paced/onlinecourse.php"],
+          "sub_features": [
+            {"name": "Search Engine Optimization (SEO)", "status": "implemented"},
+            {"name": "Content Marketing Strategy", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "iclm-language-courses",
+          "name": "Language Certifications",
+          "status": "implemented",
+          "description": "Language certification courses including Spanish Fluency and French for Travelers",
+          "files": ["self_paced/onlinecourse.php"],
+          "sub_features": [
+            {"name": "Spanish Fluency Certificate", "status": "implemented"},
+            {"name": "French for Travelers", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "iclm-featured-carousel",
+          "name": "Featured Courses Carousel",
+          "status": "implemented",
+          "description": "Interactive horizontal carousel with scroll navigation for featuring top certification courses",
+          "files": ["self_paced/onlinecourse.php"],
+          "sub_features": [
+            {"name": "Horizontal Scroll Carousel", "status": "implemented"},
+            {"name": "Previous/Next Navigation Buttons", "status": "implemented"},
+            {"name": "Smooth Scroll Behavior", "status": "implemented"},
+            {"name": "Course Cards with Pricing", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "iclm-theme",
+          "name": "Golden Theme Design",
+          "status": "implemented",
+          "description": "Warm golden/cream color scheme with serif typography, card-based layout, and hover effects",
+          "files": ["self_paced/onlinecourse.php"],
+          "sub_features": [
+            {"name": "Golden/Cream Color Scheme", "status": "implemented"},
+            {"name": "Serif Typography", "status": "implemented"},
+            {"name": "Card-based Course Grid", "status": "implemented"},
+            {"name": "Hover Animation Effects", "status": "implemented"},
+            {"name": "Navigation with Category Links", "status": "implemented"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cross-Cutting Features",
+      "description": "Features that span across multiple modules",
+      "features": [
+        {
+          "id": "cross-email",
+          "name": "Email System",
+          "status": "implemented",
+          "description": "PHPMailer-based email system with templates, logging, retry mechanism, deadline reminders, and bulk sending",
+          "files": ["includes/mailer.php", "includes/email_system.php", "includes/deadline_reminders.php", "config/email.php"],
+          "sub_features": [
+            {"name": "Bulk Email Sending", "status": "implemented"},
+            {"name": "Email Templates (welcome, reset, grades, announcements)", "status": "implemented"},
+            {"name": "Email Logging (email_logs table)", "status": "implemented"},
+            {"name": "Retry Mechanism for Failed Sends", "status": "implemented"},
+            {"name": "Deadline Reminder Emails", "status": "implemented"},
+            {"name": "Email Queue System", "status": "not-started"},
+            {"name": "Email Preview Functionality", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "cross-file-handling",
+          "name": "File Handling System",
+          "status": "partial",
+          "description": "File upload, storage, and management across the system with type/size validation",
+          "files": ["assets/uploads/", "assets/assignments/", "assets/meetings/", "assets/requested_files/"],
+          "sub_features": [
+            {"name": "File Upload with Validation", "status": "implemented"},
+            {"name": "File Type/Size Restrictions", "status": "implemented"},
+            {"name": "Upload Outside Webroot", "status": "not-started"},
+            {"name": "Virus Scanning", "status": "not-started"},
+            {"name": "File Encryption", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "cross-security",
+          "name": "Security Measures",
+          "status": "partial",
+          "description": "Security implementations across the system including BCrypt hashing, SQL injection prevention, and XSS prevention",
+          "sub_features": [
+            {"name": "Password Hashing (BCRYPT)", "status": "implemented"},
+            {"name": "SQL Injection Prevention (Prepared Statements)", "status": "implemented"},
+            {"name": "XSS Prevention (HTML escaping, sanitization)", "status": "implemented"},
+            {"name": "Session-based Authentication", "status": "implemented"},
+            {"name": "Role-based Access Control", "status": "implemented"},
+            {"name": "HMAC-SHA256 QR Token Signing", "status": "implemented"},
+            {"name": "SHA256 Digital Signatures", "status": "implemented"},
+            {"name": "CSRF Token Protection", "status": "not-started"},
+            {"name": "Rate Limiting (login, API)", "status": "not-started"},
+            {"name": "HTTPS Enforcement", "status": "not-started"},
+            {"name": "Security Headers (CSP, X-Frame-Options)", "status": "not-started"},
+            {"name": "Two-Factor Authentication", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "cross-deployment",
+          "name": "Deployment & DevOps",
+          "status": "implemented",
+          "description": "Docker containerization, GitHub Actions CI/CD pipeline, production configuration, and database initialization",
+          "files": ["docker-compose.yml", "Dockerfile", "apache.conf", ".github/workflows/main.yml", "start.sh", "docker/init.sh"],
+          "sub_features": [
+            {"name": "Docker Compose Multi-Service Setup", "status": "implemented"},
+            {"name": "GitHub Actions CI/CD Pipeline", "status": "implemented"},
+            {"name": "Production Configuration Files", "status": "implemented"},
+            {"name": "Database Initialization Scripts", "status": "implemented"},
+            {"name": "Environment Auto-Detection (Dev/Prod)", "status": "implemented"},
+            {"name": "Database Backup Scripts", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "cross-validation",
+          "name": "Data Validation",
+          "status": "implemented",
+          "description": "Client-side and server-side validation framework with sanitization and prepared statements",
+          "files": ["includes/validation.php", "smart-lab/utils/Validator.php", "smart-lab/utils/helpers.php"],
+          "sub_features": [
+            {"name": "Required Field Validation", "status": "implemented"},
+            {"name": "Email Format Validation", "status": "implemented"},
+            {"name": "File Type/Size Validation", "status": "implemented"},
+            {"name": "Date/Deadline Validation", "status": "implemented"},
+            {"name": "XSS Sanitization (sanitize/sanitizeHTML)", "status": "implemented"},
+            {"name": "Centralized Rules Engine", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "cross-testing",
+          "name": "Testing",
+          "status": "not-started",
+          "description": "Automated testing infrastructure not yet implemented across the system",
+          "sub_features": [
+            {"name": "Unit Tests (PHPUnit)", "status": "not-started"},
+            {"name": "Integration Tests", "status": "not-started"},
+            {"name": "UI Tests (Playwright)", "status": "not-started"},
+            {"name": "API Tests", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "cross-performance",
+          "name": "Performance Optimization",
+          "status": "not-started",
+          "description": "Performance optimizations needed across the system including indexing, caching, and asset optimization",
+          "sub_features": [
+            {"name": "Database Indexing", "status": "not-started"},
+            {"name": "Query Optimization (N+1 prevention)", "status": "not-started"},
+            {"name": "Caching Layer (Redis)", "status": "not-started"},
+            {"name": "Response Compression (gzip)", "status": "not-started"},
+            {"name": "Asset Minification (CSS/JS)", "status": "not-started"},
+            {"name": "Image Optimization", "status": "not-started"},
+            {"name": "Lazy Loading", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "cross-notifications",
+          "name": "Notification System",
+          "status": "partial",
+          "description": "Multi-channel notification system with in-app and email notifications for various triggers",
+          "files": ["includes/notifications.php", "student/notifications.php", "lecturer/dashboard.php"],
+          "sub_features": [
+            {"name": "In-app Notifications (database)", "status": "implemented"},
+            {"name": "Email Notifications (PHPMailer)", "status": "implemented"},
+            {"name": "Assignment Deadline Reminders", "status": "implemented"},
+            {"name": "Grade Released Notifications", "status": "implemented"},
+            {"name": "Meeting Invitations", "status": "implemented"},
+            {"name": "WebSocket Real-time Notifications", "status": "not-started"},
+            {"name": "SMS Notifications", "status": "not-started"},
+            {"name": "Push Notifications", "status": "not-started"},
+            {"name": "Notification Preferences UI", "status": "not-started"}
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_features": 71,
+    "implemented": 56,
+    "partial": 8,
+    "not_started": 7,
+    "by_module": {
+      "Traditional LMS": {
+        "total": 24,
+        "implemented": 17,
+        "partial": 5,
+        "not_started": 2
+      },
+      "SmartLab Module": {
+        "total": 17,
+        "implemented": 17,
+        "partial": 0,
+        "not_started": 0
+      },
+      "Live Engagement Module": {
+        "total": 9,
+        "implemented": 9,
+        "partial": 0,
+        "not_started": 0
+      },
+      "Teams Module": {
+        "total": 2,
+        "implemented": 2,
+        "partial": 0,
+        "not_started": 0
+      },
+      "ICLM Module (Self-Paced Online Courses)": {
+        "total": 8,
+        "implemented": 8,
+        "partial": 0,
+        "not_started": 0
+      },
+      "Cross-Cutting Features": {
+        "total": 8,
+        "implemented": 4,
+        "partial": 3,
+        "not_started": 1
+      }
+    },
+    "last_updated": "2026-07-20",
+    "note": "Total features are top-level features (not counting sub-features). Sub-feature statuses are detailed within each feature."
+  },
+  "known_issues": [
+    "Practical attendance modal QR scanning not fully tested in browser",
+    "Lab session start flow and notebook editor integration need completion",
+    "Biometric enrollment flow not implemented in student profile",
+    "RFID card registration UI not implemented",
+    "WebRTC meeting system partially implemented (screen sharing incomplete)",
+    "Real-time notifications use AJAX polling instead of WebSocket",
+    "Audit logging not comprehensive for traditional LMS",
+    "No automated test suite across the system",
+    "File uploads stored in webroot (security concern)",
+    "API endpoints lack rate limiting and CSRF protection",
+    "Two separate authentication systems (traditional LMS and smart-lab) with different user tables",
+    "Admin reports and audit log viewing not implemented",
+    "ICLM module is currently a static HTML/CSS catalog (no backend enrollment, payment, or certificate generation)"
+  ],
+  "recommended_next_steps": [
+    "1. Test practical attendance modal in browser (QR code, RFID, biometric, code)",
+    "2. Complete practical session flow (session start, notebook editor integration, grading)",
+    "3. Implement biometric and RFID enrollment flows in student profile",
+    "4. Complete WebRTC meeting system (screen sharing, recording)",
+    "5. Implement real-time WebSocket notifications",
+    "6. Create comprehensive test suite (unit, integration, UI, API)",
+    "7. Implement security hardening (CSRF, rate limiting, HTTPS, security headers)",
+    "8. Optimize database queries and add caching layer (Redis)",
+    "9. Implement comprehensive audit logging across all modules",
+    "10. Complete admin reporting dashboard with export capabilities",
+    "11. Consolidate dual authentication systems into unified user management",
+    "12. Add backend functionality to ICLM module (enrollment, payment, certificate generation)",
+    "13. Set up monitoring, logging, and alerting for production"
+  ]
+}

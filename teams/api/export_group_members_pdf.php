@@ -155,7 +155,6 @@ try {
                 s.name AS student_name,
                 s.reg_no,
                 s.email,
-                s.phone,
                 s.year_of_study,
                 tm.role,
                 tm.joined_at
@@ -237,7 +236,6 @@ try {
                         <th>Reg No</th>
                         <th>Role</th>
                         <th>Email</th>
-                        <th>Phone</th>
                         <th>Year</th>
                         <th>Joined</th>
                     </tr>
@@ -247,7 +245,7 @@ try {
         if (empty($members)) {
             $html .= '
                     <tr>
-                        <td colspan="8" style="text-align:center;color:#64748b;">No members found for this team.</td>
+                        <td colspan="7" style="text-align:center;color:#64748b;">No members found for this team.</td>
                     </tr>';
         } else {
             $index = 1;
@@ -260,7 +258,6 @@ try {
                         <td>' . htmlspecialchars((string)$member['reg_no']) . '</td>
                         <td>' . htmlspecialchars(team_role_label((string)($member['role'] ?? 'member'))) . '</td>
                         <td>' . htmlspecialchars((string)$member['email']) . '</td>
-                        <td>' . htmlspecialchars((string)($member['phone'] ?? 'N/A')) . '</td>
                         <td>' . htmlspecialchars((string)($member['year_of_study'] ?? 'N/A')) . '</td>
                         <td>' . (!empty($member['joined_at']) ? date('d M Y', strtotime((string)$member['joined_at'])) : 'N/A') . '</td>
                     </tr>';
