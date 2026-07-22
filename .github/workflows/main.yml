@@ -36,6 +36,7 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
+            hilkim21/unilis-app:latest
             hilkim21/unilis-app:1.0
             hilkim21/unilis-app:${{ github.sha }}
 
@@ -46,6 +47,7 @@ jobs:
           file: ./meeting-server/Dockerfile
           push: true
           tags: |
+            hilkim21/unilis-meeting-media:latest
             hilkim21/unilis-meeting-media:1.0
             hilkim21/unilis-meeting-media:${{ github.sha }}
 
@@ -67,7 +69,8 @@ jobs:
       - name: Sync live-engagement module
         run: |
           ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "mkdir -p ~/unilis/modules/live-engagement"
-          tcos
+          tar -czf - modules/live-engagement/ | ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "tar -xzf - -C ~/unilis/modules/live-engagement/"
+
       - name: Sync apache.conf
         run: ssh -T ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} 'cat > ~/unilis/apache.conf' < apache.conf
 

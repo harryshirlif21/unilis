@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    image: hilkim21/unilis-app:1.0
+    image: hilkim21/unilis-app:latest
     container_name: unilis-app
     ports:
       - "8080:80"
@@ -37,7 +37,7 @@ services:
     build:
       context: ./meeting-server
       dockerfile: Dockerfile
-    image: hilkim21/unilis-meeting-media:1.0
+    image: hilkim21/unilis-meeting-media:latest
     container_name: unilis-meeting-media
     restart: unless-stopped
     ports:
