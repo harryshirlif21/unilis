@@ -56,10 +56,24 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      - name: Upload production compose file
+      - name: Upload docker-compose file
         run: |
           ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} "mkdir -p ~/unilis"
-          ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} 'cat > ~/unilis/docker-compose.prod.yml' < docker-compose.prod.yml
+          ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} 'cat > ~/unilis/docker-compose.yml' < docker-compose.yml
+
+      - name: Sync application code to production server
+        run: |
+          rsync -avz --delete \
+            --exclude 'node_modules' \
+            --exclude 'vendor' \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude 'uploads/*' \
+            --exclude 'assets/uploads/*' \
+            --exclude 'assets/assignments/*' \
+            --exclude 'assets/meetings/*' \
+            --exclude 'assets/requested_files/*' \
+            ./ ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}:~/unilis/
 
       - name: Deploy to Production Server
         run: |
@@ -67,9 +81,9 @@ jobs:
             mkdir -p ~/unilis
             cd ~/unilis
 
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.yml pull
+            docker compose -f docker-compose.yml up -d --remove-orphans
 
             echo "--- Container status after deploy ---"
-            docker compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.yml ps
           EOF
