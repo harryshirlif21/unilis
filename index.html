@@ -224,10 +224,190 @@
     </div>
   </footer>
 
+  <!-- ═══════════════════════════════════════════════════════════
+       LIVE ENGAGEMENT DIAGNOSTIC PANEL (temporary — delete after debugging)
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="le-diagnostic" style="
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 99999;
+    background: #0f2415; color: #e0f0e0; font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: 13px; line-height: 1.5; border-top: 2px solid #F9A825;
+    max-height: 60vh; overflow-y: auto; display: none;
+  ">
+    <!-- Toggle button -->
+    <div style="position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#1a3a1e;border-bottom:1px solid #2e7d32;">
+      <span style="font-weight:700;color:#F9A825;">🔍 Live Engagement Diagnostics</span>
+      <div>
+        <button onclick="runLEDiagnostics()" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;margin-right:8px;font-size:12px;">Run All</button>
+        <button onclick="toggleLeDiag()" style="background:transparent;color:#aaa;border:1px solid #555;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:14px;">✕</button>
+      </div>
+    </div>
+    <div id="le-diag-results" style="padding:12px 16px 16px;">
+      <div style="text-align:center;padding:20px;color:#aaa;">Click <strong>"Run All"</strong> to start diagnostics.</div>
+    </div>
+  </div>
+
+  <!-- Floating diagnostic launcher -->
+  <div onclick="toggleLeDiag()" id="le-diag-launcher" style="
+    position:fixed;bottom:20px;right:20px;z-index:99998;
+    width:44px;height:44px;border-radius:50%;
+    background:#1B5E20;color:#F9A825;border:2px solid #F9A825;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:20px;box-shadow:0 4px 16px rgba(0,0,0,.4);
+    transition:transform .2s;
+  " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">⚡</div>
+
+  <style>
+    #le-diagnostic pre {
+      background: rgba(0,0,0,.35);
+      border-radius: 6px;
+      padding: 6px 10px;
+      overflow-x: auto;
+      font-size: 12px;
+      margin: 2px 0;
+    }
+    #le-diagnostic .ok { color: #4ECBA1; font-weight: 600; }
+    #le-diagnostic .err { color: #FCA5A5; font-weight: 600; }
+    #le-diagnostic .warn { color: #FFB74D; font-weight: 600; }
+    table.le-diag-table { width:100%; border-collapse:collapse; margin:6px 0; }
+    table.le-diag-table th, table.le-diag-table td {
+      text-align:left; padding:4px 8px; border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    table.le-diag-table th { color:#F9A825; font-weight:600; font-size:11px; text-transform:uppercase; }
+  </style>
+
   <script>
-    function toggleMenu() {
-      const menu = document.getElementById('mobileMenu');
-      menu.classList.toggle('translate-x-full');
+    var LE_DIAG_BASE = window.location.origin + '/modules/live-engagement';
+
+    function toggleLeDiag() {
+      var p = document.getElementById('le-diagnostic');
+      var l = document.getElementById('le-diag-launcher');
+      if (p.style.display === 'none' || !p.style.display) {
+        p.style.display = 'block';
+        l.style.display = 'none';
+      } else {
+        p.style.display = 'none';
+        l.style.display = 'flex';
+      }
+    }
+
+    function leDiagLog(html) {
+      document.getElementById('le-diag-results').innerHTML += html;
+    }
+
+    function leDiagClear() {
+      document.getElementById('le-diag-results').innerHTML = '';
+    }
+
+    async function runLEDiagnostics() {
+      leDiagClear();
+      var out = '<div style="margin-bottom:10px;font-size:12px;color:#aaa;">Running diagnostics… <span id="le-diag-spinner" style="display:inline-block;animation:le-spin .7s linear infinite;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;vertical-align:middle;margin-left:6px;"></span></div>';
+      leDiagLog(out);
+
+      // 1. Environment
+      var baseUrl = LE_DIAG_BASE;
+      leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">1. Environment</h3>');
+      leDiagLog('<pre>BASE URL: ' + baseUrl + '\nHost    : ' + window.location.host + '\nProtocol: ' + window.location.protocol + '</pre>');
+
+      // 2. Database connection + table check
+      leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">2. Database Tables</h3>');
+      try {
+        var r = await fetch(baseUrl + '/setup_database.php?diag=1&_=' + Date.now(), { method: 'GET', mode: 'cors' });
+        if (r.ok) {
+          var data = await r.json();
+          leDiagLog('<span class="ok">✅ DB reachable</span> — messages: ' + (data.messages || []).length + '<br>');
+          if (data.success) {
+            leDiagLog('<span class="ok">✅ All tables OK</span><br>');
+          }
+          if (data.messages && data.messages.length) {
+            leDiagLog('<div style="max-height:200px;overflow-y:auto;margin-top:4px;">');
+            data.messages.forEach(function(m) { leDiagLog('<pre style="margin:1px 0;font-size:11px;">' + m + '</pre>'); });
+            leDiagLog('</div>');
+          }
+        } else {
+          var txt = await r.text();
+          leDiagLog('<span class="err">❌ setup_database.php returned HTTP ' + r.status + '</span><pre>' + txt.substring(0, 300) + '</pre>');
+        }
+      } catch(e) {
+        leDiagLog('<span class="err">❌ setup_database.php fetch failed: ' + e.message + '</span><br>');
+      }
+
+      // 3. API endpoint tests
+      leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">3. API Endpoints</h3>');
+      var endpoints = [
+        { name: 'session.php',    url: '/api/session.php' },
+        { name: 'poll.php',       url: '/api/poll.php' },
+        { name: 'quiz.php',       url: '/api/quiz.php' },
+        { name: 'activity.php',   url: '/api/activity.php' },
+        { name: 'guest_auth.php', url: '/api/guest_auth.php' },
+      ];
+      leDiagLog('<table class="le-diag-table"><tr><th>Endpoint</th><th>Status</th><th>Response</th></tr>');
+      for (var i = 0; i < endpoints.length; i++) {
+        var ep = endpoints[i];
+        try {
+          var r2 = await fetch(baseUrl + ep.url + '?_=' + Date.now(), { method: 'GET', mode: 'cors' });
+          var txt2 = await r2.text();
+          var sta = r2.status;
+          if (sta < 300) {
+            leDiagLog('<tr><td>' + ep.name + '</td><td class="ok">' + sta + ' OK</td><td><pre style="font-size:11px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + txt2.substring(0, 120) + '</pre></td></tr>');
+          } else if (sta === 403 || sta === 401) {
+            leDiagLog('<tr><td>' + ep.name + '</td><td class="warn">' + sta + ' Unauthorized</td><td><pre style="font-size:11px;">' + txt2.substring(0, 80) + '</pre></td></tr>');
+          } else {
+            leDiagLog('<tr><td>' + ep.name + '</td><td class="err">' + sta + ' Error</td><td><pre style="font-size:11px;">' + txt2.substring(0, 80) + '</pre></td></tr>');
+          }
+        } catch(e2) {
+          leDiagLog('<tr><td>' + ep.name + '</td><td class="err">❌ Network</td><td>' + e2.message + '</td></tr>');
+        }
+      }
+      leDiagLog('</table>');
+
+      // 4. Config file check
+      leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">4. Configuration</h3>');
+      var configFiles = [
+        'config/module.php',
+        'config/database_helper.php',
+        'helpers/security_helper.php',
+        'helpers/session_helper.php',
+        'bootstrap.php',
+        'index.php',
+        '.htaccess',
+      ];
+      leDiagLog('<table class="le-diag-table"><tr><th>File</th><th>Status</th></tr>');
+      for (var j = 0; j < configFiles.length; j++) {
+        var fileUrl = baseUrl + '/' + configFiles[j];
+        try {
+          var r3 = await fetch(fileUrl + '?_=' + Date.now(), { method: 'HEAD', mode: 'cors' });
+          if (r3.ok || r3.status === 403 || r3.status === 401) {
+            leDiagLog('<tr><td>' + configFiles[j] + '</td><td class="ok">✅ Accessible</td></tr>');
+          } else if (r3.status === 404) {
+            leDiagLog('<tr><td>' + configFiles[j] + '</td><td class="err">❌ 404 Not Found</td></tr>');
+          } else {
+            leDiagLog('<tr><td>' + configFiles[j] + '</td><td class="warn">⚠ HTTP ' + r3.status + '</td></tr>');
+          }
+        } catch(e3) {
+          leDiagLog('<tr><td>' + configFiles[j] + '</td><td class="err">❌ ' + e3.message + '</td></tr>');
+        }
+      }
+      leDiagLog('</table>');
+
+      // 5. Module URL building test
+      leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">5. URL Builder Test</h3>');
+      leDiagLog('<pre>Trying module URL: ' + baseUrl + '/index.php?page=dashboard</pre>');
+      try {
+        var r4 = await fetch(baseUrl + '/index.php?page=dashboard&_=' + Date.now(), { method: 'GET', mode: 'cors' });
+        if (r4.ok || r4.status === 302 || r4.status === 301) {
+          leDiagLog('<span class="ok">✅ index.php?page=dashboard responds (HTTP ' + r4.status + ')</span><br>');
+        } else {
+          var txt4 = await r4.text();
+          leDiagLog('<span class="warn">⚠ index.php responded HTTP ' + r4.status + '</span><pre>' + txt4.substring(0, 200) + '</pre>');
+        }
+      } catch(e4) {
+        leDiagLog('<span class="err">❌ index.php failed: ' + e4.message + '</span><br>');
+      }
+
+      leDiagLog('<hr style="border-color:#2e7d32;margin:12px 0 4px;">');
+      leDiagLog('<span class="ok">✅ Diagnostics complete.</span><br>');
+
+      document.getElementById('le-diag-spinner').style.display = 'none';
     }
   </script>
 </body>
