@@ -2,7 +2,7 @@
 /**
  * Live Engagement — Landing Page
  */
-require_once __DIR__ . '/bootstrap.php';
+//require_once __DIR__ . '/bootstrap.php';
 
 use LE\Components\Layout;
 
