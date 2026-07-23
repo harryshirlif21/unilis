@@ -38,7 +38,10 @@ abstract class BaseModel
      */
     public function __construct()
     {
-        $this->db = \DatabaseHelper::getInstance();
+        if (!class_exists('DatabaseHelper')) {
+            require_once __DIR__ . '/../config/database_helper.php';
+        }
+        $this->db = DatabaseHelper::getInstance();
     }
 
     /**
