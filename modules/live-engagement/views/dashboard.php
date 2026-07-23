@@ -18,6 +18,10 @@ le_require_auth();
 use LE\Components\Layout;
 use LE\Components\UI;
 
+// Ensure component classes are loaded
+require_once __DIR__ . '/../components/Layout.php';
+require_once __DIR__ . '/../components/UI.php';
+
 // Ensure model classes are loaded
 require_once __DIR__ . '/../models/BaseModel.php';
 require_once __DIR__ . '/../models/SessionModel.php';
