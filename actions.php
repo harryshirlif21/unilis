@@ -303,8 +303,7 @@ if ($action === 'universal_login') {
             if (isset($_SESSION['le_unilis_token'])) {
                 // Redirect back to Live Engagement with token validation
                 $redirectUrl = 'modules/live-engagement/index.php?page=dashboard&create=1&type=presentation&le_token=' . $_SESSION['le_unilis_token'];
-                unset($_SESSION['le_unilis_token']);
-                unset($_SESSION['le_unilis_token_expires']);
+                // Don't clear token here - let index.php validate and clear it
                 header("Location: " . $redirectUrl);
                 exit;
             }

@@ -6,27 +6,38 @@
  * When ?page= is provided, authentication is required and the
  * appropriate view is loaded.
  */
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once __DIR__ . '/bootstrap.php';
 
 use LE\Components\Layout;
 
-// Handle UNILIS token-based SSO callback
+// Handle UNILIS token-based SSO callback (do this before any auth checks)
 $leToken = le_get('le_token', '');
-if ($leToken && isset($_SESSION['le_unilis_token']) && $leToken === $_SESSION['le_unilis_token']) {
-    // Validate token and establish LE session
-    if (isset($_SESSION['user_id']) && isset($_SESSION['user_role'])) {
-        $_SESSION['le_authenticated'] = true;
-        $_SESSION['le_user_id'] = $_SESSION['user_id'];
-        $_SESSION['le_user_role'] = $_SESSION['user_role'];
-        $_SESSION['le_user_name'] = $_SESSION['user_name'] ?? '';
-        
-        // Clear token
-        unset($_SESSION['le_unilis_token']);
-        unset($_SESSION['le_unilis_token_expires']);
-        
-        // Redirect to dashboard with create presentation
-        header('Location: ' . le_page_url('dashboard') . '&create=1&type=presentation');
-        exit;
+if ($leToken) {
+    if (isset($_SESSION['le_unilis_token']) && $leToken === $_SESSION['le_unilis_token']) {
+        // Validate token and establish LE session
+        if (isset($_SESSION['user_id']) && isset($_SESSION['user_role'])) {
+            $_SESSION['le_authenticated'] = true;
+            $_SESSION['le_user_id'] = $_SESSION['user_id'];
+            $_SESSION['le_user_role'] = $_SESSION['user_role'];
+            $_SESSION['le_user_name'] = $_SESSION['user_name'] ?? '';
+            
+            // Clear token
+            unset($_SESSION['le_unilis_token']);
+            unset($_SESSION['le_unilis_token_expires']);
+            
+            // Redirect to dashboard with create presentation (without token to avoid loop)
+            header('Location: ' . le_page_url('dashboard') . '&create=1&type=presentation');
+            exit;
+        } else {
+            // Token valid but no UNILIS session - redirect to login
+            header('Location: /login.php');
+            exit;
+        }
+    } else {
+        // Invalid token - just ignore and continue to normal routing
     }
 }
 

@@ -74,7 +74,9 @@ spl_autoload_register(function (string $class) {
  */
 function le_is_authenticated(): bool
 {
-    return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
+    // Check for UNILIS authentication or Live Engagement authentication
+    return (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) ||
+           (isset($_SESSION['le_authenticated']) && $_SESSION['le_authenticated'] === true);
 }
 
 /**
@@ -94,7 +96,7 @@ function le_current_user_id(): ?int
  */
 function le_current_user_role(): ?string
 {
-    $role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? null;
+    $role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? $_SESSION['le_user_role'] ?? null;
     if (!is_string($role) || $role === '') {
         return null;
     }
