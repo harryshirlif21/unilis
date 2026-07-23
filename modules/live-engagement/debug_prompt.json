@@ -1,0 +1,194 @@
+{
+  "feature": "Live Engagement Module",
+  "purpose": "Interactive live engagement module for presentations, polls, quizzes, whiteboards, and real-time student participation",
+  "version": "1.0.0",
+  "location": "modules/live-engagement/",
+  
+  "architecture": {
+    "entry_point": "index.php",
+    "bootstrap": "bootstrap.php",
+    "namespace": "LE\\",
+    "structure": {
+      "api/": "REST API endpoints (session.php, poll.php, quiz.php, activity.php, guest_auth.php)",
+      "assets/": "CSS and JavaScript files",
+      "config/": "Configuration files (module.php, database_helper.php)",
+      "database/": "Installation and migration scripts",
+      "helpers/": "Security and session helpers",
+      "models/": "Domain models (BaseModel, SessionModel, PollModel, QuizModel, etc.)",
+      "views/": "Page templates (dashboard.php, join.php, presenter.php, etc.)",
+      "components/": "Reusable UI components (Layout.php, UI.php)"
+    }
+  },
+
+  "dependencies": {
+    "php_version": "8.0+",
+    "mysql_version": "5.7+ / MariaDB 10.3+",
+    "unilis_modules": ["Authentication", "Courses"],
+    "external": {
+      "database": "mysqli connection from config/db.php",
+      "session": "UNILIS session-based authentication",
+      "javascript": "ES6+ support required"
+    }
+  },
+
+  "database_setup": {
+    "installer": "database/install.php",
+    "migration": "database/update.php",
+    "tables": [
+      "live_sessions",
+      "live_presentations",
+      "presentation_slides",
+      "live_participants",
+      "live_polls",
+      "live_poll_options",
+      "live_poll_responses",
+      "live_quizzes",
+      "quiz_questions",
+      "quiz_answers",
+      "quiz_attempts",
+      "quiz_attempt_answers",
+      "live_wordcloud",
+      "wordcloud_submissions",
+      "live_open_responses",
+      "open_response_submissions",
+      "live_notes",
+      "live_whiteboards",
+      "whiteboard_objects",
+      "live_reactions",
+      "live_reports",
+      "live_statistics"
+    ],
+    "installation_command": "Visit: modules/live-engagement/database/install.php",
+    "safe_to_rerun": true
+  },
+
+  "common_500_error_scenarios": [
+    {
+      "scenario": "DatabaseHelper class not found",
+      "file": "models/BaseModel.php:44",
+      "cause": "UNILIS_ACCESS constant not defined before requiring database_helper.php",
+      "fix": "Ensure UNILIS_ACCESS is defined in BaseModel constructor before requiring database_helper.php",
+      "status": "FIXED - Added constant check in BaseModel constructor"
+    },
+    {
+      "scenario": "Database connection not available",
+      "file": "config/database_helper.php:36-60",
+      "cause": "Global $conn not available or config/db.php not loaded",
+      "fix": "Ensure config/db.php is loaded before bootstrap.php, check database credentials"
+    },
+    {
+      "scenario": "Missing database tables",
+      "file": "Any model using BaseModel",
+      "cause": "Database installer not run or tables not created",
+      "fix": "Run database/install.php to create all required tables"
+    },
+    {
+      "scenario": "Directory permissions",
+      "directories": [
+        "modules/live-engagement/uploads/presentations/",
+        "modules/live-engagement/uploads/temp/",
+        "modules/live-engagement/storage/"
+      ],
+      "cause": "Web server cannot write to upload directories",
+      "fix": "Set proper write permissions (755 or 777) on upload directories"
+    },
+    {
+      "scenario": "Autoloader failure",
+      "file": "bootstrap.php:54-68",
+      "cause": "Class namespace doesn't match file structure or file doesn't exist",
+      "fix": "Ensure class files exist and namespace matches directory structure"
+    },
+    {
+      "scenario": "Session not started",
+      "file": "bootstrap.php:35-37",
+      "cause": "Session already started by root app causing conflict",
+      "fix": "Bootstrap checks session_status() before starting session"
+    },
+    {
+      "scenario": "CSRF token missing",
+      "file": "API endpoints",
+      "cause": "CSRF token not included in POST requests",
+      "fix": "Include le_csrf_token in all state-changing requests"
+    },
+    {
+      "scenario": "Authentication failure",
+      "file": "index.php:47",
+      "cause": "User not authenticated when accessing protected pages",
+      "fix": "Ensure user is logged in via UNILIS authentication before accessing ?page= routes"
+    }
+  ],
+
+  "debugging_steps": [
+    "1. Check PHP error logs: /var/log/apache2/error.log or /var/log/php_errors.log",
+    "2. Enable error display temporarily: Add error_reporting(E_ALL); ini_set('display_errors', 1); to index.php",
+    "3. Verify database connection: Check if $conn is available in global scope",
+    "4. Check database tables: Run SHOW TABLES LIKE 'live_%' to verify tables exist",
+    "5. Verify file permissions: Ensure upload directories are writable",
+    "6. Check bootstrap loading: Verify bootstrap.php is included without errors",
+    "7. Test autoloader: Try instantiating a model class directly",
+    "8. Check API endpoints: Test api/session.php?action=list directly",
+    "9. Verify session: Check if $_SESSION['user_id'] is set",
+    "10. Check CSRF token: Verify le_csrf_token exists in session"
+  ],
+
+  "configuration_checks": {
+    "config/db.php": "Must define global $conn with mysqli connection",
+    "config/module.php": "Must return array with module configuration",
+    "config/database_helper.php": "Must have UNILIS_ACCESS defined before loading",
+    "bootstrap.php": "Must load config/db.php before database_helper.php",
+    ".htaccess": "Must allow module access and prevent direct config access"
+  },
+
+  "routing": {
+    "landing": "index.php (no ?page= parameter)",
+    "dashboard": "index.php?page=dashboard (requires auth, lecturer/admin)",
+    "join": "index.php?page=join (student join page)",
+    "session": "index.php?page=session&id=X or ?code=XXX",
+    "presenter": "index.php?page=presenter&id=X (lecturer only)",
+    "presentations": "index.php?page=presentations (lecturer only)",
+    "create_presentation": "index.php?page=create_presentation",
+    "edit_presentation": "index.php?page=edit_presentation&id=X (lecturer only)",
+    "report": "index.php?page=report&id=X"
+  },
+
+  "authentication_flow": {
+    "unilis_sso": {
+      "token_param": "le_token",
+      "session_key": "le_unilis_token",
+      "redirect_after": "index.php?page=dashboard&create=1&type=presentation"
+    },
+    "guest_auth": {
+      "endpoint": "api/guest_auth.php",
+      "actions": ["signup", "login"],
+      "session_keys": ["le_authenticated", "le_user_id", "le_user_role", "le_user_name"]
+    }
+  },
+
+  "quick_test": {
+    "step1": "Visit: modules/live-engagement/database/install.php",
+    "step2": "Visit: modules/live-engagement/index.php (should show landing page)",
+    "step3": "Login to UNILIS main system",
+    "step4": "Visit: modules/live-engagement/index.php?page=dashboard (should show dashboard or redirect)",
+    "step5": "Check browser console for JavaScript errors",
+    "step6": "Check network tab for failed API requests"
+  },
+
+  "error_log_locations": [
+    "/var/log/apache2/error.log",
+    "/var/log/php_errors.log",
+    "xampp/apache/logs/error.log (Windows)",
+    "modules/live-engagement/uploads/error.log (if custom logging enabled)"
+  ],
+
+  "known_issues": {
+    "basemodel_databasehelper": "Fixed - UNILIS_ACCESS constant now defined in BaseModel constructor",
+    "session_conflict": "Bootstrap checks session_status() before starting session",
+    "namespace_autoload": "Autoloader configured for LE\\ namespace prefix"
+  },
+
+  "contact": {
+    "documentation": "modules/live-engagement/README.md",
+    "task_progress": "modules/live-engagement/TASK_PROGRESS.md",
+    "system_analysis": "COMPREHENSIVE_SYSTEM_ANALYSIS.md (root)"
+  }
+}
