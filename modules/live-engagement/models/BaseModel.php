@@ -39,6 +39,9 @@ abstract class BaseModel
     public function __construct()
     {
         if (!class_exists('DatabaseHelper')) {
+            if (!defined('UNILIS_ACCESS')) {
+                define('UNILIS_ACCESS', true);
+            }
             require_once __DIR__ . '/../config/database_helper.php';
         }
         $this->db = DatabaseHelper::getInstance();
