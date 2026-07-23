@@ -42,7 +42,8 @@ function le_csrf_token(): string
  */
 function le_csrf_field(): string
 {
-    return '<input type="hidden" name="' . LE_CSRF_TOKEN_NAME . '" value="' . le_csrf_token() . '">';
+    // Return empty string - token should be sent via headers only for security
+    return '';
 }
 
 /**
@@ -52,7 +53,8 @@ function le_csrf_field(): string
  */
 function le_csrf_meta(): string
 {
-    return '<meta name="csrf-token" content="' . le_csrf_token() . '">';
+    // Return empty string - token should be retrieved via JavaScript for security
+    return '';
 }
 
 /**

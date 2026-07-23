@@ -9,6 +9,14 @@
  * @version 2.0.0
  */
 
+// Enable error logging
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../logs/dashboard_errors.log');
+error_log("=== DASHBOARD PAGE LOAD START ===");
+error_log("URL: " . ($_SERVER['REQUEST_URI'] ?? 'unknown'));
+error_log("GET params: " . json_encode($_GET));
+error_log("Session data: " . json_encode(array_keys($_SESSION)));
+
 require_once __DIR__ . '/../bootstrap.php';
 le_require_auth();
 
@@ -18,8 +26,12 @@ use LE\Components\UI;
 $userId = le_current_user_id();
 $role = le_current_user_role();
 
+error_log("User ID: " . ($userId ?? 'null'));
+error_log("User Role: " . ($role ?? 'null'));
+
 // Only lecturers can access this dashboard
 if ($role !== 'lecturer' && $role !== 'admin') {
+    error_log("Access denied - role is: " . ($role ?? 'null'));
     header('Location: ' . le_page_url('join'));
     exit;
 }
@@ -32,14 +44,26 @@ if (!$userId) {
 }
 
 try {
+    error_log("Loading session model...");
     $sessionModel = new \LE\Models\SessionModel();
+    error_log("Getting active sessions for user ID: " . $userId);
     $activeSessions = $sessionModel->getLecturerActiveSessions($userId);
+    error_log("Active sessions count: " . count($activeSessions));
+    
+    error_log("Getting scheduled sessions...");
     $scheduledSessions = $sessionModel->getLecturerScheduledSessions($userId);
+    error_log("Scheduled sessions count: " . count($scheduledSessions));
+    
+    error_log("Getting session history...");
     $sessionHistory = $sessionModel->getLecturerHistory($userId);
+    error_log("History sessions count: " . count($sessionHistory));
+    
     $allSessions = array_merge($scheduledSessions, $activeSessions, $sessionHistory);
     usort($allSessions, static fn(array $a, array $b): int => strtotime($b['created_at']) <=> strtotime($a['created_at']));
+    error_log("Total sessions after merge: " . count($allSessions));
 } catch (Exception $e) {
     error_log("Dashboard session query error: " . $e->getMessage());
+    error_log("Error trace: " . $e->getTraceAsString());
     $activeSessions = [];
     $scheduledSessions = [];
     $sessionHistory = [];
@@ -52,6 +76,7 @@ $defaultUnitId = (int)le_get('unit_id', 0, true);
 
 // Get courses for dropdown
 try {
+    error_log("Getting courses for user ID: " . $userId);
     $db = le_db();
     $courses = $db->select(
         "SELECT DISTINCT c.id, c.name FROM courses c
@@ -61,6 +86,7 @@ try {
         [$userId],
         'i'
     );
+    error_log("Courses count: " . count($courses));
 
     $units = $db->select(
         "SELECT u.id, u.name, u.course_id FROM units u
@@ -69,17 +95,27 @@ try {
         [$userId],
         'i'
     );
+    error_log("Units count: " . count($units));
 } catch (Exception $e) {
     error_log("Dashboard courses/units query error: " . $e->getMessage());
+    error_log("Error trace: " . $e->getTraceAsString());
     $courses = [];
     $units = [];
 }
 
-Layout::start([
-    'title' => 'Dashboard',
-    'layout' => 'app',
-    'activeNav' => 'dashboard',
-]);
+error_log("Starting Layout render...");
+try {
+    Layout::start([
+        'title' => 'Dashboard',
+        'layout' => 'app',
+        'activeNav' => 'dashboard',
+    ]);
+    error_log("Layout render started successfully");
+} catch (Exception $e) {
+    error_log("Layout render error: " . $e->getMessage());
+    error_log("Error trace: " . $e->getTraceAsString());
+    die("Layout render failed: " . $e->getMessage());
+}
 ?>
 
 <div class="le-container le-page-enter">
@@ -564,15 +600,27 @@ Layout::start([
 </div>
 
 <script>
+    // CSRF token management
+    let csrfToken = null;
+    
+    async function getCsrfToken() {
+        if (csrfToken) return csrfToken;
+        
+        try {
+            const response = await fetch('<?= le_module_url('api/csrf_token.php') ?>');
+            const data = await response.json();
+            csrfToken = data.token;
+            return csrfToken;
+        } catch (error) {
+            console.error('Failed to fetch CSRF token:', error);
+            return '';
+        }
+    }
+
     // Keep page actions available while the shared script finishes loading.
     if (typeof LiveEngagement !== 'undefined') {
         LiveEngagement.init({ isPresenter: true });
     }
-
-    // Auto-show create modal if triggered
-    const AUTO_CREATE = <?= json_encode($autoCreate) ?>;
-    const DEFAULT_SESSION_TYPE = <?= json_encode($defaultSessionType) ?>;
-    const DEFAULT_UNIT_ID = <?= json_encode($defaultUnitId) ?>;
 
     // ============================================================
     // Session Type Selector
@@ -740,10 +788,11 @@ Layout::start([
         if (!confirm('Delete this session and all its data? This action cannot be undone.')) return;
         
         try {
+            const token = await getCsrfToken();
             const response = await fetch('<?= le_module_url('api/session.php') ?>?action=delete&id=' + sessionId, {
                 method: 'DELETE',
                 headers: { 
-                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-CSRF-Token': token,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
             });
@@ -791,21 +840,25 @@ Layout::start([
         LiveEngagement.openCommandPalette();
     }
 
-    // Auto-show create presentation modal if ?create=1&type=presentation
-    if (AUTO_CREATE && DEFAULT_SESSION_TYPE === 'presentation') {
-        // Show presentation creation — requires a session to exist first
+    // Create session/presentation on button click only (not auto-triggered)
+    function handleCreateAction() {
+        const DEFAULT_SESSION_TYPE = <?= json_encode($defaultSessionType) ?>;
         const sessions = <?= json_encode(array_map(function($s) {
             return ['id' => $s['id'], 'title' => $s['title'], 'code' => $s['session_code']];
         }, $allSessions)) ?>;
-        if (sessions.length > 0) {
-            showCreatePresentationModal(sessions[0].id);
+        
+        if (DEFAULT_SESSION_TYPE === 'presentation') {
+            if (sessions.length > 0) {
+                showCreatePresentationModal(sessions[0].id);
+            } else {
+                showCreateSessionModal();
+            }
         } else {
             showCreateSessionModal();
         }
-    } else if (AUTO_CREATE) {
-        showCreateSessionModal();
     }
 </script>
 
 <?php
+error_log("=== DASHBOARD PAGE LOAD END ===");
 Layout::end();
