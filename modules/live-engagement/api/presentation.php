@@ -49,9 +49,18 @@ try {
                 $presentation = $presModel->find($presId);
                 if (!$presentation) le_error_response('Presentation not found', 404);
                 
-                // Check ownership
-                if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
-                    le_error_response('Unauthorized', 403);
+                // Check ownership - use created_by if available, otherwise check via session
+                if (isset($presentation['created_by'])) {
+                    if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
+                        le_error_response('Unauthorized', 403);
+                    }
+                } else {
+                    // Fallback: check if user owns the session this presentation belongs to
+                    $sessionModel = new \LE\Models\SessionModel();
+                    $session = $sessionModel->find($presentation['session_id']);
+                    if (!$session || ((int)$session['lecturer_id'] !== $userId && $role !== 'admin')) {
+                        le_error_response('Unauthorized', 403);
+                    }
                 }
                 
                 le_success_response($presentation);
@@ -70,7 +79,15 @@ try {
                     }
                     
                     $requestInput['created_by'] = $userId;
-                    $presId = $presModel->create($requestInput);
+                    
+                    // Try to create with created_by, fall back without it if column doesn't exist
+                    try {
+                        $presId = $presModel->create($requestInput);
+                    } catch (Exception $e) {
+                        // Column might not exist, try without created_by
+                        unset($requestInput['created_by']);
+                        $presId = $presModel->create($requestInput);
+                    }
                     
                     if (!$presId) le_error_response('Failed to create presentation');
                     le_success_response($presModel->find($presId), 'Presentation created');
@@ -81,8 +98,19 @@ try {
                     
                     $original = $presModel->find($presId);
                     if (!$original) le_error_response('Presentation not found', 404);
-                    if ((int)$original['created_by'] !== $userId && $role !== 'admin') {
-                        le_error_response('Unauthorized', 403);
+                    
+                    // Check ownership - use created_by if available, otherwise check via session
+                    if (isset($original['created_by'])) {
+                        if ((int)$original['created_by'] !== $userId && $role !== 'admin') {
+                            le_error_response('Unauthorized', 403);
+                        }
+                    } else {
+                        // Fallback: check if user owns the session this presentation belongs to
+                        $sessionModel = new \LE\Models\SessionModel();
+                        $session = $sessionModel->find($original['session_id']);
+                        if (!$session || ((int)$session['lecturer_id'] !== $userId && $role !== 'admin')) {
+                            le_error_response('Unauthorized', 403);
+                        }
                     }
                     
                     $duplicateData = $original;
@@ -90,7 +118,15 @@ try {
                     $duplicateData['title'] = $original['title'] . ' (Copy)';
                     $duplicateData['created_by'] = $userId;
                     
-                    $newPresId = $presModel->create($duplicateData);
+                    // Try to create with created_by, fall back without it if column doesn't exist
+                    try {
+                        $newPresId = $presModel->create($duplicateData);
+                    } catch (Exception $e) {
+                        // Column might not exist, try without created_by
+                        unset($duplicateData['created_by']);
+                        $newPresId = $presModel->create($duplicateData);
+                    }
+                    
                     if (!$newPresId) le_error_response('Failed to duplicate presentation');
                     
                     // Duplicate slides
@@ -117,8 +153,19 @@ try {
             
             $presentation = $presModel->find($presId);
             if (!$presentation) le_error_response('Presentation not found', 404);
-            if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
-                le_error_response('Unauthorized', 403);
+            
+            // Check ownership - use created_by if available, otherwise check via session
+            if (isset($presentation['created_by'])) {
+                if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
+                    le_error_response('Unauthorized', 403);
+                }
+            } else {
+                // Fallback: check if user owns the session this presentation belongs to
+                $sessionModel = new \LE\Models\SessionModel();
+                $session = $sessionModel->find($presentation['session_id']);
+                if (!$session || ((int)$session['lecturer_id'] !== $userId && $role !== 'admin')) {
+                    le_error_response('Unauthorized', 403);
+                }
             }
             
             $allowed = ['title', 'description', 'is_active', 'allow_download', 'allow_annotations'];
@@ -139,8 +186,19 @@ try {
             
             $presentation = $presModel->find($presId);
             if (!$presentation) le_error_response('Presentation not found', 404);
-            if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
-                le_error_response('Unauthorized', 403);
+            
+            // Check ownership - use created_by if available, otherwise check via session
+            if (isset($presentation['created_by'])) {
+                if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
+                    le_error_response('Unauthorized', 403);
+                }
+            } else {
+                // Fallback: check if user owns the session this presentation belongs to
+                $sessionModel = new \LE\Models\SessionModel();
+                $session = $sessionModel->find($presentation['session_id']);
+                if (!$session || ((int)$session['lecturer_id'] !== $userId && $role !== 'admin')) {
+                    le_error_response('Unauthorized', 403);
+                }
             }
             
             if ($presModel->delete($presId)) {

@@ -21,6 +21,7 @@ class PresentationModel extends BaseModel
         'session_id', 'title', 'description', 'file_path', 'file_type',
         'file_size', 'original_filename', 'total_slides', 'current_slide',
         'is_active', 'allow_download', 'allow_annotations', 'presenter_notes',
+        'created_by',
     ];
 
     protected array $orderBy = ['created_at' => 'DESC'];
