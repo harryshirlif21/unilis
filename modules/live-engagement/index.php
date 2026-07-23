@@ -1,24 +1,27 @@
 <?php
 /**
  * Live Engagement — Landing Page with routing
+ *
+ * Landing page (no ?page= parameter) is always shown to everyone.
+ * When ?page= is provided, authentication is required and the
+ * appropriate view is loaded.
  */
 require_once __DIR__ . '/bootstrap.php';
 
 use LE\Components\Layout;
 
 /*
- * Route authenticated users to the appropriate page.
- * The landing page (no ?page=) is always shown to everyone.
+ * Only route to a specific page when ?page= is explicitly given.
+ * Without ?page= the landing page is shown regardless of auth status.
  */
 $requestedPage = le_get('page', '');
-if ($requestedPage !== '' || le_is_authenticated()) {
+if ($requestedPage !== '') {
     le_require_auth();
 
-    $page = $requestedPage ?: 'dashboard';
     $sessionId = (int) le_get('id', 0, true);
     $code = le_get('code', '');
 
-    switch ($page) {
+    switch ($requestedPage) {
         case 'dashboard':
             include __DIR__ . '/views/' . (le_has_role(['lecturer', 'admin']) ? 'dashboard.php' : 'join.php');
             break;
@@ -49,7 +52,7 @@ if ($requestedPage !== '' || le_is_authenticated()) {
                 header('Location: ' . le_page_url('join'));
                 exit;
             }
-            include __DIR__ . '/views/' . ($page === 'presentations' ? 'presentations.php' : 'reports_overview.php');
+            include __DIR__ . '/views/' . ($requestedPage === 'presentations' ? 'presentations.php' : 'reports_overview.php');
             break;
 
         case 'create_presentation':
