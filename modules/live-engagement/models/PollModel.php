@@ -194,28 +194,3 @@ class PollModel extends BaseModel
         ) > 0;
     }
 }
-
-/**
- * PollOptionModel - Manages poll options
- */
-class PollOptionModel extends BaseModel
-{
-    protected string $table = 'live_poll_options';
-    
-    protected array $fillable = [
-        'poll_id', 'option_text', 'option_value', 'display_order', 'is_correct', 'color',
-    ];
-
-    protected array $orderBy = ['display_order' => 'ASC'];
-
-    /**
-     * Get all options for a poll
-     * 
-     * @param int $pollId
-     * @return array
-     */
-    public function getPollOptions(int $pollId): array
-    {
-        return $this->findBy('poll_id', $pollId);
-    }
-}

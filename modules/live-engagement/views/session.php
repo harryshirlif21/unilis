@@ -25,7 +25,7 @@ if (!$sessionId) {
 }
 
 $sessionModel = new \LE\Models\SessionModel();
-$session = $sessionModel->getById($sessionId);
+$session = $sessionModel->find($sessionId);
 
 if (!$session) {
     header('Location: ' . le_page_url('join'));

@@ -450,7 +450,7 @@ Layout::start([
         btn.innerHTML = '<div class="le-spinner le-spinner-sm" style="border-color: rgba(255,255,255,0.3); border-top-color: white;"></div> Uploading...';
 
         try {
-            const response = await fetch('<?= LE_MODULE_URL ?>/api/upload.php', {
+            const response = await fetch('<?= le_module_url('api/upload.php') ?>', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -484,7 +484,7 @@ Layout::start([
 
     async function duplicatePresentation(id) {
         try {
-            const response = await fetch('<?= LE_MODULE_URL ?>/api/presentation.php?action=duplicate&id=' + id, {
+            const response = await fetch('<?= le_module_url('api/presentation.php') ?>?action=duplicate&id=' + id, {
                 method: 'POST',
                 headers: {
                     'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
@@ -503,7 +503,7 @@ Layout::start([
     async function deletePresentation(id) {
         if (!confirm('Delete this presentation permanently? This cannot be undone.')) return;
         try {
-            const response = await fetch('<?= LE_MODULE_URL ?>/api/presentation.php?action=delete&id=' + id, {
+            const response = await fetch('<?= le_module_url('api/presentation.php') ?>?action=delete&id=' + id, {
                 method: 'DELETE',
                 headers: {
                     'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',

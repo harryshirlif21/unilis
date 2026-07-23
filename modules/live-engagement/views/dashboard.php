@@ -9,22 +9,11 @@
  * @version 2.0.0
  */
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 require_once __DIR__ . '/../bootstrap.php';
 le_require_auth();
 
 use LE\Components\Layout;
 use LE\Components\UI;
-
-// Ensure component classes are loaded
-require_once __DIR__ . '/../components/Layout.php';
-require_once __DIR__ . '/../components/UI.php';
-
-// Ensure model classes are loaded
-require_once __DIR__ . '/../models/BaseModel.php';
-require_once __DIR__ . '/../models/SessionModel.php';
 
 $userId = le_current_user_id();
 $role = le_current_user_role();

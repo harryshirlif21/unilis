@@ -5,6 +5,8 @@
  * Authenticated users are routed directly to dashboard by index.php.
  */
 
+require_once __DIR__ . '/../bootstrap.php';
+
 use LE\Components\Layout;
 
 // Auto-open auth modal if redirected here with ?auth=1

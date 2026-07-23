@@ -59,8 +59,9 @@ if ($requestedPage !== '') {
                 header('Location: ' . le_page_url('dashboard'));
                 exit;
             }
-            include __DIR__ . '/views/presenter.php';
-            break;
+            // presenter.php not implemented yet - redirect to session view
+            header('Location: ' . le_page_url('session', ['id' => $sessionId]));
+            exit;
 
         case 'join':
             include __DIR__ . '/views/join.php';
@@ -75,13 +76,21 @@ if ($requestedPage !== '') {
             break;
 
         case 'presentations':
+            if (!le_has_role(['lecturer', 'admin'])) {
+                header('Location: ' . le_page_url('join'));
+                exit;
+            }
+            include __DIR__ . '/views/presentations.php';
+            break;
+
         case 'reports':
             if (!le_has_role(['lecturer', 'admin'])) {
                 header('Location: ' . le_page_url('join'));
                 exit;
             }
-            include __DIR__ . '/views/' . ($requestedPage === 'presentations' ? 'presentations.php' : 'reports_overview.php');
-            break;
+            // reports_overview.php not implemented yet - redirect to dashboard
+            header('Location: ' . le_page_url('dashboard'));
+            exit;
 
         case 'create_presentation':
             include __DIR__ . '/views/create_presentation.php';
@@ -100,8 +109,9 @@ if ($requestedPage !== '') {
                 header('Location: ' . le_page_url('dashboard'));
                 exit;
             }
-            include __DIR__ . '/views/report.php';
-            break;
+            // report.php not implemented yet - redirect to dashboard
+            header('Location: ' . le_page_url('dashboard'));
+            exit;
 
         default:
             http_response_code(404);
