@@ -9,6 +9,9 @@
  * @version 2.0.0
  */
 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once __DIR__ . '/../bootstrap.php';
 le_require_auth();
 
