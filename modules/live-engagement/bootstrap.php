@@ -18,6 +18,9 @@ if (!defined('UNILIS_ACCESS')) {
 define('LE_MODULE_PATH', __DIR__);
 define('LE_MODULE_URL', 'modules/live-engagement');
 
+// Load root database configuration first
+require_once __DIR__ . '/../../config/db.php';
+
 // Load configuration
 $leConfig = require __DIR__ . '/config/module.php';
 
@@ -28,7 +31,7 @@ require_once __DIR__ . '/config/database_helper.php';
 require_once __DIR__ . '/helpers/security_helper.php';
 require_once __DIR__ . '/helpers/session_helper.php';
 
-// Load CSRF token
+// Load CSRF token (session may already be started by root app)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
