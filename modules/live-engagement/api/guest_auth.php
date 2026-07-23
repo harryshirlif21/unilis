@@ -5,6 +5,69 @@ header('Content-Type: application/json');
 
 $action = le_post('action', '');
 
+// Generate auth token for UNILIS SSO
+if ($action === 'generate_unilis_token') {
+    $token = bin2hex(random_bytes(32));
+    $expiresAt = date('Y-m-d H:i:s', time() + 300); // 5 minutes
+    
+    $db = le_db();
+    $stmt = $db->prepare("
+        INSERT INTO live_engagement_migrations (migration, description, applied_at)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE description = ?, applied_at = ?
+    ");
+    
+    // Store token in session for validation
+    $_SESSION['le_unilis_token'] = $token;
+    $_SESSION['le_unilis_token_expires'] = $expiresAt;
+    
+    echo json_encode([
+        'success' => true,
+        'token' => $token,
+        'expires' => $expiresAt,
+        'login_url' => '/login.php?le_token=' . $token
+    ]);
+    exit;
+}
+
+// Validate UNILIS token after login
+if ($action === 'validate_unilis_token') {
+    $token = le_post('token', '');
+    $storedToken = $_SESSION['le_unilis_token'] ?? '';
+    $expires = $_SESSION['le_unilis_token_expires'] ?? '';
+    
+    if (!$token || $token !== $storedToken) {
+        echo json_encode(['success' => false, 'error' => 'Invalid token']);
+        exit;
+    }
+    
+    if (strtotime($expires) < time()) {
+        echo json_encode(['success' => false, 'error' => 'Token expired']);
+        exit;
+    }
+    
+    // Token valid - check if user is logged in via UNILIS
+    if (isset($_SESSION['user_id']) && isset($_SESSION['user_role'])) {
+        // Map UNILIS user to Live Engagement session
+        $_SESSION['le_authenticated'] = true;
+        $_SESSION['le_user_id'] = $_SESSION['user_id'];
+        $_SESSION['le_user_role'] = $_SESSION['user_role'];
+        $_SESSION['le_user_name'] = $_SESSION['user_name'] ?? '';
+        
+        // Clear token
+        unset($_SESSION['le_unilis_token']);
+        unset($_SESSION['le_unilis_token_expires']);
+        
+        echo json_encode([
+            'success' => true,
+            'redirect' => le_page_url('dashboard') . '&create=1&type=presentation'
+        ]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated with UNILIS']);
+    }
+    exit;
+}
+
 switch ($action) {
 
     // ----------------------------------------------------------

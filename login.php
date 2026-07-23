@@ -2,6 +2,13 @@
 session_start();
 include 'actions.php';
 
+// Handle Live Engagement token-based SSO
+$leToken = $_GET['le_token'] ?? '';
+if ($leToken) {
+    $_SESSION['le_unilis_token'] = $leToken;
+    $_SESSION['le_unilis_token_expires'] = date('Y-m-d H:i:s', time() + 300);
+}
+
 // Set by the Live Engagement landing page before it sends users here.
 $leRedirect = $_SESSION['le_login_redirect'] ?? '';
 

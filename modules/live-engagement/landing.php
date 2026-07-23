@@ -208,7 +208,27 @@ function switchTab(id,el) {
     document.querySelectorAll('.modal-panel').forEach(p=>p.classList.remove('active'));
     el.classList.add('active'); document.getElementById('panel-'+id).classList.add('active');
 }
-function goUnilisLogin() { window.location.href='/login.php'; }
+function goUnilisLogin() {
+    // Generate token and redirect to UNILIS login
+    fetch(BASE+'/api/guest_auth.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ action: 'generate_unilis_token' })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = data.login_url;
+        } else {
+            document.getElementById('signup-error').textContent = 'Failed to generate auth token';
+            document.getElementById('signup-error').classList.add('show');
+        }
+    })
+    .catch(() => {
+        document.getElementById('signup-error').textContent = 'Network error';
+        document.getElementById('signup-error').classList.add('show');
+    });
+}
 
 async function submitSignup() {
     const e=document.getElementById('signup-error'),s=document.getElementById('signup-success'),b=document.getElementById('su-btn'),sp=document.getElementById('su-spinner'),ic=document.getElementById('su-icon');

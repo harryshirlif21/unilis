@@ -575,9 +575,25 @@ function switchModalTab(id, el) {
 }
 
 function goUnilisLogin() {
-    // Redirect to UNILIS auth; it will redirect back after login
-    window.location.href = '/auth/login?redirect=' +
-        encodeURIComponent('<?= le_page_url('dashboard') ?>');
+    // Generate token and redirect to UNILIS login
+    fetch('<?= le_module_url('api/guest_auth.php') ?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ action: 'generate_unilis_token' })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = data.login_url;
+        } else {
+            document.getElementById('signup-error').textContent = 'Failed to generate auth token';
+            document.getElementById('signup-error').classList.add('show');
+        }
+    })
+    .catch(() => {
+        document.getElementById('signup-error').textContent = 'Network error';
+        document.getElementById('signup-error').classList.add('show');
+    });
 }
 
 // ── Sign up ─────────────────────────────────────────────────

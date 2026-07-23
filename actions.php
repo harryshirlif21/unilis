@@ -298,6 +298,17 @@ if ($action === 'universal_login') {
 
             // FINAL REDIRECT: Check for return URL or session-based redirect (from Live Engagement)
             $redirectUrl = $return ?: $leRedirect ?: '';
+            
+            // Handle Live Engagement token-based SSO
+            if (isset($_SESSION['le_unilis_token'])) {
+                // Redirect back to Live Engagement with token validation
+                $redirectUrl = 'modules/live-engagement/index.php?page=dashboard&create=1&type=presentation&le_token=' . $_SESSION['le_unilis_token'];
+                unset($_SESSION['le_unilis_token']);
+                unset($_SESSION['le_unilis_token_expires']);
+                header("Location: " . $redirectUrl);
+                exit;
+            }
+            
             if (!empty($redirectUrl)) {
                 unset($_SESSION['le_login_redirect']);
                 header("Location: " . $redirectUrl);

@@ -10,6 +10,26 @@ require_once __DIR__ . '/bootstrap.php';
 
 use LE\Components\Layout;
 
+// Handle UNILIS token-based SSO callback
+$leToken = le_get('le_token', '');
+if ($leToken && isset($_SESSION['le_unilis_token']) && $leToken === $_SESSION['le_unilis_token']) {
+    // Validate token and establish LE session
+    if (isset($_SESSION['user_id']) && isset($_SESSION['user_role'])) {
+        $_SESSION['le_authenticated'] = true;
+        $_SESSION['le_user_id'] = $_SESSION['user_id'];
+        $_SESSION['le_user_role'] = $_SESSION['user_role'];
+        $_SESSION['le_user_name'] = $_SESSION['user_name'] ?? '';
+        
+        // Clear token
+        unset($_SESSION['le_unilis_token']);
+        unset($_SESSION['le_unilis_token_expires']);
+        
+        // Redirect to dashboard with create presentation
+        header('Location: ' . le_page_url('dashboard') . '&create=1&type=presentation');
+        exit;
+    }
+}
+
 /*
  * Only route to a specific page when ?page= is explicitly given.
  * Without ?page= the landing page is shown regardless of auth status.
