@@ -24,34 +24,56 @@ if ($role !== 'lecturer' && $role !== 'admin') {
     exit;
 }
 
-$sessionModel = new \LE\Models\SessionModel();
-$activeSessions = $sessionModel->getLecturerActiveSessions($userId);
-$scheduledSessions = $sessionModel->getLecturerScheduledSessions($userId);
-$sessionHistory = $sessionModel->getLecturerHistory($userId);
-$allSessions = array_merge($scheduledSessions, $activeSessions, $sessionHistory);
-usort($allSessions, static fn(array $a, array $b): int => strtotime($b['created_at']) <=> strtotime($a['created_at']));
+// Ensure we have a valid user ID
+if (!$userId) {
+    error_log("Dashboard: No user ID found in session");
+    header('Location: ' . le_page_url('home'));
+    exit;
+}
+
+try {
+    $sessionModel = new \LE\Models\SessionModel();
+    $activeSessions = $sessionModel->getLecturerActiveSessions($userId);
+    $scheduledSessions = $sessionModel->getLecturerScheduledSessions($userId);
+    $sessionHistory = $sessionModel->getLecturerHistory($userId);
+    $allSessions = array_merge($scheduledSessions, $activeSessions, $sessionHistory);
+    usort($allSessions, static fn(array $a, array $b): int => strtotime($b['created_at']) <=> strtotime($a['created_at']));
+} catch (Exception $e) {
+    error_log("Dashboard session query error: " . $e->getMessage());
+    $activeSessions = [];
+    $scheduledSessions = [];
+    $sessionHistory = [];
+    $allSessions = [];
+}
+
 $autoCreate = isset($_GET['create']) && $_GET['create'] === '1';
 $defaultSessionType = le_get('type', 'mixed');
 $defaultUnitId = (int)le_get('unit_id', 0, true);
 
 // Get courses for dropdown
-$db = le_db();
-$courses = $db->select(
-    "SELECT DISTINCT c.id, c.name FROM courses c
-     JOIN units u ON u.course_id = c.id
-     JOIN lecturer_units lu ON lu.unit_id = u.id
-     WHERE lu.lecturer_id = ? ORDER BY c.name",
-    [$userId],
-    'i'
-);
+try {
+    $db = le_db();
+    $courses = $db->select(
+        "SELECT DISTINCT c.id, c.name FROM courses c
+         JOIN units u ON u.course_id = c.id
+         JOIN lecturer_units lu ON lu.unit_id = u.id
+         WHERE lu.lecturer_id = ? ORDER BY c.name",
+        [$userId],
+        'i'
+    );
 
-$units = $db->select(
-    "SELECT u.id, u.name, u.course_id FROM units u
-     JOIN lecturer_units lu ON u.id = lu.unit_id
-     WHERE lu.lecturer_id = ? ORDER BY u.name",
-    [$userId],
-    'i'
-);
+    $units = $db->select(
+        "SELECT u.id, u.name, u.course_id FROM units u
+         JOIN lecturer_units lu ON u.id = lu.unit_id
+         WHERE lu.lecturer_id = ? ORDER BY u.name",
+        [$userId],
+        'i'
+    );
+} catch (Exception $e) {
+    error_log("Dashboard courses/units query error: " . $e->getMessage());
+    $courses = [];
+    $units = [];
+}
 
 Layout::start([
     'title' => 'Dashboard',

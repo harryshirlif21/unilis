@@ -18,21 +18,35 @@ use LE\Components\UI;
 $userId = le_current_user_id();
 $role = le_current_user_role();
 
-$db = le_db();
-$presentationModel = new \LE\Models\PresentationModel();
+// Ensure we have a valid user ID
+if (!$userId) {
+    error_log("Presentations: No user ID found in session");
+    header('Location: ' . le_page_url('home'));
+    exit;
+}
 
-// Get presentations with search/filter
-$search = le_get('search', '');
-$courseFilter = (int)le_get('course_id', 0, true);
-$sort = le_get('sort', 'newest');
-$currentPage = max(1, (int)le_get('p', 1, true));
-$perPage = 20;
+try {
+    $db = le_db();
+    $presentationModel = new \LE\Models\PresentationModel();
 
-$presentations = $presentationModel->getUserPresentations($userId, $search, $courseFilter, $sort, $currentPage, $perPage);
-$totalPresentations = $presentationModel->countUserPresentations($userId, $search, $courseFilter);
+    // Get presentations with search/filter
+    $search = le_get('search', '');
+    $courseFilter = (int)le_get('course_id', 0, true);
+    $sort = le_get('sort', 'newest');
+    $currentPage = max(1, (int)le_get('p', 1, true));
+    $perPage = 20;
 
-// Get courses for filter
-$courses = $db->select("SELECT id, name FROM courses ORDER BY name");
+    $presentations = $presentationModel->getUserPresentations($userId, $search, $courseFilter, $sort, $currentPage, $perPage);
+    $totalPresentations = $presentationModel->countUserPresentations($userId, $search, $courseFilter);
+
+    // Get courses for filter
+    $courses = $db->select("SELECT id, name FROM courses ORDER BY name");
+} catch (Exception $e) {
+    error_log("Presentations query error: " . $e->getMessage());
+    $presentations = [];
+    $totalPresentations = 0;
+    $courses = [];
+}
 
 Layout::start([
     'title' => 'Presentations',

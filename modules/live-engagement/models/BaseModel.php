@@ -38,13 +38,18 @@ abstract class BaseModel
      */
     public function __construct()
     {
-        if (!class_exists('DatabaseHelper')) {
-            if (!defined('UNILIS_ACCESS')) {
-                define('UNILIS_ACCESS', true);
+        try {
+            if (!class_exists('DatabaseHelper')) {
+                if (!defined('UNILIS_ACCESS')) {
+                    define('UNILIS_ACCESS', true);
+                }
+                require_once __DIR__ . '/../config/database_helper.php';
             }
-            require_once __DIR__ . '/../config/database_helper.php';
+            $this->db = DatabaseHelper::getInstance();
+        } catch (Exception $e) {
+            error_log("BaseModel constructor error: " . $e->getMessage());
+            throw new Exception("Database connection not available for Live Engagement module");
         }
-        $this->db = DatabaseHelper::getInstance();
     }
 
     /**

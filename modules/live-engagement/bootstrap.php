@@ -19,7 +19,12 @@ define('LE_MODULE_PATH', __DIR__);
 define('LE_MODULE_URL', 'modules/live-engagement');
 
 // Load root database configuration first
-require_once __DIR__ . '/../../config/db.php';
+try {
+    require_once __DIR__ . '/../../config/db.php';
+} catch (Exception $e) {
+    error_log("Live Engagement: Failed to load database config: " . $e->getMessage());
+    // Continue - DatabaseHelper will handle missing connection
+}
 
 // Load configuration
 $leConfig = require __DIR__ . '/config/module.php';
