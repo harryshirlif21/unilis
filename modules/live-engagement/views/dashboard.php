@@ -15,6 +15,10 @@ le_require_auth();
 use LE\Components\Layout;
 use LE\Components\UI;
 
+// Ensure model classes are loaded
+require_once __DIR__ . '/../models/BaseModel.php';
+require_once __DIR__ . '/../models/SessionModel.php';
+
 $userId = le_current_user_id();
 $role = le_current_user_role();
 

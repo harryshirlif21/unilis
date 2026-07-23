@@ -6,9 +6,6 @@
  * When ?page= is provided, authentication is required and the
  * appropriate view is loaded.
  */
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 require_once __DIR__ . '/bootstrap.php';
 
 use LE\Components\Layout;
