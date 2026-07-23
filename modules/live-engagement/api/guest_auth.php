@@ -10,13 +10,6 @@ if ($action === 'generate_unilis_token') {
     $token = bin2hex(random_bytes(32));
     $expiresAt = date('Y-m-d H:i:s', time() + 300); // 5 minutes
     
-    $db = le_db();
-    $stmt = $db->prepare("
-        INSERT INTO live_engagement_migrations (migration, description, applied_at)
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE description = ?, applied_at = ?
-    ");
-    
     // Store token in session for validation
     $_SESSION['le_unilis_token'] = $token;
     $_SESSION['le_unilis_token_expires'] = $expiresAt;
