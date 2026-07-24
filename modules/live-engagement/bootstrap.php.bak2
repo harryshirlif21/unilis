@@ -171,8 +171,7 @@ function le_base_url(): string
         return $baseUrl;
     }
 
-    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') || (($_SERVER['SERVER_PORT'] ?? null) == 443);
-    $scheme = $isHttps ? 'https' : 'http';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/unilis/modules/live-engagement/index.php');
 
     // Determine the application root by trimming the module path from SCRIPT_NAME.
