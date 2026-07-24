@@ -25,8 +25,8 @@ if ($leToken) {
             unset($_SESSION['le_unilis_token']);
             unset($_SESSION['le_unilis_token_expires']);
             
-            // Redirect to dashboard with create presentation (without token to avoid loop)
-            header('Location: ' . le_page_url('dashboard') . '&create=1&type=presentation');
+            // Redirect to dashboard (clean, without auto-create)
+            header('Location: ' . le_page_url('dashboard'));
             exit;
         } else {
             // Token valid but no UNILIS session - redirect to login
@@ -125,7 +125,7 @@ if ($requestedPage !== '') {
 $openAuthModal = !empty($_GET['auth']);
 
 // Store Live Engagement redirect URL in session for the UNILIS login flow
-$_SESSION['le_login_redirect'] = LE_MODULE_URL . '/index.php?page=dashboard&create=1&type=presentation';
+$_SESSION['le_login_redirect'] = LE_MODULE_URL . '/index.php?page=dashboard';
 
 Layout::start([
     'title'     => 'Live Engagement',

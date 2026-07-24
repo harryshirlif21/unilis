@@ -70,9 +70,10 @@ try {
     $allSessions = [];
 }
 
-$autoCreate = isset($_GET['create']) && $_GET['create'] === '1';
-$defaultSessionType = le_get('type', 'mixed');
-$defaultUnitId = (int)le_get('unit_id', 0, true);
+// Disable automatic action loading to prevent 500 errors
+$autoCreate = false;
+$defaultSessionType = 'mixed';
+$defaultUnitId = 0;
 
 // Get courses for dropdown
 try {

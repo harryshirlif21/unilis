@@ -53,7 +53,7 @@ if ($action === 'validate_unilis_token') {
         
         echo json_encode([
             'success' => true,
-            'redirect' => le_page_url('dashboard') . '&create=1&type=presentation'
+            'redirect' => le_page_url('dashboard')
         ]);
     } else {
         echo json_encode(['success' => false, 'error' => 'Not authenticated with UNILIS']);

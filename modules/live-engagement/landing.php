@@ -13,7 +13,7 @@ session_start();
 define('LE_MODULE_URL', 'modules/live-engagement');
 
 // Store redirect for UNILIS login flow
-$_SESSION['le_login_redirect'] = LE_MODULE_URL . '/landing.php?create=1&type=presentation';
+$_SESSION['le_login_redirect'] = LE_MODULE_URL . '/index.php?page=dashboard';
 
 $openAuthModal = !empty($_GET['auth']);
 ?><!DOCTYPE html>
