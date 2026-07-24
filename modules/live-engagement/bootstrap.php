@@ -73,18 +73,27 @@ if (!isset($_SESSION[LE_CSRF_TOKEN_NAME])) {
  *   LE\Components\* -> components/
  */
 spl_autoload_register(function (string $class) {
-    $prefix = 'LE\\';
-    $baseDir = __DIR__ . '/';
+    $namespaceMap = [
+        'LE\\Models\\' => __DIR__ . '/models/',
+        'LE\\Services\\' => __DIR__ . '/services/',
+        'LE\\Controllers\\' => __DIR__ . '/controllers/',
+        'LE\\Helpers\\' => __DIR__ . '/helpers/',
+        'LE\\Components\\' => __DIR__ . '/components/',
+    ];
 
-    if (strncmp($prefix, $class, strlen($prefix)) !== 0) {
+    foreach ($namespaceMap as $prefix => $baseDir) {
+        if (strncmp($prefix, $class, strlen($prefix)) !== 0) {
+            continue;
+        }
+
+        $relativeClass = substr($class, strlen($prefix));
+        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+        if (file_exists($file)) {
+            require_once $file;
+        } else {
+            error_log('Live Engagement autoloader failed to find file: ' . $file . ' for class: ' . $class);
+        }
         return;
-    }
-
-    $relativeClass = substr($class, strlen($prefix));
-    $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
-
-    if (file_exists($file)) {
-        require_once $file;
     }
 }, true, true);
 
