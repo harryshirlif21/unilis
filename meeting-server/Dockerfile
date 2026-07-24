@@ -7,19 +7,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# OpenCV runtime libraries (headless)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+# No system-level dependencies needed (OpenCV removed)
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY media_room.py server.py ./
+# Copy ALL Python source files — not a hardcoded subset
+COPY *.py ./
 
 EXPOSE 8765
 
