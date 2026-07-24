@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNILIS Meeting</title>
+    <link rel="stylesheet" href="css/meeting.css">
+    <link rel="stylesheet" href="css/meeting-dark.css">
+</head>
+<body>
+    <div id="app"></div>
+    <script>
+        // Parse meeting config from URL query parameters
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const wsUrl = params.get('ws_signaling_url') || '/ws/signaling';
+            window.__MEETING_CONFIG__ = {
+                meeting_id: parseInt(params.get('meeting_id') || '0'),
+                user_id: parseInt(params.get('user_id') || '0'),
+                role: params.get('role') || 'student',
+                display_name: params.get('display_name') || 'User',
+                title: params.get('title') || 'Meeting',
+                unit_name: params.get('unit_name') || '',
+                lecturer_name: params.get('lecturer_name') || '',
+                scheduled_time: params.get('scheduled_time') || '',
+                duration: parseInt(params.get('duration') || '60'),
+                external_link: params.get('external_link') || '',
+                back_url: params.get('back_url') || '/',
+                is_host: params.get('role') === 'lecturer',
+                ws_signaling_url: wsUrl,
+                ws_media_url: params.get('ws_media_url') || '/ws/media',
+            };
+        })();
+    </script>
+    <script src="js/webrtc-core.js"></script>
+    <script src="js/webrtc-media.js"></script>
+    <script src="js/webrtc-rooms.js"></script>
+    <script src="js/ui-theme.js"></script>
+    <script src="js/ui-layout.js"></script>
+    <script src="js/ui-sidebar.js"></script>
+    <script src="js/ui-notifications.js"></script>
+    <script src="js/participants.js"></script>
+    <script src="js/chat.js"></script>
+    <script src="js/whiteboard.js"></script>
+    <script src="js/screenshare.js"></script>
+    <script src="js/polls.js"></script>
+    <script src="js/captions.js"></script>
+    <script src="js/attendance.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/network.js"></script>
+    <script src="js/meeting.js"></script>
+</body>
+</html>

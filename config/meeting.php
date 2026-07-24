@@ -164,6 +164,34 @@ function buildMeetingPythonUiUrl(
 }
 
 /**
+ * Build URL for the new Google Meet-style frontend.
+ * Serves the meeting page directly from PHP assets.
+ */
+function buildMeetingFrontendUrl(
+    string $role,
+    array $meeting,
+    int $userId,
+    string $displayName,
+    string $backUrl
+): string {
+    $params = [
+        'meeting_id' => (int)($meeting['id'] ?? 0),
+        'user_id' => $userId,
+        'role' => $role,
+        'display_name' => $displayName,
+        'title' => (string)($meeting['title'] ?? ''),
+        'unit_name' => (string)($meeting['unit_name'] ?? ''),
+        'lecturer_name' => (string)($meeting['lecturer_name'] ?? ''),
+        'scheduled_time' => (string)($meeting['scheduled_time'] ?? ''),
+        'duration' => (int)($meeting['duration'] ?? 0),
+        'external_link' => (string)($meeting['meeting_link'] ?? ''),
+        'back_url' => $backUrl,
+    ];
+
+    return getMeetingAppBaseUrl() . '/assets/meetings/meeting.html?' . http_build_query($params);
+}
+
+/**
  * Whether a student can enter the live meeting room.
  */
 function meetingsTableHasColumn(mysqli $conn, string $column): bool

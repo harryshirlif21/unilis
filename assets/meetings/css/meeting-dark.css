@@ -1,0 +1,151 @@
+/* ============================================================
+   UNILIS Meeting - Dark Theme
+   ============================================================ */
+[data-theme="dark"] {
+  --primary: #8ab4f8;
+  --primary-hover: #aecbfa;
+  --primary-light: #1e3a5f;
+  --primary-dark: #669df6;
+
+  --bg-app: #1a1a2e;
+  --bg-card: #2d2d3d;
+  --bg-elevated: #2d2d3d;
+  --bg-hover: #3a3a4e;
+  --bg-active: #1e3a5f;
+  --bg-overlay: rgba(0, 0, 0, 0.8);
+  --bg-toolbar: #2d2d3d;
+  --bg-sidebar: #2d2d3d;
+
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa0a6;
+  --text-tertiary: #5f6368;
+  --text-inverse: #202124;
+  --text-link: #8ab4f8;
+
+  --border-color: #3c4043;
+  --border-light: #3c4043;
+  --divider: #3c4043;
+
+  --control-bg: #2d2d3d;
+  --control-bg-hover: #3a3a4e;
+  --control-bg-active: #4a4a5e;
+  --control-danger: #f28b82;
+  --control-danger-hover: #f6aea9;
+  --control-success: #81c995;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 6px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.6);
+}
+
+[data-theme="dark"] .meeting-stage {
+  background: #0d0d1a;
+}
+
+[data-theme="dark"] .video-tile {
+  background: #1a1a2e;
+}
+
+[data-theme="dark"] .video-tile .avatar-placeholder {
+  background: linear-gradient(135deg, #2d2d4a, #1a1a2e);
+}
+
+[data-theme="dark"] .lobby-card {
+  background: var(--bg-elevated);
+}
+
+[data-theme="dark"] .whiteboard-container {
+  background: #1a1a2e;
+}
+
+[data-theme="dark"] .chat-message {
+  background: #3a3a4e;
+}
+
+[data-theme="dark"] .chat-message.own {
+  background: #1e3a5f;
+}
+
+[data-theme="dark"] .poll-option {
+  background: #3a3a4e;
+}
+
+[data-theme="dark"] .poll-card {
+  background: #3a3a4e;
+}
+
+[data-theme="dark"] .meeting-float-controls {
+  background: #2d2d3d;
+  border-color: #3c4043;
+}
+
+[data-theme="dark"] .control-btn {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .control-btn:hover {
+  background: #3a3a4e;
+}
+
+[data-theme="dark"] .control-btn.active {
+  background: #1e3a5f;
+  color: var(--primary);
+}
+
+[data-theme="dark"] .control-btn.danger {
+  background: #c5221f;
+  color: #fff;
+}
+
+[data-theme="dark"] .notification-toast {
+  background: #2d2d3d;
+  border-color: #3c4043;
+}
+
+[data-theme="dark"] .lobby-info {
+  background: #3a3a4e;
+}
+
+[data-theme="dark"] .participant-item:hover {
+  background: #3a3a4e;
+}
+
+[data-theme="dark"] .sidebar-tab:hover {
+  background: #3a3a4e;
+}
+
+[data-theme="dark"] .whiteboard-tool:hover {
+  background: #3a3a4e;
+}
+
+[data-theme="dark"] .whiteboard-tool.active {
+  background: #1e3a5f;
+  color: var(--primary);
+}
+
+[data-theme="dark"] .meeting-top-bar {
+  background: #2d2d3d;
+  border-color: #3c4043;
+}
+
+[data-theme="dark"] .chat-input-area textarea {
+  background: #3a3a4e;
+  color: var(--text-primary);
+  border-color: #3c4043;
+}
+
+[data-theme="dark"] .participant-search {
+  background: #3a3a4e;
+  color: var(--text-primary);
+  border-color: #3c4043;
+}
+
+[data-theme="dark"] .lobby-btn-secondary {
+  color: var(--text-primary);
+  border-color: #3c4043;
+}
+
+[data-theme="dark"] .lobby-btn-secondary:hover {
+  background: #3a3a4e;
+}
