@@ -262,6 +262,535 @@ def render_meeting_page(
 </html>"""
 
 
+def render_meeting_host_page(
+        *,
+        meeting_id: int,
+        user_id: int,
+        role: str,
+        display_name: str,
+        title: str,
+        unit_name: str,
+        lecturer_name: str,
+        scheduled_time: str,
+        duration: int,
+        external_link: str,
+        back_url: str,
+) -> str:
+        escaped = {
+                "title": html.escape(title),
+                "unit_name": html.escape(unit_name),
+                "lecturer_name": html.escape(lecturer_name),
+                "scheduled_time": html.escape(scheduled_time),
+                "display_name": html.escape(display_name),
+                "external_link": html.escape(external_link),
+                "back_url": html.escape(back_url),
+        }
+        is_host = True
+        page_label = "Host meeting"
+        eyebrow = "Python Meeting Host"
+        copy = (
+                "This meeting UI uses the existing Python signaling socket at /ws/signaling. "
+                "Video connections are negotiated peer-to-peer across the shared meeting room."
+        )
+        payload = json.dumps(
+                {
+                        "meeting_id": meeting_id,
+                        "user_id": user_id,
+                        "role": role,
+                        "display_name": display_name,
+                }
+        )
+        button_html = (
+                f'<a class="btn btn-primary" href="{escaped["external_link"]}" target="_blank" rel="noopener noreferrer">Open external meeting link</a>'
+                if has_launchable_meeting_link(external_link)
+                else ""
+        )
+        notice_html = (
+            "<div class=\"notice notice-success\">"
+            "Python is serving the meeting app UI and the shared signaling socket. "
+            "Use the controls below to manage participants and media."
+            "</div>"
+            if has_launchable_meeting_link(external_link)
+            else "<div class=\"notice notice-success\">"
+            "Python is serving this meeting room directly. No external meeting link is required."
+            "</div>"
+        )
+        template = """<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>__TITLE__</title>
+    <style>
+        :root { color-scheme: light; }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111827; }
+        .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+        .hero { padding: 24px 20px 12px; max-width: 1280px; width: 100%; margin: 0 auto; }
+        .hero h1 { margin: 0 0 8px; font-size: clamp(2rem, 1.8rem + 0.5vw, 3rem); }
+        .hero p { margin: 0; color: #4b5563; max-width: 840px; line-height: 1.75; }
+        .layout { display: grid; gap: 18px; padding: 0 20px 28px; max-width: 1280px; width: 100%; margin: 0 auto; }
+        .top-panel { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.2fr) 320px; }
+        .summary-card, .sidebar-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 24px; padding: 22px; box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08); }
+        .summary-card h2 { margin: 0 0 14px; font-size: 1.15rem; }
+        .summary-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); margin-top: 16px; }
+        .summary-item { background: #f8fafc; border-radius: 16px; padding: 14px; }
+        .summary-label { display: block; margin-bottom: 6px; color: #6b7280; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.08em; }
+        .summary-value { font-size: 1rem; font-weight: 700; color: #111827; }
+        .notice { border-radius: 18px; padding: 16px 18px; margin-bottom: 18px; line-height: 1.6; }
+        .notice-success { background: #eff6ff; border: 1px solid #93c5fd; color: #1d4ed8; }
+        .actions { display: grid; gap: 12px; margin-top: 18px; }
+        .btn { border: none; border-radius: 14px; padding: 14px 18px; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 10px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-primary { background: #2563eb; color: #ffffff; }
+        .btn-secondary { background: #ffffff; color: #1f2937; border: 1px solid #d1d5db; }
+        .btn-danger { background: #dc2626; color: #ffffff; }
+        .meeting-card { background: #111827; border-radius: 30px; padding: 18px; display: grid; gap: 18px; }
+        .meeting-meta { color: #e5e7eb; display: grid; gap: 8px; }
+        .meeting-meta strong { display: block; color: #ffffff; font-size: 0.95rem; }
+        .meeting-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+        .video-tile { position: relative; aspect-ratio: 16 / 9; border-radius: 24px; overflow: hidden; background: #111827; display: grid; place-items: center; color: #f9fafb; min-height: 150px; }
+        .video-tile video { width: 100%; height: 100%; object-fit: cover; }
+        .tile-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; pointer-events: none; }
+        .tile-caption { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+        .tile-title { font-size: 0.95rem; font-weight: 700; }
+        .tile-chip { padding: 6px 10px; border-radius: 999px; font-size: 0.75rem; background: rgba(255,255,255,0.12); color: #f8fafc; }
+        .controls-bar { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; align-items: center; margin-top: 10px; }
+        .control-pill { display: inline-flex; padding: 12px 16px; border-radius: 999px; gap: 8px; align-items: center; font-weight: 700; border: 1px solid transparent; }
+        .control-pill.active { background: #dbeafe; color: #1e40af; }
+        .participant-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+        .participant-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: #f8fafc; border: 1px solid #e5e7eb; }
+        .participant-name { font-weight: 700; color: #111827; }
+        .participant-role { color: #6b7280; font-size: 0.88rem; }
+        .status-banner { border-radius: 16px; padding: 12px 14px; background: #fef3c7; border: 1px solid #fde68a; color: #92400e; display: inline-flex; align-items: center; gap: 10px; margin-top: 8px; }
+        @media (max-width: 900px) { .top-panel { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <section class="hero">
+            <div class="eyebrow">__EYEBROW__</div>
+            <h1>__TITLE__</h1>
+            <p>__COPY__</p>
+        </section>
+
+        <main class="layout">
+            <section class="top-panel">
+                <div class="summary-card">
+                    <h2>Meeting summary</h2>
+                    <div class="summary-grid">
+                        <div class="summary-item"><span class="summary-label">Unit</span><span class="summary-value">__UNIT_NAME__</span></div>
+                        <div class="summary-item"><span class="summary-label">Lecturer</span><span class="summary-value">__LECTURER_NAME__</span></div>
+                        <div class="summary-item"><span class="summary-label">Scheduled</span><span class="summary-value">__SCHEDULED_TIME__</span></div>
+                        <div class="summary-item"><span class="summary-label">Duration</span><span class="summary-value">__DURATION__ minutes</span></div>
+                    </div>
+
+                    __NOTICE_HTML__
+
+                    <div class="actions">
+                        __BUTTON_HTML__
+                        <a class="btn btn-secondary" href="__BACK_URL__">Back</a>
+                        <button class="btn btn-secondary" id="toggleMicButton" type="button">Mute</button>
+                        <button class="btn btn-secondary" id="toggleCameraButton" type="button">Camera Off</button>
+                        <button class="btn btn-secondary" id="shareScreenButton" type="button">Share Screen</button>
+                        <button class="btn btn-danger" id="leaveButton" type="button">End Meeting</button>
+                    </div>
+
+                    <div class="drawer">
+                        <div>
+                            <h3>Meeting status</h3>
+                            <div class="status-banner" id="statusBanner">Connecting to signaling...</div>
+                        </div>
+                        <div>
+                            <h3>Signed-in user</h3>
+                            <div class="participant-item"><div>
+                                <div class="participant-name">__DISPLAY_NAME__</div>
+                                <div class="participant-role">__ROLE__</div>
+                            </div></div>
+                        </div>
+                        <div>
+                            <h3>Participants</h3>
+                            <ul class="participant-list" id="participantList"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="sidebar-card">
+                    <h2>Meeting link</h2>
+                    <div class="summary-item" style="background:#f8fafc;border-radius:18px;">
+                        <div class="summary-label">Configured meeting link</div>
+                        <div class="summary-value">__EXTERNAL_LINK__</div>
+                    </div>
+                </aside>
+            </section>
+
+            <section class="meeting-card">
+                <div class="meeting-meta">
+                    <strong>__PAGE_LABEL__</strong>
+                    <span>Camera, microphone, and screen-share are negotiated across peers using the shared signaling channel.</span>
+                </div>
+                <div class="meeting-grid" id="videoGrid"></div>
+                <div class="controls-bar">
+                    <span class="control-pill active">Meeting ID: __MEETING_ID__</span>
+                    <span class="control-pill active" id="participantCount">Participants: 0</span>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const meetingUser = __PAYLOAD__;
+        const isHost = true;
+        const signalingPath = __SIGNALING_PATH__;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = signalingPath.startsWith('ws') ? signalingPath : protocol + '//' + window.location.host + signalingPath;
+
+        const statusBanner = document.getElementById('statusBanner');
+        const participantCount = document.getElementById('participantCount');
+        const participantList = document.getElementById('participantList');
+        const videoGrid = document.getElementById('videoGrid');
+        const toggleMicButton = document.getElementById('toggleMicButton');
+        const toggleCameraButton = document.getElementById('toggleCameraButton');
+        const shareScreenButton = document.getElementById('shareScreenButton');
+        const leaveButton = document.getElementById('leaveButton');
+
+        let signalingSocket = null;
+        let localStream = null;
+        const peerConnections = new Map();
+        const remoteVideoElements = new Map();
+        let micMuted = false;
+        let cameraOff = false;
+        let screenSharing = false;
+        let localVideoElement = null;
+
+        function setStatus(text, warning = false) {
+            statusBanner.textContent = text;
+            statusBanner.style.background = warning ? '#fef3c7' : '#dbeafe';
+            statusBanner.style.color = warning ? '#92400e' : '#1e3a8a';
+        }
+
+        function updateParticipantPanel(participants) {
+            participantCount.textContent = `Participants: ${participants.length}`;
+            participantList.innerHTML = '';
+            participants.forEach((participant) => {
+                const item = document.createElement('li');
+                item.className = 'participant-item';
+                item.innerHTML = `
+                    <div>
+                        <div class="participant-name">${participant.display_name}</div>
+                        <div class="participant-role">${participant.role}</div>
+                    </div>
+                    <div>${participant.user_id === meetingUser.user_id ? 'You' : ''}</div>
+                `;
+                participantList.appendChild(item);
+            });
+        }
+
+        function createVideoTile(user) {
+            const tile = document.createElement('div');
+            tile.className = 'video-tile';
+            tile.id = `participant-${user.user_id}`;
+            const video = document.createElement('video');
+            video.autoplay = true;
+            video.playsInline = true;
+            video.muted = user.user_id === meetingUser.user_id;
+            tile.appendChild(video);
+            const overlay = document.createElement('div');
+            overlay.className = 'tile-overlay';
+            overlay.innerHTML = `
+                <div class="tile-caption">
+                    <span class="tile-title">${user.display_name}</span>
+                    <span class="tile-chip">${user.role}</span>
+                </div>
+            `;
+            tile.appendChild(overlay);
+            videoGrid.appendChild(tile);
+            return video;
+        }
+
+        async function startLocalMedia() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localStream = stream;
+                if (!remoteVideoElements.has(meetingUser.user_id)) {
+                    localVideoElement = createVideoTile(meetingUser);
+                    localVideoElement.srcObject = stream;
+                    localVideoElement.muted = true;
+                }
+                setStatus('Local camera and microphone enabled.');
+                peerConnections.forEach((connection) => attachLocalTracks(connection.pc));
+            } catch (error) {
+                console.error('Local media failed', error);
+                setStatus('Unable to access camera or microphone. Please allow media permissions.', true);
+            }
+        }
+
+        function attachLocalTracks(pc) {
+            if (!localStream) {
+                return;
+            }
+            const existingSenders = pc.getSenders();
+            localStream.getTracks().forEach((track) => {
+                const sender = existingSenders.find((s) => s.track && s.track.kind === track.kind);
+                if (sender) {
+                    if (sender.track !== track) {
+                        sender.replaceTrack(track);
+                    }
+                } else {
+                    pc.addTrack(track, localStream);
+                }
+            });
+        }
+
+        function shouldCreateOffer(remoteUserId) {
+            return meetingUser.user_id < remoteUserId;
+        }
+
+        function createPeerConnection(remoteParticipant) {
+            const pc = new RTCPeerConnection();
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    sendSignaling({ type: 'signal', signal_type: 'ice', to_user_id: remoteParticipant.user_id, payload: event.candidate });
+                }
+            };
+            pc.ontrack = (event) => {
+                const remoteId = remoteParticipant.user_id;
+                let videoElement = remoteVideoElements.get(remoteId);
+                if (!videoElement) {
+                    videoElement = createVideoTile(remoteParticipant);
+                    remoteVideoElements.set(remoteId, videoElement);
+                }
+                videoElement.srcObject = event.streams[0];
+            };
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+                    setStatus(`Connection lost with ${remoteParticipant.display_name}.`, true);
+                }
+            };
+            if (localStream) {
+                attachLocalTracks(pc);
+            }
+            peerConnections.set(remoteParticipant.user_id, { pc, remoteParticipant });
+            return pc;
+        }
+
+        async function ensurePeer(remoteParticipant) {
+            if (remoteParticipant.user_id === meetingUser.user_id) {
+                return;
+            }
+            if (!peerConnections.has(remoteParticipant.user_id)) {
+                const pc = createPeerConnection(remoteParticipant);
+                if (shouldCreateOffer(remoteParticipant.user_id)) {
+                    try {
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        sendSignaling({ type: 'signal', signal_type: 'offer', to_user_id: remoteParticipant.user_id, payload: offer });
+                    } catch (error) {
+                        console.error('Offer error', error);
+                    }
+                }
+            }
+        }
+
+        async function handleSignal(message) {
+            const from = message.from_user_id;
+            const signalType = message.signal_type;
+            const payload = message.payload;
+            if (!from || from === meetingUser.user_id) {
+                return;
+            }
+            let connection = peerConnections.get(from);
+            if (!connection) {
+                const remoteParticipant = { user_id: from, display_name: `Participant ${from}`, role: 'participant' };
+                const pc = createPeerConnection(remoteParticipant);
+                connection = { pc, remoteParticipant };
+            }
+            const pc = connection.pc;
+            try {
+                if (signalType === 'offer') {
+                    await pc.setRemoteDescription(payload);
+                    if (!localStream) {
+                        await startLocalMedia();
+                    }
+                    attachLocalTracks(pc);
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    sendSignaling({ type: 'signal', signal_type: 'answer', to_user_id: from, payload: answer });
+                } else if (signalType === 'answer') {
+                    await pc.setRemoteDescription(payload);
+                } else if (signalType === 'ice') {
+                    if (payload) {
+                        await pc.addIceCandidate(payload);
+                    }
+                }
+            } catch (error) {
+                console.error('Signal handling failed', error);
+            }
+        }
+
+        function cleanupPeer(remoteUserId) {
+            const connection = peerConnections.get(remoteUserId);
+            if (!connection) {
+                return;
+            }
+            connection.pc.close();
+            peerConnections.delete(remoteUserId);
+            const videoTile = document.getElementById(`participant-${remoteUserId}`);
+            if (videoTile) {
+                videoTile.remove();
+            }
+            remoteVideoElements.delete(remoteUserId);
+        }
+
+        async function handleParticipantsEvent(participants) {
+            updateParticipantPanel(participants);
+            const remoteParticipants = participants.filter((participant) => participant.user_id !== meetingUser.user_id);
+            const remoteIds = new Set(remoteParticipants.map((p) => p.user_id));
+            for (const participant of remoteParticipants) {
+                await ensurePeer(participant);
+            }
+            for (const existingId of Array.from(peerConnections.keys())) {
+                if (!remoteIds.has(existingId)) {
+                    cleanupPeer(existingId);
+                }
+            }
+        }
+
+        function sendSignaling(payload) {
+            if (!signalingSocket || signalingSocket.readyState !== WebSocket.OPEN) {
+                console.warn('Signaling socket is not open yet.');
+                return;
+            }
+            signalingSocket.send(JSON.stringify(payload));
+        }
+
+        function connectSignaling() {
+            signalingSocket = new WebSocket(wsUrl);
+            signalingSocket.addEventListener('open', () => {
+                setStatus('Connected to signaling service.');
+                signalingSocket.send(JSON.stringify({ type: 'join', ...meetingUser }));
+            });
+            signalingSocket.addEventListener('message', async (event) => {
+                const message = JSON.parse(event.data);
+                if (message.type === 'joined' || message.type === 'participants') {
+                    await handleParticipantsEvent(message.participants || []);
+                } else if (message.type === 'signal') {
+                    await handleSignal(message);
+                }
+            });
+            signalingSocket.addEventListener('close', () => {
+                setStatus('Signaling connection closed. Reconnecting...', true);
+                setTimeout(connectSignaling, 2000);
+            });
+            signalingSocket.addEventListener('error', () => {
+                setStatus('Signaling error. Check connection.', true);
+            });
+        }
+
+        function toggleMic() {
+            if (!localStream) {
+                return;
+            }
+            micMuted = !micMuted;
+            localStream.getAudioTracks().forEach((track) => {
+                track.enabled = !micMuted;
+            });
+            toggleMicButton.textContent = micMuted ? 'Unmute' : 'Mute';
+        }
+
+        function toggleCamera() {
+            if (!localStream) {
+                return;
+            }
+            cameraOff = !cameraOff;
+            localStream.getVideoTracks().forEach((track) => {
+                track.enabled = !cameraOff;
+            });
+            toggleCameraButton.textContent = cameraOff ? 'Camera On' : 'Camera Off';
+        }
+
+        async function shareScreen() {
+            if (screenSharing) {
+                return;
+            }
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const screenTrack = screenStream.getVideoTracks()[0];
+                if (!screenTrack) {
+                    return;
+                }
+                screenSharing = true;
+                shareScreenButton.textContent = 'Stop Sharing';
+                const audioTracks = localStream ? localStream.getAudioTracks() : [];
+                const updatedStream = new MediaStream([...audioTracks, screenTrack]);
+                localStream = updatedStream;
+                peerConnections.forEach((connection) => attachLocalTracks(connection.pc));
+                if (localVideoElement) {
+                    localVideoElement.srcObject = updatedStream;
+                }
+                screenTrack.addEventListener('ended', async () => {
+                    screenSharing = false;
+                    shareScreenButton.textContent = 'Share Screen';
+                    await startLocalMedia();
+                });
+            } catch (error) {
+                console.error('Screen share failed', error);
+            }
+        }
+
+        function closeMeeting() {
+            if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+                signalingSocket.close();
+            }
+            peerConnections.forEach((connection) => connection.pc.close());
+            peerConnections.clear();
+            if (localStream) {
+                localStream.getTracks().forEach((track) => track.stop());
+            }
+            setStatus('Meeting ended.');
+            leaveButton.disabled = true;
+            toggleMicButton.disabled = true;
+            toggleCameraButton.disabled = true;
+            shareScreenButton.disabled = true;
+        }
+
+        toggleMicButton.addEventListener('click', toggleMic);
+        toggleCameraButton.addEventListener('click', toggleCamera);
+        shareScreenButton.addEventListener('click', shareScreen);
+        leaveButton.addEventListener('click', closeMeeting);
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setStatus('Browser does not support camera/microphone access.', true);
+        } else {
+            startLocalMedia();
+        }
+
+        connectSignaling();
+    </script>
+</body>
+</html>"""
+        return (
+                template
+                .replace("__TITLE__", escaped["title"])
+                .replace("__EYEBROW__", eyebrow)
+                .replace("__COPY__", copy)
+                .replace("__UNIT_NAME__", escaped["unit_name"])
+                .replace("__LECTURER_NAME__", escaped["lecturer_name"])
+                .replace("__SCHEDULED_TIME__", escaped["scheduled_time"])
+                .replace("__DURATION__", str(duration))
+                .replace("__NOTICE_HTML__", notice_html)
+                .replace("__BUTTON_HTML__", button_html)
+                .replace("__BACK_URL__", escaped["back_url"])
+                .replace("__DISPLAY_NAME__", escaped["display_name"])
+                .replace("__ROLE__", html.escape(role))
+                .replace("__EXTERNAL_LINK__", escaped["external_link"] or "Not configured")
+                .replace("__PAGE_LABEL__", page_label)
+                .replace("__MEETING_ID__", str(meeting_id))
+                .replace("__PAYLOAD__", payload)
+                .replace("__SIGNALING_PATH__", json.dumps(signaling_ws_url()))
+        )
+
+
 async def broadcast_signaling_participants(meeting_id: int) -> None:
         participants = list(_signal_participants.get(meeting_id, {}).values())
         payload = {
@@ -291,8 +820,7 @@ async def meeting_ui_host(
         back_url: str = Query("/"),
 ):
         return HTMLResponse(
-                render_meeting_page(
-                        page_role="lecturer",
+                render_meeting_host_page(
                         meeting_id=meeting_id,
                         user_id=user_id,
                         role=role,
