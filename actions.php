@@ -1,5 +1,39 @@
 <?php
-require_once 'config/db.php';
+// Load database configuration and fail with diagnostics instead of a generic HTTP 500.
+try {
+    require_once 'config/db.php';
+} catch (Throwable $e) {
+    error_log(sprintf(
+        'UNILIS DB connection failed in actions.php: %s | URI=%s | PHP_SAPI=%s | ENV DB_HOST=%s DB_USER=%s DB_NAME=%s',
+        $e->getMessage(),
+        $_SERVER['REQUEST_URI'] ?? 'unknown',
+        PHP_SAPI,
+        getenv('DB_HOST') ?: 'unset',
+        getenv('MYSQL_USER') ?: 'unset',
+        getenv('MYSQL_DATABASE') ?: 'unset'
+    ));
+    error_log($e->getTraceAsString());
+
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    if ($isAjax || isset($_POST['action']) || isset($_GET['action'])) {
+        header('Content-Type: application/json', true, 500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Database connection failed',
+            'message' => 'Unable to connect to the database. Check DB_HOST, MYSQL_USER and MYSQL_DATABASE.',
+            'request_uri' => $_SERVER['REQUEST_URI'] ?? null,
+        ]);
+    } else {
+        http_response_code(500);
+        echo '<h1>Database connection failed</h1>';
+        echo '<p>Unable to connect to the database. Please verify your Docker environment variables and UNILIS config.</p>';
+        echo '<pre>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</pre>';
+        echo '<p>DB_HOST=' . htmlspecialchars(getenv('DB_HOST') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+        echo '<p>MYSQL_USER=' . htmlspecialchars(getenv('MYSQL_USER') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+        echo '<p>MYSQL_DATABASE=' . htmlspecialchars(getenv('MYSQL_DATABASE') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+    }
+    exit;
+}
 require_once __DIR__ . '/config/meeting.php';
 //require_once 'vendor/autoload.php';
 require_once 'vendor/autoload.php';

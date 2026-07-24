@@ -10,6 +10,36 @@ require_once __DIR__ . '/bootstrap.php';
 
 use LE\Components\Layout;
 
+function le_module_error_page(Throwable $e, string $context = 'Live Engagement'): void
+{
+    $logDir = __DIR__ . '/logs';
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0755, true);
+    }
+
+    $logFile = $logDir . '/index_errors.log';
+    error_log(sprintf(
+        "[%s] %s | %s in %s on line %d\nRequest: %s\nTrace:\n%s\n",
+        date('Y-m-d H:i:s'),
+        $context,
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine(),
+        $_SERVER['REQUEST_URI'] ?? 'unknown',
+        $e->getTraceAsString()
+    ), 3, $logFile);
+
+    http_response_code(500);
+    echo '<h1>Live Engagement Error</h1>';
+    echo '<p>There was a problem loading this page. Please check the module logs.</p>';
+    echo '<p><strong>Context:</strong> ' . htmlspecialchars($context, ENT_QUOTES, 'UTF-8') . '</p>';
+    echo '<pre>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</pre>';
+    echo '<p>DB_HOST=' . htmlspecialchars(getenv('DB_HOST') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+    echo '<p>MYSQL_USER=' . htmlspecialchars(getenv('MYSQL_USER') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+    echo '<p>MYSQL_DATABASE=' . htmlspecialchars(getenv('MYSQL_DATABASE') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+    exit;
+}
+
 // Handle UNILIS token-based SSO callback (do this before any auth checks)
 $leToken = le_get('le_token', '');
 if ($leToken) {
@@ -44,78 +74,82 @@ if ($leToken) {
  */
 $requestedPage = le_get('page', '');
 if ($requestedPage !== '') {
-    le_require_auth();
+    try {
+        le_require_auth();
 
-    $sessionId = (int) le_get('id', 0, true);
-    $code = le_get('code', '');
+        $sessionId = (int) le_get('id', 0, true);
+        $code = le_get('code', '');
 
-    switch ($requestedPage) {
-        case 'dashboard':
-            include __DIR__ . '/views/' . (le_has_role(['lecturer', 'admin']) ? 'dashboard.php' : 'join.php');
-            break;
+        switch ($requestedPage) {
+            case 'dashboard':
+                include __DIR__ . '/views/' . (le_has_role(['lecturer', 'admin']) ? 'dashboard.php' : 'join.php');
+                break;
 
-        case 'presenter':
-            if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
+            case 'presenter':
+                if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
+                    header('Location: ' . le_page_url('dashboard'));
+                    exit;
+                }
+                // presenter.php not implemented yet - redirect to session view
+                header('Location: ' . le_page_url('session', ['id' => $sessionId]));
+                exit;
+
+            case 'join':
+                include __DIR__ . '/views/join.php';
+                break;
+
+            case 'session':
+                if (!$sessionId && $code === '') {
+                    header('Location: ' . le_page_url('join'));
+                    exit;
+                }
+                include __DIR__ . '/views/session.php';
+                break;
+
+            case 'presentations':
+                if (!le_has_role(['lecturer', 'admin'])) {
+                    header('Location: ' . le_page_url('join'));
+                    exit;
+                }
+                include __DIR__ . '/views/presentations.php';
+                break;
+
+            case 'reports':
+                if (!le_has_role(['lecturer', 'admin'])) {
+                    header('Location: ' . le_page_url('join'));
+                    exit;
+                }
+                // reports_overview.php not implemented yet - redirect to dashboard
                 header('Location: ' . le_page_url('dashboard'));
                 exit;
-            }
-            // presenter.php not implemented yet - redirect to session view
-            header('Location: ' . le_page_url('session', ['id' => $sessionId]));
-            exit;
 
-        case 'join':
-            include __DIR__ . '/views/join.php';
-            break;
+            case 'create_presentation':
+                include __DIR__ . '/views/create_presentation.php';
+                break;
 
-        case 'session':
-            if (!$sessionId && $code === '') {
-                header('Location: ' . le_page_url('join'));
-                exit;
-            }
-            include __DIR__ . '/views/session.php';
-            break;
+            case 'edit_presentation':
+                if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
+                    header('Location: ' . le_page_url('presentations'));
+                    exit;
+                }
+                include __DIR__ . '/views/edit_presentation.php';
+                break;
 
-        case 'presentations':
-            if (!le_has_role(['lecturer', 'admin'])) {
-                header('Location: ' . le_page_url('join'));
-                exit;
-            }
-            include __DIR__ . '/views/presentations.php';
-            break;
-
-        case 'reports':
-            if (!le_has_role(['lecturer', 'admin'])) {
-                header('Location: ' . le_page_url('join'));
-                exit;
-            }
-            // reports_overview.php not implemented yet - redirect to dashboard
-            header('Location: ' . le_page_url('dashboard'));
-            exit;
-
-        case 'create_presentation':
-            include __DIR__ . '/views/create_presentation.php';
-            break;
-
-        case 'edit_presentation':
-            if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
-                header('Location: ' . le_page_url('presentations'));
-                exit;
-            }
-            include __DIR__ . '/views/edit_presentation.php';
-            break;
-
-        case 'report':
-            if (!$sessionId) {
+            case 'report':
+                if (!$sessionId) {
+                    header('Location: ' . le_page_url('dashboard'));
+                    exit;
+                }
+                // report.php not implemented yet - redirect to dashboard
                 header('Location: ' . le_page_url('dashboard'));
                 exit;
-            }
-            // report.php not implemented yet - redirect to dashboard
-            header('Location: ' . le_page_url('dashboard'));
-            exit;
 
-        default:
-            http_response_code(404);
-            exit('Page not found.');
+            default:
+                http_response_code(404);
+                exit('Page not found.');
+        }
+    } catch (Throwable $e) {
+        le_module_error_page($e, 'Routing ' . $requestedPage);
     }
 
     exit;

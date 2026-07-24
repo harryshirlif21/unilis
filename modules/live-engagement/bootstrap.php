@@ -21,9 +21,25 @@ define('LE_MODULE_URL', 'modules/live-engagement');
 // Load root database configuration first
 try {
     require_once __DIR__ . '/../../config/db.php';
-} catch (Exception $e) {
-    error_log("Live Engagement: Failed to load database config: " . $e->getMessage());
-    // Continue - DatabaseHelper will handle missing connection
+} catch (Throwable $e) {
+    error_log(sprintf(
+        'Live Engagement: Failed to load database config: %s | URI=%s | ENV DB_HOST=%s DB_USER=%s DB_NAME=%s',
+        $e->getMessage(),
+        $_SERVER['REQUEST_URI'] ?? 'unknown',
+        getenv('DB_HOST') ?: 'unset',
+        getenv('MYSQL_USER') ?: 'unset',
+        getenv('MYSQL_DATABASE') ?: 'unset'
+    ));
+    error_log($e->getTraceAsString());
+
+    http_response_code(500);
+    echo '<h1>Live Engagement database connection failed</h1>';
+    echo '<p>The module cannot connect to the database. Verify your Docker environment variables and UNILIS config.</p>';
+    echo '<pre>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</pre>';
+    echo '<p>DB_HOST=' . htmlspecialchars(getenv('DB_HOST') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+    echo '<p>MYSQL_USER=' . htmlspecialchars(getenv('MYSQL_USER') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+    echo '<p>MYSQL_DATABASE=' . htmlspecialchars(getenv('MYSQL_DATABASE') ?: 'unset', ENT_QUOTES, 'UTF-8') . '</p>';
+    exit;
 }
 
 // Load configuration
