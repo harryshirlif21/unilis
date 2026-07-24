@@ -1,0 +1,20 @@
+[24-Jul-2026 04:33:58 UTC] === DASHBOARD PAGE LOAD START ===
+[24-Jul-2026 04:33:58 UTC] URL: /modules/live-engagement/index.php?page=dashboard
+[24-Jul-2026 04:33:58 UTC] GET params: {"page":"dashboard"}
+[24-Jul-2026 04:33:58 UTC] Session data: ["le_csrf_token","le_login_redirect","user_id","user_email","user_role","user_name","le_authenticated","le_user_id","le_user_role","le_user_name"]
+[24-Jul-2026 04:33:58 UTC] User ID: 1
+[24-Jul-2026 04:33:58 UTC] User Role: lecturer
+[24-Jul-2026 04:33:58 UTC] Loading session model...
+[24-Jul-2026 04:33:58 UTC] Getting active sessions for user ID: 1
+[24-Jul-2026 04:33:58 UTC] Active sessions count: 0
+[24-Jul-2026 04:33:58 UTC] Getting scheduled sessions...
+[24-Jul-2026 04:33:58 UTC] Scheduled sessions count: 4
+[24-Jul-2026 04:33:58 UTC] Getting session history...
+[24-Jul-2026 04:33:58 UTC] History sessions count: 0
+[24-Jul-2026 04:33:58 UTC] Total sessions after merge: 4
+[24-Jul-2026 04:33:58 UTC] Getting courses for user ID: 1
+[24-Jul-2026 04:33:58 UTC] Courses count: 1
+[24-Jul-2026 04:33:58 UTC] Units count: 1
+[24-Jul-2026 04:33:58 UTC] Starting Layout render...
+[24-Jul-2026 04:33:58 UTC] Layout render started successfully
+[24-Jul-2026 04:33:58 UTC] === DASHBOARD PAGE LOAD END ===

@@ -10,8 +10,6 @@
 
 namespace LE\Models;
 
-use DatabaseHelper;
-
 /**
  * BaseModel - Abstract CRUD base for Live Engagement models
  */
