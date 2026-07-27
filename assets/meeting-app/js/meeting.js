@@ -181,8 +181,16 @@
     UNILIS_MEETING.WebRTCCore.onConnectionState = handleConnectionState;
 
     try {
+      // Never blocks the join: startMedia narrows its request until something works
+      // and returns null when the machine has no usable camera or microphone.
       await UNILIS_MEETING.MediaManager.startMedia(true, true);
       UNILIS_MEETING.WebRTCCore.localStream = UNILIS_MEETING.MediaManager.localStream;
+
+      const limitation = UNILIS_MEETING.MediaManager.describeLimitation();
+      if (limitation) {
+        UNILIS_MEETING.Notifications.show(limitation, 'warning');
+      }
+      syncMediaControlState();
 
       // Show local video tile
       addLocalVideoTile();
@@ -206,12 +214,39 @@
       UNILIS_MEETING.SidebarManager.switchTab('participants');
 
     } catch (err) {
+      // Missing devices no longer land here — this is a real join failure.
       console.error('Failed to join meeting:', err);
-      UNILIS_MEETING.Notifications.show('Failed to access camera/microphone. Please check permissions.', 'error');
+      UNILIS_MEETING.Notifications.show(
+        'Could not join the meeting: ' + ((err && err.message) || 'unknown error'),
+        'error'
+      );
       document.getElementById('lobbyOverlay').style.display = '';
       document.getElementById('videoContainer').style.display = 'none';
       document.getElementById('floatControls').style.display = 'none';
     }
+  }
+
+  /**
+   * Reflect what media is actually available on the mic/camera buttons, so a
+   * participant without a device sees why the control does nothing.
+   */
+  function syncMediaControlState() {
+    const media = UNILIS_MEETING.MediaManager;
+    const states = [
+      { id: 'micBtn', available: media.hasAudio(), label: 'Microphone (M)', missing: 'No microphone available' },
+      { id: 'camBtn', available: media.hasVideo(), label: 'Camera (V)', missing: 'No camera available' },
+    ];
+
+    states.forEach(({ id, available, label, missing }) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.disabled = !available;
+      btn.title = available ? label : missing;
+      btn.classList.toggle('active', available);
+      btn.classList.toggle('unavailable', !available);
+      btn.style.opacity = available ? '' : '0.45';
+      btn.style.cursor = available ? '' : 'not-allowed';
+    });
   }
 
   // ============================================================
@@ -240,10 +275,36 @@
     const stream = UNILIS_MEETING.MediaManager.localStream;
     if (stream && video) {
       video.srcObject = stream;
-      video.style.display = '';
+      // Keep the avatar when there is no camera: an audio-only stream renders as a
+      // black rectangle rather than showing nothing.
+      const hasVideo = stream.getVideoTracks().length > 0;
       const placeholder = document.getElementById(`avatar-${config.user_id}`);
-      if (placeholder) placeholder.style.display = 'none';
+      video.style.display = hasVideo ? '' : 'none';
+      if (placeholder) placeholder.style.display = hasVideo ? 'none' : '';
     }
+  }
+
+  /**
+   * Show a participant's video only while they actually have a live video track,
+   * falling back to their avatar otherwise. Tracks can arrive after the tile is
+   * built — audio typically negotiates first — so this also listens for changes.
+   */
+  function syncTileVideo(userId, stream) {
+    const video = document.getElementById(`remoteVideo-${userId}`);
+    const placeholder = document.getElementById(`avatar-${userId}`);
+    if (!video || !stream) return;
+
+    if (video.srcObject !== stream) video.srcObject = stream;
+
+    const apply = () => {
+      const hasVideo = stream.getVideoTracks().some(track => track.readyState === 'live');
+      video.style.display = hasVideo ? '' : 'none';
+      if (placeholder) placeholder.style.display = hasVideo ? 'none' : '';
+    };
+
+    apply();
+    stream.onaddtrack = apply;
+    stream.onremovetrack = apply;
   }
 
   function addRemoteVideoTile(userId, displayName, stream) {
@@ -272,13 +333,7 @@
     `;
     grid.appendChild(tile);
 
-    const video = tile.querySelector('video');
-    if (stream && video) {
-      video.srcObject = stream;
-      video.style.display = '';
-      const placeholder = document.getElementById(`avatar-${userId}`);
-      if (placeholder) placeholder.style.display = 'none';
-    }
+    syncTileVideo(userId, stream);
   }
 
   function removeVideoTile(userId) {
@@ -437,6 +492,9 @@
     const p = room.getParticipant(userId);
     const displayName = p ? p.display_name : `User ${userId}`;
     addRemoteVideoTile(userId, displayName, stream);
+    // ontrack fires once per track; the tile already exists for the second one, so
+    // refresh visibility here rather than only at creation time.
+    syncTileVideo(userId, stream);
   }
 
   function handleConnectionState(userId, state) {
@@ -515,6 +573,11 @@
   // Control Toggles
   // ============================================================
   function toggleMic() {
+    // The button is disabled without a device, but the M shortcut reaches here too.
+    if (!UNILIS_MEETING.MediaManager.hasAudio()) {
+      UNILIS_MEETING.Notifications.show('No microphone available.', 'warning');
+      return;
+    }
     const enabled = UNILIS_MEETING.MediaManager.toggleAudio();
     updateMicUI();
     UNILIS_MEETING.Room.sendParticipantUpdate({ audio_enabled: enabled });
@@ -530,6 +593,11 @@
   }
 
   function toggleCam() {
+    // The button is disabled without a device, but the V shortcut reaches here too.
+    if (!UNILIS_MEETING.MediaManager.hasVideo()) {
+      UNILIS_MEETING.Notifications.show('No camera available.', 'warning');
+      return;
+    }
     const enabled = UNILIS_MEETING.MediaManager.toggleVideo();
     updateCamUI();
     UNILIS_MEETING.Room.sendParticipantUpdate({ video_enabled: enabled });

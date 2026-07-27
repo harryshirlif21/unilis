@@ -61,9 +61,36 @@ UNILIS_MEETING.WebRTCCore = {
 
     // Add local tracks if available
     this._attachLocalTracks(pc);
+    this._ensureRecvOnly(pc);
 
     this.peerConnections.set(userId, entry);
     return pc;
+  },
+
+  /**
+   * Guarantee an m-line for each media kind we are not sending.
+   *
+   * Without a local track of a kind there is no transceiver for it, so a
+   * participant who joined without a camera or microphone would neither send nor
+   * receive that kind — they would sit in a silent, blank meeting. A recvonly
+   * transceiver keeps them able to see and hear everyone else.
+   */
+  _ensureRecvOnly(pc) {
+    if (typeof pc.addTransceiver !== 'function') return;
+
+    ['audio', 'video'].forEach(kind => {
+      const present = pc.getTransceivers().some(t => {
+        const senderKind = t.sender && t.sender.track && t.sender.track.kind;
+        const receiverKind = t.receiver && t.receiver.track && t.receiver.track.kind;
+        return senderKind === kind || receiverKind === kind;
+      });
+      if (present) return;
+      try {
+        pc.addTransceiver(kind, { direction: 'recvonly' });
+      } catch (err) {
+        console.warn(`Could not add recvonly ${kind} transceiver:`, err);
+      }
+    });
   },
 
   /**

@@ -9,43 +9,114 @@ UNILIS_MEETING.MediaManager = {
   videoEnabled: true,
   screenSharing: false,
 
-  /**
-   * Request camera and microphone access.
-   */
-  async startMedia(video = true, audio = true) {
-    try {
-      const constraints = {
-        audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
-        video: video ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false,
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.localStream = stream;
-      return stream;
-    } catch (err) {
-      console.error('Media access denied:', err);
-      throw err;
-    }
+  // What the browser actually granted: 'full' | 'audio-only' | 'video-only' | 'none'.
+  mode: 'none',
+  lastError: null,
+
+  _constraints(video, audio) {
+    return {
+      audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
+      video: video ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false,
+    };
   },
 
   /**
-   * Toggle microphone on/off.
+   * Request camera and microphone access, narrowing the request until something
+   * works. A machine without a webcam rejects a combined audio+video request with
+   * NotFoundError even though the microphone is perfectly usable, so asking for
+   * both and giving up would lock those users out of the meeting entirely.
+   *
+   * Returns the stream, or null when no device could be opened at all — the
+   * caller can still join to watch and listen.
+   */
+  async startMedia(video = true, audio = true) {
+    // Cleared once here, not on success: after a fallback this still holds the
+    // error that caused the downgrade, which is what the user needs to be told.
+    this.lastError = null;
+
+    const attempts = [];
+    if (video && audio) attempts.push({ video: true, audio: true, mode: 'full' });
+    if (audio) attempts.push({ video: false, audio: true, mode: 'audio-only' });
+    if (video) attempts.push({ video: true, audio: false, mode: 'video-only' });
+
+    for (const attempt of attempts) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(
+          this._constraints(attempt.video, attempt.audio)
+        );
+        this.localStream = stream;
+        this.mode = attempt.mode;
+        this.audioEnabled = stream.getAudioTracks().length > 0;
+        this.videoEnabled = stream.getVideoTracks().length > 0;
+        return stream;
+      } catch (err) {
+        this.lastError = err;
+        console.warn(`Media unavailable (${attempt.mode}):`, err && err.name ? err.name : err);
+      }
+    }
+
+    this.localStream = null;
+    this.mode = 'none';
+    this.audioEnabled = false;
+    this.videoEnabled = false;
+    return null;
+  },
+
+  /**
+   * Message describing why media is missing or reduced, for the UI to surface.
+   * Returns null when everything was granted.
+   */
+  describeLimitation() {
+    const name = this.lastError && this.lastError.name;
+    const cause = name === 'NotAllowedError'
+      ? 'permission was blocked'
+      : name === 'NotFoundError'
+        ? 'no device was found'
+        : name === 'NotReadableError'
+          ? 'the device is in use by another app'
+          : null;
+
+    switch (this.mode) {
+      case 'audio-only':
+        return `Joined with microphone only — camera unavailable${cause ? ` (${cause})` : ''}.`;
+      case 'video-only':
+        return `Joined with camera only — microphone unavailable${cause ? ` (${cause})` : ''}.`;
+      case 'none':
+        return `Joined in view-only mode — no camera or microphone available${cause ? ` (${cause})` : ''}. You can still see, hear, and chat.`;
+      default:
+        return null;
+    }
+  },
+
+  hasAudio() {
+    return !!(this.localStream && this.localStream.getAudioTracks().length);
+  },
+
+  hasVideo() {
+    return !!(this.localStream && this.localStream.getVideoTracks().length);
+  },
+
+  /**
+   * Toggle microphone on/off. Returns false when there is no track to toggle.
    */
   toggleAudio() {
-    if (!this.localStream) return false;
+    const tracks = this.localStream ? this.localStream.getAudioTracks() : [];
+    if (!tracks.length) return false;
     this.audioEnabled = !this.audioEnabled;
-    this.localStream.getAudioTracks().forEach(track => {
+    tracks.forEach(track => {
       track.enabled = this.audioEnabled;
     });
     return this.audioEnabled;
   },
 
   /**
-   * Toggle camera on/off.
+   * Toggle camera on/off. Returns false when there is no track to toggle.
    */
   toggleVideo() {
-    if (!this.localStream) return false;
+    const tracks = this.localStream ? this.localStream.getVideoTracks() : [];
+    if (!tracks.length) return false;
     this.videoEnabled = !this.videoEnabled;
-    this.localStream.getVideoTracks().forEach(track => {
+    tracks.forEach(track => {
       track.enabled = this.videoEnabled;
     });
     return this.videoEnabled;
