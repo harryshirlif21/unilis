@@ -9,27 +9,57 @@
  * database_setup/create_team_membership_requests_table.sql, recovered from git
  * history (commit d241a17^) after SQL files were removed from the repository.
  *
- * RUN FROM THE CLI INSIDE THE APP CONTAINER:
+ * HOW TO RUN
  *
- *     docker compose exec app php migrate_team_membership_requests.php
+ *   Browser: log in as an admin, then open
+ *            https://unilis.jhubafrica.com/migrate_team_membership_requests.php
+ *   Shell:   docker compose exec app php migrate_team_membership_requests.php
  *
- * It refuses to run over HTTP, so deploying it does not expose a schema-altering
- * endpoint. Safe to run more than once: it creates nothing if the table exists.
+ * Only the admin role may run it over HTTP — lecturers and students get a 403,
+ * so deploying it does not hand a schema-altering endpoint to every logged-in
+ * user. Safe to run more than once: it creates nothing if the table exists.
  *
  * Delete this file once the migration has been applied.
  */
 
-if (PHP_SAPI !== 'cli') {
-    http_response_code(403);
-    header('Content-Type: text/plain');
-    echo "This migration only runs from the command line.\n";
-    echo "Use: docker compose exec app php migrate_team_membership_requests.php\n";
+define('IS_CLI', PHP_SAPI === 'cli');
+const TABLE = 'team_membership_requests';
+
+/**
+ * Report a failure the way the current caller can see it, then stop.
+ * STDERR does not exist under the web SAPI, so it cannot be used unconditionally.
+ */
+function bail(string $message, int $httpStatus = 500): void
+{
+    if (IS_CLI) {
+        fwrite(STDERR, $message . "\n");
+    } else {
+        http_response_code($httpStatus);
+        echo $message . "\n";
+    }
     exit(1);
 }
 
-require_once __DIR__ . '/config/db.php';
+if (!IS_CLI) {
+    header('Content-Type: text/plain; charset=utf-8');
 
-const TABLE = 'team_membership_requests';
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Schema changes are admin-only over HTTP.
+    if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'admin') {
+        bail(
+            "Forbidden: only an admin may run database migrations.\n\n"
+            . "Log in at /login.php as an admin, then reload this page.\n"
+            . "Or run it from the shell:\n"
+            . "  docker compose exec app php migrate_team_membership_requests.php",
+            403
+        );
+    }
+}
+
+require_once __DIR__ . '/config/db.php';
 
 $ddl = <<<SQL
 CREATE TABLE IF NOT EXISTS `team_membership_requests` (
@@ -69,28 +99,28 @@ function tableExists(mysqli $conn, string $table): bool
 }
 
 try {
-    echo "Database: " . $conn->query('SELECT DATABASE()')->fetch_row()[0] . "\n";
+    echo "=== team_membership_requests migration ===\n";
+    echo 'Database: ' . $conn->query('SELECT DATABASE()')->fetch_row()[0] . "\n";
+    echo 'Ran by:   ' . (IS_CLI ? 'CLI' : 'admin user ' . (int)$_SESSION['user_id']) . "\n\n";
 
     // The foreign keys target these tables, so a missing one would fail the CREATE
     // with a confusing errno 150 rather than naming the real problem.
     foreach (['teams', 'students', 'lecturers'] as $required) {
         if (!tableExists($conn, $required)) {
-            fwrite(STDERR, "Cannot continue: referenced table '$required' does not exist.\n");
-            exit(1);
+            bail("Cannot continue: referenced table '$required' does not exist.");
         }
     }
 
     if (tableExists($conn, TABLE)) {
-        echo "Table '" . TABLE . "' already exists - nothing to do.\n";
+        echo 'Table ' . TABLE . " already exists - nothing to do.\n";
         exit(0);
     }
 
-    echo "Creating table '" . TABLE . "' ...\n";
+    echo 'Creating table ' . TABLE . " ...\n";
     $conn->query($ddl);
 
     if (!tableExists($conn, TABLE)) {
-        fwrite(STDERR, "CREATE reported success but the table is still missing.\n");
-        exit(1);
+        bail('CREATE reported success but the table is still missing.');
     }
 
     echo "Created. Columns:\n";
@@ -100,10 +130,9 @@ try {
     }
     $columns->free();
 
-    echo "\nDone. Deleting team memberships and requests should now work.\n";
+    echo "\nDone. Deleting teams and handling membership requests should now work.\n";
     echo "Remember to delete this file.\n";
     exit(0);
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Migration failed: ' . $e->getMessage() . "\n");
-    exit(1);
+    bail('Migration failed: ' . $e->getMessage());
 }
