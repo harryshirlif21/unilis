@@ -11,6 +11,9 @@ services:
       - ./assets/uploads:/var/www/html/assets/uploads
       - ./uploads:/var/www/uploads
       - ./assets/assignments:/var/www/html/assets/assignments
+      # Runtime data only (recordings). Do not put static app files here — this
+      # mount shadows whatever the image ships at that path. The meeting
+      # frontend lives in assets/meeting-app/ instead.
       - ./assets/meetings:/var/www/html/assets/meetings
       - ./assets/requested_files:/var/www/html/assets/requested_files
       - ./apache.conf:/etc/apache2/sites-available/000-default.conf.template

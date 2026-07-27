@@ -62,6 +62,9 @@ RUN composer dump-autoload --optimize --classmap-authoritative || true
 
 # Create required folders and set correct permissions
 # Added directories specifically for Smart Labs assets
+# NOTE: these are writable runtime data dirs and are bind-mounted in production,
+# so anything copied into them above is invisible at runtime. Static app code
+# must live elsewhere (e.g. assets/meeting-app/).
 RUN mkdir -p /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \

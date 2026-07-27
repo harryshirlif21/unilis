@@ -122,7 +122,10 @@ async def get_whiteboard(meeting_id: int):
 # Frontend UI Endpoints (Backward Compatible)
 # ============================================================
 
-FRONTEND_BASE = "/assets/meetings"
+# Static frontend served by the PHP/Apache container. Must not point at
+# assets/meetings/, which is a writable recordings volume mounted over in
+# production and therefore hides files baked into the image.
+FRONTEND_BASE = "/assets/meeting-app"
 
 
 @app.get("/meeting-ui/host", response_class=HTMLResponse)

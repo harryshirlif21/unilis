@@ -166,6 +166,10 @@ function buildMeetingPythonUiUrl(
 /**
  * Build URL for the new Google Meet-style frontend.
  * Serves the meeting page directly from PHP assets.
+ *
+ * Note: the static frontend lives in assets/meeting-app/, not assets/meetings/.
+ * assets/meetings/ is a writable runtime volume for recordings and is mounted
+ * over in production, which hides any files baked into the image.
  */
 function buildMeetingFrontendUrl(
     string $role,
@@ -188,7 +192,7 @@ function buildMeetingFrontendUrl(
         'back_url' => $backUrl,
     ];
 
-    return getMeetingAppBaseUrl() . '/assets/meetings/meeting.html?' . http_build_query($params);
+    return getMeetingAppBaseUrl() . '/assets/meeting-app/meeting.html?' . http_build_query($params);
 }
 
 /**

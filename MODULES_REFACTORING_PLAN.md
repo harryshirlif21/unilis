@@ -67,30 +67,30 @@ unilis/
 8. `apache.conf` — Add new proxy routes
 
 ### Files Created (New Frontend)
-1. `assets/meetings/js/meeting.js` — Main meeting controller
-2. `assets/meetings/js/webrtc.js` — WebRTC peer connection manager
-3. `assets/meetings/js/webrtc-core.js` — Core WebRTC engine
-4. `assets/meetings/js/webrtc-media.js` — Media device management
-5. `assets/meetings/js/webrtc-rooms.js` — Room management
-6. `assets/meetings/js/ui.js` — UI controller
-7. `assets/meetings/js/ui-theme.js` — Theme manager (light/dark)
-8. `assets/meetings/js/ui-layout.js` — Dynamic grid layout
-9. `assets/meetings/js/ui-sidebar.js` — Side panel manager
-10. `assets/meetings/js/ui-notifications.js` — Toast notifications
-11. `assets/meetings/js/participants.js` — Participant management
-12. `assets/meetings/js/chat.js` — Real-time chat
-13. `assets/meetings/js/whiteboard.js` — Collaborative whiteboard
-14. `assets/meetings/js/screenshare.js` — Screen sharing
-15. `assets/meetings/js/recording.js` — Meeting recording
-16. `assets/meetings/js/polls.js` — Polling system
-17. `assets/meetings/js/captions.js` — Live captions
-18. `assets/meetings/js/attendance.js` — Attendance tracking
-19. `assets/meetings/js/settings.js` — User settings
-20. `assets/meetings/js/network.js` — Connection quality
-21. `assets/meetings/css/meeting.css` — Main meeting styles
-22. `assets/meetings/css/meeting-dark.css` — Dark theme variables
-23. `assets/meetings/meeting.html` — Main meeting page
-24. `assets/meetings/README.md` — Frontend documentation
+1. `assets/meeting-app/js/meeting.js` — Main meeting controller
+2. `assets/meeting-app/js/webrtc.js` — WebRTC peer connection manager
+3. `assets/meeting-app/js/webrtc-core.js` — Core WebRTC engine
+4. `assets/meeting-app/js/webrtc-media.js` — Media device management
+5. `assets/meeting-app/js/webrtc-rooms.js` — Room management
+6. `assets/meeting-app/js/ui.js` — UI controller
+7. `assets/meeting-app/js/ui-theme.js` — Theme manager (light/dark)
+8. `assets/meeting-app/js/ui-layout.js` — Dynamic grid layout
+9. `assets/meeting-app/js/ui-sidebar.js` — Side panel manager
+10. `assets/meeting-app/js/ui-notifications.js` — Toast notifications
+11. `assets/meeting-app/js/participants.js` — Participant management
+12. `assets/meeting-app/js/chat.js` — Real-time chat
+13. `assets/meeting-app/js/whiteboard.js` — Collaborative whiteboard
+14. `assets/meeting-app/js/screenshare.js` — Screen sharing
+15. `assets/meeting-app/js/recording.js` — Meeting recording
+16. `assets/meeting-app/js/polls.js` — Polling system
+17. `assets/meeting-app/js/captions.js` — Live captions
+18. `assets/meeting-app/js/attendance.js` — Attendance tracking
+19. `assets/meeting-app/js/settings.js` — User settings
+20. `assets/meeting-app/js/network.js` — Connection quality
+21. `assets/meeting-app/css/meeting.css` — Main meeting styles
+22. `assets/meeting-app/css/meeting-dark.css` — Dark theme variables
+23. `assets/meeting-app/meeting.html` — Main meeting page
+24. `assets/meeting-app/README.md` — Frontend documentation
 
 ### New Python Backend Modules
 1. `meeting-server/room_manager.py` — Room state management (refactored from media_room.py)
