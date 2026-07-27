@@ -5,6 +5,8 @@ vendor/
 /node_modules/
 .env
 smart-lab/web-app/logs/*.log
+__pycache__/
+*.pyc
 
 # No SQL in the repository. The document root is the deployed checkout, so
 # anything committed here is a candidate for being served; a 390KB dump of 60

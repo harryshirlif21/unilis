@@ -13,7 +13,7 @@ import os
 from urllib.parse import urlparse
 from typing import Dict, Optional
 
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -28,13 +28,37 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("meeting-server")
 
 app = FastAPI(title="UNILIS Meeting Server", version="2.0.0")
+
+# Comma-separated origin allowlist, e.g. "https://unilis.jhubafrica.com".
+# Defaults to "*" to preserve existing behaviour.
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("MEETING_ALLOWED_ORIGINS", "*").split(",")
+    if origin.strip()
+]
+_WILDCARD_ORIGIN = ALLOWED_ORIGINS == ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    # Credentials cannot be combined with a wildcard origin — browsers reject the
+    # response outright — so only enable them for an explicit allowlist.
+    allow_credentials=not _WILDCARD_ORIGIN,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Shared secret for the read-only data endpoints below. Unset means open, which
+# keeps existing deployments working; the browser never calls those routes (the
+# frontend talks WebSocket only), so requiring a key does not affect the UI.
+MEETING_API_KEY = os.getenv("MEETING_API_KEY", "").strip()
+
+
+def require_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> None:
+    if not MEETING_API_KEY:
+        return
+    if x_api_key != MEETING_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
 
 # Global state
 rooms = RoomManager()
@@ -95,7 +119,7 @@ async def health():
     }
 
 
-@app.get("/api/meetings/{meeting_id}/attendance")
+@app.get("/api/meetings/{meeting_id}/attendance", dependencies=[Depends(require_api_key)])
 async def get_attendance(meeting_id: int):
     summary = attendance_handler.get_meeting_summary(meeting_id)
     if not summary:
@@ -103,17 +127,17 @@ async def get_attendance(meeting_id: int):
     return JSONResponse(summary)
 
 
-@app.get("/api/meetings/{meeting_id}/chat")
+@app.get("/api/meetings/{meeting_id}/chat", dependencies=[Depends(require_api_key)])
 async def get_chat_history(meeting_id: int, limit: int = 50):
     return JSONResponse(chat_handler.get_history(meeting_id, limit))
 
 
-@app.get("/api/meetings/{meeting_id}/polls")
+@app.get("/api/meetings/{meeting_id}/polls", dependencies=[Depends(require_api_key)])
 async def get_polls(meeting_id: int):
     return JSONResponse(poll_handler.get_all_polls(meeting_id))
 
 
-@app.get("/api/meetings/{meeting_id}/whiteboard")
+@app.get("/api/meetings/{meeting_id}/whiteboard", dependencies=[Depends(require_api_key)])
 async def get_whiteboard(meeting_id: int):
     return JSONResponse(whiteboard_handler.get_state(meeting_id))
 

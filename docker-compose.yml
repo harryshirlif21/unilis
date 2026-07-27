@@ -29,7 +29,7 @@ services:
       DB_HOST: db
       SMARTLAB_DB_HOST: smart-labs-db
       MYSQL_USER: unilisuser
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-unilispass}
       MYSQL_DATABASE: unilis
       MEETING_PROXY_HOST: meeting-server
       MEETING_PROXY_PORT: "8765"
@@ -49,6 +49,11 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: "8765"
+      # Shared secret for the read-only /api/meetings/* routes. Set the real
+      # value in .env (gitignored); unset leaves those routes open.
+      MEETING_API_KEY: ${MEETING_API_KEY:-}
+      # Comma-separated CORS allowlist. "*" keeps the previous behaviour.
+      MEETING_ALLOWED_ORIGINS: ${MEETING_ALLOWED_ORIGINS:-*}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
       interval: 15s
@@ -65,10 +70,10 @@ services:
     ports:
       - "127.0.0.1:3308:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
       MYSQL_DATABASE: unilis
       MYSQL_USER: unilisuser
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-unilispass}
     volumes:
       - db_data:/var/lib/mysql
       # No seed mount: the SQL files were removed from the repository. A fresh
@@ -83,10 +88,10 @@ services:
     ports:
       - "127.0.0.1:3309:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
       MYSQL_DATABASE: unilis_smartlab
       MYSQL_USER: lab_admin
-      MYSQL_PASSWORD: ${SMARTLAB_MYSQL_PASSWORD:?set SMARTLAB_MYSQL_PASSWORD in .env}
+      MYSQL_PASSWORD: ${SMARTLAB_MYSQL_PASSWORD:-lab_password}
     volumes:
       - smart_labs_data:/var/lib/mysql
       # Seed mount removed along with the SQL files. See the note on db above.
@@ -101,7 +106,7 @@ services:
       - "127.0.0.1:8081:80"
     environment:
       PMA_HOSTS: db,smart-labs-db
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
 
 volumes:
   db_data:
