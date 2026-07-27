@@ -10,6 +10,7 @@ import html
 import json
 import logging
 import os
+import time
 from urllib.parse import urlparse
 from typing import Dict, Optional
 
@@ -151,6 +152,21 @@ async def get_whiteboard(meeting_id: int):
 # production and therefore hides files baked into the image.
 FRONTEND_BASE = "/assets/meeting-app"
 
+# Cache-busting token for the asset URLs below. Those files are served with
+# Cache-Control: max-age=46736 (~13h), so without a token a browser keeps
+# running the previous deploy's JavaScript long after the fix is live.
+#
+# This container does not mount the checkout, so it cannot stat the files the
+# way assets/meeting-app/meeting.php does. It is rebuilt and recreated on every
+# deploy instead, so process start time changes exactly when the assets might
+# have. A restart with no code change costs one extra fetch per client.
+ASSET_VERSION = os.getenv("MEETING_ASSET_VERSION") or str(int(time.time()))
+
+
+def frontend_asset(relative_path: str) -> str:
+    """Frontend asset URL with the cache-busting version appended."""
+    return f"{FRONTEND_BASE}/{relative_path}?v={ASSET_VERSION}"
+
 
 @app.get("/meeting-ui/host", response_class=HTMLResponse)
 async def meeting_ui_host(
@@ -256,37 +272,47 @@ def serve_meeting_page(
         "ws_media_url": os.getenv("MEETING_MEDIA_WS_URL", "/ws/media"),
     })
 
+    # Load order matters: webrtc-core defines the namespace the rest attach to,
+    # and meeting.js boots the app, so it stays last. Keep this list in step
+    # with assets/meeting-app/meeting.php, which renders the same page.
+    scripts = "\n".join(
+        f'    <script src="{frontend_asset("js/" + name)}"></script>'
+        for name in (
+            "webrtc-core.js",
+            "webrtc-media.js",
+            "webrtc-rooms.js",
+            "ui-theme.js",
+            "ui-layout.js",
+            "ui-sidebar.js",
+            "ui-notifications.js",
+            "participants.js",
+            "chat.js",
+            "whiteboard.js",
+            "screenshare.js",
+            "polls.js",
+            "captions.js",
+            "attendance.js",
+            "settings.js",
+            "network.js",
+            "meeting.js",
+        )
+    )
+
     return f"""<!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{escaped["title"]} - UNILIS Meeting</title>
-    <link rel="stylesheet" href="{FRONTEND_BASE}/css/meeting.css">
-    <link rel="stylesheet" href="{FRONTEND_BASE}/css/meeting-dark.css">
+    <link rel="stylesheet" href="{frontend_asset("css/meeting.css")}">
+    <link rel="stylesheet" href="{frontend_asset("css/meeting-dark.css")}">
 </head>
 <body>
     <div id="app"></div>
     <script>
         window.__MEETING_CONFIG__ = {meeting_config};
     </script>
-    <script src="{FRONTEND_BASE}/js/webrtc-core.js"></script>
-    <script src="{FRONTEND_BASE}/js/webrtc-media.js"></script>
-    <script src="{FRONTEND_BASE}/js/webrtc-rooms.js"></script>
-    <script src="{FRONTEND_BASE}/js/ui-theme.js"></script>
-    <script src="{FRONTEND_BASE}/js/ui-layout.js"></script>
-    <script src="{FRONTEND_BASE}/js/ui-sidebar.js"></script>
-    <script src="{FRONTEND_BASE}/js/ui-notifications.js"></script>
-    <script src="{FRONTEND_BASE}/js/participants.js"></script>
-    <script src="{FRONTEND_BASE}/js/chat.js"></script>
-    <script src="{FRONTEND_BASE}/js/whiteboard.js"></script>
-    <script src="{FRONTEND_BASE}/js/screenshare.js"></script>
-    <script src="{FRONTEND_BASE}/js/polls.js"></script>
-    <script src="{FRONTEND_BASE}/js/captions.js"></script>
-    <script src="{FRONTEND_BASE}/js/attendance.js"></script>
-    <script src="{FRONTEND_BASE}/js/settings.js"></script>
-    <script src="{FRONTEND_BASE}/js/network.js"></script>
-    <script src="{FRONTEND_BASE}/js/meeting.js"></script>
+{scripts}
 </body>
 </html>"""
 

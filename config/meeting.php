@@ -192,7 +192,7 @@ function buildMeetingFrontendUrl(
         'back_url' => $backUrl,
     ];
 
-    return getMeetingAppBaseUrl() . '/assets/meeting-app/meeting.html?' . http_build_query($params);
+    return getMeetingAppBaseUrl() . '/assets/meeting-app/meeting.php?' . http_build_query($params);
 }
 
 /**
