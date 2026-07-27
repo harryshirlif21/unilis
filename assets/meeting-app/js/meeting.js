@@ -69,6 +69,17 @@
           <!-- Video container -->
           <div class="video-container" id="videoContainer" style="display:none;">
             <div class="video-grid gallery-view" id="videoGrid"></div>
+
+            <!-- Presentation stage: while anyone shares their screen this takes
+                 over the whole area and the participant tiles are hidden, so the
+                 shared content is the only thing on screen besides the toolbar. -->
+            <div class="screen-stage" id="screenStage" hidden>
+              <video autoplay playsinline id="stageVideo"></video>
+              <div class="stage-bar">
+                <span class="stage-label" id="stageLabel"></span>
+                <button class="stage-stop" id="stageStopBtn" hidden>Stop sharing</button>
+              </div>
+            </div>
           </div>
 
           <!-- Captions overlay -->
@@ -137,7 +148,11 @@
     document.getElementById('participantsBtn').addEventListener('click', () => UNILIS_MEETING.SidebarManager.switchTab('participants'));
     document.getElementById('handBtn').addEventListener('click', toggleHand);
     document.getElementById('viewBtn').addEventListener('click', toggleView);
+    document.getElementById('stageStopBtn').addEventListener('click', toggleShare);
     document.getElementById('leaveBtn').addEventListener('click', leaveMeeting);
+
+    // Every start/stop lands here, including the browser's own "Stop sharing".
+    UNILIS_MEETING.MediaManager.onScreenShareChanged = handleScreenShareChanged;
     if (isHost) {
       document.getElementById('recordBtn').addEventListener('click', toggleRecord);
     }
@@ -495,6 +510,9 @@
     // ontrack fires once per track; the tile already exists for the second one, so
     // refresh visibility here rather than only at creation time.
     syncTileVideo(userId, stream);
+    // If this participant announced a share before their track arrived, the
+    // stage was waiting for exactly this.
+    updateScreenStage();
   }
 
   function handleConnectionState(userId, state) {
@@ -516,6 +534,14 @@
       document.getElementById('sidebarContent').innerHTML = html;
       document.getElementById('sidebarTitle').textContent = `Participants (${participants.length})`;
     }
+
+    // Keep the open modal live rather than showing whoever was in the room when
+    // it was opened.
+    UNILIS_MEETING.ParticipantPanel.syncModal(participants, config.role === 'lecturer');
+
+    // This broadcast carries the screen_sharing flags, so it is how a viewer
+    // learns that someone started or stopped presenting.
+    updateScreenStage();
   }
 
   function handleSidebarTab(tab) {
@@ -612,15 +638,98 @@
     btn.title = enabled ? 'Camera Off (V)' : 'Camera On (V)';
   }
 
+  /**
+   * Ask for or drop the screen. All resulting UI - the button state, the stage,
+   * and telling everyone else - is handled by handleScreenShareChanged, because
+   * sharing can also stop from the browser's own bar rather than from here.
+   */
   function toggleShare() {
-    if (UNILIS_MEETING.ScreenShare.isSharing) {
+    if (UNILIS_MEETING.MediaManager.screenSharing) {
       UNILIS_MEETING.ScreenShare.stop();
-      document.getElementById('shareBtn').classList.remove('active');
     } else {
-      UNILIS_MEETING.ScreenShare.start().then(success => {
-        document.getElementById('shareBtn').classList.toggle('active', success);
-      });
+      UNILIS_MEETING.ScreenShare.start();
     }
+  }
+
+  function handleScreenShareChanged(sharing) {
+    const btn = document.getElementById('shareBtn');
+    if (btn) {
+      btn.classList.toggle('active', sharing);
+      btn.title = sharing ? 'Stop Sharing' : 'Share Screen';
+    }
+
+    // Tell the room, so viewers know whose stream to put on the stage. A viewer
+    // cannot work this out alone: sharing swaps the sender's video track, so the
+    // screen arrives on the same track the camera was using.
+    UNILIS_MEETING.Room.sendParticipantUpdate({ screen_sharing: sharing });
+
+    updateScreenStage();
+  }
+
+  /**
+   * Who, if anyone, is presenting. Local sharing wins over a remote share so the
+   * presenter always sees their own screen rather than someone else's.
+   */
+  function currentSharer() {
+    if (UNILIS_MEETING.MediaManager.screenSharing) {
+      return { userId: config.user_id, isLocal: true, name: config.display_name };
+    }
+
+    const remote = (UNILIS_MEETING.Room.participants || []).find(
+      p => p.screen_sharing && p.user_id !== config.user_id
+    );
+
+    return remote
+      ? { userId: remote.user_id, isLocal: false, name: remote.display_name }
+      : null;
+  }
+
+  /**
+   * Switch between the tile grid and the full-area presentation stage.
+   *
+   * Safe to call as often as needed - it derives everything from current state
+   * rather than tracking transitions, so a late-arriving screen track, a
+   * participants broadcast and a local toggle all converge on the same result.
+   */
+  function updateScreenStage() {
+    const stage = document.getElementById('screenStage');
+    const grid = document.getElementById('videoGrid');
+    const video = document.getElementById('stageVideo');
+    if (!stage || !grid || !video) return;
+
+    const sharer = currentSharer();
+
+    // A remote share is announced over signaling before the track itself
+    // arrives. Staying on the grid until there is something to show avoids a
+    // black rectangle in the gap.
+    const stream = sharer && sharer.isLocal
+      ? UNILIS_MEETING.MediaManager.screenStream
+      : sharer
+        ? (document.getElementById(`remoteVideo-${sharer.userId}`) || {}).srcObject
+        : null;
+
+    if (!sharer || !stream) {
+      if (!stage.hidden) {
+        stage.hidden = true;
+        video.srcObject = null;
+        grid.style.display = '';
+        document.getElementById('videoContainer').classList.remove('is-presenting');
+      }
+      return;
+    }
+
+    // Never play your own captured audio back: it would loop into the room.
+    video.muted = sharer.isLocal;
+    if (video.srcObject !== stream) video.srcObject = stream;
+
+    document.getElementById('stageLabel').textContent = sharer.isLocal
+      ? 'You are presenting'
+      : `${sharer.name || 'Someone'} is presenting`;
+    document.getElementById('stageStopBtn').hidden = !sharer.isLocal;
+
+    stage.hidden = false;
+    grid.style.display = 'none';
+    document.getElementById('videoContainer').classList.add('is-presenting');
   }
 
   function toggleHand() {

@@ -427,6 +427,13 @@ async def signaling_websocket(ws: WebSocket):
                         p.hand_raised = message["hand_raised"]
                     if "is_muted" in message:
                         p.is_muted = message["is_muted"]
+                    # participant_list() has always published screen_sharing, but
+                    # nothing ever set it, so it was permanently False. The client
+                    # needs it to know whose stream to put on the presentation
+                    # stage - a viewer cannot tell a screen track from a camera
+                    # track, since sharing replaces the sender's video track.
+                    if "screen_sharing" in message:
+                        p.screen_sharing = message["screen_sharing"]
 
                 await ws_manager.broadcast_signaling(meeting_id, {
                     "type": "participants",

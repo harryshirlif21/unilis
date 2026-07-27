@@ -158,6 +158,27 @@ UNILIS_MEETING.MediaManager = {
   },
 
   /**
+   * Fired whenever sharing starts or stops, with the new state.
+   *
+   * Sharing can also end without the app asking - the browser puts its own
+   * "Stop sharing" bar on screen, and the user may click that instead of the
+   * in-meeting button. Routing every transition through one callback means the
+   * toolbar button, the presentation stage and the broadcast to other
+   * participants cannot drift out of step with reality.
+   */
+  onScreenShareChanged: null,
+
+  _notifyScreenShare(sharing) {
+    if (typeof this.onScreenShareChanged === 'function') {
+      try {
+        this.onScreenShareChanged(sharing);
+      } catch (err) {
+        console.error('onScreenShareChanged handler failed:', err);
+      }
+    }
+  },
+
+  /**
    * Request screen sharing.
    */
   async startScreenShare() {
@@ -179,6 +200,8 @@ UNILIS_MEETING.MediaManager = {
           UNILIS_MEETING.WebRTCCore._attachLocalTracks(entry.pc);
         });
       }
+
+      this._notifyScreenShare(true);
       return stream;
     } catch (err) {
       console.error('Screen share failed:', err);
@@ -202,6 +225,8 @@ UNILIS_MEETING.MediaManager = {
         UNILIS_MEETING.WebRTCCore.replaceLocalStream(this.localStream);
       }
     }
+
+    this._notifyScreenShare(false);
   },
 
   /**

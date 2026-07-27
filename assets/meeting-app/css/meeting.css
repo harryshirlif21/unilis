@@ -1230,3 +1230,289 @@ html, body {
     grid-auto-rows: minmax(100px, auto);
   }
 }
+/* ============================================================
+   Presentation stage (screen share)
+
+   While anyone is sharing, this covers the whole video area and
+   meeting.js hides the tile grid, so the shared screen is the only
+   thing on screen apart from the floating toolbar.
+   ============================================================ */
+.video-container.is-presenting {
+  padding: 0;
+}
+
+.screen-stage {
+  position: absolute;
+  inset: 0;
+  background: #000;
+}
+
+/* Explicit so a later display rule on .screen-stage cannot outrank the
+   hidden attribute and leave a black panel over the tiles. */
+.screen-stage[hidden] {
+  display: none;
+}
+
+.screen-stage video {
+  width: 100%;
+  height: 100%;
+  /* contain, not cover: a shared window must never be cropped. */
+  object-fit: contain;
+  background: #000;
+  display: block;
+}
+
+.stage-bar {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* Let clicks through to the video except on the button itself. */
+  pointer-events: none;
+}
+
+.stage-label {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  backdrop-filter: blur(4px);
+}
+
+.stage-stop {
+  pointer-events: auto;
+  margin-left: auto;
+  padding: 7px 16px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--control-danger);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.stage-stop:hover {
+  background: var(--control-danger-hover);
+}
+
+.stage-stop[hidden] {
+  display: none;
+}
+
+/* ============================================================
+   All-participants modal
+   ============================================================ */
+.participant-viewall {
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.participant-viewall:hover {
+  background: var(--bg-hover);
+}
+
+.participants-modal {
+  position: fixed;
+  inset: 0;
+  /* Above the sidebar (200) and the toolbar, below notifications (1000). */
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--bg-overlay);
+}
+
+.participants-modal[hidden] {
+  display: none;
+}
+
+.participants-modal-card {
+  width: min(760px, 100%);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+.participants-modal-card header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 12px;
+}
+
+.participants-modal-card header h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  color: var(--text-primary);
+}
+
+.participants-modal-close {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.participants-modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.participants-modal-search {
+  margin: 0 20px 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.participants-modal-search:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.participants-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  padding: 0 20px 20px;
+  overflow-y: auto;
+}
+
+.participants-modal-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 24px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.participant-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
+.pc-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pc-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pc-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pc-you {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.pc-role {
+  margin-top: 1px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pc-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.pc-chip {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.pc-chip-live {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.pc-chip-muted {
+  color: var(--control-danger);
+}
+
+.pc-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.pc-actions button {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pc-actions button:hover {
+  background: var(--control-bg-active);
+}
+
+@media (max-width: 640px) {
+  .participants-modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
