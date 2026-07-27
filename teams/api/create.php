@@ -18,6 +18,7 @@ try {
     require_once '../../config/db.php';
     require_once __DIR__ . '/../models/ActivityLog.php';
     require_once __DIR__ . '/../includes/team_limits.php';
+    require_once __DIR__ . '/../includes/team_membership.php';
 } catch (Throwable $e) {
     ob_clean();
     header('Content-Type: application/json');
@@ -116,35 +117,46 @@ ensure_team_max_members_column($conn);
 
 // ── Insert team ───────────────────────────────────────────────────────────────
 // teams columns: title, unit_id, course_id, assessment_type, created_by, year, max_members
-$stmt = $conn->prepare("
-    INSERT INTO teams (title, unit_id, course_id, assessment_type, created_by, year, max_members)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-");
+$conn->begin_transaction();
 
-if (!$stmt) {
-    echo json_encode(['success' => false, 'message' => 'Prepare failed: ' . $conn->error]);
+try {
+    ensure_student_not_in_other_team_for_unit($conn, 0, $user_id, $unit_id);
+
+    $stmt = $conn->prepare("
+        INSERT INTO teams (title, unit_id, course_id, assessment_type, created_by, year, max_members)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
+
+    if (!$stmt) {
+        throw new Exception('Prepare failed: ' . $conn->error);
+    }
+
+    // s=title  i=unit_id  i=course_id  s=assessment_type  i=created_by  i=year  i=max_members
+    $stmt->bind_param("siisiii", $title, $unit_id, $course_id, $assessment_type, $user_id, $year_of_study, $max_members);
+
+    if (!$stmt->execute()) {
+        throw new Exception('Database error: ' . $stmt->error);
+    }
+
+    $team_id = $stmt->insert_id;
+    $stmt->close();
+
+    // ── Add creator as leader ─────────────────────────────────────────────────────
+    $stmt_leader = $conn->prepare("
+        INSERT INTO team_members (team_id, student_id, role) VALUES (?, ?, 'leader')
+    ");
+    if ($stmt_leader) {
+        ensure_student_not_in_other_team_for_unit($conn, $team_id, $user_id);
+        $stmt_leader->bind_param("ii", $team_id, $user_id);
+        $stmt_leader->execute();
+        $stmt_leader->close();
+    }
+
+    $conn->commit();
+} catch (Throwable $e) {
+    $conn->rollback();
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     exit;
-}
-
-// s=title  i=unit_id  i=course_id  s=assessment_type  i=created_by  i=year  i=max_members
-$stmt->bind_param("siisiii", $title, $unit_id, $course_id, $assessment_type, $user_id, $year_of_study, $max_members);
-
-if (!$stmt->execute()) {
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $stmt->error]);
-    exit;
-}
-
-$team_id = $stmt->insert_id;
-$stmt->close();
-
-// ── Add creator as leader ─────────────────────────────────────────────────────
-$stmt_leader = $conn->prepare("
-    INSERT INTO team_members (team_id, student_id, role) VALUES (?, ?, 'leader')
-");
-if ($stmt_leader) {
-    $stmt_leader->bind_param("ii", $team_id, $user_id);
-    $stmt_leader->execute();
-    $stmt_leader->close();
 }
 
 // ── Log activity ──────────────────────────────────────────────────────────────

@@ -917,6 +917,11 @@ foreach ($teams as $team) {
                             👥 Group Members PDF
                         </a>
                     </div>
+                    <div style="margin-top:0.5rem;">
+                        <button type="button" onclick="deleteTeam(<?= $team['team_id']; ?>, '<?= addslashes(htmlspecialchars($team['team_title'])); ?>')" style="background:#dc2626;color:white;border:none;padding:0.45rem 0.7rem;border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;">
+                            🗑️ Delete Team
+                        </button>
+                    </div>
                     <div class="ellipsis-menu" style="margin-top: 0.5rem;">
                         <button class="ellipsis-btn" onclick="toggleMenu(<?= $team['team_id']; ?>)">⋮</button>
                         <div id="menu-<?= $team['team_id']; ?>" class="ellipsis-content">
@@ -1178,6 +1183,33 @@ foreach ($teams as $team) {
 <?php endif; ?>
 
 <script>
+async function deleteTeam(teamId, teamTitle) {
+    const confirmed = confirm(`Delete team \"${teamTitle}\" and remove all members and related records?`);
+    if (!confirmed) return;
+
+    try {
+        const res = await fetch('../../teams/api/delete_team.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                csrf_token: '<?= $_SESSION['csrf_token']; ?>'
+            })
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) {
+            throw new Error(data?.error || data?.message || 'Failed to delete team');
+        }
+
+        alert(data.message || 'Team deleted successfully');
+        window.location.reload();
+    } catch (err) {
+        alert('Delete team error: ' + err.message);
+        console.error(err);
+    }
+}
+
 function toggleMenu(teamId) {
     const menu = document.getElementById('menu-' + teamId);
     

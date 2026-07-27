@@ -16,6 +16,170 @@ $verify_error   = $_SESSION['verify_error'] ?? '';
 
 unset($_SESSION['verify_success']);
 unset($_SESSION['verify_error']);
+
+function ensure_academic_year_settings_table(mysqli $conn): void
+{
+    $sql = "
+        CREATE TABLE IF NOT EXISTS academic_year_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            academic_year_label VARCHAR(20) NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ";
+    $conn->query($sql);
+}
+
+function get_academic_year_settings(mysqli $conn): array
+{
+    ensure_academic_year_settings_table($conn);
+    $row = $conn->query("SELECT * FROM academic_year_settings ORDER BY is_active DESC, updated_at DESC LIMIT 1")
+        ->fetch_assoc();
+
+    if (!$row) {
+        $defaultLabel = date('Y') . '/' . (date('Y') + 1);
+        return [
+            'id' => 0,
+            'academic_year_label' => $defaultLabel,
+            'start_date' => date('Y') . '-01-01',
+            'end_date' => date('Y') . '-12-31',
+            'is_active' => 1,
+        ];
+    }
+
+    return $row;
+}
+
+function save_academic_year_settings(mysqli $conn, array $data): array
+{
+    ensure_academic_year_settings_table($conn);
+
+    $label = trim((string)($data['academic_year_label'] ?? ''));
+    $startDate = trim((string)($data['start_date'] ?? ''));
+    $endDate = trim((string)($data['end_date'] ?? ''));
+
+    if ($label === '') {
+        $label = date('Y') . '/' . (date('Y') + 1);
+    }
+    if ($startDate === '') {
+        $startDate = date('Y') . '-01-01';
+    }
+    if ($endDate === '') {
+        $endDate = date('Y') . '-12-31';
+    }
+
+    $stmt = $conn->prepare(
+        "INSERT INTO academic_year_settings (academic_year_label, start_date, end_date, is_active) VALUES (?, ?, ?, 1)"
+    );
+    if (!$stmt) {
+        throw new Exception('Unable to save academic year settings: ' . $conn->error);
+    }
+
+    $stmt->bind_param('sss', $label, $startDate, $endDate);
+    $stmt->execute();
+    $stmt->close();
+
+    return [
+        'success' => true,
+        'academic_year_label' => $label,
+        'start_date' => $startDate,
+        'end_date' => $endDate,
+    ];
+}
+
+function get_expected_year_of_study(int $registeredYear, string $academicYearLabel): int
+{
+    $registeredYear = max(1, (int)$registeredYear);
+    $parts = preg_split('/[\\/-]/', trim($academicYearLabel));
+    $startYear = isset($parts[0]) && is_numeric($parts[0]) ? (int)$parts[0] : date('Y');
+    return max(1, ($startYear - $registeredYear) + 1);
+}
+
+function apply_academic_year_progression(mysqli $conn, array $setting, bool $force = false): int
+{
+    ensure_academic_year_settings_table($conn);
+
+    $today = date('Y-m-d');
+    if (!$force && $today < (string)($setting['end_date'] ?? '')) {
+        return 0;
+    }
+
+    $label = trim((string)($setting['academic_year_label'] ?? ''));
+    if ($label === '') {
+        $label = date('Y') . '/' . (date('Y') + 1);
+    }
+
+    $stmt = $conn->prepare("SELECT id, year_joined, year_of_study FROM students WHERE year_joined IS NOT NULL AND year_joined != ''");
+    if (!$stmt) {
+        throw new Exception('Unable to load students for academic year progression: ' . $conn->error);
+    }
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $updatedCount = 0;
+    while ($student = $result->fetch_assoc()) {
+        $registeredYear = (int)($student['year_joined'] ?? 0);
+        $expectedYear = get_expected_year_of_study($registeredYear, $label);
+        $currentYear = max(1, (int)($student['year_of_study'] ?? 0));
+
+        if ($expectedYear > $currentYear) {
+            $update = $conn->prepare("UPDATE students SET year_of_study = ? WHERE id = ?");
+            $update->bind_param('ii', $expectedYear, $student['id']);
+            $update->execute();
+            $update->close();
+            $updatedCount++;
+        }
+    }
+    $stmt->close();
+
+    return $updatedCount;
+}
+
+$academic_year_message = '';
+$academic_year_error = '';
+$academic_year_setting = get_academic_year_settings($conn);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['submit_action'] ?? ($_POST['action'] ?? '');
+    if ($action === 'save_academic_year_settings') {
+        try {
+            $saved = save_academic_year_settings($conn, $_POST);
+            $academic_year_setting = [
+                'id' => 0,
+                'academic_year_label' => $saved['academic_year_label'],
+                'start_date' => $saved['start_date'],
+                'end_date' => $saved['end_date'],
+                'is_active' => 1,
+            ];
+            $academic_year_message = 'Academic year settings saved successfully.';
+        } catch (Throwable $e) {
+            $academic_year_error = $e->getMessage();
+        }
+    } elseif ($action === 'run_academic_year_progression') {
+        try {
+            $updatedCount = apply_academic_year_progression($conn, $academic_year_setting, true);
+            $academic_year_message = $updatedCount > 0
+                ? "Student year progression applied to $updatedCount student(s)."
+                : 'No student year changes were needed.';
+        } catch (Throwable $e) {
+            $academic_year_error = $e->getMessage();
+        }
+    }
+}
+
+if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$academic_year_setting['end_date']) {
+    try {
+        $autoPromoted = apply_academic_year_progression($conn, $academic_year_setting);
+        if ($autoPromoted > 0) {
+            $academic_year_message = trim(($academic_year_message === '' ? '' : $academic_year_message . ' ') . "Auto-promoted $autoPromoted student(s) to the next study year.");
+        }
+    } catch (Throwable $e) {
+        error_log('Academic year progression failed: ' . $e->getMessage());
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -330,6 +494,39 @@ unset($_SESSION['verify_error']);
             <h3>Content Upload Activity</h3>
             <div class="chart-placeholder">Bar Chart Placeholder (Notes, Assignments, Submissions)</div>
         </div>
+    </div>
+
+    <div class="registration-stats-section">
+        <h3>Academic Year Settings</h3>
+        <?php if ($academic_year_message !== ''): ?>
+            <div class="success"><?= htmlspecialchars($academic_year_message) ?></div>
+        <?php endif; ?>
+        <?php if ($academic_year_error !== ''): ?>
+            <div class="error"><?= htmlspecialchars($academic_year_error) ?></div>
+        <?php endif; ?>
+        <form method="POST" style="display:grid; gap:12px; margin-bottom:18px;">
+            <input type="hidden" name="action" value="save_academic_year_settings">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                <div>
+                    <label for="academicYearLabel" style="display:block; margin-bottom:6px; font-weight:600;">Academic Year</label>
+                    <input id="academicYearLabel" name="academic_year_label" type="text" value="<?= htmlspecialchars($academic_year_setting['academic_year_label'] ?? '') ?>" placeholder="2025/2026" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:8px;">
+                </div>
+                <div>
+                    <label for="academicYearStart" style="display:block; margin-bottom:6px; font-weight:600;">Start Date</label>
+                    <input id="academicYearStart" name="start_date" type="date" value="<?= htmlspecialchars($academic_year_setting['start_date'] ?? '') ?>" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:8px;">
+                </div>
+                <div>
+                    <label for="academicYearEnd" style="display:block; margin-bottom:6px; font-weight:600;">End Date</label>
+                    <input id="academicYearEnd" name="end_date" type="date" value="<?= htmlspecialchars($academic_year_setting['end_date'] ?? '') ?>" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:8px;">
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button type="submit" class="btn btn-primary" name="submit_action" value="save_academic_year_settings">Save Academic Year</button>
+                <button type="submit" class="btn btn-success" name="submit_action" value="run_academic_year_progression">Run Year Progression</button>
+            </div>
+        </form>
+        <p style="margin:0 0 12px 0; color:#666;">This setting is used to determine the current academic year and to promote students based on the year they registered.</p>
+        <div class="student-count-text">Current setting: <strong><?= htmlspecialchars($academic_year_setting['academic_year_label'] ?? 'Not set') ?></strong> (<?= htmlspecialchars($academic_year_setting['start_date'] ?? '—') ?> to <?= htmlspecialchars($academic_year_setting['end_date'] ?? '—') ?>)</div>
     </div>
 
     <div class="registration-stats-section">

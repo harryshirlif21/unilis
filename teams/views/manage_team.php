@@ -100,6 +100,13 @@ if (empty($_SESSION['csrf_token'])) {
             margin: 0 0 0.6rem 0;
             color: #2c3e50;
         }
+        .danger-btn {
+            background: #dc3545;
+            color: white;
+        }
+        .danger-btn:hover {
+            background: #c82333;
+        }
         .role-selector {
             padding: 0.6rem;
             min-width: 220px;
@@ -239,6 +246,12 @@ if (empty($_SESSION['csrf_token'])) {
     <small id="teamSettingsHint" style="display:block;margin-top:0.55rem;color:#6c757d;"></small>
 </div>
 
+<div id="teamDangerPanel" class="settings-panel" style="display:none;">
+    <h3>Delete Team</h3>
+    <p style="margin:0 0 0.75rem 0;color:#6c757d;">Delete this group and remove its members, invitations, and related records.</p>
+    <button id="deleteTeamBtn" class="danger-btn">Delete Team</button>
+</div>
+
 <h3>Members <span id="memberCountPill" class="count-pill count-normal"><span id="size">0</span>/<span id="max-size">15</span></span></h3>
 <div id="members-grid" class="members-grid"></div>
 
@@ -311,6 +324,7 @@ function memberCountClass(count) {
 
 function syncTeamLimitUI() {
     const panel = document.getElementById('teamSettingsPanel');
+    const dangerPanel = document.getElementById('teamDangerPanel');
     const slider = document.getElementById('teamLimitSlider');
     const value = document.getElementById('teamLimitValue');
     const hint = document.getElementById('teamSettingsHint');
@@ -319,10 +333,12 @@ function syncTeamLimitUI() {
 
     if (!isCurrentUserLeader) {
         panel.style.display = 'none';
+        if (dangerPanel) dangerPanel.style.display = 'none';
         return;
     }
 
     panel.style.display = 'block';
+    if (dangerPanel) dangerPanel.style.display = 'block';
     const minAllowed = Math.max(2, currentTeamSize);
     slider.min = String(minAllowed);
     slider.max = '15';
@@ -789,6 +805,33 @@ async function viewTeamRequests(teamId) {
         console.error("viewTeamRequests error:", err);
     }
 }
+
+document.getElementById('deleteTeamBtn').addEventListener('click', async () => {
+    const confirmed = confirm('Delete this team and remove all members and related records? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+        const res = await fetch('/teams/api/delete_team.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                csrf_token: csrf
+            })
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success) {
+            throw new Error(data?.error || data?.message || ('HTTP ' + res.status));
+        }
+
+        showMessage(data.message || 'Team deleted successfully', 'success');
+        window.location.href = '../../student/dashboard.php';
+    } catch (err) {
+        showMessage('Delete team error: ' + err.message);
+    }
+});
 
 // Event listeners
 document.getElementById('addMemberBtn').addEventListener('click', addMember);

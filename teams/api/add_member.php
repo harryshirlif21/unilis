@@ -88,6 +88,7 @@ require_once __DIR__ . '/../../config/db.php'; // $conn is mysqli
 require_once __DIR__ . '/../controllers/MemberController.php';
 require_once __DIR__ . '/../models/ActivityLog.php';
 require_once __DIR__ . '/../includes/team_limits.php';
+require_once __DIR__ . '/../includes/team_membership.php';
 require_once __DIR__ . '/../../config/email.php';
 
 $controller = new MemberController($conn);
@@ -129,21 +130,7 @@ try {
     $stmt->close();
 
     // 3a. Enforce: Student can only be in one team per unit
-    $stmt = $conn->prepare(
-        "SELECT COUNT(*) as count FROM team_members tm 
-        JOIN teams t ON tm.team_id = t.id 
-        WHERE t.unit_id = (SELECT unit_id FROM teams WHERE id = ?) 
-        AND tm.student_id = ? 
-        AND t.id != ?"
-    );
-    $stmt->bind_param("iii", $teamId, $studentId, $teamId);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    
-    if ($result['count'] > 0) {
-        throw new Exception("Student is already in another team for this unit. A student can only be in one team per unit.");
-    }
+    ensure_student_not_in_other_team_for_unit($conn, (int)$teamId, (int)$studentId);
 
     // 3b. Team must have available capacity before creating invitation.
     assert_team_has_capacity($conn, (int)$teamId);

@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION[
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../models/ActivityLog.php';
 require_once __DIR__ . '/../includes/team_limits.php';
+require_once __DIR__ . '/../includes/team_membership.php';
 
 try {
     ensure_team_max_members_column($conn);
@@ -132,23 +133,7 @@ try {
     }
 
     // Enforce: Student can only be in one team per unit
-    $stmt = $conn->prepare(
-        "SELECT COUNT(*) as count FROM team_members tm 
-        JOIN teams t ON tm.team_id = t.id 
-        WHERE t.unit_id = (SELECT unit_id FROM teams WHERE id = ?) 
-        AND tm.student_id = ? 
-        AND t.id != ?"
-    );
-    $stmt->bind_param("iii", $teamId, $studentId, $teamId);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    
-    if ($result['count'] > 0) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Student is already in another team for this unit. A student can only be in one team per unit.']);
-        exit;
-    }
+    ensure_student_not_in_other_team_for_unit($conn, $teamId, $studentId);
 
     assert_team_has_capacity($conn, $teamId);
 
