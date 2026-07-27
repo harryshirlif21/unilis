@@ -71,7 +71,10 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
     volumes:
       - db_data:/var/lib/mysql
-      - ./docker/unilis.sql:/docker-entrypoint-initdb.d/unilis.sql:ro
+      # No seed mount: the SQL files were removed from the repository. A fresh
+      # volume starts empty and must be loaded from a backup restored out of
+      # band. Existing volumes are unaffected — entrypoint seeds only ever run
+      # against an empty data directory.
 
   smart-labs-db:
     image: mysql:8.0.33
@@ -86,7 +89,7 @@ services:
       MYSQL_PASSWORD: ${SMARTLAB_MYSQL_PASSWORD:?set SMARTLAB_MYSQL_PASSWORD in .env}
     volumes:
       - smart_labs_data:/var/lib/mysql
-      - ./smart-lab/unilis_smartlab.sql:/docker-entrypoint-initdb.d/01_smartlab.sql:ro
+      # Seed mount removed along with the SQL files. See the note on db above.
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:5.2.1

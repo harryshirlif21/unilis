@@ -6,6 +6,7 @@ vendor/
 .env
 smart-lab/web-app/logs/*.log
 
-# Database dumps at the repo root are served from the web root by Apache.
-# Seed files under docker/ and smart-lab/ stay tracked deliberately.
-/*.sql
+# No SQL in the repository. The document root is the deployed checkout, so
+# anything committed here is a candidate for being served; a 390KB dump of 60
+# tables was downloadable this way. Keep schema and backups out of git.
+*.sql

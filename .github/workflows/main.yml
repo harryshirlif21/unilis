@@ -67,9 +67,16 @@ jobs:
           ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} << 'EOF'
             set -e
 
+            # DEPLOY_PATH is a filesystem path to the checkout on this server
+            # (the output of `pwd` there), not a password or a project name.
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
             if [ -z "$DEPLOY_PATH" ]; then
               echo "DEPLOY_PATH secret is not set - refusing to guess the checkout location."
+              exit 1
+            fi
+            if [ ! -d "$DEPLOY_PATH/.git" ] || [ ! -f "$DEPLOY_PATH/docker-compose.yml" ]; then
+              echo "DEPLOY_PATH='$DEPLOY_PATH' is not a git checkout containing docker-compose.yml."
+              echo "Set it to the absolute path of the deployment checkout, e.g. /srv/unilis."
               exit 1
             fi
             cd "$DEPLOY_PATH"

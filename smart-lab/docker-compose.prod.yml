@@ -41,7 +41,8 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - smartlab-db-data:/var/lib/mysql
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # Seed mount removed: database/init.sql was deleted with the other SQL
+      # files. Docker would otherwise create an empty directory at that path.
       - ./backups:/backups
     networks:
       - smartlab-network
