@@ -1256,6 +1256,7 @@ if ($action === 'schedule_meeting') {
         exit;
     }
 
+    try {
     $unitCheck = $conn->prepare('SELECT 1 FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ? LIMIT 1');
     $unitCheck->bind_param('ii', $lecturer_id, $unit_id);
     $unitCheck->execute();
@@ -1316,6 +1317,14 @@ if ($action === 'schedule_meeting') {
     $unitNameStmt->close();
     header('Location: lecturer/dashboard.php?tab=meetings');
     exit;
+    } catch (Throwable $e) {
+        // With mysqli exceptions enabled (config/db.php), any DB error throws.
+        // Log the real cause and degrade to a friendly on-page message instead of a 500.
+        error_log('schedule_meeting failed: ' . $e->getMessage());
+        $_SESSION['meeting_error'] = 'Something went wrong while scheduling the meeting. Please try again.';
+        header('Location: lecturer/dashboard.php?tab=meetings');
+        exit;
+    }
 }
 
 // === LOG STUDENT ATTENDANCE ===

@@ -511,8 +511,8 @@ try {
         </div>
         <form id="createSessionForm" onsubmit="createSession(event)">
             <div class="le-modal-body">
-                <div id="createSessionStatus" role="status" aria-live="polite" hidden
-                     style="margin-bottom: var(--le-space-3); padding: var(--le-space-2) var(--le-space-3); border-radius: var(--le-radius-lg); font-size: var(--le-font-size-sm); display: flex; align-items: flex-start; gap: var(--le-space-2);">
+                <div id="createSessionStatus" role="status" aria-live="polite"
+                     style="margin-bottom: var(--le-space-3); padding: var(--le-space-2) var(--le-space-3); border-radius: var(--le-radius-lg); font-size: var(--le-font-size-sm); display: none; align-items: flex-start; gap: var(--le-space-2);">
                     <span id="createSessionStatusMessage" style="flex: 1;"></span>
                     <button type="button" onclick="closeCreateSessionStatus()" aria-label="Dismiss message"
                             style="background: transparent; border: 0; color: inherit; cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0;">&times;</button>
@@ -603,6 +603,10 @@ try {
 <script>
     // CSRF token management
     let csrfToken = null;
+
+    // Session defaults used by showCreateSessionModal()
+    const DEFAULT_SESSION_TYPE = <?= json_encode($defaultSessionType) ?>;
+    const DEFAULT_UNIT_ID = <?= json_encode($defaultUnitId) ?>;
     
     async function getCsrfToken() {
         if (csrfToken) return csrfToken;
@@ -732,14 +736,14 @@ try {
     function setCreateSessionStatus(message, type) {
         const status = document.getElementById('createSessionStatus');
         document.getElementById('createSessionStatusMessage').textContent = message;
-        status.hidden = !message;
+        status.style.display = message ? 'flex' : 'none';
         status.style.background = type === 'success' ? 'var(--le-success-lighter)' : 'var(--le-danger-lighter)';
         status.style.color = type === 'success' ? 'var(--le-success)' : 'var(--le-danger)';
         status.style.border = '1px solid ' + (type === 'success' ? 'var(--le-success)' : 'var(--le-danger)');
     }
 
     function closeCreateSessionStatus() {
-        document.getElementById('createSessionStatus').hidden = true;
+        document.getElementById('createSessionStatus').style.display = 'none';
         if (createSessionRefreshTimer) {
             clearTimeout(createSessionRefreshTimer);
             createSessionRefreshTimer = null;
