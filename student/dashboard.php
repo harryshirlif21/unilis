@@ -971,6 +971,11 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
                 <span class="material-symbols-outlined">groups</span>
                 <span>Create Team</span>
             </a>
+            <a href="../chat/views/chat.php" class="sidebar-item">
+                <span class="material-symbols-outlined">chat</span>
+                <span>Chat</span>
+                <span class="chat-nav-badge" id="chatNavBadge" hidden>0</span>
+            </a>
             <a href="my_units.php" class="sidebar-item">
                 <span class="material-symbols-outlined">book</span>
                 <span>My Units</span>
@@ -2208,5 +2213,6 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
             }
         })();
     </script>
+    <?php include __DIR__ . '/../chat/includes/nav_badge.php'; ?>
 </body>
 </html>

@@ -580,6 +580,12 @@ $stmt->close();
     <li class="purple" onclick="window.location.href='../teams/views/lecturer_teams.php'">
         <i class="fas fa-users-cog"></i><span>Teams</span>
     </li>
+    <li class="blue">
+        <a href="../chat/views/chat.php" style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:inherit;width:100%;">
+            <i class="fas fa-comments"></i><span>Chat</span>
+            <span class="chat-nav-badge" id="chatNavBadge" hidden>0</span>
+        </a>
+    </li>
     <li class="orange">
         <a href="request_files.php" style="color:inherit;text-decoration:none;">
             <i class="fas fa-file-contract"></i><span>📁 Request Files</span>
@@ -2510,6 +2516,8 @@ function quickMarkRead(notificationId) {
         .catch(error => console.error('Error marking notification as read:', error));
 }
 </script>
+
+<?php include __DIR__ . '/../chat/includes/nav_badge.php'; ?>
 
 </body>
 
