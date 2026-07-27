@@ -811,7 +811,8 @@ document.getElementById('deleteTeamBtn').addEventListener('click', async () => {
     if (!confirmed) return;
 
     try {
-        const res = await fetch('/teams/api/delete_team.php', {
+        // Relative so the request also resolves under a subdirectory install.
+        const res = await fetch('../api/delete_team.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },

@@ -9,7 +9,6 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role'])) {
 }
 
 require_once __DIR__ . '/../../config/db.php';
-require_once __DIR__ . '/../models/ActivityLog.php';
 
 try {
     $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
@@ -58,17 +57,28 @@ try {
     $deleteMembers->execute();
     $deleteMembers->close();
 
+    // Invitation codes reference invitation rows, so they must go first — deleting
+    // the invitations before them leaves the codes orphaned instead of removed.
+    //
+    // The table is optional, and config/db.php enables MYSQLI_REPORT_STRICT, which
+    // makes a query against a missing table throw rather than return false. SHOW
+    // TABLES reports zero rows instead, so it is safe to probe with.
+    $codesTable = $conn->query("SHOW TABLES LIKE 'team_invitation_codes'");
+    if ($codesTable->num_rows > 0) {
+        $deleteInvitationCodes = $conn->prepare(
+            'DELETE FROM team_invitation_codes
+             WHERE invitation_id IN (SELECT id FROM team_invitations WHERE team_id = ?)'
+        );
+        $deleteInvitationCodes->bind_param('i', $teamId);
+        $deleteInvitationCodes->execute();
+        $deleteInvitationCodes->close();
+    }
+    $codesTable->free();
+
     $deleteInvitations = $conn->prepare('DELETE FROM team_invitations WHERE team_id = ?');
     $deleteInvitations->bind_param('i', $teamId);
     $deleteInvitations->execute();
     $deleteInvitations->close();
-
-    if ($conn->query('SELECT 1 FROM team_invitation_codes LIMIT 1') !== false) {
-        $deleteInvitationCodes = $conn->query('DELETE FROM team_invitation_codes WHERE invitation_id IN (SELECT id FROM team_invitations WHERE team_id = ' . (int)$teamId . ')');
-        if ($deleteInvitationCodes === false) {
-            throw new Exception('Failed to delete invitation codes: ' . $conn->error);
-        }
-    }
 
     $deleteRequests = $conn->prepare('DELETE FROM team_membership_requests WHERE team_id = ?');
     $deleteRequests->bind_param('i', $teamId);
@@ -92,8 +102,16 @@ try {
 
     $conn->commit();
 
-    $logger = new ActivityLog($conn);
-    $logger->log($teamId, $userId, 'team_delete', ($userRole === 'lecturer' ? 'Lecturer' : 'Team leader') . ' deleted team ' . $teamId);
+    // Deliberately not written to team_activity_log: those rows are scoped to the
+    // team and were just deleted, and if team_id carries a foreign key the insert
+    // would fail after the commit — reporting a 500 for a deletion that actually
+    // succeeded, with rollback() no longer able to undo anything.
+    error_log(sprintf(
+        'team_delete: team %d deleted by user %d (%s)',
+        $teamId,
+        $userId,
+        $userRole === 'lecturer' ? 'lecturer' : 'team leader'
+    ));
 
     echo json_encode(['success' => true, 'message' => 'Team deleted successfully']);
 } catch (Throwable $e) {
