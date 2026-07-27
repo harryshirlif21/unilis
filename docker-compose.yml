@@ -3,6 +3,7 @@ services:
     build: .
     image: hilkim21/unilis-app:latest
     container_name: unilis-app
+    restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
@@ -28,7 +29,7 @@ services:
       DB_HOST: db
       SMARTLAB_DB_HOST: smart-labs-db
       MYSQL_USER: unilisuser
-      MYSQL_PASSWORD: unilispass
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: unilis
       MEETING_PROXY_HOST: meeting-server
       MEETING_PROXY_PORT: "8765"
@@ -59,13 +60,15 @@ services:
     image: mysql:8.0.33
     container_name: unilis-db
     restart: always
+    # Loopback-bound: the app reaches MySQL over the compose network, so the
+    # port only needs to be reachable from the host for admin tooling.
     ports:
-      - "3308:3306"
+      - "127.0.0.1:3308:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_DATABASE: unilis
       MYSQL_USER: unilisuser
-      MYSQL_PASSWORD: unilispass
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/unilis.sql:/docker-entrypoint-initdb.d/unilis.sql:ro
@@ -75,12 +78,12 @@ services:
     container_name: smart-labs-db
     restart: always
     ports:
-      - "3309:3306"
+      - "127.0.0.1:3309:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_DATABASE: unilis_smartlab
       MYSQL_USER: lab_admin
-      MYSQL_PASSWORD: lab_password
+      MYSQL_PASSWORD: ${SMARTLAB_MYSQL_PASSWORD:?set SMARTLAB_MYSQL_PASSWORD in .env}
     volumes:
       - smart_labs_data:/var/lib/mysql
       - ./smart-lab/unilis_smartlab.sql:/docker-entrypoint-initdb.d/01_smartlab.sql:ro
@@ -88,11 +91,14 @@ services:
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:5.2.1
     container_name: unilis-pma
+    restart: unless-stopped
+    # Loopback-bound: reach it over an SSH tunnel rather than publishing a
+    # database admin console to the internet.
     ports:
-      - "8081:80"
+      - "127.0.0.1:8081:80"
     environment:
       PMA_HOSTS: db,smart-labs-db
-      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
 
 volumes:
   db_data:

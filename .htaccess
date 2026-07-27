@@ -2,3 +2,50 @@ php_value upload_max_filesize 512M
 php_value post_max_size 512M
 php_value max_execution_time 300
 php_value max_input_time 300
+
+# ===========================================================================
+# Web-root hardening
+#
+# The document root is the deployed git checkout (the app container bind-mounts
+# it), so repository internals and non-public source files are served unless
+# explicitly denied. Verified exposed before these rules existed:
+#   /.git/HEAD, /.git/config, /.git/index  -> full history reconstructable
+#   /docker/unilis.sql, /database_setup/*.sql
+#   /dbalter.php (web UI that alters the schema), /setup_live_engagement.php
+# ===========================================================================
+
+# Version control metadata. Without this the entire history can be cloned,
+# which keeps anything ever committed retrievable regardless of later removal.
+RedirectMatch 404 (?i)/\.git(/|$)
+
+# Dotfiles: .env, .gitignore, .dockerignore, .htaccess itself.
+<FilesMatch "(?i)^\.">
+    Require all denied
+</FilesMatch>
+
+# Database dumps, migrations and seed data.
+<FilesMatch "(?i)\.sql$">
+    Require all denied
+</FilesMatch>
+
+# Source, config, docs and build files that are never fetched by the browser.
+<FilesMatch "(?i)\.(py|pyc|yml|yaml|conf|sh|lock|example|log|bak|ini|md|txt|pptx)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "(?i)^(dockerfile|composer\.json|package\.json|package-lock\.json|PROJECT_FEATURES\.json|UNILIS_SYSTEM_PROMPT\.json)$">
+    Require all denied
+</FilesMatch>
+
+# Maintenance, migration and diagnostic scripts. These are reachable only from
+# each other, never from an application flow, and several mutate the schema.
+# Run them with `php <script>` inside the container instead.
+<FilesMatch "(?i)^(dbalter|dbtables|debug|debug_files|modules_diag|testfit|test_login_system|check_reports|check_table_structure|create_attendance_table|attendance_migrate|rfid_migrate|rfid_fix|rfid_assign|fix_students|setup_live_engagement|writer)\.php$">
+    Require all denied
+</FilesMatch>
+
+# Keep crawler directives fetchable if one is added later, since the .txt rule
+# above would otherwise deny it silently.
+<Files "robots.txt">
+    Require all granted
+</Files>

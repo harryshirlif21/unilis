@@ -85,6 +85,11 @@ RUN chmod -R 775 /var/www/html/assets/uploads \
     /var/www/html/assets/requested_files \
     /var/www/html/uploads
 
+# Server-level hardening. ServerTokens is only valid in server config context,
+# so it cannot live in the vhost file above.
+RUN printf 'ServerTokens Prod\nServerSignature Off\nTraceEnable Off\n' > /etc/apache2/conf-available/unilis-hardening.conf \
+    && a2enconf unilis-hardening
+
 # Make PHP errors visible in docker logs
 RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/php.ini \
     && echo "log_errors = On" >> /usr/local/etc/php/php.ini \
