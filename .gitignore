@@ -5,3 +5,7 @@ vendor/
 /node_modules/
 .env
 smart-lab/web-app/logs/*.log
+
+# Database dumps at the repo root are served from the web root by Apache.
+# Seed files under docker/ and smart-lab/ stay tracked deliberately.
+/*.sql

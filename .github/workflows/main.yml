@@ -57,22 +57,29 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -T 10 ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
+      # Production is compose-managed from a checkout on the server: the app
+      # container bind-mounts that checkout, so PHP goes live on pull, while
+      # meeting-server bakes its Python in at build time and must be rebuilt.
+      # Do not hand-write `docker run` here — it would remove the compose-managed
+      # containers and recreate them without their mounts, network, or env.
       - name: Deploy to Production Server
         run: |
           ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} << 'EOF'
-            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
-            docker stop unilis-app || true
-            docker rm unilis-app || true
-            docker run -d \
-              --name unilis-app \
-              -p 80:80 \
-              ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
+            set -e
 
-            docker pull ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:latest
-            docker stop unilis-meeting-media || true
-            docker rm unilis-meeting-media || true
-            docker run -d \
-              --name unilis-meeting-media \
-              -p 3001:3001 \
-              ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:latest
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "DEPLOY_PATH secret is not set - refusing to guess the checkout location."
+              exit 1
+            fi
+            cd "$DEPLOY_PATH"
+
+            # Fail loudly rather than deploy half an update: --ff-only refuses if the
+            # server checkout has diverged (local edits to compose, deleted files, etc).
+            git pull --ff-only
+
+            docker compose build
+            docker compose up -d --remove-orphans
+
+            docker compose ps
           EOF
