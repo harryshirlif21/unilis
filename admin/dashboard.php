@@ -529,6 +529,45 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
         <div class="student-count-text">Current setting: <strong><?= htmlspecialchars($academic_year_setting['academic_year_label'] ?? 'Not set') ?></strong> (<?= htmlspecialchars($academic_year_setting['start_date'] ?? '—') ?> to <?= htmlspecialchars($academic_year_setting['end_date'] ?? '—') ?>)</div>
     </div>
 
+    <?php
+    // One-off schema scripts living in the application root. Each one gates itself
+    // on the admin role, so this panel is only a launcher — it grants no access
+    // that visiting the script directly would not. The list empties itself as
+    // scripts are deleted after being applied.
+    $migrationScripts = glob(dirname(__DIR__) . '/migrate_*.php') ?: [];
+    sort($migrationScripts);
+    ?>
+    <div class="registration-stats-section">
+        <h3><i class="fas fa-database" style="color:#8e44ad;"></i> Database Migrations</h3>
+        <p style="margin:0 0 14px 0; color:#666;">
+            One-off schema scripts awaiting a run. Each is safe to run more than once and
+            reports what it changed. Delete a script from the repository once it has been applied.
+        </p>
+
+        <?php if (empty($migrationScripts)): ?>
+            <div class="empty-state">No migration scripts are pending.</div>
+        <?php else: ?>
+            <div style="display:grid; gap:10px;">
+                <?php foreach ($migrationScripts as $path):
+                    $scriptName = basename($path);
+                    $outputId = 'migration-output-' . md5($scriptName);
+                    ?>
+                    <div style="border:1px solid #e1e4e8; border-radius:8px; padding:12px;">
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                            <code style="flex:1; min-width:240px; word-break:break-all;"><?= htmlspecialchars($scriptName) ?></code>
+                            <span style="color:#888; font-size:0.85rem;">added <?= date('Y-m-d H:i', filemtime($path)) ?></span>
+                            <button type="button" class="btn btn-success"
+                                    onclick="runMigration('<?= htmlspecialchars($scriptName, ENT_QUOTES) ?>', '<?= $outputId ?>', this)">
+                                <i class="fas fa-play"></i> Run
+                            </button>
+                        </div>
+                        <pre id="<?= $outputId ?>" style="display:none; margin:10px 0 0 0; padding:10px; background:#1e1e1e; color:#e6e6e6; border-radius:6px; overflow:auto; max-height:320px; white-space:pre-wrap; font-size:0.82rem;"></pre>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+
     <div class="registration-stats-section">
         <h3>Student Registration by Course / Year</h3>
         <div class="registration-controls">
@@ -1150,6 +1189,37 @@ function escapeHtml(str) {
 function escapeJs(str) {
     if (str == null) return '';
     return String(str).replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n').replace(/\r/g,'');
+}
+
+/* ─────────────────────────────────────────
+   Database migrations
+───────────────────────────────────────── */
+async function runMigration(scriptName, outputId, button) {
+    if (!confirm('Run ' + scriptName + '?\n\nThis alters the database schema.')) return;
+
+    const output = document.getElementById(outputId);
+    const originalLabel = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running';
+    output.style.display = 'block';
+    output.textContent = 'Running ' + scriptName + ' ...';
+
+    try {
+        // The script reports plain text and gates itself on the admin session, so the
+        // cookie has to travel with the request.
+        const res = await fetch('../' + scriptName, {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'text/plain' },
+            cache: 'no-store'
+        });
+        const body = (await res.text()).trim();
+        output.textContent = res.ok ? (body || '(no output)') : ('HTTP ' + res.status + '\n\n' + body);
+    } catch (err) {
+        output.textContent = 'Request failed: ' + err.message;
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalLabel;
+    }
 }
 
 /* ─────────────────────────────────────────
