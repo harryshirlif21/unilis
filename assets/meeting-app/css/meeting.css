@@ -238,6 +238,9 @@ html, body {
 .tile-badge.host { background: #fbbc04; color: #202124; }
 .tile-badge.lecturer { background: var(--primary); color: #fff; }
 .tile-badge.student { background: #5f6368; color: #fff; }
+/* A guest joined through a public link and is not an enrolled student, so the
+   badge is a different colour rather than the same grey. */
+.tile-badge.guest { background: #7c3aed; color: #fff; }
 .tile-badge.speaking { background: #34a853; animation: pulse 1.5s infinite; }
 .tile-badge.hand-raised { background: #fa7b17; }
 .tile-badge.muted { background: #d93025; }

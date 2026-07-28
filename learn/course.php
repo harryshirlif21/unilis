@@ -208,6 +208,17 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
             </p>
         <?php endif; ?>
 
+        <?php // The lesson editor lets an author attach a PDF, so it has to be
+              // reachable from here - otherwise the upload goes nowhere a learner
+              // can see it. ?>
+        <?php if (!empty($openLesson['attachment_path'])): ?>
+            <p class="ln-sub">
+                <a href="<?= learn_e($openLesson['attachment_path']) ?>" target="_blank" rel="noopener">
+                    Download the notes for this lesson (PDF)
+                </a>
+            </p>
+        <?php endif; ?>
+
         <?php // Lesson bodies are lecturer-authored rich text from the editor, so
               // they are rendered as markup here by design. ?>
         <div class="ln-lesson-body"><?= $openLesson['content_html'] ?? '' ?></div>

@@ -14,6 +14,21 @@
   // ============================================================
   UNILIS_MEETING.config = config;
 
+  /**
+   * How a role is written out, and its one-letter tile badge.
+   *
+   * 'guest' is a real role here: someone who joined through a public guest link
+   * and has no UNILIS account. Showing them as "Student" would tell the host the
+   * opposite of what is true.
+   */
+  function roleLabel(role) {
+    return role === 'lecturer' ? 'Lecturer' : role === 'guest' ? 'Guest' : 'Student';
+  }
+
+  function roleInitial(role) {
+    return role === 'lecturer' ? 'L' : role === 'guest' ? 'G' : 'S';
+  }
+
   // ============================================================
   // Initialize Modules
   // ============================================================
@@ -55,7 +70,7 @@
               <p>Ready to join the meeting</p>
               <div class="lobby-info">
                 <div class="info-row"><span class="label">Name</span><span class="value">${escapeHtml(displayName)}</span></div>
-                <div class="info-row"><span class="label">Role</span><span class="value">${isHost ? 'Lecturer' : 'Student'}</span></div>
+                <div class="info-row"><span class="label">Role</span><span class="value">${roleLabel(config.role)}</span></div>
                 <div class="info-row"><span class="label">Unit</span><span class="value">${escapeHtml(config.unit_name || '-')}</span></div>
                 ${config.lecturer_name ? `<div class="info-row"><span class="label">Lecturer</span><span class="value">${escapeHtml(config.lecturer_name)}</span></div>` : ''}
               </div>
@@ -280,7 +295,7 @@
       <div class="tile-overlay">
         <span class="tile-name">${escapeHtml(config.display_name)} (You)</span>
         <div class="tile-badges">
-          <span class="tile-badge ${config.role}">${config.role === 'lecturer' ? 'L' : 'S'}</span>
+          <span class="tile-badge ${config.role}">${roleInitial(config.role)}</span>
         </div>
       </div>
     `;
@@ -342,7 +357,7 @@
       <div class="tile-overlay">
         <span class="tile-name">${escapeHtml(displayName)}</span>
         <div class="tile-badges">
-          <span class="tile-badge ${roleClass}">${roleClass === 'lecturer' ? 'L' : 'S'}</span>
+          <span class="tile-badge ${roleClass}">${roleInitial(roleClass)}</span>
         </div>
       </div>
     `;

@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once '../config/db.php';
+require_once __DIR__ . '/../config/meeting.php';
+require_once __DIR__ . '/../config/meeting_guests.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
@@ -34,6 +36,9 @@ $meetingQuery = $conn->prepare("
 $meetingQuery->bind_param("i", $lecturer_id);
 $meetingQuery->execute();
 $meetingResult = $meetingQuery->get_result();
+
+// The Guests button only makes sense once migrate_meeting_guests.php has run.
+$guestsReady = meeting_guests_ready($conn);
 ?>
 <!DOCTYPE html>
 <html>
@@ -124,6 +129,10 @@ if (isset($_SESSION['meeting_error'])) {
         <td><?= date('d M Y, h:i A', strtotime($meeting['scheduled_time'])) ?></td>
         <td>
             <a class="btn" href="meeting_host.php?meeting_id=<?= $meeting['id'] ?>">🔗 Join Meeting</a>
+            <?php if ($guestsReady): ?>
+                <a class="btn" href="meeting_access.php?meeting_id=<?= $meeting['id'] ?>"
+                   title="Let people without a UNILIS account join">👥 Guests</a>
+            <?php endif; ?>
             <a class="btn" href="../actions.php?action=download_register&type=single&meeting_id=<?= $meeting['id'] ?>">📝 Single Register</a>
             <a class="btn" href="../actions.php?action=download_register&type=full&unit_id=<?= $meeting['unit_id'] ?>">📊 Full Register</a>
             <a class="btn" href="#">🎥 Record</a> <!-- future feature -->

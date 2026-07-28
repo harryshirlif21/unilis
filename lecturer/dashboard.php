@@ -5,6 +5,7 @@ session_start();
 require_once '../config/db.php';
 require_once '../includes/notifications.php';
 require_once __DIR__ . '/../config/meeting.php';
+require_once __DIR__ . '/../config/meeting_guests.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
@@ -596,6 +597,11 @@ $stmt->close();
             <i class="fas fa-chalkboard"></i><span>Live Engagement</span>
         </a>
     </li>
+    <li class="green">
+        <a href="catalogue.php" style="color:inherit;text-decoration:none;">
+            <i class="fas fa-globe"></i><span>Open Courses</span>
+        </a>
+    </li>
     <!-- NEW: Notes Sent sidebar item -->
     <li class="notes-sent-btn" id="sidebarNotesSent">
         <i class="fas fa-paper-plane" style="color:#6366f1;"></i><span>Notes Sent</span>
@@ -872,10 +878,16 @@ $stmt->close();
                             <?php
                             try {
                                 $now = date('Y-m-d H:i:s');
+                                // guest_access only exists once migrate_meeting_guests.php has run,
+                                // and mysqli is in strict mode here, so selecting it unconditionally
+                                // would turn a pending migration into a 500 on the whole tab.
+                                $guestsReady = meeting_guests_ready($conn);
+                                $guestSelect = $guestsReady ? ', m.guest_access' : '';
                                 $stmt = $conn->prepare("
-                                    SELECT m.id, m.title, m.scheduled_time, m.duration, u.id AS unit_id, u.name AS unit_name 
-                                    FROM meetings m 
-                                    JOIN units u ON m.unit_id = u.id 
+                                    SELECT m.id, m.title, m.scheduled_time, m.duration, m.lecturer_id,
+                                           u.id AS unit_id, u.name AS unit_name{$guestSelect}
+                                    FROM meetings m
+                                    JOIN units u ON m.unit_id = u.id
                                     JOIN lecturer_units lu ON u.id = lu.unit_id
                                     WHERE lu.lecturer_id = ? AND DATE_ADD(m.scheduled_time, INTERVAL m.duration MINUTE) >= ?
                                     ORDER BY u.name ASC, m.scheduled_time ASC
@@ -943,6 +955,22 @@ $stmt->close();
                                         // Always-visible Join button
                                         $joinBtnStyle = "display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1.5px solid #6366f1;border-radius:8px;font-size:12px;font-weight:600;color:#6366f1;background:#fff;text-decoration:none;transition:all 0.2s;";
                                         echo "<a href='" . htmlspecialchars($hostJoinUrl, ENT_QUOTES) . "' style='{$joinBtnStyle}' onmouseover=\"this.style.background='#eef2ff'\" onmouseout=\"this.style.background='#fff'\"><i class='fas fa-sign-in-alt' style='font-size:11px;'></i> Join</a>";
+
+                                        // Guest access is managed by the lecturer who owns the meeting.
+                                        // This table also lists meetings owned by a co-lecturer of the
+                                        // same unit, and meeting_access.php would turn those away.
+                                        if ($guestsReady && (int)$meeting['lecturer_id'] === (int)$lecturer_id) {
+                                            $guestsOn = (int)($meeting['guest_access'] ?? 0) === 1;
+                                            $guestBtnStyle = "display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1.5px solid "
+                                                . ($guestsOn ? "#16a34a" : "#d1d5db")
+                                                . ";border-radius:8px;font-size:12px;font-weight:600;color:"
+                                                . ($guestsOn ? "#16a34a" : "#6b7280")
+                                                . ";background:#fff;text-decoration:none;";
+                                            echo "<a href='meeting_access.php?meeting_id={$meetingId}' style='{$guestBtnStyle}' title='Let people without a UNILIS account join'>";
+                                            echo "<i class='fas fa-user-group' style='font-size:11px;'></i> Guests";
+                                            echo $guestsOn ? " <span style='font-size:10px;'>ON</span>" : "";
+                                            echo "</a>";
+                                        }
                                         echo "</div>";
                                         echo "</td>";
                                         echo "</tr>";

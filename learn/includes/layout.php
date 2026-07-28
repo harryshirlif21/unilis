@@ -82,6 +82,7 @@ function learn_head(array $options = []): void
         <a href="/learn/">Courses</a>
         <a href="/learn/verify_certificate.php">Verify a certificate</a>
         <?php if ($learner !== null): ?>
+            <a href="/learn/live.php">Live sessions</a>
             <a href="/learn/dashboard.php">My learning</a>
             <span class="ln-who" title="<?= learn_e($learner['email']) ?>"><?= learn_e($learner['name']) ?></span>
             <a class="ln-btn ln-btn-ghost" href="/learn/logout.php">Sign out</a>

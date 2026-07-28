@@ -14,8 +14,18 @@ UNILIS_MEETING.ParticipantPanel = {
     return colors[userId % colors.length];
   },
 
+  /**
+   * A guest is labelled as one rather than folded into "Student".
+   *
+   * A room can hold enrolled students and outside guests at the same time, and
+   * the host moderates the two differently — so calling a guest a student is not
+   * a cosmetic slip, it hides the distinction the host is acting on.
+   */
   _roleLabel(role) {
-    return role === 'lecturer' ? 'Lecturer' : role === 'host' ? 'Host' : 'Student';
+    if (role === 'lecturer') { return 'Lecturer'; }
+    if (role === 'host') { return 'Host'; }
+    if (role === 'guest') { return 'Guest'; }
+    return 'Student';
   },
 
   render(participants, isHost) {

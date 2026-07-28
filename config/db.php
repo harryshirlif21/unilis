@@ -45,6 +45,19 @@ if ($dbname === false || $dbname === '') {
     $dbname = 'unilis';
 }
 
+// Put PHP in the same timezone the database session is set to below (+03:00).
+//
+// Without this the two disagree: MySQL writes and reads NOW() in +03:00, while
+// PHP defaults to UTC on the container, so every
+// strtotime($row['scheduled_time']) comparison is three hours out. That is what
+// decides whether a meeting shows as live, whether the Start Meeting button
+// appears, and whether a verification token has expired - all of which were
+// silently wrong by three hours.
+//
+// Named zone rather than a fixed offset so daylight saving, if the deployment
+// ever moves somewhere that has it, is handled rather than ignored.
+date_default_timezone_set('Africa/Nairobi');
+
 // Connection retry loop with improved error handling
 $conn = null;
 for ($i = 0; $i < $maxRetries; $i++) {
