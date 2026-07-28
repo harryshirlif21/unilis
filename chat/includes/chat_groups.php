@@ -51,10 +51,16 @@ function chat_upsert_conversation(mysqli $conn, string $groupKey, string $type, 
 }
 
 /**
- * Add members to a conversation, ignoring any who are already in it.
+ * Add members to a conversation, refreshing can_post for anyone already in it.
  *
  * $members is a list of ['id' => int, 'role' => 'student'|'lecturer',
  * 'can_post' => bool].
+ *
+ * can_post is deliberately updated rather than left alone. This used to be an
+ * INSERT IGNORE, which meant a change to the posting rules only reached people
+ * who had not joined the conversation yet - when instruction channels became
+ * two-way, every student already in one would have stayed silenced with no
+ * explanation. Membership is derived state, so the sync owns it.
  */
 function chat_add_participants(mysqli $conn, int $conversationId, array $members): int
 {
@@ -63,9 +69,10 @@ function chat_add_participants(mysqli $conn, int $conversationId, array $members
     }
 
     $stmt = $conn->prepare("
-        INSERT IGNORE INTO chat_participants
+        INSERT INTO chat_participants
             (conversation_id, user_id, user_role, can_post)
         VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE can_post = VALUES(can_post)
     ");
 
     $added = 0;
@@ -78,7 +85,9 @@ function chat_add_participants(mysqli $conn, int $conversationId, array $members
         }
         $stmt->bind_param('iisi', $conversationId, $id, $role, $canPost);
         $stmt->execute();
-        $added += $stmt->affected_rows > 0 ? 1 : 0;
+        // affected_rows is 1 for a fresh insert and 2 for an update, so only
+        // count the inserts as new members.
+        $added += $stmt->affected_rows === 1 ? 1 : 0;
     }
     $stmt->close();
 
@@ -200,8 +209,11 @@ function chat_expected_members(mysqli $conn, array $conversation): array
                 $stmt->bind_param('i', $conversation['unit_id']);
                 $stmt->execute();
                 foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-                    // Read-only: an instruction channel is not a discussion.
-                    $members[] = ['id' => (int)$row['id'], 'role' => 'student', 'can_post' => false];
+                    // Students may reply. This channel started out read-only,
+                    // which left them reading instructions with no way to ask a
+                    // question about them - so it is a conversation now, and the
+                    // lecturer's posts are still marked as instructions.
+                    $members[] = ['id' => (int)$row['id'], 'role' => 'student', 'can_post' => true];
                 }
                 $stmt->close();
             }

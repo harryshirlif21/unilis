@@ -70,6 +70,19 @@ function chat_schema_ready(mysqli $conn): bool
 }
 
 /**
+ * Whether chat_messages has the attachment columns.
+ *
+ * File sharing shipped after the base tables, so an install that ran
+ * migrate_chat_system.php before that will have the tables but not the columns.
+ * Text chat has to keep working in that state rather than failing on a SELECT
+ * that names a column which is not there.
+ */
+function chat_schema_supports_attachments(mysqli $conn): bool
+{
+    return chat_column_exists($conn, 'chat_messages', 'attachment_path');
+}
+
+/**
  * Name of the table mapping students to units, or null when neither exists.
  *
  * student_unit_enrollments is the current one - student/my_units.php writes to

@@ -1,0 +1,20 @@
+# Chat attachments are private to their conversation.
+#
+# Everything here is served by chat/api/file.php, which checks that the caller
+# is a member of the conversation the file belongs to. Direct HTTP access would
+# bypass that check entirely, so it is denied outright - defence in depth behind
+# the randomised filenames, which already make a path impractical to guess.
+#
+# PHP includes are unaffected: require and readfile go to disk, not through
+# Apache.
+
+Require all denied
+
+# Belt and braces if a future Apache config drops the rule above: never hand a
+# file here to the PHP interpreter.
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phar
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .phar

@@ -14,6 +14,12 @@
  */
 function chat_list_conversations(mysqli $conn, array $user): array
 {
+    // A file sent with no caption has an empty body, which would leave the
+    // preview blank. Fall back to the filename in that case.
+    $previewExpr = chat_schema_supports_attachments($conn)
+        ? "COALESCE(NULLIF(m2.body, ''), CONCAT('[file] ', m2.attachment_name))"
+        : "m2.body";
+
     $stmt = $conn->prepare("
         SELECT
             c.id, c.type, c.title, c.team_id, c.course_id, c.unit_id,
@@ -27,7 +33,7 @@ function chat_list_conversations(mysqli $conn, array $user): array
                   AND NOT (m.sender_id = ? AND m.sender_role = ?)
             ) AS unread_count,
             (
-                SELECT m2.body FROM chat_messages m2
+                SELECT $previewExpr FROM chat_messages m2
                 WHERE m2.conversation_id = c.id AND m2.deleted_at IS NULL
                 ORDER BY m2.id DESC LIMIT 1
             ) AS last_body
@@ -145,10 +151,17 @@ function chat_direct_counterparts(mysqli $conn, array $conversationIds, array $u
  */
 function chat_fetch_messages(mysqli $conn, int $conversationId, int $sinceId = 0, int $limit = CHAT_PAGE_SIZE): array
 {
+    // Named explicitly so an install that has not run the attachments migration
+    // does not fail on columns that are not there yet.
+    $attachmentCols = chat_schema_supports_attachments($conn)
+        ? 'm.attachment_path, m.attachment_name, m.attachment_size, m.attachment_mime,'
+        : 'NULL AS attachment_path, NULL AS attachment_name, NULL AS attachment_size, NULL AS attachment_mime,';
+
     if ($sinceId > 0) {
         $stmt = $conn->prepare("
             SELECT
                 m.id, m.sender_id, m.sender_role, m.body, m.is_instruction, m.created_at,
+                $attachmentCols
                 COALESCE(s.name, l.name) AS sender_name
             FROM chat_messages m
             LEFT JOIN students s ON m.sender_role = 'student' AND s.id = m.sender_id
@@ -164,6 +177,7 @@ function chat_fetch_messages(mysqli $conn, int $conversationId, int $sinceId = 0
         $stmt = $conn->prepare("
             SELECT
                 m.id, m.sender_id, m.sender_role, m.body, m.is_instruction, m.created_at,
+                $attachmentCols
                 COALESCE(s.name, l.name) AS sender_name
             FROM chat_messages m
             LEFT JOIN students s ON m.sender_role = 'student' AND s.id = m.sender_id
@@ -183,15 +197,35 @@ function chat_fetch_messages(mysqli $conn, int $conversationId, int $sinceId = 0
         $rows = array_reverse($rows);
     }
 
-    return array_map(static fn($row) => [
-        'id' => (int)$row['id'],
-        'sender_id' => (int)$row['sender_id'],
-        'sender_role' => $row['sender_role'],
-        'sender_name' => (string)($row['sender_name'] ?? 'Unknown user'),
-        'body' => (string)$row['body'],
-        'is_instruction' => (bool)$row['is_instruction'],
-        'created_at' => $row['created_at'],
-    ], $rows);
+    return array_map(static function ($row) {
+        $message = [
+            'id' => (int)$row['id'],
+            'sender_id' => (int)$row['sender_id'],
+            'sender_role' => $row['sender_role'],
+            'sender_name' => (string)($row['sender_name'] ?? 'Unknown user'),
+            'body' => (string)$row['body'],
+            'is_instruction' => (bool)$row['is_instruction'],
+            'created_at' => $row['created_at'],
+            'attachment' => null,
+        ];
+
+        // The stored path is never exposed. The client is given a message id and
+        // fetches the bytes through chat/api/file.php, which re-checks
+        // membership - so a link cannot be forwarded out of the conversation.
+        if (!empty($row['attachment_path'])) {
+            $size = (int)$row['attachment_size'];
+            $message['attachment'] = [
+                'name' => (string)$row['attachment_name'],
+                'size' => $size,
+                'size_label' => chat_format_bytes($size),
+                'mime' => (string)$row['attachment_mime'],
+                'is_image' => str_starts_with((string)$row['attachment_mime'], 'image/'),
+                'url' => 'file.php?message_id=' . (int)$row['id'],
+            ];
+        }
+
+        return $message;
+    }, $rows);
 }
 
 /**
@@ -205,15 +239,38 @@ function chat_send_message(
     int $conversationId,
     array $user,
     string $body,
-    bool $isInstruction = false
+    bool $isInstruction = false,
+    ?array $attachment = null
 ): int {
     $flag = $isInstruction ? 1 : 0;
 
-    $stmt = $conn->prepare("
-        INSERT INTO chat_messages (conversation_id, sender_id, sender_role, body, is_instruction)
-        VALUES (?, ?, ?, ?, ?)
-    ");
-    $stmt->bind_param('iissi', $conversationId, $user['id'], $user['role'], $body, $flag);
+    if ($attachment !== null && chat_schema_supports_attachments($conn)) {
+        $stmt = $conn->prepare("
+            INSERT INTO chat_messages
+                (conversation_id, sender_id, sender_role, body, is_instruction,
+                 attachment_path, attachment_name, attachment_size, attachment_mime)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->bind_param(
+            'iississis',
+            $conversationId,
+            $user['id'],
+            $user['role'],
+            $body,
+            $flag,
+            $attachment['path'],
+            $attachment['name'],
+            $attachment['size'],
+            $attachment['mime']
+        );
+    } else {
+        $stmt = $conn->prepare("
+            INSERT INTO chat_messages (conversation_id, sender_id, sender_role, body, is_instruction)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->bind_param('iissi', $conversationId, $user['id'], $user['role'], $body, $flag);
+    }
+
     $stmt->execute();
     $messageId = (int)$conn->insert_id;
     $stmt->close();

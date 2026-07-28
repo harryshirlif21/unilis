@@ -123,12 +123,22 @@ function chat_asset(string $relativePath): string
 
                 <div class="chat-messages" id="messageList"></div>
 
-                <div class="chat-readonly" id="readOnlyNotice" hidden>
-                    <i class="fas fa-lock"></i>
-                    This is an instructions channel. Only lecturers can post here.
+                <div class="chat-attach-preview" id="attachPreview" hidden>
+                    <i class="fas fa-paperclip"></i>
+                    <span id="attachName"></span>
+                    <span class="chat-attach-size" id="attachSize"></span>
+                    <button type="button" class="chat-icon-btn" id="attachClear" title="Remove file">
+                        <i class="fas fa-xmark"></i>
+                    </button>
                 </div>
 
                 <form class="chat-composer" id="composer">
+                    <input type="file" id="fileInput" hidden
+                           accept="<?= htmlspecialchars('.' . implode(',.', CHAT_ALLOWED_EXTENSIONS), ENT_QUOTES) ?>">
+                    <button type="button" class="chat-icon-btn chat-attach-btn" id="attachBtn"
+                            title="Attach a file (max <?= htmlspecialchars(chat_format_bytes(CHAT_MAX_UPLOAD_BYTES)) ?>)">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
                     <textarea id="composerInput" rows="1" placeholder="Write a message…"
                               maxlength="<?= (int)CHAT_MAX_BODY_LENGTH ?>"></textarea>
                     <button type="submit" class="chat-btn chat-btn-primary" id="sendBtn">
@@ -206,7 +216,8 @@ function chat_asset(string $relativePath): string
             isLecturer: <?= $isLecturer ? 'true' : 'false' ?>,
             initialConversation: <?= (int)$initialConversation ?>,
             apiBase: '../api/',
-            maxLength: <?= (int)CHAT_MAX_BODY_LENGTH ?>
+            maxLength: <?= (int)CHAT_MAX_BODY_LENGTH ?>,
+            maxUploadBytes: <?= (int)CHAT_MAX_UPLOAD_BYTES ?>
         };
     </script>
     <script src="<?= chat_asset('assets/chat.js') ?>"></script>

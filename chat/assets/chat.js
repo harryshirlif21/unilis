@@ -44,7 +44,12 @@
         composer: document.getElementById('composer'),
         input: document.getElementById('composerInput'),
         sendBtn: document.getElementById('sendBtn'),
-        readOnly: document.getElementById('readOnlyNotice'),
+        fileInput: document.getElementById('fileInput'),
+        attachBtn: document.getElementById('attachBtn'),
+        attachPreview: document.getElementById('attachPreview'),
+        attachName: document.getElementById('attachName'),
+        attachSize: document.getElementById('attachSize'),
+        attachClear: document.getElementById('attachClear'),
         refreshBtn: document.getElementById('refreshBtn'),
         backBtn: document.getElementById('backToList'),
         newChatBtn: document.getElementById('newChatBtn'),
@@ -304,7 +309,14 @@
 
         // textContent, not innerHTML: a body containing markup must render as
         // the characters the sender typed.
-        bubble.appendChild(document.createTextNode(message.body));
+        if (message.body) {
+            bubble.appendChild(document.createTextNode(message.body));
+        }
+
+        if (message.attachment) {
+            bubble.appendChild(renderAttachment(message));
+        }
+
         wrapper.appendChild(bubble);
 
         el.messages.appendChild(wrapper);
@@ -312,6 +324,57 @@
         if (message.id > state.lastMessageId) {
             state.lastMessageId = message.id;
         }
+    }
+
+    /**
+     * Attachment block for a message bubble.
+     *
+     * The href goes through the API rather than at the file, so the download is
+     * authorised per request and the stored path never reaches the client.
+     */
+    function renderAttachment(message) {
+        var att = message.attachment;
+        var wrap = document.createElement('div');
+        wrap.className = 'chat-attachment' + (message.body ? ' has-caption' : '');
+
+        var href = CFG.apiBase + att.url;
+
+        if (att.is_image) {
+            var link = document.createElement('a');
+            link.href = href;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            var img = document.createElement('img');
+            img.src = href;
+            img.alt = att.name;
+            img.className = 'chat-attachment-image';
+            img.loading = 'lazy';
+            link.appendChild(img);
+            wrap.appendChild(link);
+        }
+
+        var row = document.createElement('a');
+        row.className = 'chat-attachment-file';
+        row.href = href;
+        // download makes the browser save it rather than navigate, and keeps the
+        // original filename even though the stored name is random.
+        row.setAttribute('download', att.name);
+
+        var icon = document.createElement('i');
+        icon.className = 'fas fa-paperclip';
+        var name = document.createElement('span');
+        name.className = 'chat-attachment-name';
+        name.textContent = att.name;
+        var size = document.createElement('span');
+        size.className = 'chat-attachment-size';
+        size.textContent = att.size_label;
+
+        row.appendChild(icon);
+        row.appendChild(name);
+        row.appendChild(size);
+        wrap.appendChild(row);
+
+        return wrap;
     }
 
     function isScrolledToBottom() {
@@ -362,9 +425,11 @@
             // paint into the thread they are now looking at.
             if (data.conversation_id !== state.activeId) { return; }
 
+            // Every conversation is two-way now, including unit instruction
+            // channels, so can_post is only a server-side backstop. The
+            // composer stays put rather than being swapped for a notice.
             state.canPost = data.can_post;
-            el.composer.hidden = !data.can_post;
-            el.readOnly.hidden = data.can_post;
+            el.composer.hidden = false;
 
             if (!data.messages.length) { return; }
 
@@ -380,14 +445,22 @@
 
     function sendMessage() {
         var body = el.input.value.trim();
-        if (!body || state.sending || !state.activeId) { return; }
+        var file = el.fileInput.files[0] || null;
+
+        // A file on its own is a valid message; text on its own is too.
+        if ((!body && !file) || state.sending || !state.activeId) { return; }
 
         state.sending = true;
         el.sendBtn.disabled = true;
 
-        api('send.php', { body: { conversation_id: state.activeId, body: body } })
+        var request = file
+            ? uploadFile(file, body)
+            : api('send.php', { body: { conversation_id: state.activeId, body: body } });
+
+        request
             .then(function () {
                 el.input.value = '';
+                clearAttachment();
                 autoGrow();
                 // Let the poll deliver it, so the message is rendered from the
                 // same source as everyone else's and cannot appear twice.
@@ -399,6 +472,45 @@
                 el.sendBtn.disabled = false;
                 el.input.focus();
             });
+    }
+
+    /**
+     * Files go up as multipart rather than JSON, so this cannot reuse api().
+     */
+    function uploadFile(file, caption) {
+        var form = new FormData();
+        form.append('conversation_id', state.activeId);
+        form.append('body', caption || '');
+        form.append('csrf_token', CFG.csrfToken);
+        form.append('file', file);
+
+        return fetch(CFG.apiBase + 'upload.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            // No Content-Type header: the browser has to set the multipart
+            // boundary itself, and naming the type here would omit it.
+            body: form,
+        }).then(function (response) {
+            return response.json().catch(function () {
+                throw new Error('The server returned an unreadable response.');
+            }).then(function (data) {
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Upload failed (' + response.status + ')');
+                }
+                return data;
+            });
+        });
+    }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) { return bytes + ' B'; }
+        if (bytes < 1024 * 1024) { return (bytes / 1024).toFixed(1) + ' KB'; }
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function clearAttachment() {
+        el.fileInput.value = '';
+        el.attachPreview.hidden = true;
     }
 
     function autoGrow() {
@@ -616,6 +728,27 @@
     el.composer.addEventListener('submit', function (event) {
         event.preventDefault();
         sendMessage();
+    });
+
+    el.attachBtn.addEventListener('click', function () { el.fileInput.click(); });
+    el.attachClear.addEventListener('click', clearAttachment);
+
+    el.fileInput.addEventListener('change', function () {
+        var file = el.fileInput.files[0];
+        if (!file) { clearAttachment(); return; }
+
+        // Checked again on the server; this only spares the user a pointless
+        // upload of something that would be rejected on arrival.
+        if (file.size > CFG.maxUploadBytes) {
+            toast('That file is larger than the ' + formatBytes(CFG.maxUploadBytes) + ' limit.', 'error');
+            clearAttachment();
+            return;
+        }
+
+        el.attachName.textContent = file.name;
+        el.attachSize.textContent = formatBytes(file.size);
+        el.attachPreview.hidden = false;
+        el.input.focus();
     });
 
     el.input.addEventListener('input', autoGrow);

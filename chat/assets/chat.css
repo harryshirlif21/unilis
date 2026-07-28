@@ -378,16 +378,6 @@ body {
     color: var(--chat-accent);
 }
 
-.chat-readonly {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 14px 20px;
-    background: var(--chat-surface);
-    border-top: 1px solid var(--chat-border);
-    color: var(--chat-muted);
-    font-size: 0.85rem;
-}
 
 .chat-composer {
     display: flex;
@@ -549,3 +539,68 @@ body {
 
     .chat-message { max-width: 86%; }
 }
+
+/* ── Attachments ──────────────────────────────────────────────────────── */
+
+.chat-attach-btn { flex-shrink: 0; height: 40px; width: 38px; }
+
+.chat-attach-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 20px;
+    padding: 8px 12px;
+    border: 1px solid var(--chat-border);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    background: var(--chat-primary-soft);
+    font-size: 0.82rem;
+}
+.chat-attach-preview[hidden] { display: none; }
+.chat-attach-preview i { color: var(--chat-primary-dark); }
+.chat-attach-preview > span:first-of-type {
+    flex: 1;
+    min-width: 0;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.chat-attach-size { color: var(--chat-muted); font-size: 0.76rem; white-space: nowrap; }
+
+.chat-attachment { display: flex; flex-direction: column; gap: 6px; }
+/* Space it off the caption only when there is one to sit under. */
+.chat-attachment.has-caption { margin-top: 8px; }
+
+.chat-attachment-image {
+    max-width: 100%;
+    max-height: 320px;
+    border-radius: 9px;
+    display: block;
+}
+
+.chat-attachment-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 9px;
+    background: rgba(0, 0, 0, .05);
+    color: inherit;
+    text-decoration: none;
+    font-size: 0.82rem;
+}
+.chat-attachment-file:hover { background: rgba(0, 0, 0, .1); }
+/* On the sender's own blue bubble the neutral tint would disappear. */
+.chat-message.is-mine .chat-attachment-file { background: rgba(255, 255, 255, .18); }
+.chat-message.is-mine .chat-attachment-file:hover { background: rgba(255, 255, 255, .28); }
+
+.chat-attachment-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+.chat-attachment-size { opacity: .75; font-size: 0.76rem; white-space: nowrap; }

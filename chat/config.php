@@ -54,6 +54,7 @@ define('CHAT_PAGE_SIZE', 50);
 define('CHAT_MEMBER_SYNC_TTL_SECONDS', 300);
 
 require_once __DIR__ . '/includes/schema.php';
+require_once __DIR__ . '/includes/chat_files.php';
 require_once __DIR__ . '/includes/chat_access.php';
 require_once __DIR__ . '/includes/chat_groups.php';
 require_once __DIR__ . '/includes/chat_repository.php';
