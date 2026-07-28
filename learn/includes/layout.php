@@ -27,6 +27,33 @@ function learn_e(?string $value): string
 }
 
 /**
+ * Stop with a setup notice unless the migration has been run.
+ *
+ * Every page that reads external_learners or the catalogue has to call this
+ * first. config/db.php puts mysqli into MYSQLI_REPORT_STRICT, so querying a
+ * table that does not exist throws rather than returning empty - which surfaced
+ * as a bare 500 on /learn/course.php before the migration had been applied.
+ * A missing migration is an install state, not a crash, and should say so.
+ */
+function learn_require_schema(mysqli $conn): void
+{
+    if (learn_schema_ready($conn)) {
+        return;
+    }
+
+    learn_head(['title' => 'Setup required', 'narrow' => true]);
+    echo '<div class="ln-card">'
+       . '<h1>Not set up yet</h1>'
+       . '<p class="ln-sub">The open learning catalogue has not been created in this database. '
+       . 'An administrator needs to run <code>migrate_external_learners.php</code> once — from the '
+       . 'Database Migrations panel on the admin dashboard.</p>'
+       . '<a class="ln-btn ln-btn-ghost ln-btn-block" href="/">Back to UNILIS</a>'
+       . '</div>';
+    learn_foot();
+    exit;
+}
+
+/**
  * Open the page. $options: title, learner (array|null), narrow (bool).
  */
 function learn_head(array $options = []): void

@@ -10,6 +10,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/catalogue.php';
 require_once __DIR__ . '/includes/layout.php';
 
+learn_require_schema($conn);
+
 $learner = learn_require_login($conn);
 $courses = learn_my_courses($conn, $learner['id']);
 

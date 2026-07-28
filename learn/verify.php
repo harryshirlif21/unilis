@@ -12,6 +12,8 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/layout.php';
 
+learn_require_schema($conn);
+
 $token = (string)($_GET['token'] ?? '');
 $pending = !empty($_GET['pending']);
 

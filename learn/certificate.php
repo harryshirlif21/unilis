@@ -14,6 +14,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/catalogue.php';
 require_once __DIR__ . '/includes/layout.php';
 
+learn_require_schema($conn);
+
 $code = trim((string)($_GET['code'] ?? ''));
 $certificate = $code !== '' ? learn_certificate_by_code($conn, $code) : null;
 

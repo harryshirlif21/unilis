@@ -14,6 +14,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/catalogue.php';
 require_once __DIR__ . '/includes/layout.php';
 
+learn_require_schema($conn);
+
 $learner = learn_current($conn);
 $slug = (string)($_GET['c'] ?? '');
 $course = $slug !== '' ? learn_course_by_slug($conn, $slug) : null;
