@@ -2032,13 +2032,21 @@ function confirmBulkDeleteTestData() {
     }
 
     // 3. API endpoint tests
+    //
+    // These are probed with no action parameter, so the healthy answer is a
+    // JSON validation error - "you did not say what you wanted" - not a 200.
+    // Grading on status alone painted every endpoint red while they were all
+    // working correctly, so what is graded here is the shape of the reply:
+    // JSON means the endpoint ran and validated its input; HTML means something
+    // else answered (an auth redirect, or a PHP error page); 5xx means broken.
     leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">3. API Endpoints</h3>');
     var endpoints = [
-      { name: 'session.php',    url: '/api/session.php' },
-      { name: 'poll.php',       url: '/api/poll.php' },
-      { name: 'quiz.php',       url: '/api/quiz.php' },
-      { name: 'activity.php',   url: '/api/activity.php' },
-      { name: 'guest_auth.php', url: '/api/guest_auth.php' },
+      { name: 'session.php',      url: '/api/session.php' },
+      { name: 'poll.php',         url: '/api/poll.php' },
+      { name: 'quiz.php',         url: '/api/quiz.php' },
+      { name: 'activity.php',     url: '/api/activity.php' },
+      { name: 'presentation.php', url: '/api/presentation.php' },
+      { name: 'guest_auth.php',   url: '/api/guest_auth.php' },
     ];
     // Rows are collected and written in one go: the previous version logged the
     // opening <table> tag on its own, and assigning a half-finished table to
@@ -2051,13 +2059,25 @@ function confirmBulkDeleteTestData() {
         var r2 = await fetch(baseUrl + ep.url + '?_=' + Date.now(), { method: 'GET', mode: 'cors' });
         var txt2 = await r2.text();
         var sta = r2.status;
-        if (sta < 300) {
-          rows += '<tr><td>' + ep.name + '</td><td class="ok">' + sta + ' OK</td><td><pre style="font-size:11px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + txt2.substring(0, 120) + '</pre></td></tr>';
+
+        var isJson = false;
+        try { JSON.parse(txt2); isJson = true; } catch (parseErr) { isJson = false; }
+
+        var verdict;
+        if (sta >= 500) {
+          verdict = '<td class="err">' + sta + ' Server error</td>';
+        } else if (isJson) {
+          // 400 here means the endpoint validated a deliberately empty request.
+          verdict = '<td class="ok">' + sta + ' Responding</td>';
         } else if (sta === 403 || sta === 401) {
-          rows += '<tr><td>' + ep.name + '</td><td class="warn">' + sta + ' Unauthorized</td><td><pre style="font-size:11px;">' + txt2.substring(0, 80) + '</pre></td></tr>';
+          verdict = '<td class="warn">' + sta + ' Unauthorized</td>';
         } else {
-          rows += '<tr><td>' + ep.name + '</td><td class="err">' + sta + ' Error</td><td><pre style="font-size:11px;">' + txt2.substring(0, 80) + '</pre></td></tr>';
+          verdict = '<td class="err">' + sta + ' Not JSON</td>';
         }
+
+        rows += '<tr><td>' + ep.name + '</td>' + verdict
+             +  '<td><pre style="font-size:11px;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+             +  txt2.substring(0, 120) + '</pre></td></tr>';
       } catch(e2) {
         rows += '<tr><td>' + ep.name + '</td><td class="err">❌ Network</td><td>' + e2.message + '</td></tr>';
       }
@@ -2065,33 +2085,66 @@ function confirmBulkDeleteTestData() {
     leDiagLog('<table class="le-diag-table"><tr><th>Endpoint</th><th>Status</th><th>Response</th></tr>' + rows + '</table>');
 
     // 4. Config file check
-    leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">4. Configuration</h3>');
+    //
+    // This used to report "✅ Accessible" for 200, 401 and 403 alike, which gave
+    // a correctly blocked config file and a publicly readable one the same green
+    // tick. That is backwards for everything except index.php: for an internal
+    // file, being reachable is the fault. Each path now carries what it is meant
+    // to be, and is graded against that.
+    leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">4. Configuration &amp; exposure</h3>');
     var configFiles = [
-      'config/module.php',
-      'config/database_helper.php',
-      'helpers/security_helper.php',
-      'helpers/session_helper.php',
-      'bootstrap.php',
-      'index.php',
-      '.htaccess',
+      { path: 'config/module.php',           expect: 'protected' },
+      { path: 'config/database_helper.php',  expect: 'protected' },
+      { path: 'helpers/security_helper.php', expect: 'protected' },
+      { path: 'helpers/session_helper.php',  expect: 'protected' },
+      { path: 'bootstrap.php',               expect: 'protected' },
+      { path: '.htaccess',                   expect: 'protected' },
+      // Backups and scratch files carry extensions Apache will not execute, so
+      // if they are reachable at all they are handed over as source.
+      { path: 'bootstrap.php.bak2',          expect: 'protected' },
+      { path: 'models/BaseModel.php.bak',    expect: 'protected' },
+      { path: 'debug_prompt.json',           expect: 'protected' },
+      { path: 'try.php',                     expect: 'protected' },
+      { path: 'index.php',                   expect: 'public' },
     ];
     var configRows = '';
     for (var j = 0; j < configFiles.length; j++) {
-      var fileUrl = baseUrl + '/' + configFiles[j];
+      var entry = configFiles[j];
       try {
-        var r3 = await fetch(fileUrl + '?_=' + Date.now(), { method: 'HEAD', mode: 'cors' });
-        if (r3.ok || r3.status === 403 || r3.status === 401) {
-          configRows += '<tr><td>' + configFiles[j] + '</td><td class="ok">✅ Accessible</td></tr>';
-        } else if (r3.status === 404) {
-          configRows += '<tr><td>' + configFiles[j] + '</td><td class="err">❌ 404 Not Found</td></tr>';
+        var r3 = await fetch(baseUrl + '/' + entry.path + '?_=' + Date.now(), { method: 'GET', mode: 'cors' });
+        var blocked = (r3.status === 403 || r3.status === 401);
+        var cell;
+
+        if (entry.expect === 'protected') {
+          if (blocked) {
+            cell = '<td class="ok">🔒 Protected (' + r3.status + ')</td>';
+          } else if (r3.status === 404) {
+            cell = '<td class="ok">— Not present</td>';
+          } else if (r3.ok) {
+            var body = await r3.text();
+            // Assembled from pieces on purpose: this script is embedded in a
+            // .php file, so a literal "<?php" here would be read as an opening
+            // tag by the PHP parser and break the whole page.
+            var phpOpen = '<' + '?php';
+            var shortOpen = '<' + '?=';
+            var leaks = body.indexOf(phpOpen) !== -1 || body.indexOf(shortOpen) !== -1;
+            cell = '<td class="err">⚠ Publicly reachable (' + r3.status + ', ' + body.length + 'b'
+                 + (leaks ? ', leaks PHP source' : '') + ')</td>';
+          } else {
+            cell = '<td class="warn">⚠ HTTP ' + r3.status + '</td>';
+          }
         } else {
-          configRows += '<tr><td>' + configFiles[j] + '</td><td class="warn">⚠ HTTP ' + r3.status + '</td></tr>';
+          cell = r3.ok
+            ? '<td class="ok">✅ Reachable (' + r3.status + ')</td>'
+            : '<td class="err">❌ HTTP ' + r3.status + '</td>';
         }
+
+        configRows += '<tr><td>' + entry.path + '</td>' + cell + '</tr>';
       } catch(e3) {
-        configRows += '<tr><td>' + configFiles[j] + '</td><td class="err">❌ ' + e3.message + '</td></tr>';
+        configRows += '<tr><td>' + entry.path + '</td><td class="err">❌ ' + e3.message + '</td></tr>';
       }
     }
-    leDiagLog('<table class="le-diag-table"><tr><th>File</th><th>Status</th></tr>' + configRows + '</table>');
+    leDiagLog('<table class="le-diag-table"><tr><th>Path</th><th>Verdict</th></tr>' + configRows + '</table>');
 
     // 5. Module URL building test
     leDiagLog('<h3 style="color:#F9A825;margin:12px 0 4px;">5. URL Builder Test</h3>');

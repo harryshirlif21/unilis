@@ -18,6 +18,41 @@
     Require all denied
 </FilesMatch>
 
+# ===========================================================================
+# Source and scratch files. The rules above only cover whole directories and a
+# short extension list, so anything sitting in the module root with an
+# unrecognised extension was served as plain text. Verified publicly readable
+# before these rules existed:
+#   /bootstrap.php.bak2   -> 200, 11.5KB of raw PHP source
+#   /debug_prompt.json    -> 200, internal design notes
+#   /try.php              -> 200, development scratch file
+# ===========================================================================
+
+# Editor and backup copies. A .bak or .php.bak2 suffix is not a type Apache
+# knows how to execute, so the file is handed over as source instead.
+<FilesMatch "(?i)\.(bak[0-9]*|orig|save|swp|tmp|old|copy|rej|dist|inc)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "(?i)\.(bak[0-9]*|orig|save|old)\.[a-z0-9]+$">
+    Require all denied
+</FilesMatch>
+
+# JSON in the module root is configuration and notes, never something the
+# browser fetches. The API returns JSON from api/*.php, which this does not
+# match because it keys on the .json extension.
+<FilesMatch "(?i)\.json$">
+    Require all denied
+</FilesMatch>
+
+# bootstrap.php is an include, not a page. Fetching it directly used to return
+# 200 and run the whole module bootstrap - database connection and session
+# start - for an unauthenticated request. Denying it over HTTP does not affect
+# require_once, which reads from disk rather than through Apache.
+<FilesMatch "(?i)^(bootstrap|try|testfit)\.php$">
+    Require all denied
+</FilesMatch>
+
 # PHP settings
 <IfModule mod_php.c>
     php_value upload_max_filesize 50M
