@@ -1,72 +1,115 @@
 """
 UNILIS Meeting — Whiteboard Handler
 Manages collaborative whiteboard state for meeting rooms.
+
+One board per breakout room, not one per meeting. Breakouts exist so groups can
+work separately, and a single shared board would have group A drawing over group
+B's work. None is the main room's board.
+
+The state is a flat, ordered list of items rather than a bitmap. That is what
+makes a late joiner cheap - replay the list - and undo possible at all, since
+the last item can be dropped and the rest redrawn.
 """
 from __future__ import annotations
 
-import json
 import time
-from typing import Any, Dict, List, Optional
+import uuid
+from typing import Dict, List, Optional, Tuple
+
+# A board holds at most this many items. Beyond it the oldest go, because the
+# whole list is replayed to every late joiner and an unbounded board would
+# eventually make joining slower than the meeting.
+MAX_ITEMS = 4000
+
+BoardKey = Tuple[int, Optional[str]]
 
 
 class WhiteboardHandler:
     def __init__(self):
-        self._states: Dict[int, dict] = {}  # meeting_id -> whiteboard state
-        self._actions: Dict[int, List[dict]] = {}  # meeting_id -> action history
+        self._boards: Dict[BoardKey, List[dict]] = {}
 
-    def get_state(self, meeting_id: int) -> dict:
-        if meeting_id not in self._states:
-            self._states[meeting_id] = {
-                "strokes": [],
-                "shapes": [],
-                "texts": [],
-                "sticky_notes": [],
-                "background_color": "#ffffff",
-                "width": 1920,
-                "height": 1080,
-            }
-        return self._states[meeting_id]
+    def _key(self, meeting_id: int, breakout_id: Optional[str] = None) -> BoardKey:
+        return (meeting_id, breakout_id)
+
+    def get_items(self, meeting_id: int, breakout_id: Optional[str] = None) -> List[dict]:
+        return self._boards.setdefault(self._key(meeting_id, breakout_id), [])
+
+    def get_state(self, meeting_id: int, breakout_id: Optional[str] = None) -> dict:
+        return {
+            "breakout_id": breakout_id,
+            "items": self.get_items(meeting_id, breakout_id),
+        }
 
     def add_action(
-        self, meeting_id: int, user_id: int, action: dict
-    ) -> dict:
-        action["user_id"] = user_id
-        action["timestamp"] = time.time()
-        action["action_id"] = f"wb:{meeting_id}:{int(time.time() * 1000)}"
+        self,
+        meeting_id: int,
+        user_id: int,
+        action: dict,
+        breakout_id: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Apply one action and return what to broadcast, or None if it was invalid.
 
-        self._actions.setdefault(meeting_id, []).append(action)
-        if len(self._actions[meeting_id]) > 1000:
-            self._actions[meeting_id] = self._actions[meeting_id][-1000:]
+        Returning the applied action rather than the whole board keeps a stroke
+        one small message: a board with a thousand items would otherwise resend
+        all of them on every pen stroke.
+        """
+        kind = action.get("kind")
+        items = self.get_items(meeting_id, breakout_id)
 
-        state = self.get_state(meeting_id)
-        action_type = action.get("type")
+        if kind == "draw":
+            item = action.get("item")
+            if not isinstance(item, dict):
+                return None
+            # The id and author are assigned here, not accepted from the client:
+            # an id chosen by the sender could collide with or overwrite somebody
+            # else's item, and a claimed author could erase another person's work.
+            item = dict(item)
+            item["id"] = uuid.uuid4().hex[:12]
+            item["user_id"] = user_id
+            item["at"] = time.time()
+            items.append(item)
+            if len(items) > MAX_ITEMS:
+                del items[: len(items) - MAX_ITEMS]
 
-        if action_type == "stroke":
-            state["strokes"].append(action.get("data", {}))
-        elif action_type == "shape":
-            state["shapes"].append(action.get("data", {}))
-        elif action_type == "text":
-            state["texts"].append(action.get("data", {}))
-        elif action_type == "sticky_note":
-            state["sticky_notes"].append(action.get("data", {}))
-        elif action_type == "clear":
-            state["strokes"] = []
-            state["shapes"] = []
-            state["texts"] = []
-            state["sticky_notes"] = []
-        elif action_type == "undo":
-            data = action.get("data", {})
-            undo_type = data.get("type")
-            undo_id = data.get("id")
-            if undo_type == "stroke":
-                state["strokes"] = [s for s in state["strokes"] if s.get("id") != undo_id]
-            elif undo_type == "shape":
-                state["shapes"] = [s for s in state["shapes"] if s.get("id") != undo_id]
-            elif undo_type == "text":
-                state["texts"] = [s for s in state["texts"] if s.get("id") != undo_id]
+            return {"kind": "draw", "item": item, "breakout_id": breakout_id}
 
-        return action
+        if kind == "erase":
+            item_id = action.get("item_id")
+            before = len(items)
+            # Anyone who may draw on the board may erase from it. A board where
+            # only the author can remove their own line is unusable in practice -
+            # the person tidying up is rarely the person who drew the mess.
+            self._boards[self._key(meeting_id, breakout_id)] = [
+                i for i in items if i.get("id") != item_id
+            ]
+            if len(self._boards[self._key(meeting_id, breakout_id)]) == before:
+                return None
+
+            return {"kind": "erase", "item_id": item_id, "breakout_id": breakout_id}
+
+        if kind == "undo":
+            # Undo removes the caller's own most recent item. Undoing whatever
+            # happened last would let one person walk backwards through
+            # everybody else's work.
+            mine = [i for i in items if i.get("user_id") == user_id]
+            if not mine:
+                return None
+            target = mine[-1]
+            self._boards[self._key(meeting_id, breakout_id)] = [
+                i for i in items if i.get("id") != target.get("id")
+            ]
+
+            return {"kind": "erase", "item_id": target.get("id"), "breakout_id": breakout_id}
+
+        if kind == "clear":
+            self._boards[self._key(meeting_id, breakout_id)] = []
+            return {"kind": "clear", "breakout_id": breakout_id}
+
+        return None
 
     def clear_meeting(self, meeting_id: int) -> None:
-        self._states.pop(meeting_id, None)
-        self._actions.pop(meeting_id, None)
+        for key in [k for k in self._boards if k[0] == meeting_id]:
+            del self._boards[key]
+
+    def item_count(self, meeting_id: int, breakout_id: Optional[str] = None) -> int:
+        return len(self.get_items(meeting_id, breakout_id))

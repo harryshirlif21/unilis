@@ -149,3 +149,51 @@
 [data-theme="dark"] .lobby-btn-secondary:hover {
   background: #3a3a4e;
 }
+/* ============================================================
+   Dark theme: the surfaces added with permissions, rooms and the whiteboard
+   ------------------------------------------------------------
+   Most of the new UI reads the same variables the rest of the app does, so it
+   follows the theme without help. What needs rules here are the places with a
+   hard-coded light value on purpose - form fields, the board's paper, and the
+   translucent tints, which are mixed against white and go muddy on a dark
+   surface.
+   ============================================================ */
+
+[data-theme="dark"] .br-create input,
+[data-theme="dark"] .sb-field select,
+[data-theme="dark"] .br-assign select {
+  background: #3a3a4e;
+  color: var(--text-primary);
+  border-color: #3c4043;
+}
+
+[data-theme="dark"] .sb-seg { background: #1f1f2e; }
+[data-theme="dark"] .sb-seg-btn.active { background: #3a3a4e; }
+
+[data-theme="dark"] .sb-switch-knob { background: #e8eaed; }
+
+/* Mixed against black rather than white, or the tint washes out to grey. */
+[data-theme="dark"] .sb-btn-danger { border-color: rgba(242, 139, 130, 0.5); }
+[data-theme="dark"] .sb-btn-danger:hover:not(:disabled) { background: rgba(242, 139, 130, 0.16); }
+[data-theme="dark"] .sb-pill-on { background: rgba(129, 201, 149, 0.2); }
+
+[data-theme="dark"] .pp-hands {
+  border-color: rgba(250, 123, 23, 0.5);
+  background: rgba(250, 123, 23, 0.14);
+}
+
+[data-theme="dark"] .pp-hands-clear { background: rgba(255, 255, 255, 0.12); }
+[data-theme="dark"] .pp-hands-clear:hover { background: rgba(255, 255, 255, 0.22); }
+
+[data-theme="dark"] .ctrl.ctrl-off { background: rgba(242, 139, 130, 0.2); }
+[data-theme="dark"] .ctrl-danger .ctrl-label,
+[data-theme="dark"] .ctrl-danger .ctrl-icon { color: #202124; }
+
+[data-theme="dark"] .wb-panel { background: #0d0d1a; }
+[data-theme="dark"] .wb-bar { background: #2d2d3d; border-color: #3c4043; }
+[data-theme="dark"] .wb-tool:hover:not(:disabled) { background: #3a3a4e; }
+[data-theme="dark"] .wb-color { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
+
+/* The board itself stays white in both themes. Ink colours are chosen against
+   paper, and a dark board would make half of them invisible. */
+[data-theme="dark"] .wb-surface canvas { background: #ffffff; }

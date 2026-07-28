@@ -1,10 +1,14 @@
 """
 UNILIS Meeting — Chat Message Handler
 Relays chat messages between participants in a meeting room.
+
+Messages carry the breakout room they were sent in. A breakout exists so a small
+group can talk without the rest of the meeting; a chat that ignored the split
+would put every side conversation in front of everyone, which defeats it.
+None is the main room.
 """
 from __future__ import annotations
 
-import json
 import time
 from typing import Dict, List, Optional
 
@@ -18,6 +22,7 @@ class ChatMessage:
         text: str,
         message_type: str = "text",
         reply_to: Optional[int] = None,
+        breakout_id: Optional[str] = None,
     ):
         self.meeting_id = meeting_id
         self.sender_id = sender_id
@@ -25,6 +30,7 @@ class ChatMessage:
         self.text = text
         self.message_type = message_type
         self.reply_to = reply_to
+        self.breakout_id = breakout_id
         self.timestamp = time.time()
         self.message_id = f"{meeting_id}:{sender_id}:{int(self.timestamp * 1000)}"
 
@@ -38,6 +44,7 @@ class ChatMessage:
             "text": self.text,
             "message_type": self.message_type,
             "reply_to": self.reply_to,
+            "breakout_id": self.breakout_id,
             "timestamp": self.timestamp,
         }
 
@@ -58,8 +65,20 @@ class ChatHandler:
             self._history[meeting_id] = self._history[meeting_id][-self._max_history:]
         return msg_dict
 
-    def get_history(self, meeting_id: int, limit: int = 50) -> List[dict]:
-        messages = self._history.get(meeting_id, [])
+    def get_history(
+        self, meeting_id: int, limit: int = 50, breakout_id: Optional[str] = None
+    ) -> List[dict]:
+        """Recent messages from one room.
+
+        Filtered by breakout so joining a breakout does not replay the main
+        room's conversation into it, or the reverse. Messages stored before this
+        field existed have no breakout_id and read as main-room messages, which
+        is what they were.
+        """
+        messages = [
+            m for m in self._history.get(meeting_id, [])
+            if m.get("breakout_id") == breakout_id
+        ]
         return messages[-limit:]
 
     def delete_message(self, meeting_id: int, message_id: str, user_id: int) -> bool:

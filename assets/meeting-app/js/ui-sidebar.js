@@ -10,10 +10,23 @@ UNILIS_MEETING.SidebarManager = {
   tabsEl: null,
   onTabChange: null,
 
+  /**
+   * @param container the .meeting-sidebar element itself, or an ancestor of it.
+   *
+   * matches() before querySelector(), because the caller passes the sidebar
+   * itself. querySelector only looks at descendants, so it returned null, so
+   * this.element stayed null, so open() had nothing to remove `hidden` from -
+   * and every side panel (participants, chat, polls, board, settings) was
+   * unreachable no matter which button was pressed.
+   */
   init(container) {
-    this.element = container.querySelector('.meeting-sidebar');
-    this.tabsEl = container.querySelector('.sidebar-tabs');
-    this.contentEl = container.querySelector('.sidebar-content');
+    if (!container) return;
+    this.element = container.matches && container.matches('.meeting-sidebar')
+      ? container
+      : container.querySelector('.meeting-sidebar');
+    const scope = this.element || container;
+    this.tabsEl = scope.querySelector('.sidebar-tabs');
+    this.contentEl = scope.querySelector('.sidebar-content');
   },
 
   open(tab = null) {
@@ -41,6 +54,30 @@ UNILIS_MEETING.SidebarManager = {
     }
     if (this.onTabChange) this.onTabChange(tab);
     this.open();
+  },
+
+  /**
+   * Put a count on a tab, or clear it with 0.
+   *
+   * Used for unread chat and for raised hands, both of which happen while the
+   * host is looking at a different tab - which is exactly when they need to know.
+   */
+  setBadge(tabId, count) {
+    if (!this.tabsEl) return;
+    const tab = this.tabsEl.querySelector(`.sidebar-tab[data-tab="${tabId}"]`);
+    if (!tab) return;
+
+    let badge = tab.querySelector('.tab-badge');
+    if (!count) {
+      if (badge) badge.remove();
+      return;
+    }
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'tab-badge';
+      tab.appendChild(badge);
+    }
+    badge.textContent = count > 99 ? '99+' : String(count);
   },
 
   renderTabButton(tabId, label, icon = '', badge = 0) {

@@ -294,101 +294,276 @@ html, body {
 
 /* ============================================================
    Bottom Floating Toolbar
+   ------------------------------------------------------------
+   Labelled buttons grouped by what they do, rather than a row of bare glyphs.
+   The label carries the state, so the mic button reads "Mute" while live and
+   "Unmute" while muted - which is the one control people misread most.
+
+   Grouping is by consequence: your own devices, what you put in front of the
+   room, where you look, then leaving. Under 1100px the labels drop and it
+   collapses back to icons, because the alternative is a toolbar that wraps.
    ============================================================ */
 .meeting-float-controls {
   position: absolute;
-  bottom: 32px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--bg-elevated);
+  gap: 6px;
+  padding: 8px 12px;
+  max-width: calc(100% - 32px);
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   z-index: 100;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
 
-.control-btn {
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 6px;
+  margin-right: 2px;
+  border-right: 1px solid var(--border-light);
+}
+
+.ctrl-group:last-of-type {
+  border-right: none;
+  padding-right: 0;
+  margin-right: 0;
+}
+
+.ctrl {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border: none;
-  border-radius: 50%;
+  gap: 7px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  line-height: 1;
   cursor: pointer;
-  transition: all var(--transition-fast);
   position: relative;
-  font-size: 20px;
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast), transform var(--transition-fast);
 }
 
-.control-btn:hover {
-  background: var(--bg-hover);
+.ctrl-icon { font-size: 18px; line-height: 1; }
+.ctrl-label { font-size: var(--font-size-sm); }
+
+.ctrl:hover:not(:disabled) { background: var(--bg-hover); }
+.ctrl:active:not(:disabled) { transform: scale(0.97); }
+
+.ctrl:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
-.control-btn:active {
-  background: var(--control-bg-active);
-  transform: scale(0.95);
-}
-
-.control-btn.active {
+/* On: doing the thing. Off: deliberately not doing it — a muted mic is a state
+   worth showing in red, because silence looks the same either way. */
+.ctrl.active {
   background: var(--primary-light);
   color: var(--primary);
 }
 
-.control-btn.danger {
+.ctrl.ctrl-off {
+  background: color-mix(in srgb, var(--control-danger) 14%, transparent);
+  color: var(--control-danger);
+}
+
+.ctrl:disabled,
+.ctrl.unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* A capability the host has not granted. Dashed rather than disabled: the
+   button still works, it just asks instead of doing. */
+.ctrl.needs-permission {
+  border-style: dashed;
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.ctrl.has-activity::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--control-success);
+}
+
+.ctrl-danger {
   background: var(--control-danger);
   color: #fff;
 }
+.ctrl-danger:hover:not(:disabled) { background: var(--control-danger-hover); }
+.ctrl-danger .ctrl-label { color: #fff; }
 
-.control-btn.danger:hover {
-  background: var(--control-danger-hover);
+.ctrl-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
-.control-btn .badge-dot {
+.ctrl.active .ctrl-count { background: var(--primary); }
+
+.ctrl-dot {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 10px;
-  height: 10px;
+  top: 8px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--control-danger);
   border: 2px solid var(--bg-elevated);
 }
 
-.control-btn .tooltip {
+.ctrl-timer {
+  margin-left: 6px;
+  padding: 0 8px;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* ---- More menu ---- */
+.ctrl-menu {
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 10px);
+  right: 8px;
+  min-width: 210px;
+  padding: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
+  z-index: 120;
+}
+
+.ctrl-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ctrl-menu button:hover { background: var(--bg-hover); }
+.ctrl-menu button span { width: 18px; text-align: center; }
+
+.ctrl-menu-sep {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--border-light);
+}
+
+/* ---- Breakout room badge in the top bar ---- */
+.top-badges { display: flex; align-items: center; gap: 8px; }
+
+.room-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+/* ============================================================
+   Permission requests
+   ------------------------------------------------------------
+   Cards, not toasts. A participant asking for the screen is waiting on a
+   decision; a notice that fades after four seconds turns that into silence the
+   host never knew about.
+   ============================================================ */
+.request-stack {
+  position: absolute;
+  top: 16px;
   left: 50%;
   transform: translateX(-50%);
-  background: #202124;
-  color: #fff;
-  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 140;
+  width: min(420px, calc(100% - 32px));
+}
+
+.request-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--font-size-sm);
+  animation: request-in 200ms ease;
+}
+
+@keyframes request-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.request-text { flex: 1 1 auto; color: var(--text-primary); line-height: 1.4; }
+.request-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.request-btn {
+  padding: 7px 12px;
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: inherit;
   font-size: var(--font-size-xs);
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition-fast);
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.control-btn:hover .tooltip {
-  opacity: 1;
-}
+.request-btn:hover { background: var(--bg-hover); }
 
-.control-divider {
-  width: 1px;
-  height: 32px;
-  background: var(--border-light);
-  margin: 0 4px;
+.request-btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
+.request-btn-primary:hover { background: var(--primary-hover); }
 
 /* ============================================================
    Sidebar
@@ -1518,4 +1693,636 @@ html, body {
   .participants-modal-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================================
+   Tile actions and status badges
+   ------------------------------------------------------------
+   Moderation on the tile itself, not only in the People list. A host watching
+   somebody talk should not have to find their row in a list of thirty to mute
+   them - the face they are already looking at is where the action belongs.
+
+   Hidden until hover on a pointer device, because five buttons on every tile is
+   noise; always visible on touch, where there is no hover to reveal them.
+   ============================================================ */
+.tile-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-full);
+  background: rgba(20, 20, 25, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.video-tile:hover .tile-actions,
+.video-tile:focus-within .tile-actions {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.tile-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.tile-act:hover { background: rgba(255, 255, 255, 0.3); }
+.tile-act.active { background: var(--primary); }
+.tile-act-danger:hover { background: var(--control-danger); }
+
+@media (hover: none) {
+  .tile-actions { opacity: 1; transform: none; pointer-events: auto; }
+}
+
+/* A raised hand outlines the whole tile. A badge alone is missable in a grid of
+   sixteen faces, and the hand is the one thing that is asking for attention. */
+.video-tile.hand-up {
+  outline: 2px solid #fa7b17;
+  outline-offset: -2px;
+}
+
+/* hand-raised and muted are already defined above; this adds the one the
+   presenting badge needs. */
+.tile-badge.sharing { background: var(--control-success); color: #fff; }
+
+/* ---- Pinned tile ----
+   Local only. Gives one person the top row at full width and drops everyone
+   else into a strip underneath. */
+.video-grid.has-pinned {
+  grid-template-columns: 1fr !important;
+  grid-auto-rows: min-content;
+}
+
+.video-grid.has-pinned .video-tile {
+  aspect-ratio: auto;
+  min-height: 90px;
+  max-height: 140px;
+}
+
+/* The gold ring on .video-tile.pinned further up already marks which tile it is,
+   so this only changes the size and the order. */
+.video-grid.has-pinned .video-tile.pinned {
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: 16 / 9;
+  order: -1;
+}
+
+/* ============================================================
+   Whiteboard
+   ------------------------------------------------------------
+   Over the stage, not in the sidebar. The sidebar is 360px wide, which is fine
+   for a list of names and useless for drawing - so the board takes the video
+   area the way a shared screen does.
+   ============================================================ */
+.wb-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+  z-index: 90;
+}
+
+.wb-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.wb-tools, .wb-colors { display: flex; align-items: center; gap: 4px; }
+
+.wb-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.wb-tool:hover:not(:disabled) { background: var(--bg-hover); }
+.wb-tool.active { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.wb-tool:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.wb-color {
+  width: 24px;
+  height: 24px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.wb-color.active {
+  border-color: var(--text-primary);
+  transform: scale(1.12);
+}
+
+.wb-color:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.wb-size { display: flex; align-items: center; }
+.wb-size input { width: 96px; }
+
+.wb-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.wb-readonly {
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.wb-btn {
+  padding: 7px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wb-btn:hover:not(:disabled) { background: var(--bg-hover); }
+.wb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.wb-btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.wb-btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.wb-btn-close { font-size: 14px; padding: 7px 10px; }
+
+.wb-surface {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.wb-surface canvas {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  touch-action: none;
+  background: #fff;
+}
+
+.wb-locked-note {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--font-size-sm);
+}
+
+.wb-locked-note p { margin: 0; color: var(--text-secondary); }
+
+/* The board and a shared screen both want the whole stage, so whichever is open
+   hides the tiles rather than stacking on top of them. */
+.video-container.is-whiteboard .video-grid,
+.video-container.is-whiteboard .screen-stage { display: none !important; }
+
+/* ============================================================
+   Sidebar panels: settings, rooms, whiteboard tab
+   ============================================================ */
+.sb-block {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.sb-block:last-child { border-bottom: none; }
+
+.sb-subhead {
+  margin: 0 0 10px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.sb-note {
+  margin: 0 0 12px;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.sb-meta {
+  margin: 10px 0 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.sb-setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.sb-setting:last-child { border-bottom: none; }
+.sb-setting-body { flex: 1 1 auto; min-width: 0; }
+
+.sb-setting-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sb-setting-note {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+/* ---- Segmented control: host only / everyone ---- */
+.sb-seg {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+}
+
+.sb-seg-btn {
+  padding: 5px 11px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sb-seg-btn.active {
+  background: var(--bg-card);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- Switch ---- */
+.sb-switch {
+  flex-shrink: 0;
+  width: 42px;
+  height: 24px;
+  padding: 2px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--border-color);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.sb-switch.on { background: var(--primary); }
+
+.sb-switch-knob {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast);
+}
+
+.sb-switch.on .sb-switch-knob { transform: translateX(18px); }
+
+/* ---- Buttons, pills, fields ---- */
+.sb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sb-btn:hover:not(:disabled) { background: var(--bg-hover); }
+.sb-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.sb-btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.sb-btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.sb-btn-danger { color: var(--control-danger); border-color: rgba(217, 48, 37, 0.45); }
+.sb-btn-danger:hover:not(:disabled) { background: rgba(217, 48, 37, 0.1); }
+.sb-btn-small { padding: 5px 10px; font-size: var(--font-size-xs); }
+.sb-btn-block { display: flex; width: 100%; margin-top: 12px; }
+
+.sb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.sb-count {
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.sb-pill {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.sb-pill-on { background: rgba(24, 128, 56, 0.16); color: var(--control-success); }
+
+.sb-field { display: block; margin-bottom: 12px; }
+
+.sb-field span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.sb-field select,
+.br-assign select,
+.br-create input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+}
+
+.sb-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: var(--font-size-sm);
+}
+
+.sb-kv span:first-child { color: var(--text-secondary); }
+.sb-kv span:last-child { font-weight: 600; text-align: right; }
+
+/* ============================================================
+   Breakout rooms panel
+   ============================================================ */
+.br-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+
+.br-room {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.br-room-mine {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.br-room-body { flex: 1 1 auto; min-width: 0; }
+
+.br-room-name {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.br-room-count {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.br-room-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.br-create { display: flex; gap: 8px; margin-bottom: 12px; }
+.br-create input { flex: 1 1 auto; }
+.br-host-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+
+.br-assign { display: flex; flex-direction: column; gap: 8px; }
+
+.br-assign-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.br-assign-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.br-assign-row select { flex: 0 0 46%; }
+
+/* ============================================================
+   Raised hands queue
+   ------------------------------------------------------------
+   Above the roster, in the order hands went up. A hand is a question waiting on
+   the host, and finding it by scanning thirty rows for an emoji is how a
+   question gets missed.
+   ============================================================ */
+.pp-hands {
+  margin: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(250, 123, 23, 0.45);
+  border-radius: var(--radius-sm);
+  background: rgba(250, 123, 23, 0.1);
+}
+
+.pp-hands-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pp-hands-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pp-hands-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+}
+
+.pp-hands-pos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #fa7b17;
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.pp-hands-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-hands-clear {
+  padding: 3px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pp-hands-clear:hover { background: rgba(0, 0, 0, 0.16); }
+
+/* Participant row action buttons */
+.pa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pa-btn:hover:not(:disabled) { background: var(--control-bg-active); }
+.pa-btn.active { background: var(--primary); color: #fff; }
+.pa-btn:disabled { opacity: 0.3; cursor: default; }
+.pa-btn-danger:hover:not(:disabled) { background: var(--control-danger); color: #fff; }
+
+.participant-item .status-icons .grant-icon { opacity: 0.75; font-size: 11px; }
+
+/* ============================================================
+   Narrow screens
+   ------------------------------------------------------------
+   Labels go first: on a phone the toolbar has to fit, and an icon-only bar is
+   what every other meeting app uses there anyway.
+   ============================================================ */
+@media (max-width: 1100px) {
+  .ctrl-label { display: none; }
+  .ctrl { padding: 0 12px; }
+  .ctrl-timer { display: none; }
+}
+
+@media (max-width: 760px) {
+  .meeting-float-controls {
+    bottom: 12px;
+    gap: 2px;
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+  }
+
+  .ctrl { height: 40px; padding: 0 9px; }
+  .ctrl-icon { font-size: 17px; }
+  .ctrl-group { padding-right: 4px; }
+
+  /* Rooms stays reachable from the sidebar tabs, so the toolbar drops it rather
+     than scrolling sideways. */
+  #roomsBtn { display: none; }
+
+  .wb-bar { gap: 6px; padding: 6px 8px; }
+  .wb-size { display: none; }
+  .wb-tool { width: 32px; height: 32px; }
+
+  .br-assign-row { flex-direction: column; align-items: stretch; gap: 4px; }
+  .br-assign-row select { flex: 1 1 auto; }
+
+  .request-stack { top: 8px; }
+  .request-card { flex-direction: column; align-items: stretch; }
 }

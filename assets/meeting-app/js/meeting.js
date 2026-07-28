@@ -29,6 +29,8 @@
     return role === 'lecturer' ? 'L' : role === 'guest' ? 'G' : 'S';
   }
 
+  const isHost = config.role === 'lecturer';
+
   // ============================================================
   // Initialize Modules
   // ============================================================
@@ -39,19 +41,102 @@
 
   let meetingTimer = null;
   let secondsElapsed = 0;
+  let joined = false;
+
+  // ============================================================
+  // Control bar
+  //
+  // Labelled buttons rather than a row of bare glyphs. A toolbar of eight
+  // emoji is a guessing game, and the two that matter most - whether the mic is
+  // live and whether you are presenting - are exactly the ones people get wrong.
+  // The label carries the current state ("Mute" vs "Unmute"), so the button says
+  // what pressing it will do.
+  //
+  // Anything that is not needed mid-sentence lives behind More, so the bar stays
+  // short enough to fit a laptop without wrapping.
+  // ============================================================
+
+  function controlButton({ id, icon, label, title, extra = '', klass = '' }) {
+    return `
+      <button class="ctrl ${klass}" id="${id}" title="${title || label}">
+        <span class="ctrl-icon">${icon}</span>
+        <span class="ctrl-label">${label}</span>
+        ${extra}
+      </button>`;
+  }
+
+  function controlBarMarkup() {
+    return `
+      <div class="ctrl-group">
+        ${controlButton({ id: 'micBtn', icon: '🎤', label: 'Mute', title: 'Microphone (M)', klass: 'active' })}
+        ${controlButton({ id: 'camBtn', icon: '📹', label: 'Camera', title: 'Camera (V)', klass: 'active' })}
+      </div>
+
+      <div class="ctrl-group">
+        ${controlButton({ id: 'shareBtn', icon: '🖥', label: 'Present', title: 'Share your screen' })}
+        ${controlButton({ id: 'boardBtn', icon: '🖊', label: 'Board', title: 'Whiteboard (W)' })}
+        ${controlButton({
+          id: 'handBtn',
+          icon: '✋',
+          label: 'Hand',
+          title: 'Raise your hand (H)',
+          extra: '<span class="ctrl-count" id="handCount" hidden>0</span>',
+        })}
+      </div>
+
+      <div class="ctrl-group">
+        ${controlButton({
+          id: 'participantsBtn',
+          icon: '👥',
+          label: 'People',
+          title: 'Participants (P)',
+          extra: '<span class="ctrl-count" id="peopleCount">1</span>',
+        })}
+        ${controlButton({
+          id: 'chatBtn',
+          icon: '💬',
+          label: 'Chat',
+          title: 'Chat (C)',
+          extra: '<span class="ctrl-dot" id="chatBadge" hidden></span>',
+        })}
+        ${controlButton({ id: 'roomsBtn', icon: '🚪', label: 'Rooms', title: 'Breakout rooms (R)' })}
+      </div>
+
+      <div class="ctrl-group">
+        ${controlButton({ id: 'moreBtn', icon: '⋯', label: 'More', title: 'More options' })}
+        ${controlButton({ id: 'leaveBtn', icon: '📴', label: 'Leave', title: 'Leave the meeting', klass: 'ctrl-danger' })}
+      </div>
+
+      <span class="ctrl-timer" id="timerDisplay">00:00</span>
+
+      <div class="ctrl-menu" id="moreMenu" hidden>
+        <button data-action="layout"><span>🔲</span> Change layout</button>
+        <button data-action="theme"><span>🌓</span> Light / dark</button>
+        <button data-action="fullscreen"><span>⛶</span> Fullscreen</button>
+        <button data-action="settings"><span>⚙</span> Settings</button>
+        <button data-action="polls"><span>📊</span> Polls</button>
+        ${isHost ? `
+          <div class="ctrl-menu-sep"></div>
+          <button data-action="muteall"><span>🔇</span> Mute everyone</button>
+          <button data-action="lowerhands"><span>✋</span> Lower all hands</button>
+          <button data-action="record"><span>⏺</span> Record</button>` : ''}
+      </div>`;
+  }
 
   // ============================================================
   // Build UI Shell
   // ============================================================
   function buildUI() {
     const app = document.getElementById('app');
-    const isHost = config.role === 'lecturer';
     const displayName = config.display_name || 'User';
 
     app.innerHTML = `
       <!-- Top Bar -->
       <div class="meeting-top-bar">
         <div class="meeting-info">📅 ${escapeHtml(config.title)}</div>
+        <div class="top-badges">
+          <span class="room-badge" id="roomBadge" hidden></span>
+        </div>
         <div class="top-actions">
           <button id="themeToggle" title="Toggle theme">🌓</button>
           <button id="fullscreenToggle" title="Fullscreen">⛶</button>
@@ -105,21 +190,13 @@
             <span class="rec-dot"></span> Recording
           </div>
 
+          <!-- Requests waiting on the host. Not toasts: a request that vanishes
+               after four seconds is a request the host never answered. -->
+          <div class="request-stack" id="requestStack"></div>
+
           <!-- Bottom controls (shown after joining) -->
           <div class="meeting-float-controls" id="floatControls" style="display:none;">
-            <button class="control-btn active" id="micBtn" title="Microphone (M)">🎤</button>
-            <button class="control-btn active" id="camBtn" title="Camera (V)">📷</button>
-            <button class="control-btn" id="shareBtn" title="Share Screen">🖥</button>
-            <div class="control-divider"></div>
-            <button class="control-btn" id="chatBtn" title="Chat (C)">💬<span class="badge-dot" id="chatBadge" style="display:none;"></span></button>
-            <button class="control-btn" id="participantsBtn" title="Participants">👥</button>
-            <button class="control-btn" id="handBtn" title="Raise Hand (H)">✋</button>
-            <div class="control-divider"></div>
-            <button class="control-btn" id="viewBtn" title="Change Layout">🔲</button>
-            ${isHost ? `<button class="control-btn" id="recordBtn" title="Record">⏺</button>` : ''}
-            <div class="control-divider"></div>
-            <button class="control-btn danger" id="leaveBtn" title="Leave Meeting">📞</button>
-            <span class="control-pill" id="timerDisplay" style="font-size:12px;color:var(--text-secondary);padding:4px 8px;">00:00</span>
+            ${controlBarMarkup()}
           </div>
         </div>
 
@@ -130,11 +207,12 @@
             <button class="close-sidebar" id="closeSidebar">✕</button>
           </div>
           <div class="sidebar-tabs" id="sidebarTabs">
-            <button class="sidebar-tab active" data-tab="participants">👥 People</button>
-            <button class="sidebar-tab" data-tab="chat">💬 Chat</button>
-            <button class="sidebar-tab" data-tab="polls">📊 Polls</button>
-            <button class="sidebar-tab" data-tab="whiteboard">📝 Board</button>
-            <button class="sidebar-tab" data-tab="settings">⚙</button>
+            <button class="sidebar-tab active" data-tab="participants" title="People">👥</button>
+            <button class="sidebar-tab" data-tab="chat" title="Chat">💬</button>
+            <button class="sidebar-tab" data-tab="rooms" title="Breakout rooms">🚪</button>
+            <button class="sidebar-tab" data-tab="whiteboard" title="Whiteboard">🖊</button>
+            <button class="sidebar-tab" data-tab="polls" title="Polls">📊</button>
+            <button class="sidebar-tab" data-tab="settings" title="Settings">⚙</button>
           </div>
           <div class="sidebar-content" id="sidebarContent"></div>
         </div>
@@ -145,32 +223,39 @@
     UNILIS_MEETING.SidebarManager.init(document.getElementById('meetingSidebar'));
     UNILIS_MEETING.SidebarManager.onTabChange = handleSidebarTab;
 
-    // Event handlers
+    // Lobby and chrome
     document.getElementById('joinMeetingBtn').addEventListener('click', joinMeeting);
     document.getElementById('settingsBtn').addEventListener('click', () => {
-      document.getElementById('sidebarContent').innerHTML = UNILIS_MEETING.Settings.render();
       UNILIS_MEETING.SidebarManager.switchTab('settings');
     });
     document.getElementById('themeToggle').addEventListener('click', () => UNILIS_MEETING.ThemeManager.toggle());
     document.getElementById('fullscreenToggle').addEventListener('click', toggleFullscreen);
     document.getElementById('closeSidebar').addEventListener('click', () => UNILIS_MEETING.SidebarManager.close());
 
-    // Control buttons
+    // Control bar
     document.getElementById('micBtn').addEventListener('click', toggleMic);
     document.getElementById('camBtn').addEventListener('click', toggleCam);
     document.getElementById('shareBtn').addEventListener('click', toggleShare);
+    document.getElementById('boardBtn').addEventListener('click', toggleBoard);
+    document.getElementById('handBtn').addEventListener('click', toggleHand);
     document.getElementById('chatBtn').addEventListener('click', () => UNILIS_MEETING.SidebarManager.switchTab('chat'));
     document.getElementById('participantsBtn').addEventListener('click', () => UNILIS_MEETING.SidebarManager.switchTab('participants'));
-    document.getElementById('handBtn').addEventListener('click', toggleHand);
-    document.getElementById('viewBtn').addEventListener('click', toggleView);
+    document.getElementById('roomsBtn').addEventListener('click', () => UNILIS_MEETING.SidebarManager.switchTab('rooms'));
     document.getElementById('stageStopBtn').addEventListener('click', toggleShare);
     document.getElementById('leaveBtn').addEventListener('click', leaveMeeting);
+    bindMoreMenu();
 
     // Every start/stop lands here, including the browser's own "Stop sharing".
     UNILIS_MEETING.MediaManager.onScreenShareChanged = handleScreenShareChanged;
-    if (isHost) {
-      document.getElementById('recordBtn').addEventListener('click', toggleRecord);
-    }
+
+    // Repaint the whiteboard's own controls whenever a grant or policy lands, so
+    // the pen appears without the board being reopened.
+    UNILIS_MEETING.Room.onStateChanged = () => {
+      UNILIS_MEETING.Whiteboard.syncPermission();
+      syncCapabilityButtons();
+      refreshOpenTab();
+      updateRoomBadge();
+    };
 
     // Sidebar tabs
     document.querySelectorAll('.sidebar-tab').forEach(tab => {
@@ -179,13 +264,64 @@
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-      if (e.key === 'm' || e.key === 'M') toggleMic();
-      if (e.key === 'v' || e.key === 'V') toggleCam();
-      if (e.key === 'd' || e.key === 'D') UNILIS_MEETING.SidebarManager.toggle();
-      if (e.key === 'c' || e.key === 'C') UNILIS_MEETING.SidebarManager.switchTab('chat');
-      if (e.key === 'h' || e.key === 'H') toggleHand();
+      if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'm') toggleMic();
+      if (key === 'v') toggleCam();
+      if (key === 'd') UNILIS_MEETING.SidebarManager.toggle();
+      if (key === 'c') UNILIS_MEETING.SidebarManager.switchTab('chat');
+      if (key === 'p') UNILIS_MEETING.SidebarManager.switchTab('participants');
+      if (key === 'r') UNILIS_MEETING.SidebarManager.switchTab('rooms');
+      if (key === 'h') toggleHand();
+      if (key === 'w') toggleBoard();
+      if (key === 'escape') closeMoreMenu();
     });
+  }
+
+  function bindMoreMenu() {
+    const button = document.getElementById('moreBtn');
+    const menu = document.getElementById('moreMenu');
+
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      button.classList.toggle('active', !menu.hidden);
+    });
+
+    // A click anywhere else closes it, which is what people expect from a menu
+    // and saves a second press on the button.
+    document.addEventListener('click', (e) => {
+      if (!menu.hidden && !menu.contains(e.target) && e.target !== button) closeMoreMenu();
+    });
+
+    menu.querySelectorAll('button[data-action]').forEach(item => {
+      item.addEventListener('click', () => {
+        closeMoreMenu();
+        handleMoreAction(item.dataset.action);
+      });
+    });
+  }
+
+  function closeMoreMenu() {
+    const menu = document.getElementById('moreMenu');
+    if (!menu) return;
+    menu.hidden = true;
+    document.getElementById('moreBtn').classList.remove('active');
+  }
+
+  function handleMoreAction(action) {
+    switch (action) {
+      case 'layout': toggleView(); break;
+      case 'theme': UNILIS_MEETING.ThemeManager.toggle(); break;
+      case 'fullscreen': toggleFullscreen(); break;
+      case 'settings': UNILIS_MEETING.SidebarManager.switchTab('settings'); break;
+      case 'polls': UNILIS_MEETING.SidebarManager.switchTab('polls'); break;
+      case 'muteall': UNILIS_MEETING.Settings.muteAll(); break;
+      case 'lowerhands': UNILIS_MEETING.Settings.lowerAllHands(); break;
+      case 'record': toggleRecord(); break;
+      default: break;
+    }
   }
 
   // ============================================================
@@ -196,6 +332,10 @@
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // ============================================================
@@ -222,6 +362,10 @@
       }
       syncMediaControlState();
 
+      // Device labels are only readable once a getUserMedia prompt has been
+      // answered, so the picker list is built after that rather than at load.
+      UNILIS_MEETING.Settings.loadDevices();
+
       // Show local video tile
       addLocalVideoTile();
 
@@ -237,10 +381,11 @@
       };
       UNILIS_MEETING.signaling.connect(config.ws_signaling_url || '/ws/signaling');
 
-      // Start meeting timer
-      startTimer();
+      // Board changes update the tab's item count even when the board is shut.
+      UNILIS_MEETING.Whiteboard.onActivity = onWhiteboardActivity;
 
-      // Open participants sidebar
+      joined = true;
+      startTimer();
       UNILIS_MEETING.SidebarManager.switchTab('participants');
 
     } catch (err) {
@@ -274,14 +419,102 @@
       btn.title = available ? label : missing;
       btn.classList.toggle('active', available);
       btn.classList.toggle('unavailable', !available);
-      btn.style.opacity = available ? '' : '0.45';
-      btn.style.cursor = available ? '' : 'not-allowed';
     });
+
+    if (!media.hasAudio()) setControlLabel('micBtn', '🚫', 'No mic');
+    if (!media.hasVideo()) setControlLabel('camBtn', '🚫', 'No camera');
+  }
+
+  function setControlLabel(id, icon, label) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.querySelector('.ctrl-icon').textContent = icon;
+    btn.querySelector('.ctrl-label').textContent = label;
+  }
+
+  /**
+   * Show the Present and Board buttons as the permissions currently stand.
+   *
+   * They stay visible rather than disappearing when not permitted: a button that
+   * offers to ask the host is more use than a gap where a button was.
+   */
+  function syncCapabilityButtons() {
+    const room = UNILIS_MEETING.Room;
+
+    const share = document.getElementById('shareBtn');
+    if (share) {
+      const allowed = room.canShareScreen();
+      const sharing = UNILIS_MEETING.MediaManager.screenSharing;
+      share.classList.toggle('needs-permission', !allowed && !sharing);
+      share.title = sharing
+        ? 'Stop presenting'
+        : allowed ? 'Share your screen' : 'Ask the host to let you share';
+      setControlLabel('shareBtn', sharing ? '🛑' : '🖥', sharing ? 'Stop' : allowed ? 'Present' : 'Ask to present');
+    }
+
+    const board = document.getElementById('boardBtn');
+    if (board) {
+      const allowed = room.canUseWhiteboard();
+      board.classList.toggle('needs-permission', !allowed);
+      board.title = allowed ? 'Whiteboard (W)' : 'You can view the board but not draw on it';
+    }
+  }
+
+  function updateRoomBadge() {
+    const badge = document.getElementById('roomBadge');
+    if (!badge) return;
+    const room = UNILIS_MEETING.Room;
+    if (room.breakoutId === null) {
+      badge.hidden = true;
+      return;
+    }
+    badge.hidden = false;
+    badge.textContent = '🚪 ' + room.currentRoomName();
   }
 
   // ============================================================
   // Video Tiles
   // ============================================================
+
+  /**
+   * The hover actions on a tile.
+   *
+   * The same moderation lives in the People panel, but a host watching somebody
+   * talk should not have to find their row in a list to mute them - the tile
+   * they are already looking at is where the action belongs.
+   */
+  function tileActions(userId, isMe) {
+    if (isMe) return '';
+    const pinBtn = `<button class="tile-act" data-act="pin" title="Pin to the main tile">📌</button>`;
+    if (!isHost) return `<div class="tile-actions">${pinBtn}</div>`;
+
+    return `<div class="tile-actions">
+      ${pinBtn}
+      <button class="tile-act" data-act="share" title="Let them share their screen">🖥</button>
+      <button class="tile-act" data-act="board" title="Let them draw on the whiteboard">🖊</button>
+      <button class="tile-act" data-act="mute" title="Mute them">🔇</button>
+      <button class="tile-act tile-act-danger" data-act="remove" title="Remove from the meeting">✕</button>
+    </div>`;
+  }
+
+  function bindTileActions(tile, userId) {
+    tile.querySelectorAll('.tile-act').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const panel = UNILIS_MEETING.ParticipantPanel;
+        const p = UNILIS_MEETING.Room.getParticipant(userId) || {};
+        switch (btn.dataset.act) {
+          case 'pin': panel.pin(userId); break;
+          case 'share': panel.grant(userId, 'screen', !p.may_share_screen); break;
+          case 'board': panel.grant(userId, 'whiteboard', !p.may_whiteboard); break;
+          case 'mute': panel.mute(userId); break;
+          case 'remove': panel.remove(userId); break;
+          default: break;
+        }
+      });
+    });
+  }
+
   function addLocalVideoTile() {
     const grid = document.getElementById('videoGrid');
     const tile = document.createElement('div');
@@ -294,7 +527,7 @@
       <video autoplay playsinline muted data-local="true" style="display:none;" id="localVideo"></video>
       <div class="tile-overlay">
         <span class="tile-name">${escapeHtml(config.display_name)} (You)</span>
-        <div class="tile-badges">
+        <div class="tile-badges" id="badges-${config.user_id}">
           <span class="tile-badge ${config.role}">${roleInitial(config.role)}</span>
         </div>
       </div>
@@ -355,20 +588,60 @@
       </div>
       <video autoplay playsinline style="display:none;" id="remoteVideo-${userId}"></video>
       <div class="tile-overlay">
-        <span class="tile-name">${escapeHtml(displayName)}</span>
-        <div class="tile-badges">
+        <span class="tile-name" title="${escapeAttr(displayName)}">${escapeHtml(displayName)}</span>
+        <div class="tile-badges" id="badges-${userId}">
           <span class="tile-badge ${roleClass}">${roleInitial(roleClass)}</span>
         </div>
       </div>
+      ${tileActions(userId, false)}
     `;
     grid.appendChild(tile);
+    bindTileActions(tile, userId);
 
     syncTileVideo(userId, stream);
+    refreshTileMeta(room.participants);
   }
 
   function removeVideoTile(userId) {
     const tile = document.getElementById(`participant-${userId}`);
     if (tile) tile.remove();
+  }
+
+  /**
+   * Update the badges on every tile from the roster.
+   *
+   * The tile itself is never rebuilt for this: the <video> element inside it
+   * holds the live stream, and replacing the markup would drop the picture and
+   * make the meeting flicker on every mute.
+   */
+  function refreshTileMeta(participants) {
+    (participants || []).forEach(p => {
+      const badges = document.getElementById(`badges-${p.user_id}`);
+      if (!badges) return;
+
+      const parts = [`<span class="tile-badge ${p.role}">${roleInitial(p.role)}</span>`];
+      if (p.hand_raised) parts.push('<span class="tile-badge hand-raised" title="Hand raised">✋</span>');
+      if (!p.audio_enabled || p.is_muted) parts.push('<span class="tile-badge muted" title="Muted">🔇</span>');
+      if (p.screen_sharing) parts.push('<span class="tile-badge sharing" title="Presenting">🖥</span>');
+      badges.innerHTML = parts.join('');
+
+      const tile = document.getElementById(`participant-${p.user_id}`);
+      if (!tile) return;
+      tile.classList.toggle('hand-up', !!p.hand_raised);
+
+      // The host's grant buttons show current state, so they read as toggles
+      // rather than as two identical presses.
+      const shareBtn = tile.querySelector('.tile-act[data-act="share"]');
+      if (shareBtn) {
+        shareBtn.classList.toggle('active', !!p.may_share_screen);
+        shareBtn.title = p.may_share_screen ? 'Stop them sharing their screen' : 'Let them share their screen';
+      }
+      const boardBtn = tile.querySelector('.tile-act[data-act="board"]');
+      if (boardBtn) {
+        boardBtn.classList.toggle('active', !!p.may_whiteboard);
+        boardBtn.title = p.may_whiteboard ? 'Take the whiteboard pen back' : 'Let them draw on the whiteboard';
+      }
+    });
   }
 
   // ============================================================
@@ -377,14 +650,21 @@
   function handleSignalingMessage(message) {
     switch (message.type) {
       case 'joined':
+        UNILIS_MEETING.Room.updateState(message.state);
         UNILIS_MEETING.Room.updateParticipants(message.participants || []);
-        handlePeerConnections(message.participants || []);
+        handlePeerConnections();
+        updateParticipantsUI(message.participants || []);
         break;
 
       case 'participants':
         UNILIS_MEETING.Room.updateParticipants(message.participants || []);
         updateParticipantsUI(message.participants);
-        handlePeerConnections(message.participants || []);
+        handlePeerConnections();
+        break;
+
+      case 'room_state':
+        UNILIS_MEETING.Room.updateState(message.state);
+        updateHandBadges();
         break;
 
       case 'signal':
@@ -398,6 +678,7 @@
 
       case 'chat_history':
         UNILIS_MEETING.Chat.loadHistory(message.messages);
+        if (UNILIS_MEETING.SidebarManager.currentTab === 'chat') handleSidebarTab('chat');
         break;
 
       case 'chat_deleted':
@@ -430,46 +711,211 @@
         UNILIS_MEETING.Notifications.show('Recording stopped', 'info');
         break;
 
+      // ---- Whiteboard ----
+      case 'whiteboard_state':
+        UNILIS_MEETING.Whiteboard.loadState(message.state);
+        break;
+
+      case 'whiteboard_action':
+        UNILIS_MEETING.Whiteboard.applyAction(message.action);
+        break;
+
+      // ---- Permissions ----
+      case 'permission_request':
+        showPermissionRequest(message);
+        break;
+
+      case 'permission_changed':
+        handlePermissionChanged(message);
+        break;
+
+      case 'permission_pending':
+        UNILIS_MEETING.Notifications.show('Waiting for the host to answer', 'info');
+        break;
+
+      case 'permission_denied':
+        UNILIS_MEETING.Notifications.show(message.message || 'That is not allowed here', 'warning');
+        syncCapabilityButtons();
+        break;
+
+      // ---- Breakout rooms ----
+      case 'breakout_moved':
+        handleBreakoutMoved(message);
+        break;
+
+      case 'breakout_announcement':
+        UNILIS_MEETING.Notifications.show(
+          `${message.from || 'The host'}: ${message.text}`,
+          'info',
+          10000
+        );
+        break;
+
       case 'host_action':
-        if (message.action === 'mute') {
-          UNILIS_MEETING.MediaManager.toggleAudio();
-          updateMicUI();
-          UNILIS_MEETING.Notifications.show('You have been muted by the host', 'warning');
-        } else if (message.action === 'removed') {
-          UNILIS_MEETING.Notifications.show('You have been removed from the meeting', 'error');
-          setTimeout(() => { window.location.href = config.back_url || '/'; }, 2000);
-        }
+        handleHostAction(message);
         break;
 
       case 'meeting_locked':
         UNILIS_MEETING.Room.isLocked = message.locked;
+        UNILIS_MEETING.Notifications.show(
+          message.locked ? 'The meeting is locked to new joiners' : 'The meeting is open again',
+          'info'
+        );
         break;
 
-      case 'speaking':
+      case 'speaking': {
         const tile = document.getElementById(`participant-${message.user_id}`);
         if (tile) tile.classList.toggle('active-speaker', message.is_speaking);
         break;
+      }
 
-      case 'typing':
+      case 'typing': {
         const indicator = document.getElementById('typingIndicator');
         if (indicator) indicator.textContent = message.is_typing ? 'Someone is typing...' : '';
         break;
+      }
 
       case 'error':
         UNILIS_MEETING.Notifications.show(message.message || 'An error occurred', 'error');
         break;
+
+      default:
+        break;
     }
+  }
+
+  function handleHostAction(message) {
+    if (message.action === 'mute') {
+      // Only actually toggle if the mic is live, or a second mute_all would
+      // unmute somebody the host had just muted.
+      if (UNILIS_MEETING.MediaManager.audioEnabled) {
+        UNILIS_MEETING.MediaManager.toggleAudio();
+        updateMicUI();
+      }
+      UNILIS_MEETING.Notifications.show('You have been muted by the host', 'warning');
+      return;
+    }
+    if (message.action === 'hand_lowered') {
+      updateHandButton(false);
+      return;
+    }
+    if (message.action === 'removed') {
+      UNILIS_MEETING.Notifications.show('You have been removed from the meeting', 'error');
+      setTimeout(() => { window.location.href = config.back_url || '/'; }, 2000);
+    }
+  }
+
+  // ============================================================
+  // Permission requests (host side)
+  // ============================================================
+
+  /**
+   * A request card that stays until the host answers it.
+   *
+   * Deliberately not a toast. A student asking for the screen is waiting on a
+   * decision, and a notice that disappears on a timer turns that into silence
+   * the host never knew about.
+   */
+  function showPermissionRequest(message) {
+    const stack = document.getElementById('requestStack');
+    if (!stack) return;
+
+    const id = `req-${message.capability}-${message.user_id}`;
+    if (document.getElementById(id)) return;
+
+    const what = message.capability === 'screen' ? 'share their screen' : 'draw on the whiteboard';
+
+    const card = document.createElement('div');
+    card.className = 'request-card';
+    card.id = id;
+    card.innerHTML = `
+      <div class="request-text">
+        <strong>${escapeHtml(message.display_name || 'Someone')}</strong> would like to ${what}.
+      </div>
+      <div class="request-actions">
+        <button class="request-btn request-btn-primary" data-answer="allow">Allow</button>
+        <button class="request-btn" data-answer="deny">Not now</button>
+      </div>`;
+
+    card.querySelector('[data-answer="allow"]').addEventListener('click', () => {
+      UNILIS_MEETING.ParticipantPanel.grant(message.user_id, message.capability, true);
+      card.remove();
+    });
+    card.querySelector('[data-answer="deny"]').addEventListener('click', () => {
+      // Nothing is sent on a refusal. The asker is not told "no" explicitly,
+      // because a host who is mid-sentence and ignores a request has not made a
+      // decision worth broadcasting - and a refusal notice invites a second ask.
+      card.remove();
+    });
+
+    stack.appendChild(card);
+  }
+
+  function handlePermissionChanged(message) {
+    if (message.capability === 'screen') {
+      UNILIS_MEETING.ScreenShare.onPermissionChanged(message.granted, message.by);
+    } else if (message.capability === 'whiteboard') {
+      UNILIS_MEETING.Notifications.show(
+        message.granted
+          ? (message.by ? message.by + ' gave you the whiteboard pen' : 'You can draw on the whiteboard')
+          : 'The whiteboard pen has been taken back',
+        message.granted ? 'success' : 'warning'
+      );
+      UNILIS_MEETING.Whiteboard.syncPermission();
+    }
+    syncCapabilityButtons();
+    refreshOpenTab();
+  }
+
+  // ============================================================
+  // Breakout rooms
+  // ============================================================
+
+  /**
+   * This client has been moved. Everything scoped to the room has to be rebuilt:
+   * the peer mesh, because the people it was connected to are no longer reachable
+   * and the new ones are; and the board and chat, which the server resends.
+   */
+  function handleBreakoutMoved(message) {
+    const room = UNILIS_MEETING.Room;
+    const previous = room.breakoutId;
+    room.breakoutId = message.breakout_id || null;
+
+    if (previous !== room.breakoutId) {
+      UNILIS_MEETING.WebRTCCore.peerConnections.forEach((entry, userId) => {
+        UNILIS_MEETING.WebRTCCore.cleanupPeer(userId);
+        removeVideoTile(userId);
+      });
+
+      // A share does not follow you between rooms: the people who could see it
+      // are not the people you are now with.
+      if (UNILIS_MEETING.MediaManager.screenSharing) {
+        UNILIS_MEETING.ScreenShare.stop();
+      }
+    }
+
+    UNILIS_MEETING.Notifications.show(`You are now in ${message.name || 'the main room'}`, 'info');
+    updateRoomBadge();
+    handlePeerConnections();
+    refreshOpenTab();
   }
 
   // ============================================================
   // WebRTC Peer Connection Management
   // ============================================================
-  function handlePeerConnections(participants) {
-    const remoteParticipants = participants.filter(p => p.user_id !== config.user_id);
-    const remoteIds = new Set(remoteParticipants.map(p => p.user_id));
 
-    // Create peer connections for new participants
-    remoteParticipants.forEach(async p => {
+  /**
+   * Bring the peer mesh in line with the roster, for this room only.
+   *
+   * Filtered by breakout: offering to somebody in another room would never be
+   * answered, because the server drops signalling that crosses the split.
+   */
+  function handlePeerConnections() {
+    const room = UNILIS_MEETING.Room;
+    const peers = room.peersInMyRoom();
+    const wanted = new Set(peers.map(p => p.user_id));
+
+    peers.forEach(async p => {
       if (!UNILIS_MEETING.WebRTCCore.peerConnections.has(p.user_id)) {
         UNILIS_MEETING.WebRTCCore.ensurePeer(p.user_id, p.display_name, p.role === 'lecturer');
         if (UNILIS_MEETING.WebRTCCore.shouldCreateOffer(p.user_id)) {
@@ -478,9 +924,8 @@
       }
     });
 
-    // Clean up disconnected participants
     UNILIS_MEETING.WebRTCCore.peerConnections.forEach((entry, userId) => {
-      if (!remoteIds.has(userId)) {
+      if (!wanted.has(userId)) {
         UNILIS_MEETING.WebRTCCore.cleanupPeer(userId);
         removeVideoTile(userId);
       }
@@ -510,6 +955,8 @@
         break;
       case 'ice':
         UNILIS_MEETING.WebRTCCore.handleICE(fromId, message.payload);
+        break;
+      default:
         break;
     }
   }
@@ -542,59 +989,134 @@
   // UI Updates
   // ============================================================
   function updateParticipantsUI(participants) {
-    UNILIS_MEETING.LayoutManager.updateTileCount(participants.length);
+    const list = participants || [];
+    const inMyRoom = list.filter(p => (p.breakout_id || null) === UNILIS_MEETING.Room.breakoutId);
+
+    UNILIS_MEETING.LayoutManager.updateTileCount(inMyRoom.length);
+    refreshTileMeta(list);
+
+    const counter = document.getElementById('peopleCount');
+    if (counter) counter.textContent = String(inMyRoom.length);
 
     if (UNILIS_MEETING.SidebarManager.currentTab === 'participants') {
-      const html = UNILIS_MEETING.ParticipantPanel.render(participants, config.role === 'lecturer');
-      document.getElementById('sidebarContent').innerHTML = html;
-      document.getElementById('sidebarTitle').textContent = `Participants (${participants.length})`;
+      document.getElementById('sidebarContent').innerHTML =
+        UNILIS_MEETING.ParticipantPanel.render(inMyRoom, isHost);
+      document.getElementById('sidebarTitle').textContent = `People (${inMyRoom.length})`;
+    } else if (UNILIS_MEETING.SidebarManager.currentTab === 'rooms') {
+      // The rooms panel shows who is where, so it is stale the moment somebody
+      // joins or moves.
+      document.getElementById('sidebarContent').innerHTML = UNILIS_MEETING.Breakouts.render();
     }
 
     // Keep the open modal live rather than showing whoever was in the room when
     // it was opened.
-    UNILIS_MEETING.ParticipantPanel.syncModal(participants, config.role === 'lecturer');
+    UNILIS_MEETING.ParticipantPanel.syncModal(inMyRoom, isHost);
+
+    updateHandButton(UNILIS_MEETING.Room.handRaised());
+    updateHandBadges();
+    syncCapabilityButtons();
 
     // This broadcast carries the screen_sharing flags, so it is how a viewer
     // learns that someone started or stopped presenting.
     updateScreenStage();
   }
 
+  /**
+   * The hand count on the toolbar and the People tab.
+   *
+   * Only hosts see the queue length. For a participant the only hand that
+   * matters is their own, and a number next to the button would read as "you
+   * have four hands up".
+   */
+  function updateHandBadges() {
+    const hands = UNILIS_MEETING.Room.raisedHands();
+    const badge = document.getElementById('handCount');
+
+    if (badge) {
+      const show = isHost && hands.length > 0;
+      badge.hidden = !show;
+      badge.textContent = String(hands.length);
+    }
+
+    UNILIS_MEETING.SidebarManager.setBadge('participants', isHost ? hands.length : 0);
+
+    if (UNILIS_MEETING.SidebarManager.currentTab === 'participants') {
+      refreshOpenTab();
+    }
+  }
+
+  function onWhiteboardActivity(count, action) {
+    UNILIS_MEETING.SidebarManager.setBadge('whiteboard', 0);
+
+    // A drawing arriving while the board is closed is easy to miss entirely, so
+    // the button says so once rather than for every stroke.
+    if (!UNILIS_MEETING.Whiteboard.open && action && action.kind === 'draw') {
+      const board = document.getElementById('boardBtn');
+      if (board && !board.classList.contains('has-activity')) {
+        board.classList.add('has-activity');
+        UNILIS_MEETING.Notifications.show('Someone is drawing on the whiteboard', 'info', 3000);
+      }
+    }
+
+    if (UNILIS_MEETING.SidebarManager.currentTab === 'whiteboard') refreshOpenTab();
+  }
+
+  /** Repaint whichever sidebar tab is open, from current state. */
+  function refreshOpenTab() {
+    if (!UNILIS_MEETING.SidebarManager.isOpen) return;
+    handleSidebarTab(UNILIS_MEETING.SidebarManager.currentTab);
+  }
+
   function handleSidebarTab(tab) {
     const content = document.getElementById('sidebarContent');
+    const title = document.getElementById('sidebarTitle');
+    const room = UNILIS_MEETING.Room;
+
     switch (tab) {
-      case 'participants':
-        document.getElementById('sidebarTitle').textContent = 'Participants';
-        content.innerHTML = UNILIS_MEETING.ParticipantPanel.render(
-          UNILIS_MEETING.Room.participants,
-          config.role === 'lecturer'
+      case 'participants': {
+        const inMyRoom = (room.participants || []).filter(
+          p => (p.breakout_id || null) === room.breakoutId
         );
+        title.textContent = `People (${inMyRoom.length})`;
+        content.innerHTML = UNILIS_MEETING.ParticipantPanel.render(inMyRoom, isHost);
         break;
+      }
       case 'chat':
-        document.getElementById('sidebarTitle').textContent = 'Chat';
+        title.textContent = room.breakoutId === null ? 'Chat' : `Chat · ${room.currentRoomName()}`;
         content.innerHTML = UNILIS_MEETING.Chat.render();
         UNILIS_MEETING.Chat.unreadCount = 0;
         updateChatBadge();
         setTimeout(() => {
           const input = document.getElementById('chatInput');
-          if (input) {
-            input.addEventListener('input', () => {
-              UNILIS_MEETING.signaling.send({ type: 'typing', is_typing: input.value.length > 0 });
-            });
-            input.focus();
+          if (!input) return;
+          if (!room.canChat()) {
+            input.disabled = true;
+            input.placeholder = 'The host has turned chat off';
+            return;
           }
+          input.addEventListener('input', () => {
+            UNILIS_MEETING.signaling.send({ type: 'typing', is_typing: input.value.length > 0 });
+          });
+          input.focus();
         }, 100);
         break;
+      case 'rooms':
+        title.textContent = 'Breakout rooms';
+        content.innerHTML = UNILIS_MEETING.Breakouts.render();
+        break;
       case 'polls':
-        document.getElementById('sidebarTitle').textContent = 'Polls';
+        title.textContent = 'Polls';
         updatePollsUI();
         break;
       case 'whiteboard':
-        document.getElementById('sidebarTitle').textContent = 'Whiteboard';
+        title.textContent = 'Whiteboard';
         content.innerHTML = UNILIS_MEETING.Whiteboard.render();
         break;
       case 'settings':
-        document.getElementById('sidebarTitle').textContent = 'Settings';
+        title.textContent = isHost ? 'Host settings' : 'Settings';
         content.innerHTML = UNILIS_MEETING.Settings.render();
+        break;
+      default:
         break;
     }
   }
@@ -605,9 +1127,10 @@
 
   function updateChatBadge() {
     const badge = document.getElementById('chatBadge');
-    if (badge) {
-      badge.style.display = UNILIS_MEETING.Chat.unreadCount > 0 && UNILIS_MEETING.SidebarManager.currentTab !== 'chat' ? '' : 'none';
-    }
+    const unread = UNILIS_MEETING.Chat.unreadCount > 0
+      && UNILIS_MEETING.SidebarManager.currentTab !== 'chat';
+    if (badge) badge.hidden = !unread;
+    UNILIS_MEETING.SidebarManager.setBadge('chat', unread ? UNILIS_MEETING.Chat.unreadCount : 0);
   }
 
   // ============================================================
@@ -621,7 +1144,7 @@
     }
     const enabled = UNILIS_MEETING.MediaManager.toggleAudio();
     updateMicUI();
-    UNILIS_MEETING.Room.sendParticipantUpdate({ audio_enabled: enabled });
+    UNILIS_MEETING.Room.sendParticipantUpdate({ audio_enabled: enabled, is_muted: !enabled });
   }
 
   function updateMicUI() {
@@ -629,7 +1152,8 @@
     if (!btn) return;
     const enabled = UNILIS_MEETING.MediaManager.audioEnabled;
     btn.classList.toggle('active', enabled);
-    btn.innerHTML = enabled ? '🎤' : '🔇';
+    btn.classList.toggle('ctrl-off', !enabled);
+    setControlLabel('micBtn', enabled ? '🎤' : '🔇', enabled ? 'Mute' : 'Unmute');
     btn.title = enabled ? 'Mute (M)' : 'Unmute (M)';
   }
 
@@ -649,8 +1173,9 @@
     if (!btn) return;
     const enabled = UNILIS_MEETING.MediaManager.videoEnabled;
     btn.classList.toggle('active', enabled);
-    btn.innerHTML = enabled ? '📷' : '🚫';
-    btn.title = enabled ? 'Camera Off (V)' : 'Camera On (V)';
+    btn.classList.toggle('ctrl-off', !enabled);
+    setControlLabel('camBtn', enabled ? '📹' : '🚫', enabled ? 'Camera' : 'Camera on');
+    btn.title = enabled ? 'Turn camera off (V)' : 'Turn camera on (V)';
   }
 
   /**
@@ -668,17 +1193,29 @@
 
   function handleScreenShareChanged(sharing) {
     const btn = document.getElementById('shareBtn');
-    if (btn) {
-      btn.classList.toggle('active', sharing);
-      btn.title = sharing ? 'Stop Sharing' : 'Share Screen';
-    }
+    if (btn) btn.classList.toggle('active', sharing);
+
+    // Presenting and the whiteboard both own the stage, so starting one closes
+    // the other rather than leaving the board on top of the screen.
+    if (sharing && UNILIS_MEETING.Whiteboard.open) UNILIS_MEETING.Whiteboard.close();
 
     // Tell the room, so viewers know whose stream to put on the stage. A viewer
     // cannot work this out alone: sharing swaps the sender's video track, so the
     // screen arrives on the same track the camera was using.
     UNILIS_MEETING.Room.sendParticipantUpdate({ screen_sharing: sharing });
 
+    syncCapabilityButtons();
     updateScreenStage();
+  }
+
+  function toggleBoard() {
+    const open = UNILIS_MEETING.Whiteboard.toggle();
+    const btn = document.getElementById('boardBtn');
+    if (btn) {
+      btn.classList.toggle('active', open);
+      btn.classList.remove('has-activity');
+    }
+    if (open) UNILIS_MEETING.SidebarManager.close();
   }
 
   /**
@@ -690,9 +1227,9 @@
       return { userId: config.user_id, isLocal: true, name: config.display_name };
     }
 
-    const remote = (UNILIS_MEETING.Room.participants || []).find(
-      p => p.screen_sharing && p.user_id !== config.user_id
-    );
+    // Only somebody in this room: a share in another breakout is none of this
+    // client's business and its track never arrives anyway.
+    const remote = UNILIS_MEETING.Room.peersInMyRoom().find(p => p.screen_sharing);
 
     return remote
       ? { userId: remote.user_id, isLocal: false, name: remote.display_name }
@@ -749,21 +1286,32 @@
 
   function toggleHand() {
     const raised = UNILIS_MEETING.Room.raiseHand();
-    document.getElementById('handBtn').classList.toggle('active', raised);
+    if (raised === undefined) return;
+    updateHandButton(raised);
+  }
+
+  /**
+   * The hand button's own state, driven by the roster rather than by the click,
+   * so a host lowering it is reflected here too.
+   */
+  function updateHandButton(raised) {
+    const btn = document.getElementById('handBtn');
+    if (!btn) return;
+    btn.classList.toggle('active', !!raised);
+    setControlLabel('handBtn', '✋', raised ? 'Lower' : 'Hand');
+    btn.title = raised ? 'Lower your hand (H)' : 'Raise your hand (H)';
   }
 
   function toggleView() {
     const view = UNILIS_MEETING.LayoutManager.toggleView();
-    UNILIS_MEETING.Notifications.show(`Switched to ${view} view`, 'info');
+    UNILIS_MEETING.Notifications.show(`Switched to ${view} view`, 'info', 2000);
   }
 
   function toggleRecord() {
     if (UNILIS_MEETING.Room.isRecording) {
       UNILIS_MEETING.Recording.stop();
-      document.getElementById('recordBtn').classList.remove('active');
     } else {
       UNILIS_MEETING.Recording.start();
-      document.getElementById('recordBtn').classList.add('active');
     }
   }
 
@@ -783,7 +1331,8 @@
       secondsElapsed++;
       const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
       const secs = String(secondsElapsed % 60).padStart(2, '0');
-      document.getElementById('timerDisplay').textContent = `${mins}:${secs}`;
+      const display = document.getElementById('timerDisplay');
+      if (display) display.textContent = `${mins}:${secs}`;
     }, 1000);
   }
 
@@ -793,21 +1342,21 @@
   function leaveMeeting() {
     if (!confirm('Are you sure you want to leave the meeting?')) return;
 
-    // Stop timer
     if (meetingTimer) clearInterval(meetingTimer);
-
-    // Disconnect signaling
     if (UNILIS_MEETING.signaling) UNILIS_MEETING.signaling.disconnect();
-
-    // Clean up WebRTC
     UNILIS_MEETING.WebRTCCore.cleanupAll();
-
-    // Stop media
     UNILIS_MEETING.MediaManager.stopAll();
 
-    // Navigate back
     window.location.href = config.back_url || '/';
   }
+
+  // A tab closed without pressing Leave still has to hand the mic and camera
+  // back, or the device light stays on until the browser is quit.
+  window.addEventListener('pagehide', () => {
+    if (!joined) return;
+    if (UNILIS_MEETING.signaling) UNILIS_MEETING.signaling.disconnect();
+    UNILIS_MEETING.MediaManager.stopAll();
+  });
 
   // ============================================================
   // Initialize

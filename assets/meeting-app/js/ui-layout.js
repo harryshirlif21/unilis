@@ -38,6 +38,36 @@ UNILIS_MEETING.LayoutManager = {
     if (this.currentView === 'gallery') {
       this._adjustGalleryColumns(count);
     }
+    // A pinned tile has to be re-marked after the grid is rebuilt, because the
+    // tile carrying the class may have been replaced.
+    if (this.pinnedUserId !== null) this.setPinned(this.pinnedUserId);
+  },
+
+  pinnedUserId: null,
+
+  /**
+   * Give one participant the big tile, or pass null to go back to an even grid.
+   *
+   * Purely local: it changes this viewer's layout and sends nothing, so it needs
+   * no permission and does not move anybody else's tiles.
+   */
+  setPinned(userId) {
+    this.pinnedUserId = userId === undefined ? null : userId;
+    const grid = this.container;
+    if (!grid) return;
+
+    grid.querySelectorAll('.video-tile').forEach(tile => {
+      tile.classList.toggle('pinned', tile.id === `participant-${this.pinnedUserId}`);
+    });
+    grid.classList.toggle('has-pinned', this.pinnedUserId !== null);
+
+    // The explicit columns set for the gallery would override the pinned
+    // layout's own grid, so they are dropped while something is pinned.
+    if (this.pinnedUserId !== null) {
+      grid.style.gridTemplateColumns = '';
+    } else {
+      this._adjustGalleryColumns(this.tileCount);
+    }
   },
 
   _adjustGalleryColumns(count) {

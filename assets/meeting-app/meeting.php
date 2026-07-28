@@ -39,6 +39,7 @@ $meetingScripts = [
     'js/ui-notifications.js',
     'js/participants.js',
     'js/chat.js',
+    'js/breakouts.js',
     'js/whiteboard.js',
     'js/screenshare.js',
     'js/polls.js',

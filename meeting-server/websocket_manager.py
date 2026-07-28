@@ -72,6 +72,31 @@ class WebSocketManager:
             except Exception:
                 logger.warning("Failed to send to user %s in meeting %s", uid, meeting_id)
 
+    async def broadcast_signaling_to(
+        self,
+        meeting_id: int,
+        user_ids,
+        payload: dict,
+        exclude_user_id: Optional[int] = None,
+    ) -> None:
+        """Send to a named subset of a meeting's signaling connections.
+
+        Used for anything scoped to a breakout room: the participants sharing a
+        breakout are a subset of the meeting, and broadcasting to the whole
+        meeting would leak a breakout's chat and whiteboard into the main room.
+        """
+        wanted = {int(uid) for uid in user_ids}
+        connections = self._signaling.get(meeting_id, {})
+        for uid, ws in connections.items():
+            if uid not in wanted:
+                continue
+            if exclude_user_id is not None and uid == exclude_user_id:
+                continue
+            try:
+                await ws.send_text(json.dumps(payload))
+            except Exception:
+                logger.warning("Failed to send to user %s in meeting %s", uid, meeting_id)
+
     async def broadcast_media(
         self, meeting_id: int, payload: dict, exclude_user_id: Optional[int] = None
     ) -> None:
