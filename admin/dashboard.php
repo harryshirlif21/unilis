@@ -2122,9 +2122,11 @@ function confirmBulkDeleteTestData() {
             cell = '<td class="ok">— Not present</td>';
           } else if (r3.ok) {
             var body = await r3.text();
-            // Assembled from pieces on purpose: this script is embedded in a
-            // .php file, so a literal "<?php" here would be read as an opening
-            // tag by the PHP parser and break the whole page.
+            // Both markers are assembled from two pieces on purpose. This script
+            // is embedded in a .php file, so writing either PHP open tag out in
+            // one piece - even inside a JavaScript comment, which the PHP lexer
+            // never sees as a comment - puts the parser into PHP mode partway
+            // through the script and takes the whole page down with a 500.
             var phpOpen = '<' + '?php';
             var shortOpen = '<' + '?=';
             var leaks = body.indexOf(phpOpen) !== -1 || body.indexOf(shortOpen) !== -1;
