@@ -236,6 +236,99 @@ Layout::start([
     }
 
     // ============================================================
+    // Slide Following
+    //
+    // The stage used to sit on "Waiting for presenter" for the whole session,
+    // because nothing ever asked where the presenter was. This polls the deck
+    // cursor and paints whichever slide they are on.
+    //
+    // The deck itself is fetched once and cached: only the cursor changes as
+    // the presenter advances, so re-downloading every slide on a timer would be
+    // wasted bandwidth on a lecture-hall connection.
+    // ============================================================
+    var slideCache = null;
+    var shownSlide = null;
+
+    async function leFetch(endpoint) {
+        var res = await fetch(<?= json_encode(le_module_url('api') . '/') ?> + endpoint, {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        var text = await res.text();
+        var data = text ? JSON.parse(text) : {};
+        if (!res.ok || data.success === false) {
+            throw new Error(data.message || 'Request failed');
+        }
+        return data.data !== undefined ? data.data : data;
+    }
+
+    async function followPresenter() {
+        if (document.hidden) return;
+
+        var state;
+        try {
+            state = await leFetch('presentation.php?action=state&session_id=' + SESSION_ID);
+        } catch (e) {
+            return; // Transient; the current slide stays on screen.
+        }
+
+        if (!state || !state.active || !state.presentation_id) {
+            shownSlide = null;
+            return;
+        }
+
+        if (!slideCache || slideCache.presentationId !== state.presentation_id) {
+            try {
+                var deck = await leFetch('presentation.php?action=slides&id=' + state.presentation_id);
+                slideCache = { presentationId: state.presentation_id, slides: deck.slides || [] };
+            } catch (e) {
+                return;
+            }
+        }
+
+        if (state.current_slide === shownSlide) return;
+        shownSlide = state.current_slide;
+
+        var slide = slideCache.slides.filter(function (s) {
+            return Number(s.slide_number) === Number(state.current_slide);
+        })[0];
+
+        var stage = document.getElementById('sessionContent');
+        stage.textContent = '';
+
+        if (!slide) {
+            var waiting = document.createElement('p');
+            waiting.style.color = 'var(--le-gray-500)';
+            waiting.textContent = 'Waiting for the next slide…';
+            stage.appendChild(waiting);
+            return;
+        }
+
+        if (slide.image_path) {
+            var img = document.createElement('img');
+            img.src = slide.image_path;
+            img.alt = 'Slide ' + slide.slide_number;
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '70vh';
+            img.style.objectFit = 'contain';
+            stage.appendChild(img);
+        } else {
+            // Lecturer-authored slide bodies are stored as rich text by the
+            // editor, so they render as markup here, matching the presenter view.
+            var body = document.createElement('div');
+            body.style.textAlign = 'left';
+            body.innerHTML = slide.content_html || '';
+            stage.appendChild(body);
+        }
+    }
+
+    followPresenter();
+    setInterval(followPresenter, 4000);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) followPresenter();
+    });
+
+    // ============================================================
     // Mobile Tab Switching
     // ============================================================
     function switchStudentTab(tab) {

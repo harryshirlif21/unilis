@@ -34,9 +34,93 @@ $role = le_current_user_role();
 
 $presModel = new \LE\Models\PresentationModel();
 
+/**
+ * Ownership test used by every presentation action.
+ *
+ * created_by was added to live_presentations later than the table itself, so
+ * installs that predate that migration have no such column. Those fall back to
+ * the owner of the session the presentation hangs off, which is how ownership
+ * was expressed before the column existed.
+ *
+ * The role gate is not redundant. Both created_by and lecturer_id hold lecturer
+ * ids, and lecturer ids come from a different auto-increment sequence than
+ * student ids - so student 1 and lecturer 1 are different people who share an
+ * integer. Comparing ids alone let any student whose id happened to match the
+ * owning lecturer's id edit, delete and drive that lecturer's deck.
+ */
+function le_pres_user_owns(array $presentation, int $userId, ?string $role): bool
+{
+    if ($role === 'admin') {
+        return true;
+    }
+    if ($role !== 'lecturer') {
+        return false;
+    }
+
+    if (isset($presentation['created_by']) && $presentation['created_by'] !== null) {
+        return (int) $presentation['created_by'] === $userId;
+    }
+
+    $sessionModel = new \LE\Models\SessionModel();
+    $session = $sessionModel->find((int) $presentation['session_id']);
+
+    return $session && (int) $session['lecturer_id'] === $userId;
+}
+
 try {
     switch ($method) {
         case 'GET':
+            // ---- Slide deck for the presenter runtime -------------------
+            // Read-only and available to any authenticated participant: a
+            // student needs the deck to render the slide the presenter is on.
+            if ($action === 'slides') {
+                if (!$presId) le_error_response('Missing presentation id', 400);
+
+                $presentation = $presModel->find($presId);
+                if (!$presentation) le_error_response('Presentation not found', 404);
+
+                $slideModel = new \LE\Models\SlideModel();
+                $slides = $slideModel->findBy('presentation_id', $presId);
+
+                le_success_response([
+                    'presentation' => [
+                        'id'            => (int) $presentation['id'],
+                        'session_id'    => (int) $presentation['session_id'],
+                        'title'         => $presentation['title'],
+                        'total_slides'  => (int) $presentation['total_slides'],
+                        'current_slide' => (int) $presentation['current_slide'],
+                        'is_active'     => (int) $presentation['is_active'],
+                        'notes'         => $presentation['presenter_notes'] ?? '',
+                    ],
+                    'slides' => $slides,
+                ]);
+            }
+
+            // ---- Live position, polled by students ----------------------
+            // Deliberately tiny: this is fetched on a timer by every attendee,
+            // so it returns the cursor and nothing else.
+            if ($action === 'state') {
+                $sessionId = (int) le_get('session_id', 0, true);
+                if (!$sessionId && !$presId) le_error_response('Missing session_id or id', 400);
+
+                $presentation = $presId
+                    ? $presModel->find($presId)
+                    : ($presModel->findBy('session_id', $sessionId)[0] ?? null);
+
+                if (!$presentation) {
+                    // Not an error: a session can run with no deck attached.
+                    le_success_response(['active' => false, 'current_slide' => 0]);
+                }
+
+                le_success_response([
+                    'active'         => (int) $presentation['is_active'] === 1,
+                    'presentation_id'=> (int) $presentation['id'],
+                    'current_slide'  => (int) $presentation['current_slide'],
+                    'total_slides'   => (int) $presentation['total_slides'],
+                    'title'          => $presentation['title'],
+                ]);
+            }
+
             if ($action === 'list') {
                 $search = le_get('search', '');
                 $courseFilter = (int)le_get('course_id', 0, true);
@@ -49,18 +133,8 @@ try {
                 $presentation = $presModel->find($presId);
                 if (!$presentation) le_error_response('Presentation not found', 404);
                 
-                // Check ownership - use created_by if available, otherwise check via session
-                if (isset($presentation['created_by'])) {
-                    if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
-                        le_error_response('Unauthorized', 403);
-                    }
-                } else {
-                    // Fallback: check if user owns the session this presentation belongs to
-                    $sessionModel = new \LE\Models\SessionModel();
-                    $session = $sessionModel->find($presentation['session_id']);
-                    if (!$session || ((int)$session['lecturer_id'] !== $userId && $role !== 'admin')) {
-                        le_error_response('Unauthorized', 403);
-                    }
+                if (!le_pres_user_owns($presentation, $userId, $role)) {
+                    le_error_response('Unauthorized', 403);
                 }
                 
                 le_success_response($presentation);
@@ -71,8 +145,51 @@ try {
 
         case 'POST':
             le_require_csrf();
-            
+
             switch ($action) {
+                // ---- Move the deck cursor (presenter only) --------------
+                // Students poll ?action=state, so writing here is what makes
+                // every attendee's screen follow the presenter.
+                case 'goto_slide':
+                    $targetPres = (int) ($requestInput['presentation_id'] ?? $presId);
+                    if (!$targetPres) le_error_response('presentation_id required');
+
+                    $presentation = $presModel->find($targetPres);
+                    if (!$presentation) le_error_response('Presentation not found', 404);
+                    if (!le_pres_user_owns($presentation, $userId, $role)) {
+                        le_error_response('Unauthorized', 403);
+                    }
+
+                    $slide = (int) ($requestInput['slide'] ?? 0);
+                    $total = (int) $presentation['total_slides'];
+                    // Clamp rather than reject: holding the arrow key at either
+                    // end of the deck should stop, not raise a wall of errors.
+                    if ($total > 0) {
+                        $slide = max(1, min($slide, $total));
+                    } else {
+                        $slide = max(0, $slide);
+                    }
+
+                    $presModel->update($targetPres, ['current_slide' => $slide]);
+                    le_success_response(['current_slide' => $slide, 'total_slides' => $total]);
+                    break;
+
+                // ---- Mark the deck live / not live ----------------------
+                case 'set_active':
+                    $targetPres = (int) ($requestInput['presentation_id'] ?? $presId);
+                    if (!$targetPres) le_error_response('presentation_id required');
+
+                    $presentation = $presModel->find($targetPres);
+                    if (!$presentation) le_error_response('Presentation not found', 404);
+                    if (!le_pres_user_owns($presentation, $userId, $role)) {
+                        le_error_response('Unauthorized', 403);
+                    }
+
+                    $makeActive = !empty($requestInput['active']) ? 1 : 0;
+                    $presModel->update($targetPres, ['is_active' => $makeActive]);
+                    le_success_response(['is_active' => $makeActive]);
+                    break;
+
                 case 'create':
                     if (empty($requestInput['title']) || empty($requestInput['session_id'])) {
                         le_error_response('Title and session_id required');
@@ -99,18 +216,8 @@ try {
                     $original = $presModel->find($presId);
                     if (!$original) le_error_response('Presentation not found', 404);
                     
-                    // Check ownership - use created_by if available, otherwise check via session
-                    if (isset($original['created_by'])) {
-                        if ((int)$original['created_by'] !== $userId && $role !== 'admin') {
-                            le_error_response('Unauthorized', 403);
-                        }
-                    } else {
-                        // Fallback: check if user owns the session this presentation belongs to
-                        $sessionModel = new \LE\Models\SessionModel();
-                        $session = $sessionModel->find($original['session_id']);
-                        if (!$session || ((int)$session['lecturer_id'] !== $userId && $role !== 'admin')) {
-                            le_error_response('Unauthorized', 403);
-                        }
+                    if (!le_pres_user_owns($original, $userId, $role)) {
+                        le_error_response('Unauthorized', 403);
                     }
                     
                     $duplicateData = $original;
@@ -154,18 +261,8 @@ try {
             $presentation = $presModel->find($presId);
             if (!$presentation) le_error_response('Presentation not found', 404);
             
-            // Check ownership - use created_by if available, otherwise check via session
-            if (isset($presentation['created_by'])) {
-                if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
-                    le_error_response('Unauthorized', 403);
-                }
-            } else {
-                // Fallback: check if user owns the session this presentation belongs to
-                $sessionModel = new \LE\Models\SessionModel();
-                $session = $sessionModel->find($presentation['session_id']);
-                if (!$session || ((int)$session['lecturer_id'] !== $userId && $role !== 'admin')) {
-                    le_error_response('Unauthorized', 403);
-                }
+            if (!le_pres_user_owns($presentation, $userId, $role)) {
+                le_error_response('Unauthorized', 403);
             }
             
             $allowed = ['title', 'description', 'is_active', 'allow_download', 'allow_annotations'];
@@ -187,18 +284,8 @@ try {
             $presentation = $presModel->find($presId);
             if (!$presentation) le_error_response('Presentation not found', 404);
             
-            // Check ownership - use created_by if available, otherwise check via session
-            if (isset($presentation['created_by'])) {
-                if ((int)$presentation['created_by'] !== $userId && $role !== 'admin') {
-                    le_error_response('Unauthorized', 403);
-                }
-            } else {
-                // Fallback: check if user owns the session this presentation belongs to
-                $sessionModel = new \LE\Models\SessionModel();
-                $session = $sessionModel->find($presentation['session_id']);
-                if (!$session || ((int)$session['lecturer_id'] !== $userId && $role !== 'admin')) {
-                    le_error_response('Unauthorized', 403);
-                }
+            if (!le_pres_user_owns($presentation, $userId, $role)) {
+                le_error_response('Unauthorized', 403);
             }
             
             if ($presModel->delete($presId)) {

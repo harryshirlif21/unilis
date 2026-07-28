@@ -86,13 +86,20 @@ if ($requestedPage !== '') {
                 break;
 
             case 'presenter':
-                if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
+                if (!le_has_role(['lecturer', 'admin'])) {
                     header('Location: ' . le_page_url('dashboard'));
                     exit;
                 }
-                // presenter.php not implemented yet - redirect to session view
-                header('Location: ' . le_page_url('session', ['id' => $sessionId]));
-                exit;
+                // Reached two ways: the dashboard passes a session (?id=), the
+                // presentations list passes a deck (?presentation_id=). Both
+                // used to land on the student session view, which is why
+                // "Present" appeared to do nothing useful.
+                if (!$sessionId && !(int) le_get('presentation_id', 0, true)) {
+                    header('Location: ' . le_page_url('presentations'));
+                    exit;
+                }
+                include __DIR__ . '/views/presenter.php';
+                break;
 
             case 'join':
                 include __DIR__ . '/views/join.php';

@@ -34,6 +34,12 @@ try {
     $courseFilter = (int)le_get('course_id', 0, true);
     $sort = le_get('sort', 'newest');
     $currentPage = max(1, (int)le_get('p', 1, true));
+    // Carried through to the "Create Presentation" link so a deck created from
+    // a session-scoped view stays attached to that session. Read from the
+    // request because it was previously never assigned at all: showCreateModal()
+    // interpolated an undefined variable, which emitted two PHP warnings in the
+    // middle of a JavaScript expression and broke the whole inline script.
+    $selectedSessionId = (int)le_get('session_id', 0, true);
     $perPage = 20;
 
     $presentations = $presentationModel->getUserPresentations($userId, $search, $courseFilter, $sort, $currentPage, $perPage);
