@@ -352,12 +352,68 @@ if (isset($_POST['generate_pdf'])) {
 
                 foreach ($units as $unitName => $unitAssignments) {
                     $modalId = "modal-$unitIndex";
+                    
+                    // Calculate assignment stats for the tile
+                    $totalAssignments = count($unitAssignments);
+                    $openAssignments = 0;
+                    $closedAssignments = 0;
+                    $submittedCount = 0;
+                    $nearestDeadline = null;
+                    
+                    foreach ($unitAssignments as $a) {
+                        $deadline = new DateTime($a['deadline']);
+                        $passed = $now > $deadline;
+                        $allowLate = (int)($a['allow_late_submission'] ?? 1) === 1;
+                        
+                        if ($passed && !$allowLate) {
+                            $closedAssignments++;
+                        } else {
+                            $openAssignments++;
+                        }
+                        
+                        // Check submission status
+                        $submissionQuery = $conn->prepare("
+                            SELECT file_path
+                            FROM submissions
+                            WHERE assignment_id = ? AND student_id = ?
+                        ");
+                        $submissionQuery->bind_param("ii", $a['id'], $student_id);
+                        $submissionQuery->execute();
+                        $submissionResult = $submissionQuery->get_result()->fetch_assoc();
+                        $submissionQuery->close();
+                        
+                        if (!empty($submissionResult['file_path'])) {
+                            $submittedCount++;
+                        }
+                        
+                        // Track nearest deadline
+                        if ($nearestDeadline === null || $deadline < $nearestDeadline) {
+                            $nearestDeadline = $deadline;
+                        }
+                    }
+                    
+                    $deadlineText = $nearestDeadline 
+                        ? "Next deadline: " . $nearestDeadline->format('d M Y, h:i A') 
+                        : "No active deadlines";
+                    
                     echo "<div class='unit-card'>
-                        <h3>$unitName</h3>
+                        <div class='unit-card-header'>
+                            <h3>$unitName</h3>
+                            <div class='unit-stats'>
+                                <span class='stat-badge total'>$totalAssignments Total</span>
+                                <span class='stat-badge open'>$openAssignments Open</span>
+                                <span class='stat-badge submitted'>$submittedCount Submitted</span>
+                            </div>
+                        </div>
+                        <p class='deadline-info'>$deadlineText</p>
                         <button class='btn-view' data-modal-target='$modalId'>View Assignments</button>
                         <div id='$modalId' class='modal'>
                             <div class='modal-content'>
-                                <h4>Assignments for $unitName</h4>
+                                <div class='modal-header'>
+                                    <h4>Assignments for $unitName</h4>
+                                    <button class='close-modal'>&times;</button>
+                                </div>
+                                <div class='modal-body'>
                                 <table>
                                     <thead>
                                         <tr>
@@ -403,30 +459,49 @@ if (isset($_POST['generate_pdf'])) {
                         }
 
                         $actions = '';
-                        if (!empty($filePath) && file_exists($fullPath)) {
-                            $actions .= "<a href='$fullPath' target='_blank' class='action-btn'>View</a> | <a href='$fullPath' download class='action-btn'>Download</a><br>";
-                        }
-
+                        
+                        // Submit feature first
                         if (!$blockedByDeadline) {
-                            $submitLabel = $passed ? 'Submit (Late)' : 'Submit';
-                            $actions .= "<form method='POST' enctype='multipart/form-data' action='submit_assignment.php'>
+                            $submitLabel = $passed ? 'Submit (Late)' : 'Submit Assignment';
+                            $actions .= "<form method='POST' enctype='multipart/form-data' action='submit_assignment.php' class='submit-form'>
                                 <input type='hidden' name='assignment_id' value='{$a['id']}'>
                                 <input type='file' name='file' accept='.pdf,.doc,.docx' required>
                                 <button type='submit' class='btn-submit'>$submitLabel</button>
                             </form>";
                         }
 
+                        // File view button if lecturer sent a file
+                        if (!empty($filePath) && file_exists($fullPath)) {
+                            $actions .= "<div class='file-actions'>
+                                <span class='file-label'>Assignment File:</span>
+                                <a href='$fullPath' target='_blank' class='action-btn view-file-btn'>
+                                    <i class='fas fa-eye'></i> View File
+                                </a>
+                                <a href='$fullPath' download class='action-btn download-file-btn'>
+                                    <i class='fas fa-download'></i> Download
+                                </a>
+                            </div>";
+                        }
+
+                        // Show submission status if already submitted
                         if ($alreadySubmitted) {
                             $submittedFile = "../assets/uploads/submissions/" . htmlspecialchars($submissionResult['file_path']);
                             if (file_exists($submittedFile)) {
                                 $submittedWhen = !empty($submissionResult['submitted_at'])
                                     ? date('d M Y, h:i A', strtotime($submissionResult['submitted_at']))
                                     : '';
-                                $actions .= "<br><strong>Your Submission" . ($submittedWhen ? " ($submittedWhen)" : '') . ":</strong> "
-                                    . "<a href='$submittedFile' target='_blank'>View</a> | <a href='$submittedFile' download>Download</a>";
+                                $actions .= "<div class='submission-status'>
+                                    <span class='status-label'>Your Submission" . ($submittedWhen ? " ($submittedWhen)" : '') . ":</span>
+                                    <a href='$submittedFile' target='_blank' class='action-btn'>
+                                        <i class='fas fa-eye'></i> View
+                                    </a>
+                                    <a href='$submittedFile' download class='action-btn'>
+                                        <i class='fas fa-download'></i> Download
+                                    </a>";
                                 if (!$blockedByDeadline) {
-                                    $actions .= "<br><em>You may upload again to replace your submission.</em>";
+                                    $actions .= "<span class='resubmit-note'><em>You may upload again to replace your submission.</em></span>";
                                 }
+                                $actions .= "</div>";
                             }
                         }
 
@@ -434,13 +509,14 @@ if (isset($_POST['generate_pdf'])) {
                                 <td>" . htmlspecialchars($a['title']) . "</td>
                                 <td>" . date("d M Y, h:i A", strtotime($a['deadline'])) . "</td>
                                 <td>$statusLabel</td>
-                                <td>$actions</td>
+                                <td class='actions-cell'>$actions</td>
                               </tr>";
                     }
 
                     echo "</tbody></table>
-                          <button class='close-modal'>Close</button>
-                        </div></div></div>";
+                                </div>
+                            </div>
+                        </div></div>";
                     $unitIndex++;
                 }
             }
