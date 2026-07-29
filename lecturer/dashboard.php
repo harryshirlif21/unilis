@@ -751,7 +751,7 @@ $stmt->close();
         <div class="assignments-content content-section" style="display:none;">
             <h3>Assignments</h3>
             <div class="assignments-controls">
-                <button id="uploadAssignmentBtn" class="btn-primary">Upload Assignment</button>
+                <button id="uploadAssignmentBtn" class="btn-primary" onclick="showModal('assignmentModal')">Upload Assignment</button>
                 <button id="interactiveAssignmentsBtn" class="btn-secondary">Interactive Assignments</button>
                 <button class="btn-secondary" id="viewSubmissionsBtn" onclick="window.location.href='assignment_submissions.php'">
                     View Submissions

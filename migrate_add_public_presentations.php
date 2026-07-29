@@ -41,9 +41,7 @@ if ($checkTable && $checkTable->num_rows > 0) {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_presentation_id (presentation_id),
         INDEX idx_share_token (share_token),
-        INDEX idx_expires_at (expires_at),
-        FOREIGN KEY (presentation_id) REFERENCES live_presentations(id) ON DELETE CASCADE,
-        FOREIGN KEY (created_by) REFERENCES lecturers(id) ON DELETE CASCADE
+        INDEX idx_expires_at (expires_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
     
     if ($conn->query($sql)) {
@@ -59,7 +57,8 @@ $checkColumn = $conn->query("SHOW COLUMNS FROM live_presentations LIKE 'is_publi
 if ($checkColumn && $checkColumn->num_rows > 0) {
     $messages[] = "Column is_public already exists in live_presentations";
 } else {
-    $sql = "ALTER TABLE live_presentations ADD COLUMN is_public TINYINT(1) NOT NULL DEFAULT 0 AFTER visibility";
+    // Try adding at the end of table to avoid column position issues
+    $sql = "ALTER TABLE live_presentations ADD COLUMN is_public TINYINT(1) NOT NULL DEFAULT 0";
     if ($conn->query($sql)) {
         $messages[] = "Added is_public column to live_presentations";
     } else {
