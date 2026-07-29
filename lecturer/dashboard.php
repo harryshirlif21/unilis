@@ -1653,6 +1653,10 @@ $stmt->close();
             <input type="hidden" name="action" value="create_assignment">
             <div class="modal-body">
                 <div class="form-group">
+                    <label>Title <span class="text-red-500">*</span></label>
+                    <input type="text" name="title" required>
+                </div>
+                <div class="form-group">
                     <label>Unit <span class="text-red-500">*</span></label>
                     <select name="unit_id" required>
                         <option value="">— Select Unit —</option>
