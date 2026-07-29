@@ -25,12 +25,21 @@
  */
 
 require_once __DIR__ . '/../bootstrap.php';
-le_require_auth();
 
 use LE\Components\Layout;
 use LE\Components\UI;
 
-if (!le_has_role(['lecturer', 'admin'])) {
+// Check for guest access from public presentation link
+$isGuest = isset($_SESSION['le_guest_access']) && $_SESSION['le_guest_access'] === true;
+$guestPresentationId = (int) ($_SESSION['le_guest_presentation_id'] ?? 0);
+
+// Require auth unless this is a valid guest access
+if (!$isGuest) {
+    le_require_auth();
+}
+
+// Role check only applies to authenticated users
+if (!$isGuest && !le_has_role(['lecturer', 'admin'])) {
     header('Location: ' . le_page_url('dashboard'));
     exit;
 }
@@ -39,6 +48,11 @@ $userId        = le_current_user_id();
 $sessionId     = (int) le_get('id', 0, true);
 $presentationId = (int) le_get('presentation_id', 0, true);
 
+// For guest access, use the presentation ID from session
+if ($isGuest && $guestPresentationId) {
+    $presentationId = $guestPresentationId;
+}
+
 $presModel    = new \LE\Models\PresentationModel();
 $sessionModel = new \LE\Models\SessionModel();
 $slideModel   = new \LE\Models\SlideModel();
@@ -46,13 +60,50 @@ $slideModel   = new \LE\Models\SlideModel();
 $presentation = null;
 $session      = null;
 
+// For guest access, validate the presentation is actually public
+if ($isGuest && $presentationId) {
+    try {
+        $db = le_db();
+        $publicPresentation = $db->fetchOne(
+            "SELECT p.*, pp.share_token, pp.expires_at 
+             FROM live_presentations p
+             LEFT JOIN public_presentations pp ON p.id = pp.presentation_id
+             WHERE p.id = ? AND (p.is_public = 1 OR pp.share_token IS NOT NULL)",
+            [$presentationId],
+            'i'
+        );
+        
+        // Check if public link has expired
+        if ($publicPresentation && !empty($publicPresentation['expires_at'])) {
+            $expiresAt = strtotime($publicPresentation['expires_at']);
+            if ($expiresAt < time()) {
+                $publicPresentation = null;
+            }
+        }
+        
+        if (!$publicPresentation) {
+            // Not a valid public presentation, redirect to join page
+            unset($_SESSION['le_guest_access'], $_SESSION['le_guest_presentation_id'], $_SESSION['le_guest_token']);
+            header('Location: ?page=join');
+            exit;
+        }
+        
+        $presentation = $publicPresentation;
+    } catch (Exception $e) {
+        error_log("Guest presentation validation error: " . $e->getMessage());
+        unset($_SESSION['le_guest_access'], $_SESSION['le_guest_presentation_id'], $_SESSION['le_guest_token']);
+        header('Location: ?page=join');
+        exit;
+    }
+}
+
 // Resolve whichever half of the pair we were handed into both.
-if ($presentationId) {
+if ($presentationId && !$isGuest) {
     $presentation = $presModel->find($presentationId);
     if ($presentation) {
         $session = $sessionModel->find((int) $presentation['session_id']);
     }
-} elseif ($sessionId) {
+} elseif ($sessionId && !$isGuest) {
     $session = $sessionModel->find($sessionId);
     if ($session) {
         // A session may carry several decks; the active one wins, else the first.
@@ -66,15 +117,22 @@ if ($presentationId) {
     }
 }
 
-if (!$session) {
+if (!$presentation) {
     header('Location: ' . le_page_url('presentations'));
     exit;
 }
 
-// Only the lecturer who owns the session may drive it.
-if ((int) $session['lecturer_id'] !== $userId && le_current_user_role() !== 'admin') {
-    header('Location: ' . le_page_url('dashboard'));
-    exit;
+// Only the lecturer who owns the session may drive it (skip for guests)
+if (!$isGuest) {
+    if (!$session) {
+        header('Location: ' . le_page_url('presentations'));
+        exit;
+    }
+    
+    if ((int) $session['lecturer_id'] !== $userId && le_current_user_role() !== 'admin') {
+        header('Location: ' . le_page_url('dashboard'));
+        exit;
+    }
 }
 
 $slides = $presentation

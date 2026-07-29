@@ -207,7 +207,11 @@ Layout::start([
                             <span class="material-symbols-rounded" style="font-size: 16px;">play_arrow</span>
                             Open
                         </button>
-                        <button class="le-btn le-btn-sm le-btn-secondary" onclick="editPresentation(<?= $pres['id'] ?>)">
+                        <button class="le-btn le-btn-sm le-btn-secondary" onclick="sharePresentation(<?= $pres['id'] ?>, '<?= UI::escape($pres['title']) ?>')">
+                            <span class="material-symbols-rounded" style="font-size: 16px;">share</span>
+                            Share
+                        </button>
+                        <button class="le-btn le-btn-sm le-btn-ghost" onclick="editPresentation(<?= $pres['id'] ?>)">
                             <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
                         </button>
                         <button class="le-btn le-btn-sm le-btn-ghost" onclick="duplicatePresentation(<?= $pres['id'] ?>)">
@@ -496,6 +500,76 @@ Layout::start([
 
     function openPresentation(id) {
         window.location.href = '?page=presenter&presentation_id=' + id;
+    }
+
+    async function sharePresentation(id, title) {
+        try {
+            // Mark presentation as public and get share token
+            const response = await fetch('<?= le_module_url('api/presentation.php') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new URLSearchParams({ action: 'make_public', id: id }),
+            });
+            const result = await response.json();
+            
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Failed to make presentation public');
+            }
+            
+            // Generate shareable link with presentation code
+            const shareUrl = window.location.origin + window.location.pathname + '?page=join&presentation_id=' + id;
+            
+            // Create modal to show share options
+            const modalHtml = `
+                <div class="le-modal-overlay" id="shareModal" style="display: flex;">
+                    <div class="le-modal">
+                        <div class="le-modal-header">
+                            <h3 style="margin: 0;">Share Presentation</h3>
+                            <button class="le-modal-close" onclick="closeModal('shareModal')">&times;</button>
+                        </div>
+                        <div class="le-modal-body">
+                            <p style="margin-bottom: 16px; color: var(--le-gray-600);">
+                                Share "${title}" with anyone using the link below:
+                            </p>
+                            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                                <input type="text" id="shareLinkInput" value="${shareUrl}" readonly
+                                       style="flex: 1; padding: 10px 12px; border: 1px solid var(--le-gray-200); border-radius: 8px; background: var(--le-gray-50);">
+                                <button onclick="copyShareLink()" class="le-btn le-btn-primary">
+                                    <span class="material-symbols-rounded" style="font-size: 16px;">content_copy</span>
+                                    Copy
+                                </button>
+                            </div>
+                            <div style="background: var(--le-success-lighter); padding: 12px; border-radius: 8px; font-size: 13px; color: var(--le-gray-600);">
+                                <strong>✓ Public Access Enabled</strong><br>
+                                Anyone with this link can view the presentation without logging in.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('shareModal');
+            if (existingModal) existingModal.remove();
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            LiveEngagement.showToast('Presentation is now public', 'success');
+        } catch (error) {
+            LiveEngagement.showToast(error.message || 'Failed to enable public sharing', 'error');
+        }
+    }
+
+    function copyShareLink() {
+        const input = document.getElementById('shareLinkInput');
+        input.select();
+        document.execCommand('copy');
+        LiveEngagement.showToast('Link copied to clipboard', 'success');
     }
 
     function editPresentation(id) {

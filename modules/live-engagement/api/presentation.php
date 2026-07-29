@@ -248,6 +248,63 @@ try {
                     le_success_response($presModel->find($newPresId), 'Presentation duplicated');
                     break;
 
+                case 'make_public':
+                    if (!$presId) le_error_response('Presentation ID required');
+                    
+                    $presentation = $presModel->find($presId);
+                    if (!$presentation) le_error_response('Presentation not found', 404);
+                    
+                    if (!le_pres_user_owns($presentation, $userId, $role)) {
+                        le_error_response('Unauthorized', 403);
+                    }
+                    
+                    $db = le_db();
+                    
+                    // Check if is_public column exists
+                    $checkColumn = $db->query("SHOW COLUMNS FROM live_presentations LIKE 'is_public'");
+                    if ($checkColumn && $checkColumn->num_rows > 0) {
+                        // Mark presentation as public
+                        $presModel->update($presId, ['is_public' => 1]);
+                    }
+                    
+                    // Check if public_presentations table exists
+                    $checkTable = $db->query("SHOW TABLES LIKE 'public_presentations'");
+                    if ($checkTable && $checkTable->num_rows > 0) {
+                        // Check if already has a public entry
+                        $existing = $db->fetchOne(
+                            "SELECT id, share_token FROM public_presentations WHERE presentation_id = ?",
+                            [$presId],
+                            'i'
+                        );
+                        
+                        if ($existing) {
+                            le_success_response(['share_token' => $existing['share_token']], 'Presentation already public');
+                        }
+                        
+                        // Generate unique share token
+                        $shareToken = bin2hex(random_bytes(32));
+                        
+                        // Create public presentation entry
+                        $inserted = $db->insert(
+                            'public_presentations',
+                            [
+                                'presentation_id' => $presId,
+                                'share_token' => $shareToken,
+                                'created_by' => $userId,
+                            ]
+                        );
+                        
+                        if ($inserted) {
+                            le_success_response(['share_token' => $shareToken], 'Presentation made public');
+                        } else {
+                            le_error_response('Failed to create public entry');
+                        }
+                    } else {
+                        // Table doesn't exist, just mark as public in presentations table
+                        le_success_response(['share_token' => null], 'Presentation marked as public');
+                    }
+                    break;
+
                 default:
                     le_error_response('Unknown action', 400);
             }

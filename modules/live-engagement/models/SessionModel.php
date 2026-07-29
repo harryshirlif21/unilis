@@ -109,11 +109,9 @@ class SessionModel extends BaseModel
     {
         // Get units the student is enrolled in
         $enrolledUnits = $this->db->select(
-            "SELECT unit_id FROM student_unit WHERE student_id = ?
-             UNION 
-             SELECT unit_id FROM student_unit_enrollments WHERE student_id = ?",
-            [$studentId, $studentId],
-            'ii'
+            "SELECT unit_id FROM student_unit_enrollments WHERE student_id = ?",
+            [$studentId],
+            'i'
         );
 
         if (empty($enrolledUnits)) {
@@ -276,8 +274,8 @@ class SessionModel extends BaseModel
         // For students, search across their enrolled units
         return $this->db->select(
             "SELECT s.* FROM live_sessions s
-             JOIN student_unit su ON s.unit_id = su.unit_id
-             WHERE su.student_id = ? AND (s.title LIKE ? OR s.session_code LIKE ?)
+             JOIN student_unit_enrollments sue ON s.unit_id = sue.unit_id
+             WHERE sue.student_id = ? AND (s.title LIKE ? OR s.session_code LIKE ?)
              ORDER BY s.created_at DESC LIMIT 20",
             [$userId, $searchTerm, $searchTerm],
             'iss'

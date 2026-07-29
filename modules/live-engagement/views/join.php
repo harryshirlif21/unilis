@@ -19,6 +19,49 @@ $userName = le_current_user_name() ?? '';
 $userEmail = le_current_user_email() ?? '';
 $isAuthenticated = le_is_authenticated();
 
+// Check if accessing via public presentation link
+$presentationId = (int) le_get('presentation_id', 0, true);
+$publicPresentation = null;
+
+if ($presentationId) {
+    try {
+        $db = le_db();
+        // Check if presentation is marked as public
+        $publicPresentation = $db->fetchOne(
+            "SELECT p.*, pp.share_token, pp.expires_at 
+             FROM live_presentations p
+             LEFT JOIN public_presentations pp ON p.id = pp.presentation_id
+             WHERE p.id = ? AND (p.is_public = 1 OR pp.share_token IS NOT NULL)",
+            [$presentationId],
+            'i'
+        );
+        
+        // Check if public link has expired
+        if ($publicPresentation && !empty($publicPresentation['expires_at'])) {
+            $expiresAt = strtotime($publicPresentation['expires_at']);
+            if ($expiresAt < time()) {
+                $publicPresentation = null;
+            }
+        }
+        
+        // If valid public presentation, redirect to presenter view
+        if ($publicPresentation) {
+            // For public presentations, allow guest access without authentication
+            if (!$isAuthenticated) {
+                // Create a temporary guest session
+                $_SESSION['le_guest_access'] = true;
+                $_SESSION['le_guest_presentation_id'] = $presentationId;
+                $_SESSION['le_guest_token'] = $publicPresentation['share_token'] ?? '';
+            }
+            // Redirect to presenter view
+            header('Location: ?page=presenter&presentation_id=' . $presentationId);
+            exit;
+        }
+    } catch (Exception $e) {
+        error_log("Public presentation check error: " . $e->getMessage());
+    }
+}
+
 Layout::start([
     'title' => 'Join Session',
     'layout' => 'minimal',
