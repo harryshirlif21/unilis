@@ -930,45 +930,40 @@ $stmt->close();
                                         echo "<td class='py-4 px-4 text-sm text-amber-700 font-medium'>" . $timeFormatted . "</td>";
                                         echo "<td class='py-4 px-4'>";
                                         echo "<div class='meeting-link-row'>";
-                                        echo "<input type='text' id='" . $inputId . "' readonly value='" . htmlspecialchars($studentJoinUrl) . "' style='min-width:220px;max-width:320px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;'>";
-                                        echo "<button type='button' class='btn-secondary copy-link-btn' data-target='" . $inputId . "' style='padding:6px 10px;font-size:12px;'>Copy</button>";
+                                        echo "<input type='text' id='" . $inputId . "' readonly value='" . htmlspecialchars($studentJoinUrl) . "' class='meeting-link-input'>";
+                                        echo "<button type='button' class='btn-secondary copy-link-btn meeting-copy-btn' data-target='" . $inputId . "'>Copy</button>";
                                         echo "</div>";
                                         echo "</td>";
                                         echo "<td class='py-4 px-4'>";
-                                        echo "<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;'>";
+                                        echo "<div class='meeting-actions-row'>";
                                         // Smart button: Start Meeting if not active, Join Meeting if active
                                         if ($canStartOrJoin) {
-                                            echo "<a class='inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200' ";
+                                            echo "<a class='meeting-action-btn' ";
                                             if ($isActive) {
                                                 echo "style='background:linear-gradient(135deg,#16a34a,#15803d);color:white;box-shadow:0 2px 8px rgba(22,163,74,0.3);' ";
                                                 echo "href='" . htmlspecialchars($hostJoinUrl, ENT_QUOTES) . "'>";
-                                                echo "<span class='live-dot' style='display:inline-block;width:8px;height:8px;background:#ff4444;border-radius:50%;animation:pulse-dot 1.5s infinite;margin-right:4px;'></span> Join Meeting";
+                                                echo "<span class='live-dot'></span> Join Meeting";
                                             } else {
                                                 echo "style='background:linear-gradient(135deg,#f59e0b,#d97706);color:white;box-shadow:0 2px 8px rgba(245,158,11,0.3);animation:pulse-glow 2s infinite;' ";
                                                 echo "href='" . htmlspecialchars($hostJoinUrl, ENT_QUOTES) . "'>";
-                                                echo "<span class='btn-icon' style='font-size:14px;'>▶</span> Start Meeting";
+                                                echo "<span class='btn-icon'>▶</span> Start Meeting";
                                             }
                                             echo "</a>";
                                         } else {
-                                            echo "<span style='font-size:0.75rem;color:#92400e;background:#fef3c7;padding:0.35rem 0.65rem;border-radius:999px;white-space:nowrap;'>Scheduled</span>";
+                                            echo "<span class='meeting-scheduled-badge'>Scheduled</span>";
                                         }
                                         // Always-visible Join button
-                                        $joinBtnStyle = "display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1.5px solid #6366f1;border-radius:8px;font-size:12px;font-weight:600;color:#6366f1;background:#fff;text-decoration:none;transition:all 0.2s;";
-                                        echo "<a href='" . htmlspecialchars($hostJoinUrl, ENT_QUOTES) . "' style='{$joinBtnStyle}' onmouseover=\"this.style.background='#eef2ff'\" onmouseout=\"this.style.background='#fff'\"><i class='fas fa-sign-in-alt' style='font-size:11px;'></i> Join</a>";
+                                        echo "<a href='" . htmlspecialchars($hostJoinUrl, ENT_QUOTES) . "' class='meeting-join-btn'><i class='fas fa-sign-in-alt'></i> Join</a>";
 
                                         // Guest access is managed by the lecturer who owns the meeting.
                                         // This table also lists meetings owned by a co-lecturer of the
                                         // same unit, and meeting_access.php would turn those away.
                                         if ($guestsReady && (int)$meeting['lecturer_id'] === (int)$lecturer_id) {
                                             $guestsOn = (int)($meeting['guest_access'] ?? 0) === 1;
-                                            $guestBtnStyle = "display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1.5px solid "
-                                                . ($guestsOn ? "#16a34a" : "#d1d5db")
-                                                . ";border-radius:8px;font-size:12px;font-weight:600;color:"
-                                                . ($guestsOn ? "#16a34a" : "#6b7280")
-                                                . ";background:#fff;text-decoration:none;";
-                                            echo "<a href='meeting_access.php?meeting_id={$meetingId}' style='{$guestBtnStyle}' title='Let people without a UNILIS account join'>";
-                                            echo "<i class='fas fa-user-group' style='font-size:11px;'></i> Guests";
-                                            echo $guestsOn ? " <span style='font-size:10px;'>ON</span>" : "";
+                                            $guestBtnClass = 'meeting-guest-btn' . ($guestsOn ? ' active' : '');
+                                            echo "<a href='meeting_access.php?meeting_id={$meetingId}' class='{$guestBtnClass}' title='Let people without a UNILIS account join'>";
+                                            echo "<i class='fas fa-user-group'></i> Guests";
+                                            echo $guestsOn ? " <span class='guest-on-indicator'>ON</span>" : "";
                                             echo "</a>";
                                         }
                                         echo "</div>";

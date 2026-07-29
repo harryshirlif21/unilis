@@ -1,8 +1,8 @@
 {
   "project_name": "UNILIS - Unified Learning and Innovation Lab Information System",
-  "version": "2.0.0",
-  "last_updated": "2026-07-20",
-  "description": "Comprehensive feature inventory for the UNILIS LMS system including Traditional LMS, SmartLab (SmartLab), Live Engagement, Teams, and ICLM (Self-Paced Online Courses) modules.",
+  "version": "2.1.0",
+  "last_updated": "2026-07-28",
+  "description": "Comprehensive feature inventory for the UNILIS LMS system including Traditional LMS, SmartLab (SmartLab), Live Engagement, Teams, Chat, Meeting Server, ICLM (Self-Paced & Public Courses), and Public Learning (Learn) modules.",
   "modules": [
     {
       "name": "Traditional LMS",
@@ -17,7 +17,8 @@
           "sub_features": [
             {"name": "Password Reset Flow", "status": "implemented"},
             {"name": "Session Management", "status": "implemented"},
-            {"name": "Role-based Redirects", "status": "implemented"}
+            {"name": "Role-based Redirects", "status": "implemented"},
+            {"name": "Student Signup", "status": "implemented", "files": ["student/signup.php"]}
           ]
         },
         {
@@ -81,8 +82,8 @@
           "id": "lms-student-content",
           "name": "Course Content Access",
           "status": "implemented",
-          "description": "Access course notes, lecture recordings, slides, and learning materials",
-          "files": ["student/view_content.php", "student/lesson_view.php", "student/unit_notes.php"]
+          "description": "Access course notes, lecture recordings, slides, and learning materials with lesson view",
+          "files": ["student/view_content.php", "student/lesson_view.php", "student/unit_notes.php", "student/js/lesson-dashboard.js"]
         },
         {
           "id": "lms-student-notifications",
@@ -105,6 +106,13 @@
           "files": ["profile.php"]
         },
         {
+          "id": "lms-student-enrolled-units",
+          "name": "Enrolled Units Query & Management",
+          "status": "implemented",
+          "description": "API endpoint to fetch enrolled units for a student with filtering and search",
+          "files": ["student/enrolled_units_query.php"]
+        },
+        {
           "id": "lms-lecturer-dashboard",
           "name": "Lecturer Dashboard",
           "status": "implemented",
@@ -115,12 +123,13 @@
           "id": "lms-lecturer-course-management",
           "name": "Course & Unit Management",
           "status": "implemented",
-          "description": "Create/edit courses, add units, set schedules, enroll students",
+          "description": "Create/edit courses, add units, set schedules, enroll students, manage modules with AJAX save",
           "files": ["lecturer/course_builder.php", "lecturer/course_outline.php", "lecturer/module_manager.php", "lecturer/ajax/save_module.php"],
           "sub_features": [
             {"name": "Course Creation/Editing", "status": "implemented"},
             {"name": "Unit Management", "status": "implemented"},
             {"name": "Student Enrollment", "status": "implemented"},
+            {"name": "AJAX Module Saving", "status": "implemented"},
             {"name": "Bulk CSV Enrollment", "status": "not-started"}
           ]
         },
@@ -155,7 +164,7 @@
           "id": "lms-lecturer-grading",
           "name": "Assignment Grading",
           "status": "implemented",
-          "description": "View submissions, enter grades, provide feedback, AI-assisted grading",
+          "description": "View submissions, enter grades, provide feedback, AI-assisted grading, batch grading",
           "files": ["lecturer/grade_submission.php", "lecturer/review_assignments.php", "lecturer/submissions.php", "includes/ai_grading.php"],
           "sub_features": [
             {"name": "Submission List View", "status": "implemented"},
@@ -168,16 +177,18 @@
         },
         {
           "id": "lms-lecturer-meetings",
-          "name": "Online Meetings (WebRTC)",
+          "name": "Online Meetings (WebRTC + Meeting Server)",
           "status": "partial",
-          "description": "Schedule meetings, start WebRTC sessions, record meetings, share screen, live coding IDE",
-          "files": ["lecturer/meetings.php", "lecturer/meeting_host.php", "lecturer/meeting_ide.php", "config/meeting.php", "api/check_live_meetings.php"],
+          "description": "Schedule meetings, start WebRTC sessions, record meetings, share screen, live coding IDE, guest access, dedicated Python media server",
+          "files": ["lecturer/meetings.php", "lecturer/meeting_host.php", "lecturer/meeting_ide.php", "config/meeting.php", "api/check_live_meetings.php", "meeting_guest.php", "meeting_ide.php"],
           "sub_features": [
             {"name": "Meeting Scheduling", "status": "implemented"},
-            {"name": "WebRTC Session Hosting", "status": "partial"},
+            {"name": "WebRTC Session Hosting", "status": "implemented"},
             {"name": "Meeting Recordings", "status": "implemented"},
-            {"name": "Screen Sharing", "status": "partial"},
-            {"name": "Live Coding IDE", "status": "implemented"}
+            {"name": "Screen Sharing", "status": "implemented"},
+            {"name": "Live Coding IDE", "status": "implemented"},
+            {"name": "Guest Join (No Login)", "status": "implemented"},
+            {"name": "Student Meeting Join", "status": "implemented", "files": ["student/meeting_join.php"]}
           ]
         },
         {
@@ -209,8 +220,15 @@
           "id": "lms-lecturer-exams",
           "name": "Exam & CAT Management",
           "status": "implemented",
-          "description": "Create exams/CATs, generate questions, manage exam reports, export scores",
+          "description": "Create exams/CATs, generate questions, manage exam reports, export scores, generate assessment PDFs",
           "files": ["lecturer/create_cat.php", "lecturer/create_questions.php", "lecturer/exam_reports.php", "lecturer/export_scores.php", "lecturer/assgenpdf.php"]
+        },
+        {
+          "id": "lms-lecturer-catalogue",
+          "name": "Course Catalogue Builder",
+          "status": "implemented",
+          "description": "Build and manage course catalogues with custom layouts for public display",
+          "files": ["lecturer/catalogue_builder.php", "lecturer/catalogue_layout.php", "lecturer/catalogue.php"]
         },
         {
           "id": "lms-lecturer-practicals",
@@ -240,6 +258,7 @@
           "sub_features": [
             {"name": "User CRUD", "status": "implemented"},
             {"name": "Role Management", "status": "implemented"},
+            {"name": "Admin Profile (Standard/Old Views)", "status": "implemented", "files": ["admin/profile_standard.php", "admin/profile_old.php"]},
             {"name": "Bulk User Import", "status": "not-started"},
             {"name": "Email Verification", "status": "not-started"}
           ]
@@ -260,7 +279,7 @@
           "id": "lms-admin-courses",
           "name": "Course & Unit Administration",
           "status": "implemented",
-          "description": "Add courses, configure units, assign lecturers, manage prerequisites",
+          "description": "Add courses, configure units, assign lecturers, manage prerequisites, fetch units via AJAX",
           "files": ["admin/add_course.php", "admin/fetch_units.php"]
         },
         {
@@ -339,14 +358,16 @@
           "id": "smartlab-workflow",
           "name": "Academic Integrity Workflow Engine",
           "status": "implemented",
-          "description": "Strict state machine enforcing physical-presence-only attendance verification with 11 workflow states (Scheduled → Graded)",
-          "files": ["smart-lab/includes/WorkflowEngine.php", "smart-lab/controllers/WorkflowController.php", "smart-lab/migrations/workflow/001_strict_workflow_tables.sql"],
+          "description": "Strict state machine enforcing physical-presence-only attendance verification with 11 workflow states (Scheduled → Graded), practical dashboard, and verify attendance views",
+          "files": ["smart-lab/includes/WorkflowEngine.php", "smart-lab/controllers/WorkflowController.php", "smart-lab/migrations/workflow/001_strict_workflow_tables.sql", "smart-lab/views/workflow/practical_dashboard.php", "smart-lab/views/workflow/verify_attendance.php"],
           "sub_features": [
             {"name": "11-State Workflow", "status": "implemented"},
             {"name": "Physical Presence Verification Only", "status": "implemented"},
             {"name": "Verification Window Enforcement", "status": "implemented"},
             {"name": "Automatic Verification Expiry", "status": "implemented"},
-            {"name": "Background Checks for Practical Start", "status": "implemented"}
+            {"name": "Background Checks for Practical Start", "status": "implemented"},
+            {"name": "Practical Dashboard for Lecturers", "status": "implemented"},
+            {"name": "Attendance Verification Views", "status": "implemented"}
           ]
         },
         {
@@ -516,15 +537,17 @@
           "id": "smartlab-reports",
           "name": "Report Submission & Grading",
           "status": "implemented",
-          "description": "Student report submission pipeline with draft/final workflow, file upload, grading with feedback, and revision requests",
-          "files": ["smart-lab/controllers/ReportController.php", "smart-lab/controllers/ReportSubmissionController.php", "smart-lab/views/report-submission/"],
+          "description": "Student report submission pipeline with draft/final workflow, file upload, grading with feedback, revision requests, and graded-by tracking",
+          "files": ["smart-lab/controllers/ReportController.php", "smart-lab/controllers/ReportSubmissionController.php", "smart-lab/views/report-submission/", "smart-lab/migrations/add_report_graded_by_column.php"],
           "sub_features": [
             {"name": "Report Creation (Draft/Submitted)", "status": "implemented"},
             {"name": "File Upload (PDF/DOC/DOCX)", "status": "implemented"},
             {"name": "Deadline Tracking with Extensions", "status": "implemented"},
             {"name": "Grading (0-100) with Feedback", "status": "implemented"},
             {"name": "Revision Request Workflow", "status": "implemented"},
-            {"name": "Grading Statistics (avg/highest/lowest)", "status": "implemented"}
+            {"name": "Grading Statistics (avg/highest/lowest)", "status": "implemented"},
+            {"name": "Report Graded-By Tracking", "status": "implemented"},
+            {"name": "Report Submissions Modal View", "status": "implemented", "files": ["smart-lab/views/practicals/report_submissions_modal.php"]}
           ]
         },
         {
@@ -546,14 +569,17 @@
           "id": "smartlab-practical-execution",
           "name": "Student Practical Execution",
           "status": "implemented",
-          "description": "Student-facing practical execution with tabbed interface, auto-save, structured data entry, and submission",
-          "files": ["smart-lab/controllers/StudentPracticalController.php", "smart-lab/controllers/StudentTestPracticalController.php", "smart-lab/views/student/view_practical.php", "smart-lab/views/practicals/index.php"],
+          "description": "Student-facing practical execution with tabbed interface, auto-save, structured data entry, submission, and test practical support",
+          "files": ["smart-lab/controllers/StudentPracticalController.php", "smart-lab/controllers/StudentTestPracticalController.php", "smart-lab/views/student/view_practical.php", "smart-lab/views/student/view_practical_modal_test.php", "smart-lab/views/student/test_take_practical.php", "smart-lab/views/practicals/index.php"],
           "sub_features": [
             {"name": "Tabbed Practical Interface", "status": "implemented"},
             {"name": "Auto-save per Section", "status": "implemented"},
             {"name": "Results Table with Dynamic Columns", "status": "implemented"},
             {"name": "Access Window Enforcement", "status": "implemented"},
-            {"name": "Draft/Submitted Status Workflow", "status": "implemented"}
+            {"name": "Draft/Submitted Status Workflow", "status": "implemented"},
+            {"name": "Test Practical Mode", "status": "implemented"},
+            {"name": "Modal-based Practical View", "status": "implemented"},
+            {"name": "Practical Button Check", "status": "implemented", "files": ["smart-lab/check_practical_button.php"]}
           ]
         },
         {
@@ -562,6 +588,18 @@
           "status": "implemented",
           "description": "Chemical safety datasheet management with search, PDF generation, and download capabilities",
           "files": ["smart-lab/controllers/DatasheetController.php", "smart-lab/models/DatasheetModel.php", "smart-lab/views/datasheets.php", "smart-lab/api/datasheet.php", "smart-lab/api/download_datasheet.php"]
+        },
+        {
+          "id": "smartlab-routing",
+          "name": "Web Routing System",
+          "status": "implemented",
+          "description": "MVC-style web routing with clean URLs, controller dispatch, and .htaccess rewrite rules",
+          "files": ["smart-lab/routes/web.php", "smart-lab/.htaccess"],
+          "sub_features": [
+            {"name": "Route Definitions", "status": "implemented"},
+            {"name": "Controller Dispatch", "status": "implemented"},
+            {"name": "URL Rewriting (.htaccess)", "status": "implemented"}
+          ]
         },
         {
           "id": "smartlab-deployment",
@@ -583,6 +621,19 @@
       "name": "Live Engagement Module",
       "description": "Interactive live engagement module for presentations, polls, quizzes, whiteboards, word clouds, and real-time student participation",
       "features": [
+        {
+          "id": "live-landing",
+          "name": "Landing & Home Pages",
+          "status": "implemented",
+          "description": "Public landing page and authenticated home dashboard for live engagement features",
+          "files": ["modules/live-engagement/index.php", "modules/live-engagement/landing.php", "modules/live-engagement/views/home.php"],
+          "sub_features": [
+            {"name": "Public Landing Page", "status": "implemented"},
+            {"name": "Authenticated Home Dashboard", "status": "implemented"},
+            {"name": "Setup Script", "status": "implemented", "files": ["setup_live_engagement.php"]},
+            {"name": "Bootstrap Initialization", "status": "implemented", "files": ["modules/live-engagement/bootstrap.php"]}
+          ]
+        },
         {
           "id": "live-presentations",
           "name": "Presentation Management",
@@ -700,144 +751,513 @@
             {"name": "3-second Polling Interval", "status": "implemented"},
             {"name": "Rate Limiting (polls/responses/reactions)", "status": "implemented"},
             {"name": "Auto-reconnect (up to 5 attempts)", "status": "implemented"},
-            {"name": "CSRF Token Protection", "status": "implemented"}
+            {"name": "CSRF Token Protection", "status": "implemented"},
+            {"name": "Activity API Endpoint", "status": "implemented", "files": ["modules/live-engagement/api/activity.php"]}
+          ]
+        },
+        {
+          "id": "live-database",
+          "name": "Database Management",
+          "status": "implemented",
+          "description": "Database installation scripts, update migrations, and helper utilities for the Live Engagement module",
+          "files": ["modules/live-engagement/database/install.php", "modules/live-engagement/database/update.php", "modules/live-engagement/config/database_helper.php"],
+          "sub_features": [
+            {"name": "Install Script", "status": "implemented"},
+            {"name": "Update/Migration Script", "status": "implemented"},
+            {"name": "Database Helper Utilities", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-security",
+          "name": "Security Helpers",
+          "status": "implemented",
+          "description": "Security utilities including session management helpers and security helpers",
+          "files": ["modules/live-engagement/helpers/security_helper.php", "modules/live-engagement/helpers/session_helper.php", "modules/live-engagement/models/BaseModel.php"],
+          "sub_features": [
+            {"name": "Security Helper Functions", "status": "implemented"},
+            {"name": "Session Helper Functions", "status": "implemented"},
+            {"name": "Base Model Class", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "live-join",
+          "name": "Session Join Interface",
+          "status": "implemented",
+          "description": "Join interface for participants to enter live sessions via session code",
+          "files": ["modules/live-engagement/views/join.php"]
+        },
+        {
+          "id": "live-dashboard",
+          "name": "Live Engagement Dashboard",
+          "status": "implemented",
+          "description": "Dashboard view for managing and monitoring live engagement sessions",
+          "files": ["modules/live-engagement/views/dashboard.php"]
+        }
+      ]
+    },
+    {
+      "name": "Chat Module",
+      "description": "Real-time messaging system for students, lecturers, and staff with conversations, file sharing, groups, and instruction posting",
+      "features": [
+        {
+          "id": "chat-core",
+          "name": "Core Messaging",
+          "status": "implemented",
+          "description": "Full-featured messaging system with conversations, direct messaging, file attachments, and real-time unread counts",
+          "files": ["chat/views/chat.php", "chat/config.php", "chat/api/messages.php", "chat/api/send.php", "chat/api/conversations.php", "chat/api/unread_count.php"],
+          "sub_features": [
+            {"name": "Conversation Listing", "status": "implemented"},
+            {"name": "Message Sending & Receiving", "status": "implemented"},
+            {"name": "Direct Message Start", "status": "implemented", "files": ["chat/api/start_direct.php"]},
+            {"name": "Unread Message Counts", "status": "implemented"},
+            {"name": "Real-time Polling Updates", "status": "implemented"},
+            {"name": "Deep Linking from Notifications", "status": "implemented"},
+            {"name": "User Directory Lookup", "status": "implemented", "files": ["chat/api/directory.php"]}
+          ]
+        },
+        {
+          "id": "chat-files",
+          "name": "File Sharing",
+          "status": "implemented",
+          "description": "File attachments in messages with upload, serving, and download capabilities",
+          "files": ["chat/api/file.php", "chat/api/upload.php", "chat/includes/chat_files.php"],
+          "sub_features": [
+            {"name": "File Upload in Messages", "status": "implemented"},
+            {"name": "File Serving/Download", "status": "implemented"},
+            {"name": "File Type Validation", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "chat-groups",
+          "name": "Group Chat & Access Control",
+          "status": "implemented",
+          "description": "Group-based chat with access control rules, user badges, and schema management",
+          "files": ["chat/includes/chat_access.php", "chat/includes/chat_groups.php", "chat/includes/chat_repository.php", "chat/includes/schema.php"],
+          "sub_features": [
+            {"name": "Group Chat Support", "status": "implemented"},
+            {"name": "Access Control Rules", "status": "implemented"},
+            {"name": "Navigation Badge", "status": "implemented", "files": ["chat/includes/nav_badge.php"]},
+            {"name": "Database Schema Setup", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "chat-notifications",
+          "name": "Chat Notifications",
+          "status": "implemented",
+          "description": "Notification integration for chat messages, including email notifications",
+          "files": ["chat/includes/chat_notify.php"],
+          "sub_features": [
+            {"name": "Message Notifications", "status": "implemented"},
+            {"name": "Email Alerts", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "chat-instructions",
+          "name": "Lecturer Instruction Posting",
+          "status": "implemented",
+          "description": "Lecturers can post instructions to specific targets (students/groups) with instruction target management",
+          "files": ["chat/api/post_instruction.php", "chat/api/instruction_targets.php"],
+          "sub_features": [
+            {"name": "Instruction Posting", "status": "implemented"},
+            {"name": "Target Selection (Students/Groups)", "status": "implemented"},
+            {"name": "Instruction History", "status": "implemented"}
           ]
         }
       ]
     },
     {
       "name": "Teams Module",
-      "description": "Team management and collaboration features for group projects and team-based assignments",
+      "description": "Team management and collaboration features for group projects, submissions, Kanban tasks, standups, checklists, and peer evaluations",
       "features": [
         {
-          "id": "teams-management",
-          "name": "Team Management",
+          "id": "teams-core",
+          "name": "Team Creation & Management",
           "status": "implemented",
-          "description": "Create and manage student teams, team membership requests, approvals, and export group members",
-          "files": ["teams/api/export_group_members_pdf.php", "teams/api/export_pdf.php", "teams/api/export_excel.php"],
+          "description": "Create and manage student teams with invitations, membership requests, approvals, and role management",
+          "files": ["teams/api/create.php", "teams/api/delete_team.php", "teams/api/get_team.php", "teams/api/get_user_teams.php", "teams/api/get_teams_by_unit.php", "teams/api/update_team_settings.php", "teams/api/fetch_teams.php", "teams/controllers/TeamController.php", "teams/models/Team.php"],
           "sub_features": [
             {"name": "Team Creation", "status": "implemented"},
-            {"name": "Membership Requests", "status": "implemented"},
-            {"name": "PDF Export of Group Members", "status": "implemented"},
-            {"name": "Excel Export of Group Members", "status": "implemented"}
+            {"name": "Team Settings Updates", "status": "implemented"},
+            {"name": "Team Deletion", "status": "implemented"},
+            {"name": "Team Listing/Fetching", "status": "implemented"},
+            {"name": "Units Assignment", "status": "implemented", "files": ["teams/api/get_enrolled_units.php"]},
+            {"name": "Limit Enforcement", "status": "implemented", "files": ["teams/includes/team_limits.php"]}
           ]
         },
         {
-          "id": "teams-membership-requests",
-          "name": "Team Membership Requests",
+          "id": "teams-members",
+          "name": "Team Membership Management",
           "status": "implemented",
-          "description": "Student team membership request workflow with admin approval",
-          "files": ["admin/pendingreq.php", "database_setup/create_team_membership_requests_table.sql", "database_setup/create_team_marks_table.sql"],
+          "description": "Manage team members with invitations, requests, approvals, removals, and role migration",
+          "files": ["teams/api/add_member.php", "teams/api/remove_member.php", "teams/api/get_team_members.php", "teams/api/confirm_member.php", "teams/api/request_member_removal.php", "teams/api/request_membership_leave.php", "teams/api/accept_invitation.php", "teams/api/get_invitations.php", "teams/api/get_team_invitations.php", "teams/api/resend_invitation_code.php", "teams/api/cleanup_expired_invitations.php", "teams/api/approve_membership_request.php", "teams/api/get_pending_membership_requests.php", "teams/api/migrate_membership_requests_table.php", "teams/api/migrate_team_members_role.php", "teams/controllers/MemberController.php", "teams/models/TeamMember.php", "teams/includes/team_membership.php", "teams/includes/ensure_team_marks.php"],
           "sub_features": [
-            {"name": "Request Submission", "status": "implemented"},
-            {"name": "Admin Approval/Rejection", "status": "implemented"},
+            {"name": "Add/Remove Members", "status": "implemented"},
+            {"name": "Invitation System with Codes", "status": "implemented"},
+            {"name": "Membership Requests & Approval", "status": "implemented"},
+            {"name": "Membership Leave/Removal Requests", "status": "implemented"},
+            {"name": "Expired Invitation Cleanup", "status": "implemented"},
+            {"name": "Role Migration", "status": "implemented"},
             {"name": "Team Marks Tracking", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-views",
+          "name": "Team Views & UI",
+          "status": "implemented",
+          "description": "User-facing views for team management including workspace, create team, manage team, approve requests",
+          "files": ["teams/views/workspace.php", "teams/views/create_team.php", "teams/views/manage_team.php", "teams/views/approve_membership_requests.php", "teams/views/lecturer_teams.php"],
+          "sub_features": [
+            {"name": "Team Workspace (Full UI)", "status": "implemented"},
+            {"name": "Team Creation Form", "status": "implemented"},
+            {"name": "Team Management UI", "status": "implemented"},
+            {"name": "Membership Request Approval UI", "status": "implemented"},
+            {"name": "Lecturer Team Overview", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-submissions",
+          "name": "Team Submissions & Assessments",
+          "status": "implemented",
+          "description": "Submit assignments as a team, lecturer assessment of team submissions, file management, download submissions",
+          "files": ["teams/api/submit.php", "teams/api/get_submissions.php", "teams/api/download_submission.php", "teams/api/lecturer_assessments.php", "teams/api/get_assessments.php", "teams/api/award_mark.php", "teams/api/delete_team_file.php", "teams/api/view_team_file.php", "teams/controllers/SubmissionController.php", "teams/models/TeamSubmission.php", "teams/views/submit.php"],
+          "sub_features": [
+            {"name": "Team Assignment Submission", "status": "implemented"},
+            {"name": "Lecturer Assessment & Marking", "status": "implemented"},
+            {"name": "Submission Download", "status": "implemented"},
+            {"name": "Team File Management", "status": "implemented"},
+            {"name": "Assessment Listings", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-kanban",
+          "name": "Kanban Task Board",
+          "status": "implemented",
+          "description": "Kanban-style task management for teams with task creation, status updates, and board view",
+          "files": ["teams/api/kanban_tasks.php", "teams/api/task_create.php", "teams/api/task_update_status.php"],
+          "sub_features": [
+            {"name": "Task Creation", "status": "implemented"},
+            {"name": "Task Status Updates (Drag & Drop)", "status": "implemented"},
+            {"name": "Kanban Board API", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-standups",
+          "name": "Daily Standups",
+          "status": "implemented",
+          "description": "Daily standup tracking for team members with create and view standups",
+          "files": ["teams/api/standups.php", "teams/api/standup_create.php"],
+          "sub_features": [
+            {"name": "Standup Creation", "status": "implemented"},
+            {"name": "Standup History Viewing", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-checklists",
+          "name": "Team Checklists",
+          "status": "implemented",
+          "description": "Checklist management with toggle completion and sign-off workflow",
+          "files": ["teams/api/checklist.php", "teams/api/checklist_toggle.php", "teams/api/checklist_signoff.php"],
+          "sub_features": [
+            {"name": "Checklist Creation", "status": "implemented"},
+            {"name": "Item Toggle (Complete/Incomplete)", "status": "implemented"},
+            {"name": "Checklist Sign-off", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-peer-evaluation",
+          "name": "Peer Evaluation",
+          "status": "implemented",
+          "description": "Peer evaluation system with submission, summary reports, and lecturer-facing reports",
+          "files": ["teams/api/peer_evaluation_submit.php", "teams/api/peer_evaluation_summary.php", "teams/api/peer_evaluation_report.php"],
+          "sub_features": [
+            {"name": "Peer Evaluation Submission", "status": "implemented"},
+            {"name": "Peer Evaluation Summary", "status": "implemented"},
+            {"name": "Lecturer Evaluation Reports", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-file-requests",
+          "name": "Team File Requests",
+          "status": "implemented",
+          "description": "Student and lecturer file request management with submission tracking",
+          "files": ["teams/api/student_file_requests.php", "teams/api/lecturer_file_requests.php", "teams/views/file_requests.php"],
+          "sub_features": [
+            {"name": "Student File Requests View", "status": "implemented"},
+            {"name": "Lecturer File Requests Management", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-activity-log",
+          "name": "Activity Logging",
+          "status": "implemented",
+          "description": "Track team activity with activity log for audit and monitoring",
+          "files": ["teams/api/get_activity_log.php", "teams/models/ActivityLog.php"],
+          "sub_features": [
+            {"name": "Activity Log Retrieval", "status": "implemented"},
+            {"name": "Activity Log Model", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-lecturer-insights",
+          "name": "Lecturer Team Insights",
+          "status": "implemented",
+          "description": "Lecturer insights dashboard with team performance data and ghost nudging (inactive member alerts)",
+          "files": ["teams/api/lecturer_team_insights.php", "teams/api/lecturer_units.php", "teams/api/ghost_nudge.php", "teams/api/ghost_status.php", "teams/api/health.php"],
+          "sub_features": [
+            {"name": "Team Performance Insights", "status": "implemented"},
+            {"name": "Unit-based Lecturer View", "status": "implemented"},
+            {"name": "Ghost Nudging (Inactive Members)", "status": "implemented"},
+            {"name": "Ghost Status Tracking", "status": "implemented"},
+            {"name": "Health Check API", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-workspace-files",
+          "name": "Workspace File Management",
+          "status": "implemented",
+          "description": "Team workspace file storage with serving, listing, and management",
+          "files": ["teams/api/workspace_files.php", "teams/api/serve_file.php"],
+          "sub_features": [
+            {"name": "Workspace File Listing", "status": "implemented"},
+            {"name": "File Serving", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "teams-export",
+          "name": "Team Data Export",
+          "status": "implemented",
+          "description": "Export team data in PDF and Excel formats including group members and all teams",
+          "files": ["teams/api/export_group_members_pdf.php", "teams/api/export_pdf.php", "teams/api/export_excel.php", "teams/api/export_all_teams_pdf.php", "teams/api/export_all_teams_excel.php"]
+        }
+      ]
+    },
+    {
+      "name": "Meeting Server (WebRTC Media Server)",
+      "description": "Python FastAPI-based WebRTC signaling and collaborative meeting server with real-time chat, polls, whiteboard, attendance tracking, and media compositing",
+      "features": [
+        {
+          "id": "meeting-server-core",
+          "name": "WebRTC Signaling & Room Management",
+          "status": "implemented",
+          "description": "FastAPI-based WebRTC signaling server with room creation, participant management, capability/policy enforcement, and CORS configuration",
+          "files": ["meeting-server/server.py", "meeting-server/room_manager.py", "meeting-server/requirements.txt", "meeting-server/Dockerfile"],
+          "sub_features": [
+            {"name": "Room Create/Join/Leave", "status": "implemented"},
+            {"name": "Participant Management", "status": "implemented"},
+            {"name": "Capability & Policy Enforcement", "status": "implemented"},
+            {"name": "CORS Middleware", "status": "implemented"},
+            {"name": "Optional Authentication via API Key/Header", "status": "implemented"},
+            {"name": "OpenAPI Documentation (FastAPI auto)", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "meeting-server-websocket",
+          "name": "WebSocket Manager",
+          "status": "implemented",
+          "description": "WebSocket connection management with reconnection handling, broadcast, and user-specific messaging",
+          "files": ["meeting-server/websocket_manager.py"],
+          "sub_features": [
+            {"name": "WebSocket Connection Pool", "status": "implemented"},
+            {"name": "Broadcast to Room/All", "status": "implemented"},
+            {"name": "User-specific Messaging", "status": "implemented"},
+            {"name": "Reconnection Handling", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "meeting-server-chat",
+          "name": "Meeting Chat",
+          "status": "implemented",
+          "description": "Real-time chat within meetings with message history and rate limiting",
+          "files": ["meeting-server/chat_handler.py"],
+          "sub_features": [
+            {"name": "Real-time Chat Messages", "status": "implemented"},
+            {"name": "Message History", "status": "implemented"},
+            {"name": "Rate Limiting", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "meeting-server-polls",
+          "name": "Meeting Polls",
+          "status": "implemented",
+          "description": "In-meeting polling system with poll creation, voting, and real-time results",
+          "files": ["meeting-server/poll_handler.py"],
+          "sub_features": [
+            {"name": "Poll Creation", "status": "implemented"},
+            {"name": "Voting System", "status": "implemented"},
+            {"name": "Real-time Results Broadcast", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "meeting-server-whiteboard",
+          "name": "Meeting Whiteboard",
+          "status": "implemented",
+          "description": "Real-time collaborative whiteboard within meetings with drawing tools and state synchronization",
+          "files": ["meeting-server/whiteboard_handler.py"],
+          "sub_features": [
+            {"name": "Whiteboard State Sync", "status": "implemented"},
+            {"name": "Drawing Tool Support", "status": "implemented"},
+            {"name": "Real-time Broadcast", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "meeting-server-attendance",
+          "name": "Meeting Attendance Tracking",
+          "status": "implemented",
+          "description": "Automatic attendance tracking for meeting participants with join/leave timestamps",
+          "files": ["meeting-server/attendance_handler.py"],
+          "sub_features": [
+            {"name": "Join/Leave Timestamping", "status": "implemented"},
+            {"name": "Duration Tracking", "status": "implemented"},
+            {"name": "Attendance Records", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "meeting-server-media",
+          "name": "Media Room & Frame Compositing",
+          "status": "implemented",
+          "description": "OpenCV-based camera/screen-share stream compositing with participant frames, JPEG encoding, and composite frame generation",
+          "files": ["meeting-server/media_room.py"],
+          "sub_features": [
+            {"name": "Camera Frame Capture", "status": "implemented"},
+            {"name": "Screen Share Frame Capture", "status": "implemented"},
+            {"name": "Composite Frame Generation (OpenCV)", "status": "implemented"},
+            {"name": "JPEG Encoding (Quality 75)", "status": "implemented"},
+            {"name": "1280x720 Default Resolution", "status": "implemented"},
+            {"name": "20fps Frame Processing", "status": "implemented"}
           ]
         }
       ]
     },
     {
-      "name": "ICLM Module (Self-Paced Online Courses)",
-      "description": "Self-paced online certification courses marketplace with category-based course listings and carousel features",
+      "name": "ICLM / Public Learning Module (Learn)",
+      "description": "Self-paced online certification courses with public catalogue, enrolment, lessons, assessments, certificates, and verification system - fully backend-driven",
       "features": [
         {
-          "id": "iclm-landing",
-          "name": "Course Catalog Landing Page",
+          "id": "learn-landing",
+          "name": "Public Course Catalogue",
           "status": "implemented",
-          "description": "Main landing page for online certifications with navigation, featured courses carousel, and category sections",
-          "files": ["self_paced/onlinecourse.php"],
+          "description": "Public-facing course catalogue with search, course cards, hero section, lesson/assessment counts, and learner enrollment tracking",
+          "files": ["learn/index.php", "learn/config.php"],
           "sub_features": [
-            {"name": "Navigation Menu with Categories", "status": "implemented"},
-            {"name": "Category Sections (IT, Business, Design, Marketing, Language)", "status": "implemented"},
-            {"name": "Featured Certifications Carousel", "status": "implemented"},
-            {"name": "Course Cards with Image, Description, Price", "status": "implemented"},
-            {"name": "Responsive Grid Layout", "status": "implemented"},
-            {"name": "Scroll-based Carousel Navigation", "status": "implemented"}
+            {"name": "Searchable Course Listing", "status": "implemented"},
+            {"name": "Course Cards with Metadata (Level, Lessons, Certificate)", "status": "implemented"},
+            {"name": "Learner Count Display", "status": "implemented"},
+            {"name": "Hero Section", "status": "implemented"},
+            {"name": "Responsive Grid Layout", "status": "implemented"}
           ]
         },
         {
-          "id": "iclm-it-courses",
-          "name": "IT & Software Certifications",
+          "id": "learn-auth",
+          "name": "Learner Authentication & Registration",
           "status": "implemented",
-          "description": "IT and software development certification courses including Web Dev, Data Science, Cybersecurity, Python, and Cloud Computing",
-          "files": ["self_paced/onlinecourse.php"],
+          "description": "Separate authentication system for external learners with registration, login, password reset, email verification, and session management",
+          "files": ["learn/login.php", "learn/register.php", "learn/logout.php", "learn/includes/learner_auth.php"],
           "sub_features": [
-            {"name": "Web Development Fundamentals", "status": "implemented"},
-            {"name": "Introduction to Data Science", "status": "implemented"},
-            {"name": "Cybersecurity Essentials", "status": "implemented"},
-            {"name": "Python Programming for AI", "status": "implemented"},
-            {"name": "Cloud Computing Fundamentals", "status": "implemented"}
+            {"name": "Learner Registration", "status": "implemented"},
+            {"name": "Login with Session Management", "status": "implemented"},
+            {"name": "Email Verification Link (48hr TTL)", "status": "implemented"},
+            {"name": "Minimum 10-char Password Policy", "status": "implemented"},
+            {"name": "Separate Session from LMS Users", "status": "implemented"}
           ]
         },
         {
-          "id": "iclm-business-courses",
-          "name": "Business Certifications",
+          "id": "learn-course-page",
+          "name": "Course Page & Learning Interface",
           "status": "implemented",
-          "description": "Business and management certification courses including Project Management (PMP) and Financial Planning",
-          "files": ["self_paced/onlinecourse.php"],
+          "description": "Full course page with module/lesson outline, enrolment button, lesson reading, completion tracking, and final assessments",
+          "files": ["learn/course.php", "learn/includes/catalogue.php", "learn/includes/layout.php"],
           "sub_features": [
-            {"name": "Project Management Professional (PMP)", "status": "implemented"},
-            {"name": "Certified Financial Planner", "status": "implemented"}
+            {"name": "Module-based Course Outline", "status": "implemented"},
+            {"name": "Lesson Reading Interface", "status": "implemented"},
+            {"name": "Lesson Completion Marking", "status": "implemented"},
+            {"name": "Course Enrolment (Self-enrol)", "status": "implemented"},
+            {"name": "Progress Tracking (lessons + assessments)", "status": "implemented"},
+            {"name": "CSRF-protected Actions", "status": "implemented"}
           ]
         },
         {
-          "id": "iclm-design-courses",
-          "name": "Design Certifications",
+          "id": "learn-assessments",
+          "name": "Assessments & Grading",
           "status": "implemented",
-          "description": "Design certification courses including Graphic Design and UI/UX Design",
-          "files": ["self_paced/onlinecourse.php"],
+          "description": "Server-side graded assessments with pass marks, multiple attempts tracking, and correct answer hiding until submission",
+          "files": ["learn/assessment.php", "learn/includes/catalogue.php"],
           "sub_features": [
-            {"name": "Graphic Design Masterclass", "status": "implemented"},
-            {"name": "UI/UX Design Certificate", "status": "implemented"}
+            {"name": "Server-side Grading", "status": "implemented"},
+            {"name": "Pass Mark Configuration", "status": "implemented"},
+            {"name": "Multiple Attempts Tracking", "status": "implemented"},
+            {"name": "Course-level Pass Mark", "status": "implemented"},
+            {"name": "Enrolment-based Access Control", "status": "implemented"}
           ]
         },
         {
-          "id": "iclm-marketing-courses",
-          "name": "Marketing Certifications",
+          "id": "learn-certificates",
+          "name": "Certificate Generation & Verification",
           "status": "implemented",
-          "description": "Marketing certification courses including SEO and Content Marketing",
-          "files": ["self_paced/onlinecourse.php"],
+          "description": "Verifiable certificates with unique 48-hex-character codes, public verification page, screen/print-ready rendering, and revocation support",
+          "files": ["learn/certificate.php", "learn/verify_certificate.php", "learn/includes/catalogue.php"],
           "sub_features": [
-            {"name": "Search Engine Optimization (SEO)", "status": "implemented"},
-            {"name": "Content Marketing Strategy", "status": "implemented"}
+            {"name": "Certificate Generation on Course Completion", "status": "implemented"},
+            {"name": "Unique 48-hex Verification Codes", "status": "implemented"},
+            {"name": "Public Verification Page (No Login Required)", "status": "implemented"},
+            {"name": "Print-ready Certificate Layout", "status": "implemented"},
+            {"name": "Certificate Revocation Support", "status": "implemented"}
           ]
         },
         {
-          "id": "iclm-language-courses",
-          "name": "Language Certifications",
+          "id": "learn-dashboard",
+          "name": "Learner Dashboard",
           "status": "implemented",
-          "description": "Language certification courses including Spanish Fluency and French for Travelers",
-          "files": ["self_paced/onlinecourse.php"],
+          "description": "Personal learning dashboard showing enrolled courses, progress, and certificates",
+          "files": ["learn/dashboard.php"],
           "sub_features": [
-            {"name": "Spanish Fluency Certificate", "status": "implemented"},
-            {"name": "French for Travelers", "status": "implemented"}
+            {"name": "Enrolled Courses List", "status": "implemented"},
+            {"name": "Progress per Course", "status": "implemented"},
+            {"name": "Certificate Status", "status": "implemented"}
           ]
         },
         {
-          "id": "iclm-featured-carousel",
-          "name": "Featured Courses Carousel",
+          "id": "learn-authoring",
+          "name": "Course Authoring Tools",
           "status": "implemented",
-          "description": "Interactive horizontal carousel with scroll navigation for featuring top certification courses",
-          "files": ["self_paced/onlinecourse.php"],
+          "description": "Authoring system for creating and managing public courses, modules, lessons, and assessments with slug-based URLs",
+          "files": ["learn/includes/authoring.php"],
           "sub_features": [
-            {"name": "Horizontal Scroll Carousel", "status": "implemented"},
-            {"name": "Previous/Next Navigation Buttons", "status": "implemented"},
-            {"name": "Smooth Scroll Behavior", "status": "implemented"},
-            {"name": "Course Cards with Pricing", "status": "implemented"}
+            {"name": "Course CRUD", "status": "implemented"},
+            {"name": "Module Management", "status": "implemented"},
+            {"name": "Lesson Content Creation", "status": "implemented"},
+            {"name": "Assessment Creation with Questions", "status": "implemented"},
+            {"name": "Publish/Unpublished Workflow", "status": "implemented"},
+            {"name": "Slug-based Course URLs", "status": "implemented"}
           ]
         },
         {
-          "id": "iclm-theme",
-          "name": "Golden Theme Design",
+          "id": "learn-mail",
+          "name": "Learner Email System",
           "status": "implemented",
-          "description": "Warm golden/cream color scheme with serif typography, card-based layout, and hover effects",
+          "description": "Email notifications for learners including verification emails and password resets",
+          "files": ["learn/includes/learner_mail.php"],
+          "sub_features": [
+            {"name": "Verification Emails", "status": "implemented"},
+            {"name": "Password Reset Emails", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "learn-verify-page",
+          "name": "Standalone Certificate Verification",
+          "status": "implemented",
+          "description": "Dedicated verification page where anyone can enter a certificate code to verify authenticity",
+          "files": ["learn/verify.php", "learn/verify_certificate.php"]
+        },
+        {
+          "id": "learn-static-catalog",
+          "name": "Static Course Catalog (Self-Paced)",
+          "status": "implemented",
+          "description": "Legacy static HTML/CSS course catalog page with categories, carousel, and golden theme",
           "files": ["self_paced/onlinecourse.php"],
           "sub_features": [
-            {"name": "Golden/Cream Color Scheme", "status": "implemented"},
-            {"name": "Serif Typography", "status": "implemented"},
-            {"name": "Card-based Course Grid", "status": "implemented"},
-            {"name": "Hover Animation Effects", "status": "implemented"},
-            {"name": "Navigation with Category Links", "status": "implemented"}
+            {"name": "Course Categories (IT, Business, Design, Marketing, Language)", "status": "implemented"},
+            {"name": "Featured Courses Carousel", "status": "implemented"},
+            {"name": "Golden/Cream Theme Design", "status": "implemented"}
           ]
         }
       ]
@@ -858,6 +1278,8 @@
             {"name": "Email Logging (email_logs table)", "status": "implemented"},
             {"name": "Retry Mechanism for Failed Sends", "status": "implemented"},
             {"name": "Deadline Reminder Emails", "status": "implemented"},
+            {"name": "Cron-based Deadline Reminders", "status": "implemented", "files": ["setup/deadline_reminder_cron.php"]},
+            {"name": "Email Test Utility", "status": "implemented", "files": ["setup/test_email_system.php"]},
             {"name": "Email Queue System", "status": "not-started"},
             {"name": "Email Preview Functionality", "status": "not-started"}
           ]
@@ -871,6 +1293,7 @@
           "sub_features": [
             {"name": "File Upload with Validation", "status": "implemented"},
             {"name": "File Type/Size Restrictions", "status": "implemented"},
+            {"name": "Base64 File Upload", "status": "implemented", "files": ["smart-lab/public/upload_base64.php"]},
             {"name": "Upload Outside Webroot", "status": "not-started"},
             {"name": "Virus Scanning", "status": "not-started"},
             {"name": "File Encryption", "status": "not-started"}
@@ -889,7 +1312,7 @@
             {"name": "Role-based Access Control", "status": "implemented"},
             {"name": "HMAC-SHA256 QR Token Signing", "status": "implemented"},
             {"name": "SHA256 Digital Signatures", "status": "implemented"},
-            {"name": "CSRF Token Protection", "status": "not-started"},
+            {"name": "CSRF Token Protection", "status": "implemented"},
             {"name": "Rate Limiting (login, API)", "status": "not-started"},
             {"name": "HTTPS Enforcement", "status": "not-started"},
             {"name": "Security Headers (CSP, X-Frame-Options)", "status": "not-started"},
@@ -965,59 +1388,91 @@
             {"name": "Assignment Deadline Reminders", "status": "implemented"},
             {"name": "Grade Released Notifications", "status": "implemented"},
             {"name": "Meeting Invitations", "status": "implemented"},
+            {"name": "Chat Message Notifications", "status": "implemented"},
+            {"name": "Deadline Reminder Cron", "status": "implemented"},
             {"name": "WebSocket Real-time Notifications", "status": "not-started"},
             {"name": "SMS Notifications", "status": "not-started"},
             {"name": "Push Notifications", "status": "not-started"},
             {"name": "Notification Preferences UI", "status": "not-started"}
+          ]
+        },
+        {
+          "id": "cross-migrations",
+          "name": "Database Migrations & Fixes",
+          "status": "implemented",
+          "description": "Database migration scripts and data fixes for schema updates across modules",
+          "files": ["migrations/", "fix/", "smart-lab/migrations/"],
+          "sub_features": [
+            {"name": "Attendance Table Migration", "status": "implemented"},
+            {"name": "Chat System Migration", "status": "implemented"},
+            {"name": "Meeting Guests Migration", "status": "implemented"},
+            {"name": "External Learners Migration", "status": "implemented"},
+            {"name": "Note Status Migration", "status": "implemented"},
+            {"name": "RFID Database Migration", "status": "implemented"},
+            {"name": "Database Collation Fix", "status": "implemented"},
+            {"name": "SmartLab Workflow Migrations", "status": "implemented"},
+            {"name": "Report Graded-By Migration", "status": "implemented"}
           ]
         }
       ]
     }
   ],
   "summary": {
-    "total_features": 71,
-    "implemented": 56,
+    "total_features": 95,
+    "implemented": 80,
     "partial": 8,
     "not_started": 7,
     "by_module": {
       "Traditional LMS": {
-        "total": 24,
-        "implemented": 17,
+        "total": 25,
+        "implemented": 18,
         "partial": 5,
         "not_started": 2
       },
       "SmartLab Module": {
-        "total": 17,
-        "implemented": 17,
+        "total": 18,
+        "implemented": 18,
         "partial": 0,
         "not_started": 0
       },
       "Live Engagement Module": {
-        "total": 9,
-        "implemented": 9,
+        "total": 12,
+        "implemented": 12,
+        "partial": 0,
+        "not_started": 0
+      },
+      "Chat Module": {
+        "total": 5,
+        "implemented": 5,
         "partial": 0,
         "not_started": 0
       },
       "Teams Module": {
-        "total": 2,
-        "implemented": 2,
+        "total": 12,
+        "implemented": 12,
         "partial": 0,
         "not_started": 0
       },
-      "ICLM Module (Self-Paced Online Courses)": {
-        "total": 8,
-        "implemented": 8,
+      "Meeting Server (WebRTC Media Server)": {
+        "total": 7,
+        "implemented": 7,
+        "partial": 0,
+        "not_started": 0
+      },
+      "ICLM / Public Learning Module (Learn)": {
+        "total": 10,
+        "implemented": 10,
         "partial": 0,
         "not_started": 0
       },
       "Cross-Cutting Features": {
-        "total": 8,
-        "implemented": 4,
+        "total": 9,
+        "implemented": 5,
         "partial": 3,
         "not_started": 1
       }
     },
-    "last_updated": "2026-07-20",
+    "last_updated": "2026-07-28",
     "note": "Total features are top-level features (not counting sub-features). Sub-feature statuses are detailed within each feature."
   },
   "known_issues": [
@@ -1033,7 +1488,9 @@
     "API endpoints lack rate limiting and CSRF protection",
     "Two separate authentication systems (traditional LMS and smart-lab) with different user tables",
     "Admin reports and audit log viewing not implemented",
-    "ICLM module is currently a static HTML/CSS catalog (no backend enrollment, payment, or certificate generation)"
+    "ICLM module has separate learner auth from LMS auth systems",
+    "Meeting server requires Python/FastAPI deployment separately from PHP",
+    "Dual authentication/user systems (LMS students, SmartLab users, Learn learners) need consolidation"
   ],
   "recommended_next_steps": [
     "1. Test practical attendance modal in browser (QR code, RFID, biometric, code)",
@@ -1046,8 +1503,10 @@
     "8. Optimize database queries and add caching layer (Redis)",
     "9. Implement comprehensive audit logging across all modules",
     "10. Complete admin reporting dashboard with export capabilities",
-    "11. Consolidate dual authentication systems into unified user management",
-    "12. Add backend functionality to ICLM module (enrollment, payment, certificate generation)",
-    "13. Set up monitoring, logging, and alerting for production"
+    "11. Consolidate dual/three authentication systems into unified user management",
+    "12. Deploy meeting-server as a standalone Python microservice",
+    "13. Set up monitoring, logging, and alerting for production",
+    "14. Complete Teams module integration with lecturer dashboards",
+    "15. Expand ICLM/Learn module with payment gateway integration"
   ]
 }

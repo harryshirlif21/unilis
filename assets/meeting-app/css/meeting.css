@@ -117,8 +117,12 @@ html, body {
   flex-direction: column;
   background: #1a1a2e;
   position: relative;
-  overflow: hidden;
   min-width: 0;
+  /* overflow: visible is critical — the floating control bar is position:absolute
+     inside this container, and overflow:hidden would clip it on small screens
+     where the stage height is constrained. The video-container inside already
+     has its own overflow:hidden for the tile grid. */
+  overflow: visible;
 }
 
 .video-container {
@@ -1354,6 +1358,18 @@ html, body {
 /* ============================================================
    Responsive
    ============================================================ */
+
+/* -- Tablet / small desktop (≤1100px) — drop the button labels,
+      icons only, to keep the toolbar from wrapping on the
+      narrowest laptops. --------------------------------------- */
+@media (max-width: 1100px) {
+  .ctrl-label { display: none; }
+  .ctrl { gap: 0; padding: 0 12px; }
+  .ctrl-icon { font-size: 20px; }
+  .ctrl-count { min-width: 18px; height: 18px; font-size: 10px; }
+  .ctrl-timer { font-size: 11px; }
+}
+
 @media (max-width: 900px) {
   .meeting-sidebar {
     position: fixed;
@@ -1367,15 +1383,21 @@ html, body {
 
   .meeting-float-controls {
     bottom: 16px;
-    padding: 6px 12px;
-    gap: 4px;
+    padding: 6px 10px;
+    gap: 3px;
+    border-radius: 14px;
   }
 
-  .control-btn {
+  .ctrl {
     width: 40px;
     height: 40px;
-    font-size: 18px;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 0;
   }
+
+  .ctrl-icon { font-size: 18px; }
+  .ctrl-danger { width: 44px; }
 
   .video-grid.gallery-view {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1387,26 +1409,154 @@ html, body {
   }
 }
 
-@media (max-width: 480px) {
-  .meeting-top-bar .meeting-title {
-    max-width: 120px;
+/* -- Phone (<640px) — even tighter, vertical lobby ----------- */
+@media (max-width: 640px) {
+  .meeting-stage { padding: 0; }
+
+  .video-container { padding: 8px; }
+
+  .meeting-top-bar {
+    padding: 6px 10px;
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
-  .control-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 16px;
+  .meeting-top-bar .meeting-info {
+    font-size: 11px;
+    max-width: 55%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .meeting-top-bar .top-actions button {
+    padding: 4px;
+    font-size: 14px;
   }
 
   .meeting-float-controls {
-    gap: 2px;
+    bottom: 12px;
     padding: 4px 8px;
+    gap: 2px;
+    border-radius: 12px;
+    max-width: calc(100% - 16px);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .meeting-float-controls::-webkit-scrollbar { display: none; }
+
+  .ctrl {
+    width: 36px;
+    height: 36px;
+    padding: 0 6px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .ctrl-icon { font-size: 16px; }
+  .ctrl-danger { width: 40px; }
+
+  .ctrl-group {
+    gap: 2px;
+    padding-right: 4px;
+    margin-right: 1px;
   }
 
-  .video-grid.gallery-view {
-    grid-template-columns: 1fr 1fr;
-    grid-auto-rows: minmax(100px, auto);
+  .ctrl-timer { font-size: 10px; margin-left: 2px; padding: 0 4px; }
+
+  /* The more menu drops from the right edge */
+  .ctrl-menu {
+    right: 0;
+    min-width: 180px;
+    font-size: 12px;
   }
+  .ctrl-menu button { padding: 7px 8px; font-size: 12px; }
+
+  .video-grid.gallery-view {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 4px;
+    grid-auto-rows: minmax(90px, auto);
+  }
+
+  .video-tile {
+    min-height: 80px;
+    border-radius: 8px;
+  }
+
+  .video-tile .avatar-placeholder .avatar-text {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+
+  .tile-overlay { padding: 4px 6px; }
+  .tile-overlay .tile-name { font-size: 11px; }
+  .tile-badge { width: 20px; height: 20px; font-size: 10px; }
+
+  /* Tile actions overlay on mobile */
+  .tile-actions { gap: 2px; }
+  .tile-act { width: 28px; height: 28px; font-size: 12px; }
+
+  /* Lobby */
+  .lobby-card {
+    padding: 20px 16px;
+    max-width: 100%;
+    width: 94%;
+    border-radius: 16px;
+  }
+  .lobby-card .lobby-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 24px;
+  }
+  .lobby-card h2 { font-size: 18px; }
+  .lobby-card p { font-size: 13px; }
+  .lobby-card .lobby-actions { flex-direction: column; gap: 8px; }
+  .lobby-btn { width: 100%; padding: 12px 16px; font-size: 15px; }
+
+  /* Screen-stage */
+  .stage-bar { top: 8px; left: 8px; right: 8px; }
+  .stage-label { font-size: 11px; padding: 4px 10px; }
+  .stage-stop { font-size: 11px; padding: 5px 12px; }
+
+  /* Notifications */
+  .notification-toast { max-width: calc(100vw - 32px); font-size: 12px; }
+
+  /* Sidebar on phone */
+  .meeting-sidebar { width: 100vw; }
+  .sidebar-header h3 { font-size: 14px; }
+  .sidebar-tab { padding: 10px 4px; font-size: 12px; }
+  .sidebar-content { padding: 12px; }
+
+  /* Chat on phone */
+  .chat-message { max-width: 92%; font-size: 13px; }
+  .chat-input-area textarea { font-size: 13px; }
+
+  /* Whiteboard on phone */
+  .whiteboard-toolbar { padding: 4px; gap: 2px; }
+  .whiteboard-tool { width: 32px; height: 32px; font-size: 14px; }
+
+  /* Poll on phone */
+  .poll-card { padding: 12px; }
+  .poll-option { padding: 6px 10px; }
+}
+
+/* -- Very narrow phone (≤400px) — single-column video -------- */
+@media (max-width: 400px) {
+  .video-grid.gallery-view {
+    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(120px, auto);
+  }
+
+  .meeting-float-controls { padding: 4px 6px; gap: 1px; }
+  .ctrl { width: 32px; height: 32px; padding: 0 4px; }
+  .ctrl-icon { font-size: 14px; }
+  .ctrl-danger { width: 36px; }
+  .ctrl-count { min-width: 16px; height: 16px; font-size: 9px; }
+
+  .lobby-card h2 { font-size: 16px; }
+  .lobby-card .lobby-info .info-row { font-size: 12px; flex-direction: column; gap: 2px; }
 }
 /* ============================================================
    Presentation stage (screen share)

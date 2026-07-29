@@ -20,6 +20,10 @@ html {
     overflow-x: hidden;
 }
 
+body, button, a, input, select, textarea {
+    -webkit-tap-highlight-color: transparent;
+}
+
 img,
 video,
 canvas,
@@ -241,11 +245,17 @@ svg {
 
 /* Additional mobile responsive fixes */
 @media (max-width: 768px) {
+    body {
+        padding-top: env(safe-area-inset-top);
+    }
+
     .navbar {
         height: auto;
-        min-height: 70px;
-        padding: 12px 14px 12px 70px;
+        min-height: 72px;
+        padding: 10px 12px 10px 64px;
         align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
     }
 
     .navbar .welcome-msg {
@@ -257,7 +267,9 @@ svg {
         font-size: 14px;
         line-height: 1.25;
         max-width: none;
-        flex: 1;
+        flex: 1 1 100%;
+        order: 2;
+        margin-top: 2px;
     }
 
     .sidebar-toggle {
@@ -269,18 +281,31 @@ svg {
         border-radius: 12px;
     }
 
+    .nav-icon {
+        width: 42px;
+        height: 42px;
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+
     .sidebar {
-        width: min(85vw, 300px);
+        width: min(88vw, 320px);
+        padding: 72px 12px 24px;
+    }
+
+    .sidebar-section li {
+        padding: 11px 12px;
+        font-size: 14px;
     }
 
     .main-content {
         margin-left: 0;
-        margin-top: 70px;
-        padding: 18px 14px 22px;
+        margin-top: 76px;
+        padding: 16px 12px 24px;
     }
     
     .dashboard-card {
-        padding: 16px 14px;
+        padding: 14px 12px;
         border-radius: 14px;
         min-height: auto;
     }
@@ -299,33 +324,65 @@ svg {
     }
     
     .card-navbar ul {
-        overflow-x: auto;
-        flex-wrap: nowrap;
+        overflow-x: visible;
+        flex-wrap: wrap;
         gap: 8px;
-        padding-bottom: 4px;
+        padding-bottom: 6px;
         -webkit-overflow-scrolling: touch;
     }
     
     .card-navbar li {
-        padding: 8px 16px;
-        font-size: 14px;
-        flex: 0 0 auto;
+        padding: 8px 12px;
+        font-size: 13px;
+        flex: 1 1 calc(50% - 8px);
+        text-align: center;
         white-space: nowrap;
     }
 
     .notes-box {
-        padding: 22px 18px;
+        padding: 18px 14px;
     }
 
     .notes-box > div,
     .assignments-controls {
         flex-direction: column;
         align-items: stretch;
+        gap: 10px;
     }
 
+    .notes-box .btn,
     .assignments-controls > * {
         width: 100%;
         justify-content: center;
+    }
+
+    .unit-tile {
+        min-width: 0;
+        width: 100%;
+        padding: 12px 14px;
+        font-size: 14px;
+    }
+
+    .notes-sent-grid {
+        gap: 8px;
+    }
+
+    .notes-sent-tile {
+        padding: 14px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .notes-sent-tile .notes-badge {
+        align-self: flex-start;
+    }
+
+    .popup {
+        right: 12px;
+        left: 12px;
+        width: auto;
+        max-width: none;
     }
 
     .overflow-x-auto {
@@ -343,32 +400,33 @@ svg {
 
 @media (max-width: 480px) {
     .navbar {
-        padding: 10px 12px 10px 64px;
-        gap: 10px;
+        min-height: 82px;
+        padding: 8px 10px 8px 58px;
+        gap: 8px;
     }
     
     .nav-icon {
-        width: 40px;
-        height: 40px;
-        font-size: 20px;
+        width: 38px;
+        height: 38px;
+        font-size: 18px;
     }
     
-    .welcome-msg {
-        font-size: 14px;
-        max-width: none;
+    .navbar .welcome-msg {
+        font-size: 13px;
     }
     
     .main-content {
-        padding: 16px 12px 20px;
+        margin-top: 86px;
+        padding: 12px 10px 20px;
     }
     
     .dashboard-card {
-        padding: 14px 12px;
+        padding: 12px 10px;
         border-radius: 12px;
     }
 
     .sidebar {
-        width: min(90vw, 300px);
+        width: min(92vw, 310px);
     }
     
     .modal-content {
@@ -377,8 +435,7 @@ svg {
     }
     
     .unit-tile {
-        min-width: 140px;
-        padding: 12px 16px;
+        padding: 12px 14px;
         font-size: 14px;
     }
 
@@ -386,9 +443,23 @@ svg {
         font-size: 18px;
     }
 
+    .notes-box p {
+        font-size: 14px;
+    }
+
     .card-navbar li {
-        padding: 8px 12px;
-        font-size: 13px;
+        flex-basis: calc(50% - 6px);
+        font-size: 12px;
+        padding: 8px 10px;
+    }
+
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-green {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 14px;
     }
     
     th, td {
@@ -1701,5 +1772,853 @@ td a:hover {
         padding: 14px 48px;
         min-width: 240px;
         font-size: 1.08rem;
+    }
+}
+
+/* ────────────────────────────────────────────────
+   MEETING ACTION BUTTONS – refactored from inline styles
+   to support responsive resizing on Android
+───────────────────────────────────────────────── */
+.meeting-link-input {
+    min-width: 220px;
+    max-width: 320px;
+    padding: 6px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    background: #fff;
+    flex: 1;
+}
+
+.meeting-copy-btn {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    flex-shrink: 0;
+}
+
+.meeting-actions-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.meeting-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.meeting-action-btn .live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #ff4444;
+    border-radius: 50%;
+    animation: pulse-dot 1.5s infinite;
+    margin-right: 4px;
+}
+
+.meeting-action-btn .btn-icon {
+    font-size: 14px;
+}
+
+.meeting-scheduled-badge {
+    font-size: 0.75rem;
+    color: #92400e;
+    background: #fef3c7;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.meeting-join-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border: 1.5px solid #6366f1;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6366f1;
+    background: #fff;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.meeting-join-btn:hover {
+    background: #eef2ff;
+}
+
+.meeting-guest-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border: 1.5px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    background: #fff;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.meeting-guest-btn.active {
+    border-color: #16a34a;
+    color: #16a34a;
+}
+
+.meeting-guest-btn:hover {
+    background: #f3f4f6;
+}
+
+.guest-on-indicator {
+    font-size: 10px;
+}
+
+@media (max-width: 480px) {
+    .meeting-link-input {
+        min-width: 140px !important;
+        max-width: 160px !important;
+        padding: 4px 6px !important;
+        font-size: 11px !important;
+    }
+
+    .meeting-copy-btn {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    .meeting-actions-row {
+        gap: 4px !important;
+    }
+
+    .meeting-action-btn {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    .meeting-join-btn {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    .meeting-guest-btn {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    .meeting-scheduled-badge {
+        font-size: 10px !important;
+        padding: 3px 8px !important;
+    }
+}
+
+@media (max-width: 360px) {
+    .meeting-link-input {
+        min-width: 100px !important;
+        max-width: 120px !important;
+    }
+}
+
+/* ────────────────────────────────────────────────
+   ANDROID / SMALL MOBILE ENHANCEMENTS
+   These target very narrow viewports (≤480px) and
+   improve touch targets, spacing, and readability.
+───────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+    /* ── Navbar ── */
+    .navbar {
+        min-height: 60px;
+        padding: 6px 8px 6px 52px;
+        gap: 6px;
+    }
+
+    .navbar .welcome-msg {
+        font-size: 12px;
+        line-height: 1.2;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .nav-icon {
+        width: 34px;
+        height: 34px;
+        font-size: 16px;
+    }
+
+    .sidebar-toggle {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+        left: 10px;
+        top: 10px;
+        border-radius: 10px;
+    }
+
+    /* ── Main content ── */
+    .main-content {
+        margin-top: 64px;
+        padding: 10px 8px 16px;
+    }
+
+    .dashboard-card {
+        padding: 10px 8px;
+        border-radius: 10px;
+    }
+
+    /* ── Card navbar tabs ── */
+    .card-navbar ul {
+        gap: 4px;
+        margin-bottom: 16px;
+    }
+
+    .card-navbar li {
+        flex: 1 1 calc(50% - 4px);
+        font-size: 11px;
+        padding: 7px 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ── Notes box ── */
+    .notes-box {
+        padding: 14px 10px;
+    }
+
+    .notes-box h3 {
+        font-size: 16px;
+    }
+
+    .notes-box p {
+        font-size: 13px;
+    }
+
+    .notes-box > div,
+    .assignments-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .notes-box .btn,
+    .assignments-controls > * {
+        width: 100%;
+        justify-content: center;
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    /* ── Unit tiles ── */
+    .unit-tile {
+        width: 100%;
+        min-width: 0;
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    /* ── Notes sent tiles ── */
+    .notes-sent-tile {
+        padding: 12px 10px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .notes-sent-tile .unit-name {
+        font-size: 13px;
+    }
+
+    .notes-sent-tile .notes-badge {
+        font-size: 11px;
+        padding: 3px 10px;
+    }
+
+    /* ── Meetings section ── */
+    .meetings-header h3 {
+        font-size: 1.2rem;
+    }
+
+    .meetings-content {
+        gap: 20px;
+        padding: 4px 0 24px;
+    }
+
+    /* Meeting table – force horizontal scroll on small screens */
+    .overflow-x-auto {
+        margin: 0 -8px;
+        padding: 0 8px;
+    }
+
+    .meetings-content table {
+        font-size: 12px;
+    }
+
+    .meetings-content th,
+    .meetings-content td {
+        padding: 8px 8px;
+        font-size: 12px;
+    }
+
+    /* Student link input in meetings table */
+    .meeting-link-row input[type="text"] {
+        min-width: 140px !important;
+        max-width: 160px !important;
+        padding: 4px 6px !important;
+        font-size: 11px !important;
+    }
+
+    .meeting-link-row .copy-link-btn {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    /* Meeting action buttons */
+    .meetings-content td > div[style*="display:flex"] {
+        gap: 4px !important;
+    }
+
+    .meetings-content a[style*="inline-flex"] {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    /* Start/Join meeting button */
+    .meetings-content a[style*="background:linear-gradient"] {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    /* Guest access button */
+    .meetings-content a[style*="border:1.5px solid"] {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    /* Scheduled badge */
+    .meetings-content span[style*="border-radius:999px"] {
+        font-size: 10px !important;
+        padding: 3px 8px !important;
+    }
+
+    /* ── Meeting flash messages ── */
+    .meeting-flash {
+        padding: 10px 12px;
+        font-size: 12px;
+    }
+
+    .meeting-link-row label {
+        min-width: 60px;
+        font-size: 11px;
+    }
+
+    /* ── Units section ── */
+    .units-header h3 {
+        font-size: 1.2rem;
+    }
+
+    .units-grid {
+        gap: 12px;
+    }
+
+    .unit-slim-tile {
+        padding: 16px 18px;
+        min-height: 80px;
+    }
+
+    .unit-name {
+        font-size: 1rem;
+    }
+
+    /* ── Assignments section ── */
+    .assignments-content {
+        gap: 16px;
+    }
+
+    .tiles-grid {
+        gap: 12px;
+    }
+
+    .tile-card {
+        padding: 24px 16px 20px;
+        min-height: 180px;
+    }
+
+    .tile-card .icon-wrapper {
+        width: 64px;
+        height: 64px;
+    }
+
+    .tile-card i {
+        font-size: 2rem !important;
+    }
+
+    .tile-card span {
+        font-size: 0.95rem;
+    }
+
+    /* ── Modals ── */
+    .modal-content {
+        width: 96% !important;
+        max-height: 92vh !important;
+        border-radius: 12px !important;
+    }
+
+    .modal-header {
+        padding: 14px 16px !important;
+    }
+
+    .modal-body {
+        padding: 16px !important;
+    }
+
+    .modal-title {
+        font-size: 18px !important;
+    }
+
+    .modal-subtitle {
+        font-size: 12px !important;
+    }
+
+    .close-btn {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 16px !important;
+    }
+
+    /* ── Upload notes modal ── */
+    .upload-notes-modal .modal-form {
+        padding: 16px !important;
+    }
+
+    .upload-notes-modal .form-group {
+        margin-bottom: 16px !important;
+    }
+
+    .upload-notes-modal .form-label {
+        font-size: 13px !important;
+    }
+
+    .upload-notes-modal .form-control {
+        padding: 10px 12px !important;
+        font-size: 13px !important;
+    }
+
+    .upload-notes-modal .file-upload-area {
+        padding: 20px 12px !important;
+    }
+
+    .upload-notes-modal .file-upload-icon {
+        font-size: 32px !important;
+    }
+
+    .upload-notes-modal .file-upload-text {
+        font-size: 13px !important;
+    }
+
+    .upload-notes-modal .file-upload-hint {
+        font-size: 11px !important;
+    }
+
+    .upload-notes-modal .form-actions {
+        flex-direction: column !important;
+        gap: 8px !important;
+        padding-top: 16px !important;
+        margin-top: 16px !important;
+    }
+
+    .upload-notes-modal .btn-primary,
+    .upload-notes-modal .btn-secondary {
+        width: 100% !important;
+        padding: 12px 16px !important;
+        font-size: 14px !important;
+    }
+
+    /* ── Schedule meeting modal ── */
+    #scheduleMeetingModal .modal-body {
+        padding: 20px !important;
+    }
+
+    #scheduleMeetingModal .form-group {
+        margin-bottom: 16px !important;
+    }
+
+    #scheduleMeetingModal input,
+    #scheduleMeetingModal select,
+    #scheduleMeetingModal textarea {
+        padding: 10px 12px !important;
+        font-size: 14px !important;
+    }
+
+    #scheduleMeetingModal .grid {
+        gap: 12px !important;
+    }
+
+    /* ── Attendance modal ── */
+    #attendanceModal form {
+        padding: 16px 20px 32px !important;
+        gap: 16px !important;
+    }
+
+    #attendanceModal h3 {
+        padding: 20px 20px 16px !important;
+        font-size: 1.25rem !important;
+    }
+
+    #attendanceModal input,
+    #attendanceModal select,
+    #attendanceModal textarea {
+        padding: 10px 14px !important;
+        font-size: 14px !important;
+    }
+
+    #attendanceModal button[type="submit"] {
+        padding: 12px 32px !important;
+        min-width: 200px !important;
+        font-size: 1rem !important;
+    }
+
+    /* ── Add unit modal ── */
+    #addUnitModal form {
+        padding: 20px 20px 28px !important;
+        gap: 16px !important;
+    }
+
+    #addUnitModal h3 {
+        padding: 20px 24px 16px !important;
+        font-size: 1.2rem !important;
+    }
+
+    #addUnitModal select,
+    #addUnitModal input {
+        padding: 10px 12px !important;
+        font-size: 14px !important;
+    }
+
+    #addUnitModal button[type="submit"] {
+        width: 100% !important;
+        padding: 12px !important;
+        font-size: 14px !important;
+    }
+
+    /* ── Assignment modal ── */
+    #assignmentModal .modal-body {
+        padding: 16px !important;
+    }
+
+    #assignmentModal .form-group {
+        margin-bottom: 16px !important;
+    }
+
+    #assignmentModal input,
+    #assignmentModal select,
+    #assignmentModal textarea {
+        padding: 10px 12px !important;
+        font-size: 14px !important;
+    }
+
+    #assignmentModal button[type="submit"] {
+        padding: 12px !important;
+        font-size: 14px !important;
+    }
+
+    /* ── Notifications popup ── */
+    .popup {
+        top: 60px;
+        right: 8px;
+        left: 8px;
+        width: auto;
+        max-width: none;
+        border-radius: 12px;
+    }
+
+    .popup h3 {
+        padding: 14px 16px;
+        font-size: 14px;
+    }
+
+    .popup-content {
+        max-height: 280px;
+    }
+
+    .notification-item {
+        padding: 10px 16px;
+    }
+
+    .notification-item .notif-title {
+        font-size: 13px;
+    }
+
+    .notification-item .notif-msg {
+        font-size: 12px;
+    }
+
+    .notification-item .notif-time {
+        font-size: 11px;
+    }
+
+    .popup-footer {
+        padding: 10px 16px;
+    }
+
+    .popup-footer a {
+        font-size: 13px;
+    }
+
+    /* ── Profile popup ── */
+    .profile-info {
+        padding: 12px 16px;
+    }
+
+    .profile-info .avatar {
+        width: 48px;
+        height: 48px;
+        font-size: 18px;
+    }
+
+    .profile-info .p-name {
+        font-size: 16px;
+    }
+
+    .profile-info .p-email,
+    .profile-info .p-phone {
+        font-size: 13px;
+    }
+
+    .profile-actions {
+        padding: 0 16px 12px;
+        gap: 8px;
+    }
+
+    .profile-actions .btn-profile {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    /* ── Notes Sent modal ── */
+    #notesSentModal .modal-content {
+        max-width: 96% !important;
+    }
+
+    #notesSentModal .modal-content th,
+    #notesSentModal .modal-content td {
+        padding: 8px 8px !important;
+        font-size: 12px !important;
+    }
+
+    #notesSentModal .modal-unit-title {
+        font-size: 15px !important;
+    }
+
+    /* ── General table improvements ── */
+    table {
+        font-size: 12px;
+    }
+
+    th, td {
+        padding: 8px 8px;
+        font-size: 12px;
+    }
+
+    td a {
+        font-size: 12px;
+        margin-right: 6px;
+    }
+
+    /* ── Buttons ── */
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-green,
+    .btn-golden {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 13px;
+        justify-content: center;
+    }
+
+    .btn-golden {
+        padding: 12px 24px;
+        font-size: 1rem;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+        width: min(90vw, 300px);
+        padding: 64px 10px 20px;
+    }
+
+    .sidebar-section li {
+        padding: 10px 10px;
+        font-size: 13px;
+    }
+
+    .sidebar-section li i {
+        font-size: 1.1rem;
+        width: 20px;
+        margin-right: 10px;
+    }
+
+    .sidebar-section h4 {
+        font-size: 13px;
+    }
+
+    /* ── Notes Sent sidebar button ── */
+    .notes-sent-btn {
+        padding: 10px 10px !important;
+        font-size: 13px !important;
+    }
+
+    /* ── Meeting link preview in schedule modal ── */
+    #scheduleMeetingModal .bg-gray-50 {
+        padding: 12px !important;
+    }
+
+    #scheduleMeetingModal .bg-gray-50 input[type="text"] {
+        font-size: 12px !important;
+        padding: 8px 10px !important;
+    }
+
+    #scheduleMeetingModal .space-y-3 > div {
+        margin-bottom: 8px !important;
+    }
+
+    /* ── Upload success bar ── */
+    .upload-success-bar {
+        padding: 12px 16px !important;
+    }
+
+    .success-bar-content {
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+
+    .success-bar-icon {
+        font-size: 24px !important;
+    }
+
+    .success-title {
+        font-size: 14px !important;
+    }
+
+    .success-files-label {
+        font-size: 12px !important;
+    }
+
+    .uploaded-file-item {
+        font-size: 12px !important;
+    }
+
+    /* ── Selected files preview ── */
+    .file-item {
+        padding: 8px 10px !important;
+    }
+
+    .file-item-name {
+        font-size: 12px !important;
+    }
+
+    .file-item-remove {
+        padding: 3px 6px !important;
+        font-size: 11px !important;
+    }
+
+    /* ── Meeting flash messages ── */
+    .meeting-flash-success,
+    .meeting-flash-error {
+        padding: 10px 12px !important;
+        font-size: 12px !important;
+    }
+
+    .meeting-flash-note {
+        font-size: 11px !important;
+    }
+
+    /* ── Notification badge ── */
+    .notification-badge {
+        min-width: 16px;
+        height: 16px;
+        font-size: 10px;
+        top: -3px;
+        right: -4px;
+    }
+}
+
+/* ── Extra small screens (≤360px) ── */
+@media (max-width: 360px) {
+    .navbar {
+        min-height: 54px;
+        padding: 4px 6px 4px 46px;
+        gap: 4px;
+    }
+
+    .navbar .welcome-msg {
+        font-size: 11px;
+    }
+
+    .nav-icon {
+        width: 30px;
+        height: 30px;
+        font-size: 14px;
+    }
+
+    .sidebar-toggle {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+        left: 8px;
+        top: 8px;
+    }
+
+    .main-content {
+        margin-top: 58px;
+        padding: 8px 6px 12px;
+    }
+
+    .dashboard-card {
+        padding: 8px 6px;
+        border-radius: 8px;
+    }
+
+    .card-navbar li {
+        font-size: 10px;
+        padding: 6px 4px;
+    }
+
+    .modal-content {
+        width: 98% !important;
+        border-radius: 10px !important;
+    }
+
+    .modal-header {
+        padding: 12px 14px !important;
+    }
+
+    .modal-body {
+        padding: 12px !important;
+    }
+
+    .meeting-link-row input[type="text"] {
+        min-width: 100px !important;
+        max-width: 120px !important;
+    }
+
+    .sidebar {
+        width: min(94vw, 280px);
+        padding: 56px 8px 16px;
     }
 }
