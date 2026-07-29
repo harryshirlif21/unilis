@@ -1645,10 +1645,11 @@ body[data-le-layout="immersive"] .le-app-main {
   box-shadow: var(--le-shadow-2xl);
   width: 100%;
   max-width: 560px;
-  max-height: 85vh;
+  max-height: 90vh;
   overflow-y: auto;
   animation: le-modal-enter 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   position: relative;
+  margin: auto;
 }
 
 @keyframes le-modal-enter {

@@ -285,9 +285,57 @@ body.le-laser-on .le-stage { cursor: none; }
 
 @media (max-width: 900px) {
     .le-presenter-shell { grid-template-columns: 0 1fr; }
-    .le-stage { padding: 16px 16px 96px; }
-    .le-toolbar { gap: 2px; padding: 6px; }
-    .le-tool { width: 40px; height: 40px; }
+    .le-stage { padding: 16px 16px 140px; }
+    
+    /* Google Meet style bottom navigation for mobile */
+    .le-toolbar {
+        left: 0; bottom: 0;
+        transform: none;
+        width: 100%;
+        justify-content: space-around;
+        padding: 12px 16px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom));
+        border-radius: 0;
+        background: rgba(18, 34, 20, .95);
+        border-top: 1px solid rgba(255, 255, 255, .14);
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, .4);
+    }
+    
+    .le-tool {
+        width: 52px; height: 52px;
+        background: rgba(255, 255, 255, .12);
+        border-radius: 50%;
+    }
+    
+    .le-tool:hover {
+        background: rgba(255, 255, 255, .2);
+        transform: scale(1.05);
+    }
+    
+    .le-tool.is-on {
+        background: var(--le-secondary, #F9A825);
+        color: #1a1400;
+    }
+    
+    .le-tool-danger {
+        background: rgba(220, 38, 38, .9);
+        color: #fff;
+    }
+    
+    .le-tool-sep { display: none; }
+    
+    .le-tool-count {
+        display: none;
+    }
+    
+    .le-notes {
+        right: 16px; bottom: 160px;
+        width: calc(100vw - 32px);
+        max-height: 40vh;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

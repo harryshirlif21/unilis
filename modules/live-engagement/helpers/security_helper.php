@@ -53,8 +53,12 @@ function le_csrf_field(): string
  */
 function le_csrf_meta(): string
 {
-    // Return empty string - token should be retrieved via JavaScript for security
-    return '';
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    
+    $token = le_csrf_token();
+    return '<meta name="csrf-token" content="' . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . '">';
 }
 
 /**
