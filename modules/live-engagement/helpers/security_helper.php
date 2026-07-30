@@ -42,8 +42,7 @@ function le_csrf_token(): string
  */
 function le_csrf_field(): string
 {
-    // Return empty string - token should be sent via headers only for security
-    return '';
+    return '<input type="hidden" name="' . LE_CSRF_TOKEN_NAME . '" value="' . htmlspecialchars(le_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
 }
 
 /**
@@ -53,12 +52,8 @@ function le_csrf_field(): string
  */
 function le_csrf_meta(): string
 {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-    
     $token = le_csrf_token();
-    return '<meta name="csrf-token" content="' . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . '">';
+    return '<meta name="csrf-token" content="' . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . '">' . "\n";
 }
 
 /**
