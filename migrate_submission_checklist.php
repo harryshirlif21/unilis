@@ -98,6 +98,23 @@ $tables = [
         PRIMARY KEY (`id`),
         KEY `idx_team_standups_team` (`team_id`),
         KEY `idx_team_standups_user` (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // Department admins table (Phase 1 feature)
+    "CREATE TABLE IF NOT EXISTS `department_admins` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `admin_id` INT NOT NULL,
+        `department_id` INT NOT NULL,
+        `assigned_by` INT NOT NULL,
+        `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (`admin_id`) REFERENCES `admins`(`id`) ON DELETE CASCADE,
+        FOREIGN KEY (`department_id`) REFERENCES `departments`(`id`) ON DELETE CASCADE,
+        FOREIGN KEY (`assigned_by`) REFERENCES `admins`(`id`) ON DELETE CASCADE,
+        UNIQUE KEY `unique_admin_dept` (`admin_id`, `department_id`),
+        INDEX `idx_dept_admin_dept` (`department_id`),
+        INDEX `idx_dept_admin_active` (`is_active`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
 ];
 
