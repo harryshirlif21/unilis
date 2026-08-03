@@ -33,7 +33,7 @@ class TeamController {
 
         // 2. Fetch members
         $stmt = $this->conn->prepare("
-            SELECT tm.student_id, s.name, s.reg_number, s.email
+            SELECT tm.student_id, s.name, s.reg_no, s.email
             FROM team_members tm
             INNER JOIN students s ON tm.student_id = s.id
             WHERE tm.team_id = ?

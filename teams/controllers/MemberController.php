@@ -4,7 +4,7 @@
 
 class MemberController
 {
-    private $conn; // PDO or mysqli connection
+    private $conn; // mysqli connection (aligned with student side)
 
     public function __construct($conn)
     {
@@ -16,15 +16,17 @@ class MemberController
      */
     public function getMemberById(int $studentId)
     {
-        $stmt = $this->conn->prepare("SELECT student_id, name, reg_number, email FROM students WHERE student_id = ?");
-        $stmt->execute([$studentId]);
-        $member = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt = $this->conn->prepare("SELECT id, name, reg_no, email FROM students WHERE id = ?");
+        $stmt->bind_param("i", $studentId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
 
-        if (!$member) {
+        if (!$result) {
             throw new Exception("Member not found");
         }
 
-        return $member;
+        return $result;
     }
 
     /**
@@ -32,15 +34,17 @@ class MemberController
      */
     public function getMemberByIdentifier(string $identifier)
     {
-        $stmt = $this->conn->prepare("SELECT student_id, name, reg_number, email FROM students WHERE reg_number = ? OR email = ?");
-        $stmt->execute([$identifier, $identifier]);
-        $member = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt = $this->conn->prepare("SELECT id, name, reg_no, email FROM students WHERE reg_no = ? OR email = ?");
+        $stmt->bind_param("ss", $identifier, $identifier);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
 
-        if (!$member) {
+        if (!$result) {
             throw new Exception("Member not found");
         }
 
-        return $member;
+        return $result;
     }
 
     /**
@@ -50,10 +54,13 @@ class MemberController
     {
         // Check if already in team
         $stmt = $this->conn->prepare("SELECT * FROM team_members WHERE team_id = ? AND student_id = ?");
-        $stmt->execute([$teamId, $studentId]);
-        if ($stmt->fetch(PDO::FETCH_ASSOC)) {
+        $stmt->bind_param("ii", $teamId, $studentId);
+        $stmt->execute();
+        if ($stmt->get_result()->fetch_assoc()) {
+            $stmt->close();
             throw new Exception("Member already in team");
         }
+        $stmt->close();
 
         // Enforce: Student can only be in one team per unit
         $stmt = $this->conn->prepare(
@@ -65,16 +72,19 @@ class MemberController
                AND tm.team_id != ?
              LIMIT 1"
         );
-        $stmt->execute([$studentId, $teamId, $teamId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($result) {
+        $stmt->bind_param("iii", $studentId, $teamId, $teamId);
+        $stmt->execute();
+        if ($stmt->get_result()->fetch_assoc()) {
+            $stmt->close();
             throw new Exception("This student is already a member of another team in this unit. Each student can only be a member of one team per unit.");
         }
+        $stmt->close();
 
         // Insert member
         $stmt = $this->conn->prepare("INSERT INTO team_members (team_id, student_id, role, joined_at) VALUES (?, ?, ?, NOW())");
-        $stmt->execute([$teamId, $studentId, $role]);
+        $stmt->bind_param("iis", $teamId, $studentId, $role);
+        $stmt->execute();
+        $stmt->close();
 
         return ['success' => true, 'message' => 'Member added successfully'];
     }
@@ -85,9 +95,12 @@ class MemberController
     public function removeMemberFromTeam(int $teamId, int $studentId)
     {
         $stmt = $this->conn->prepare("DELETE FROM team_members WHERE team_id = ? AND student_id = ?");
-        $stmt->execute([$teamId, $studentId]);
+        $stmt->bind_param("ii", $teamId, $studentId);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
 
-        if ($stmt->rowCount() === 0) {
+        if ($affected === 0) {
             throw new Exception("Member not found in team");
         }
 
@@ -100,13 +113,16 @@ class MemberController
     public function getTeamMembers(int $teamId)
     {
         $stmt = $this->conn->prepare("
-            SELECT tm.student_id, tm.role, s.name, s.reg_number, s.email
+            SELECT tm.student_id, tm.role, s.name, s.reg_no, s.email
             FROM team_members tm
-            JOIN students s ON tm.student_id = s.student_id
+            JOIN students s ON tm.student_id = s.id
             WHERE tm.team_id = ?
             ORDER BY tm.role DESC, s.name ASC
         ");
-        $stmt->execute([$teamId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->bind_param("i", $teamId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
     }
 }

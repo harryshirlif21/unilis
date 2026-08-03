@@ -5,8 +5,6 @@ session_start();
    DATABASE CONNECTION
 ========================= */
 require_once '../../config/db.php';
-require_once '../includes/ensure_team_marks.php';
-require_once '../includes/team_access.php';
 
 if (!isset($conn) || !$conn) {
     die("Database connection failed.");
@@ -15,7 +13,7 @@ if (!isset($conn) || !$conn) {
 // Check if team tables exist before proceeding
 $teamTablesExist = false;
 try {
-    $checkTables = $conn->query("SHOW TABLES LIKE 'team_supervisors'");
+    $checkTables = $conn->query("SHOW TABLES LIKE 'teams'");
     if ($checkTables && $checkTables->num_rows > 0) {
         $teamTablesExist = true;
     }
@@ -25,13 +23,6 @@ try {
 
 if (!$teamTablesExist) {
     die("<h2>Teams Module Not Available</h2><p>The teams system tables have not been created. Please ask your administrator to run the migrate_teams_system.php migration script.</p><p><a href='../../lecturer/lecturer_dashboard.php'>Return to Dashboard</a></p>");
-}
-
-try {
-    ensure_team_marks_table($conn);
-} catch (Exception $e) {
-    error_log("Error ensuring team_marks table: " . $e->getMessage());
-    die("Error setting up team marks table. Please contact administrator.");
 }
 
 function team_role_label(string $role): string
@@ -157,6 +148,19 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 /* =========================
+   CHECK IF SUPERVISOR SYSTEM EXISTS
+========================= */
+$supervisorSystemExists = false;
+try {
+    $checkSupervisor = $conn->query("SHOW TABLES LIKE 'team_supervisors'");
+    if ($checkSupervisor && $checkSupervisor->num_rows > 0) {
+        $supervisorSystemExists = true;
+    }
+} catch (Exception $e) {
+    // Table doesn't exist, use simple approach
+}
+
+/* =========================
    FETCH TEAMS FOR LECTURER UNITS WITH ENHANCED DATA
 ========================= */
 try {
@@ -188,45 +192,75 @@ try {
             }
             $stmt->bind_param("i", $filterUnitId);
         } else {
-            $sql = "
-            SELECT 
-                t.id AS team_id,
-                t.title AS team_title,
-                t.status,
-                t.created_at AS team_created,
-                t.assessment_type,
-                t.description,
-                u.id AS unit_id,
-                u.name AS unit_name,
-                u.code AS unit_code,
-                COUNT(tm.student_id) AS member_count
-            FROM teams t
-            JOIN units u ON t.unit_id = u.id
-            LEFT JOIN team_members tm ON t.id = tm.team_id
-            WHERE t.unit_id = ?
-              AND (
-                EXISTS (
-                    SELECT 1
-                    FROM lecturer_units lu
-                    WHERE lu.unit_id = u.id
-                      AND lu.lecturer_id = ?
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM team_supervisors ts
-                    WHERE ts.team_id = t.id
-                      AND ts.lecturer_id = ?
-                      AND ts.status = 'approved'
-                )
-              )
-            GROUP BY t.id
-            ORDER BY t.created_at DESC
-            ";
-            $stmt = $conn->prepare($sql);
-            if (!$stmt) {
-                die("Query preparation failed: " . $conn->error);
+            // Use supervisor system if available, otherwise fall back to lecturer_units
+            if ($supervisorSystemExists) {
+                $sql = "
+                SELECT 
+                    t.id AS team_id,
+                    t.title AS team_title,
+                    t.status,
+                    t.created_at AS team_created,
+                    t.assessment_type,
+                    t.description,
+                    u.id AS unit_id,
+                    u.name AS unit_name,
+                    u.code AS unit_code,
+                    COUNT(tm.student_id) AS member_count
+                FROM teams t
+                JOIN units u ON t.unit_id = u.id
+                LEFT JOIN team_members tm ON t.id = tm.team_id
+                WHERE t.unit_id = ?
+                  AND (
+                    EXISTS (
+                        SELECT 1
+                        FROM lecturer_units lu
+                        WHERE lu.unit_id = u.id
+                          AND lu.lecturer_id = ?
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM team_supervisors ts
+                        WHERE ts.team_id = t.id
+                          AND ts.lecturer_id = ?
+                          AND ts.status = 'approved'
+                    )
+                  )
+                GROUP BY t.id
+                ORDER BY t.created_at DESC
+                ";
+                $stmt = $conn->prepare($sql);
+                if (!$stmt) {
+                    die("Query preparation failed: " . $conn->error);
+                }
+                $stmt->bind_param("iii", $filterUnitId, $lecturerId, $lecturerId);
+            } else {
+                // Simple fallback using lecturer_units only
+                $sql = "
+                SELECT 
+                    t.id AS team_id,
+                    t.title AS team_title,
+                    t.status,
+                    t.created_at AS team_created,
+                    t.assessment_type,
+                    t.description,
+                    u.id AS unit_id,
+                    u.name AS unit_name,
+                    u.code AS unit_code,
+                    COUNT(tm.student_id) AS member_count
+                FROM teams t
+                JOIN units u ON t.unit_id = u.id
+                JOIN lecturer_units lu ON u.id = lu.unit_id
+                LEFT JOIN team_members tm ON t.id = tm.team_id
+                WHERE t.unit_id = ? AND lu.lecturer_id = ?
+                GROUP BY t.id
+                ORDER BY t.created_at DESC
+                ";
+                $stmt = $conn->prepare($sql);
+                if (!$stmt) {
+                    die("Query preparation failed: " . $conn->error);
+                }
+                $stmt->bind_param("ii", $filterUnitId, $lecturerId);
             }
-            $stmt->bind_param("iii", $filterUnitId, $lecturerId, $lecturerId);
         }
     } else if ($userRole === 'admin') {
         $sql = "
@@ -253,45 +287,76 @@ try {
             die("Query preparation failed: " . $conn->error);
         }
     } else {
-        $sql = "
-        SELECT 
-            t.id AS team_id,
-            t.title AS team_title,
-            t.status,
-            t.created_at AS team_created,
-            t.assessment_type,
-            t.description,
-            u.id AS unit_id,
-            u.name AS unit_name,
-            u.code AS unit_code,
-            COUNT(tm.student_id) AS member_count
-        FROM teams t
-        JOIN units u ON t.unit_id = u.id
-        LEFT JOIN team_members tm ON t.id = tm.team_id
-        WHERE (
-            EXISTS (
-                SELECT 1
-                FROM lecturer_units lu
-                WHERE lu.unit_id = u.id
-                  AND lu.lecturer_id = ?
+        // Use supervisor system if available, otherwise fall back to lecturer_units
+        if ($supervisorSystemExists) {
+            $sql = "
+            SELECT 
+                t.id AS team_id,
+                t.title AS team_title,
+                t.status,
+                t.created_at AS team_created,
+                t.assessment_type,
+                t.description,
+                u.id AS unit_id,
+                u.name AS unit_name,
+                u.code AS unit_code,
+                COUNT(tm.student_id) AS member_count
+            FROM teams t
+            JOIN units u ON t.unit_id = u.id
+            LEFT JOIN team_members tm ON t.id = tm.team_id
+            WHERE (
+                EXISTS (
+                    SELECT 1
+                    FROM lecturer_units lu
+                    WHERE lu.unit_id = u.id
+                      AND lu.lecturer_id = ?
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM team_supervisors ts
+                    WHERE ts.team_id = t.id
+                      AND ts.lecturer_id = ?
+                      AND ts.status = 'approved'
+                )
             )
-            OR EXISTS (
-                SELECT 1
-                FROM team_supervisors ts
-                WHERE ts.team_id = t.id
-                  AND ts.lecturer_id = ?
-                  AND ts.status = 'approved'
-            )
-        )
-        GROUP BY t.id
-        ORDER BY t.created_at DESC
-        ";
+            GROUP BY t.id
+            ORDER BY t.created_at DESC
+            ";
 
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) {
-            die("Query preparation failed: " . $conn->error);
+            $stmt = $conn->prepare($sql);
+            if (!$stmt) {
+                die("Query preparation failed: " . $conn->error);
+            }
+            $stmt->bind_param("ii", $lecturerId, $lecturerId);
+        } else {
+            // Simple fallback using lecturer_units only (old working approach)
+            $sql = "
+            SELECT 
+                t.id AS team_id,
+                t.title AS team_title,
+                t.status,
+                t.created_at AS team_created,
+                t.assessment_type,
+                t.description,
+                u.id AS unit_id,
+                u.name AS unit_name,
+                u.code AS unit_code,
+                COUNT(tm.student_id) AS member_count
+            FROM teams t
+            JOIN units u ON t.unit_id = u.id
+            JOIN lecturer_units lu ON u.id = lu.unit_id
+            LEFT JOIN team_members tm ON t.id = tm.team_id
+            WHERE lu.lecturer_id = ?
+            GROUP BY t.id
+            ORDER BY t.created_at DESC
+            ";
+
+            $stmt = $conn->prepare($sql);
+            if (!$stmt) {
+                die("Query preparation failed: " . $conn->error);
+            }
+            $stmt->bind_param("i", $lecturerId);
         }
-        $stmt->bind_param("ii", $lecturerId, $lecturerId);
     }
     $stmt->execute();
     $result = $stmt->get_result();
@@ -330,13 +395,26 @@ foreach ($teams as $team) {
 /* Fetch team details for all teams (needed for supervisors, semester, etc.) */
 $allTeamDetails = [];
 foreach ($teams as $team) {
-    // Fetch supervisors
-    $supSql = "SELECT l.name AS supervisor_name FROM team_supervisors ts JOIN lecturers l ON ts.lecturer_id = l.id WHERE ts.team_id = ? AND ts.status = 'approved' LIMIT 1";
-    $supStmt = $conn->prepare($supSql);
-    $supStmt->bind_param("i", $team['team_id']);
-    $supStmt->execute();
-    $supRow = $supStmt->get_result()->fetch_assoc();
-    $supStmt->close();
+    // Fetch supervisors - use supervisor system if available, otherwise get unit lecturer
+    $supervisorName = '';
+    if ($supervisorSystemExists) {
+        $supSql = "SELECT l.name AS supervisor_name FROM team_supervisors ts JOIN lecturers l ON ts.lecturer_id = l.id WHERE ts.team_id = ? AND ts.status = 'approved' LIMIT 1";
+        $supStmt = $conn->prepare($supSql);
+        $supStmt->bind_param("i", $team['team_id']);
+        $supStmt->execute();
+        $supRow = $supStmt->get_result()->fetch_assoc();
+        $supStmt->close();
+        $supervisorName = $supRow['supervisor_name'] ?? '';
+    } else {
+        // Fallback: get unit lecturer
+        $unitLecturerSql = "SELECT l.name AS supervisor_name FROM lecturer_units lu JOIN lecturers l ON lu.lecturer_id = l.id WHERE lu.unit_id = ? LIMIT 1";
+        $unitLecturerStmt = $conn->prepare($unitLecturerSql);
+        $unitLecturerStmt->bind_param("i", $team['unit_id']);
+        $unitLecturerStmt->execute();
+        $unitLecturerRow = $unitLecturerStmt->get_result()->fetch_assoc();
+        $unitLecturerStmt->close();
+        $supervisorName = $unitLecturerRow['supervisor_name'] ?? '';
+    }
     
     // Fetch semester
     $semSql = "SELECT semester FROM units WHERE id = ? LIMIT 1";
@@ -377,23 +455,37 @@ foreach ($teams as $team) {
         }
     }
 
-    // Fetch existing marks
-    $marksSql = "
-        SELECT 
-            tm.mark,
-            tm.max_mark,
-            tm.mark_type,
-            tm.component,
-            tm.notes,
-            tm.awarded_at,
-            tm.student_id,
-            s.name AS student_name,
-            l.name AS lecturer_name
-        FROM team_marks tm
-        LEFT JOIN students s ON tm.student_id = s.id
-        LEFT JOIN lecturers l ON tm.awarded_by = l.id
-        WHERE tm.team_id = ?
-        ORDER BY tm.awarded_at DESC
+    // Fetch existing marks - check if table exists first
+    $teamMarks = [];
+    try {
+        $checkMarks = $conn->query("SHOW TABLES LIKE 'team_marks'");
+        if ($checkMarks && $checkMarks->num_rows > 0) {
+            $marksSql = "
+                SELECT 
+                    tm.mark,
+                    tm.max_mark,
+                    tm.mark_type,
+                    tm.component,
+                    tm.notes,
+                    tm.awarded_at,
+                    tm.student_id,
+                    s.name AS student_name,
+                    l.name AS lecturer_name
+                FROM team_marks tm
+                LEFT JOIN students s ON tm.student_id = s.id
+                LEFT JOIN lecturers l ON tm.awarded_by = l.id
+                WHERE tm.team_id = ?
+                ORDER BY tm.awarded_at DESC
+            ";
+            $marksStmt = $conn->prepare($marksSql);
+            $marksStmt->bind_param("i", $team['team_id']);
+            $marksStmt->execute();
+            $teamMarks = $marksStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $marksStmt->close();
+        }
+    } catch (Exception $e) {
+        // team_marks table doesn't exist, skip
+    }
     ";
     
     $marksStmt = $conn->prepare($marksSql);

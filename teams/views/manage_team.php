@@ -469,7 +469,7 @@ async function loadTeam() {
             
             card.innerHTML = `
                 <strong class="member-name">${m.name || 'Unknown'}</strong>
-                <div>${m.reg_no || m.reg_number || m.email || '—'}</div>
+                <div>${m.reg_no || m.email || '—'}</div>
                 <div class="member-meta">
                     <span class="member-role-badge ${roleLabel}">${roleText}</span>
                     ${m.isCurrentUser ? '<span style="margin-left:0.35rem;color:#6c757d;">You</span>' : ''}
