@@ -238,21 +238,23 @@ try {
     }
 
     // Peer evaluation summary.
-    $stmt = $conn->prepare("SELECT 1");
-    if ($stmt) {
-        if (collation_check($conn)) {
-            $peerStmt = $conn->prepare("\n                SELECT\n                    evaluatee_id,\n                    COUNT(*) AS responses,\n                    AVG(contribution) AS avg_contribution,\n                    AVG(communication) AS avg_communication,\n                    AVG(quality) AS avg_quality,\n                    AVG(reliability) AS avg_reliability,\n                    AVG((contribution + communication + quality + reliability) / 4.0) AS avg_overall,\n                    MAX(s.name) AS evaluatee_name,\n                    MAX(s.reg_no) AS evaluatee_reg_no\n                FROM peer_evaluations pe\n                LEFT JOIN students s ON s.id = pe.evaluatee_id\n                WHERE pe.unit_id = (\n                    SELECT t.unit_id FROM teams t WHERE t.id = ?\n                )\n                GROUP BY pe.evaluatee_id\n                ORDER BY avg_overall DESC\n            ");
-            if ($peerStmt) {
-                $peerStmt->bind_param('i', $teamId);
-                $peerStmt->execute();
-                $res = $peerStmt->get_result();
-                while ($row = $res->fetch_assoc()) {
-                    $peerSummary[] = $row;
-                }
-                $peerStmt->close();
+    //
+    // peer_evaluations is keyed by team_id, not unit_id: a student selects a unit,
+    // but the evaluation they submit is about the team they worked in. Filtering on
+    // pe.unit_id is what made this endpoint 500 with "Unknown column 'pe.unit_id'",
+    // and it also widened the scope to every team in the unit, which this per-team
+    // panel must not show. Same filter as peer_evaluation_summary/report.php.
+    if (insights_table_exists($conn, 'peer_evaluations')) {
+        $peerStmt = $conn->prepare("\n            SELECT\n                pe.evaluatee_id,\n                COUNT(*) AS responses,\n                AVG(pe.contribution) AS avg_contribution,\n                AVG(pe.communication) AS avg_communication,\n                AVG(pe.quality) AS avg_quality,\n                AVG(pe.reliability) AS avg_reliability,\n                AVG((pe.contribution + pe.communication + pe.quality + pe.reliability) / 4.0) AS avg_overall,\n                MAX(s.name) AS evaluatee_name,\n                MAX(s.reg_no) AS evaluatee_reg_no\n            FROM peer_evaluations pe\n            LEFT JOIN students s ON s.id = pe.evaluatee_id\n            WHERE pe.team_id = ?\n            GROUP BY pe.evaluatee_id\n            ORDER BY avg_overall DESC\n        ");
+        if ($peerStmt) {
+            $peerStmt->bind_param('i', $teamId);
+            $peerStmt->execute();
+            $res = $peerStmt->get_result();
+            while ($row = $res->fetch_assoc()) {
+                $peerSummary[] = $row;
             }
+            $peerStmt->close();
         }
-        $stmt->close();
     }
 
     $memberList = array_values($members);
@@ -335,9 +337,4 @@ function insights_table_exists($conn, $table) {
         $cache[$table] = false;
     }
     return $cache[$table];
-}
-
-function collation_check($conn) {
-    // Check if peer_evaluations table exists
-    return insights_table_exists($conn, 'peer_evaluations');
 }
