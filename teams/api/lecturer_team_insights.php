@@ -190,8 +190,10 @@ try {
         }
     }
 
-    // Standups.
-    $stmt = $conn->prepare("\n        SELECT su.id, su.user_id, su.yesterday, su.today, su.blockers, su.created_at, s.name AS user_name\n        FROM team_standups su\n        LEFT JOIN students s ON s.id = su.user_id\n        WHERE su.team_id = ?\n        ORDER BY su.created_at DESC\n        LIMIT 200\n    ");
+    // Standups (only if the table exists).
+    $stmt = insights_table_exists($conn, 'team_standups')
+        ? $conn->prepare("\n        SELECT su.id, su.user_id, su.yesterday, su.today, su.blockers, su.created_at, s.name AS user_name\n        FROM team_standups su\n        LEFT JOIN students s ON s.id = su.user_id\n        WHERE su.team_id = ?\n        ORDER BY su.created_at DESC\n        LIMIT 200\n    ")
+        : null;
     if ($stmt) {
         $stmt->bind_param('i', $teamId);
         $stmt->execute();
@@ -239,7 +241,7 @@ try {
     $stmt = $conn->prepare("SELECT 1");
     if ($stmt) {
         if (collation_check($conn)) {
-            $peerStmt = $conn->prepare("\n                SELECT\n                    evaluatee_id,\n                    COUNT(*) AS responses,\n                    AVG(contribution) AS avg_contribution,\n                    AVG(communication) AS avg_communication,\n                    AVG(quality) AS avg_quality,\n                    AVG(reliability) AS avg_reliability,\n                    AVG((contribution + communication + quality + reliability) / 4.0) AS avg_overall,\n                    MAX(s.student_name) AS evaluatee_name,\n                    MAX(s.reg_no) AS evaluatee_reg_no\n                FROM peer_evaluations pe\n                LEFT JOIN students s ON s.id = pe.evaluatee_id\n                WHERE pe.course_id = (\n                    SELECT t.unit_id FROM teams t WHERE t.id = ?\n                )\n                GROUP BY pe.evaluatee_id\n                ORDER BY avg_overall DESC\n            ");
+            $peerStmt = $conn->prepare("\n                SELECT\n                    evaluatee_id,\n                    COUNT(*) AS responses,\n                    AVG(contribution) AS avg_contribution,\n                    AVG(communication) AS avg_communication,\n                    AVG(quality) AS avg_quality,\n                    AVG(reliability) AS avg_reliability,\n                    AVG((contribution + communication + quality + reliability) / 4.0) AS avg_overall,\n                    MAX(s.name) AS evaluatee_name,\n                    MAX(s.reg_no) AS evaluatee_reg_no\n                FROM peer_evaluations pe\n                LEFT JOIN students s ON s.id = pe.evaluatee_id\n                WHERE pe.course_id = (\n                    SELECT t.unit_id FROM teams t WHERE t.id = ?\n                )\n                GROUP BY pe.evaluatee_id\n                ORDER BY avg_overall DESC\n            ");
             if ($peerStmt) {
                 $peerStmt->bind_param('i', $teamId);
                 $peerStmt->execute();
@@ -316,12 +318,26 @@ try {
     exit;
 }
 
+/**
+ * db.php enables MYSQLI_REPORT_STRICT, so prepare() on a missing table throws
+ * instead of returning false. Optional feature tables must be probed first or a
+ * single absent table aborts the whole insights payload.
+ */
+function insights_table_exists($conn, $table) {
+    static $cache = [];
+    if (array_key_exists($table, $cache)) {
+        return $cache[$table];
+    }
+    try {
+        $r = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($table) . "'");
+        $cache[$table] = $r && $r->num_rows > 0;
+    } catch (Exception $e) {
+        $cache[$table] = false;
+    }
+    return $cache[$table];
+}
+
 function collation_check($conn) {
     // Check if peer_evaluations table exists
-    try {
-        $r = $conn->query("SHOW TABLES LIKE 'peer_evaluations'");
-        return $r && $r->num_rows > 0;
-    } catch (Exception $e) {
-        return false;
-    }
+    return insights_table_exists($conn, 'peer_evaluations');
 }
