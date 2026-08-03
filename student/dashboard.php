@@ -47,10 +47,20 @@ try {
 }
 
 // Get latest 5 notifications for current student
-$latest_notifications = get_latest_notifications($conn, 5, $student_id, 'student');
+try {
+    $latest_notifications = get_latest_notifications($conn, 5, $student_id, 'student');
+} catch (Exception $e) {
+    error_log("Error fetching notifications: " . $e->getMessage());
+    $latest_notifications = [];
+}
 
 // Get unread count for current student
-$unread_count = get_unread_notification_count($conn, $student_id, 'student');
+try {
+    $unread_count = get_unread_notification_count($conn, $student_id, 'student');
+} catch (Exception $e) {
+    error_log("Error fetching unread count: " . $e->getMessage());
+    $unread_count = 0;
+}
 
 // Handle AJAX mark as read
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_notification_read') {
@@ -64,7 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-$studentMeetingsByUnit = fetchStudentMeetingsByUnit($conn, (int)$student_id);
+try {
+    $studentMeetingsByUnit = fetchStudentMeetingsByUnit($conn, (int)$student_id);
+} catch (Exception $e) {
+    error_log("Error fetching student meetings: " . $e->getMessage());
+    $studentMeetingsByUnit = [];
+}
 $totalUpcomingMeetings = 0;
 $liveMeetingsCount = 0;
 $nextMeeting = null;
@@ -979,6 +994,10 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
             <a href="my_units.php" class="sidebar-item">
                 <span class="material-symbols-outlined">book</span>
                 <span>My Units</span>
+            </a>
+            <a href="../learn/" class="sidebar-item">
+                <span class="material-symbols-outlined">school</span>
+                <span>Short Courses</span>
             </a>
         </div>
         

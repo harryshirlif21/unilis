@@ -11,30 +11,104 @@ $lecturer_id   = $_SESSION['user_id'];
 $lecturer_name = $_SESSION['user_name'];
 
 $unit_id   = intval($_GET['unit_id']   ?? 0);
+$course_id = intval($_GET['course_id'] ?? 0);
 $lesson_id = intval($_GET['lesson_id'] ?? 0);
+$mode      = $course_id > 0 ? 'short_course' : 'iclm';
 
-// Fetch units for the dropdown
-$units = [];
-try {
+// ── Short course mode: verify access, load course info ────────────────────
+$course_info = null;
+if ($mode === 'short_course') {
     $stmt = $conn->prepare("
-        SELECT u.id, u.name
-        FROM units u
-        JOIN lecturer_units lu ON u.id = lu.unit_id
-        WHERE lu.lecturer_id = ?
-        ORDER BY u.name ASC
+        SELECT pc.*, sct.id AS tutor_id
+        FROM public_courses pc
+        JOIN short_course_tutors sct ON sct.short_course_id = pc.id
+        WHERE pc.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
+        LIMIT 1
     ");
-    $stmt->bind_param("i", $lecturer_id);
+    $stmt->bind_param("ii", $course_id, $lecturer_id);
     $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) $units[] = $row;
+    $course_info = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-} catch (mysqli_sql_exception $e) {
-    error_log("lesson_editor units: " . $e->getMessage());
+
+    if (!$course_info) {
+        $stmt = $conn->prepare("SELECT * FROM public_courses WHERE id = ? AND created_by_lecturer_id = ? LIMIT 1");
+        $stmt->bind_param("ii", $course_id, $lecturer_id);
+        $stmt->execute();
+        $course_info = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
+
+    if (!$course_info) {
+        header("Location: catalogue.php");
+        exit;
+    }
 }
 
-// If unit_id given, fetch modules + lessons for that unit
+// ── ICLM mode: fetch units for the dropdown ──────────────────────────────
+$units = [];
+if ($mode === 'iclm') {
+    try {
+        $stmt = $conn->prepare("
+            SELECT u.id, u.name
+            FROM units u
+            JOIN lecturer_units lu ON u.id = lu.unit_id
+            WHERE lu.lecturer_id = ?
+            ORDER BY u.name ASC
+        ");
+        $stmt->bind_param("i", $lecturer_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) $units[] = $row;
+        $stmt->close();
+    } catch (mysqli_sql_exception $e) {
+        error_log("lesson_editor units: " . $e->getMessage());
+    }
+}
+
+// ── Fetch modules + lessons ──────────────────────────────────────────────
 $modules_with_lessons = [];
-if ($unit_id) {
+if ($mode === 'short_course' && $course_id) {
+    // Short course: load from public_course_modules / public_course_lessons
+    try {
+        $stmt = $conn->prepare("
+            SELECT id, title, position FROM public_course_modules
+            WHERE course_id = ?
+            ORDER BY position ASC, id ASC
+        ");
+        $stmt->bind_param("i", $course_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $row['lessons'] = [];
+            $modules_with_lessons[$row['id']] = $row;
+        }
+        $stmt->close();
+
+        if (!empty($modules_with_lessons)) {
+            $mids = array_keys($modules_with_lessons);
+            $ph   = implode(',', array_fill(0, count($mids), '?'));
+            $types = str_repeat('i', count($mids));
+            $stmt = $conn->prepare("
+                SELECT id, module_id, title, position
+                FROM public_course_lessons
+                WHERE module_id IN ($ph)
+                ORDER BY position ASC, id ASC
+            ");
+            $stmt->bind_param($types, ...$mids);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                if (isset($modules_with_lessons[$row['module_id']])) {
+                    $modules_with_lessons[$row['module_id']]['lessons'][] = $row;
+                }
+            }
+            $stmt->close();
+        }
+    } catch (mysqli_sql_exception $e) {
+        error_log("lesson_editor short course modules: " . $e->getMessage());
+    }
+} elseif ($unit_id) {
+    // ICLM: load from course_modules / course_lessons
     try {
         $stmt = $conn->prepare("
             SELECT id, title, position FROM course_modules
@@ -76,25 +150,39 @@ if ($unit_id) {
     }
 }
 
-// If lesson_id given, fetch lesson info + content blocks
+// ── Fetch lesson info + content blocks ───────────────────────────────────
 $current_lesson = null;
 $content_blocks = [];
 if ($lesson_id) {
     try {
-        // Ownership verified via lecturer_units (authoritative) instead of
-        // course_modules.lecturer_id which may be 0 on migrated rows
-        $stmt = $conn->prepare("
-            SELECT cl.id, cl.title, cl.lesson_number, cl.module_id, cl.unit_id,
-                   cm.title AS module_title
-            FROM course_lessons cl
-            JOIN course_modules cm ON cl.module_id = cm.id
-            JOIN lecturer_units lu ON lu.unit_id = cl.unit_id
-            WHERE cl.id = ? AND cl.unit_id = ? AND lu.lecturer_id = ?
-        ");
-        $stmt->bind_param("iii", $lesson_id, $unit_id, $lecturer_id);
-        $stmt->execute();
-        $current_lesson = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
+        if ($mode === 'short_course') {
+            // Short course: verify via public_course_lessons -> public_course_modules -> short_course_tutors
+            $stmt = $conn->prepare("
+                SELECT l.id, l.title, l.module_id, m.title AS module_title, m.course_id
+                FROM public_course_lessons l
+                JOIN public_course_modules m ON l.module_id = m.id
+                JOIN short_course_tutors sct ON sct.short_course_id = m.course_id
+                WHERE l.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
+            ");
+            $stmt->bind_param("ii", $lesson_id, $lecturer_id);
+            $stmt->execute();
+            $current_lesson = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        } else {
+            // ICLM: ownership verified via lecturer_units
+            $stmt = $conn->prepare("
+                SELECT cl.id, cl.title, cl.lesson_number, cl.module_id, cl.unit_id,
+                       cm.title AS module_title
+                FROM course_lessons cl
+                JOIN course_modules cm ON cl.module_id = cm.id
+                JOIN lecturer_units lu ON lu.unit_id = cl.unit_id
+                WHERE cl.id = ? AND cl.unit_id = ? AND lu.lecturer_id = ?
+            ");
+            $stmt->bind_param("iii", $lesson_id, $unit_id, $lecturer_id);
+            $stmt->execute();
+            $current_lesson = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
 
         if ($current_lesson) {
             $stmt = $conn->prepare("
@@ -467,14 +555,22 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 <header class="topbar">
     <div class="topbar-brand">UNILIS <span>Lesson Editor</span></div>
     <div class="topbar-right">
-        <?php if ($unit_id): ?>
+        <?php if ($mode === 'short_course' && $course_id): ?>
+            <a href="course_builder.php?course_id=<?= $course_id ?>" class="btn-nav">
+                <i class="fas fa-sitemap"></i> Course Builder
+            </a>
+        <?php elseif ($unit_id): ?>
             <a href="course_builder.php?unit_id=<?= $unit_id ?>" class="btn-nav">
                 <i class="fas fa-sitemap"></i> Course Builder
             </a>
         <?php endif; ?>
-        <a href="assessment_builder.php<?= $unit_id ? "?unit_id=$unit_id" : '' ?>" class="btn-nav">
-            <i class="fas fa-tasks"></i> Assessments
-        </a>
+        <?php if ($mode === 'short_course'): ?>
+            <a href="catalogue.php" class="btn-nav"><i class="fas fa-globe"></i> Short Courses</a>
+        <?php else: ?>
+            <a href="assessment_builder.php<?= $unit_id ? "?unit_id=$unit_id" : '' ?>" class="btn-nav">
+                <i class="fas fa-tasks"></i> Assessments
+            </a>
+        <?php endif; ?>
         <a href="dashboard.php" class="btn-nav"><i class="fas fa-home"></i> Dashboard</a>
     </div>
 </header>
@@ -484,21 +580,34 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
     <!-- LEFT PANEL -->
     <aside class="left-panel">
         <div class="panel-header">
-            <label><i class="fas fa-book"></i> &nbsp;Unit</label>
-            <select class="styled-select" id="unit-select" onchange="switchUnit(this.value)">
-                <option value="">— select unit —</option>
-                <?php foreach ($units as $u): ?>
-                    <option value="<?= $u['id'] ?>" <?= $unit_id == $u['id'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($u['name']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <?php if ($mode === 'short_course' && $course_info): ?>
+                <label><i class="fas fa-graduation-cap"></i> &nbsp;<?= htmlspecialchars($course_info['title']) ?></label>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">
+                    Short Course · <?= count($modules_with_lessons) ?> module<?= count($modules_with_lessons) !== 1 ? 's' : '' ?>
+                </div>
+            <?php else: ?>
+                <label><i class="fas fa-book"></i> &nbsp;Unit</label>
+                <select class="styled-select" id="unit-select" onchange="switchUnit(this.value)">
+                    <option value="">— select unit —</option>
+                    <?php foreach ($units as $u): ?>
+                        <option value="<?= $u['id'] ?>" <?= $unit_id == $u['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($u['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            <?php endif; ?>
         </div>
 
         <div class="lesson-tree" id="lesson-tree">
             <?php if (empty($modules_with_lessons)): ?>
                 <div style="padding:20px;color:var(--text-dim);font-size:0.82rem;text-align:center">
-                    <?= $unit_id ? 'No modules yet. <a href="course_builder.php?unit_id='.$unit_id.'" style="color:var(--accent)">Add modules first</a>.' : 'Select a unit to see lessons.' ?>
+                    <?php if ($mode === 'short_course'): ?>
+                        No modules yet. <a href="course_builder.php?course_id=<?= $course_id ?>" style="color:var(--accent)">Add modules first</a>.
+                    <?php elseif ($unit_id): ?>
+                        No modules yet. <a href="course_builder.php?unit_id=<?= $unit_id ?>" style="color:var(--accent)">Add modules first</a>.
+                    <?php else: ?>
+                        Select a unit to see lessons.
+                    <?php endif; ?>
                 </div>
             <?php else: ?>
                 <?php foreach ($modules_with_lessons as $mod): ?>
@@ -512,9 +621,14 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
                                 <div style="padding:4px 10px 6px 28px;font-size:0.77rem;color:var(--text-dim)">No lessons yet</div>
                             <?php else: ?>
                                 <?php foreach ($mod['lessons'] as $lesson): ?>
+                                    <?php
+                                    $lessonLink = $mode === 'short_course'
+                                        ? 'lesson_editor.php?course_id=' . $course_id . '&lesson_id=' . $lesson['id']
+                                        : 'lesson_editor.php?unit_id=' . $unit_id . '&lesson_id=' . $lesson['id'];
+                                    ?>
                                     <a class="lesson-link <?= $lesson_id == $lesson['id'] ? 'active' : '' ?>"
-                                       href="lesson_editor.php?unit_id=<?= $unit_id ?>&lesson_id=<?= $lesson['id'] ?>">
-                                        <span class="lesson-num-badge">L<?= $lesson['lesson_number'] ?></span>
+                                       href="<?= $lessonLink ?>">
+                                        <span class="lesson-num-badge">L<?= $lesson['lesson_number'] ?? ($lesson['position'] + 1) ?></span>
                                         <?= htmlspecialchars($lesson['title']) ?>
                                     </a>
                                 <?php endforeach; ?>

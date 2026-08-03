@@ -50,8 +50,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string)($_POST['action'] ?? '');
 
         if ($action === 'enrol') {
-            learn_enrol($conn, $learner['id'], $courseId);
-            $notice = 'You are enrolled. Start with the first lesson below.';
+            // Check if learner is a tutor assigned to this course
+            $stmt = $conn->prepare("
+                SELECT sct.id 
+                FROM short_course_tutors sct
+                JOIN lecturers l ON l.id = sct.lecturer_id
+                WHERE sct.short_course_id = ? AND l.email = ? AND sct.is_active = 1
+                LIMIT 1
+            ");
+            $stmt->bind_param('is', $courseId, $learner['email']);
+            $stmt->execute();
+            $is_tutor = $stmt->get_result()->num_rows > 0;
+            $stmt->close();
+
+            if ($is_tutor) {
+                $notice = 'You are a tutor for this course and cannot enroll as a learner.';
+                $noticeKind = 'error';
+            } else {
+                learn_enrol($conn, $learner['id'], $courseId);
+                $notice = 'You are enrolled. Start with the first lesson below.';
+            }
         } elseif ($action === 'complete_lesson') {
             $lessonId = (int)($_POST['lesson_id'] ?? 0);
 

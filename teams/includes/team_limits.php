@@ -7,6 +7,15 @@ const TEAM_MEMBERS_ABSOLUTE_CAP = 15;
  */
 function ensure_team_max_members_column(mysqli $conn): void
 {
+    // First check if teams table exists
+    $checkTable = $conn->query("SHOW TABLES LIKE 'teams'");
+    if (!$checkTable || $checkTable->num_rows === 0) {
+        // Teams table doesn't exist, return silently
+        if ($checkTable) $checkTable->free();
+        return;
+    }
+    if ($checkTable) $checkTable->free();
+
     $hasColumn = false;
     $check = $conn->query("SHOW COLUMNS FROM teams LIKE 'max_members'");
     if ($check instanceof mysqli_result) {

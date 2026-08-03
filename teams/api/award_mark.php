@@ -3,7 +3,7 @@ header('Content-Type: application/json');
 session_start();
 
 // Auth check
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION[
 
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/ensure_team_marks.php';
+require_once __DIR__ . '/../includes/team_access.php';
 
 ensure_team_marks_table($conn);
 
@@ -52,22 +53,10 @@ try {
         throw new Exception('Student is required for individual marks');
     }
 
-    // Verify lecturer has access to this team
-    $authSql = "
-        SELECT 1
-        FROM teams t
-        JOIN units u ON t.unit_id = u.id
-        JOIN lecturer_units lu ON u.id = lu.unit_id
-        WHERE t.id = ? AND lu.lecturer_id = ?
-        LIMIT 1
-    ";
-    $authStmt = $conn->prepare($authSql);
-    $authStmt->bind_param("ii", $teamId, $lecturerId);
-    $authStmt->execute();
-    if ($authStmt->get_result()->num_rows === 0) {
+    // Verify user has access to this team
+    if (!team_user_can_access_team($conn, $teamId, $lecturerId, $_SESSION['user_role'])) {
         throw new Exception('You do not have access to this team');
     }
-    $authStmt->close();
 
     // If individual mark, verify student is in the team
     if ($markType === 'individual') {

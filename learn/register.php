@@ -2,8 +2,9 @@
 /**
  * Registration for external learners.
  *
- * Open self-registration: anyone may create an account, and the address has to
- * be confirmed by email before it can be used.
+ * Two options:
+ * 1. Register via UNILIS (for students/staff)
+ * 2. Register as external learner (for general public)
  */
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -44,8 +45,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors = $result['errors'];
         } else {
             $done = true;
-            // The account exists either way. A mail failure is reported as a
-            // warning with a resend route rather than losing the registration.
             $mailFailed = !learn_send_verification(
                 $result['email'],
                 $result['token'],
@@ -87,7 +86,14 @@ else:
     ?>
     <div class="ln-card">
         <h1>Create your account</h1>
-        <p class="ln-sub">Free access to the open course catalogue. No student number needed.</p>
+        <p class="ln-sub">Choose how you want to access the open course catalogue.</p>
+
+        <div style="display: flex; gap: 12px; flex-direction: column; margin-bottom: 24px;">
+            <a href="/login.php?redirect=<?= urlencode('/learn/') ?>" class="ln-btn ln-btn-primary ln-btn-block">
+                <span class="material-symbols-rounded">school</span> Sign in with UNILIS
+            </a>
+            <p class="ln-sub" style="text-align: center; margin: -8px 0 12px;">— or —</p>
+        </div>
 
         <?php learn_errors($errors); ?>
 
@@ -104,7 +110,6 @@ else:
                 <label for="email">Email address</label>
                 <input id="email" name="email" type="email" required autocomplete="email"
                        value="<?= learn_e($old['email'] ?? '') ?>">
-                <p class="ln-hint">Already a UNILIS student or lecturer? <a href="/login.php">Sign in there instead</a>.</p>
             </div>
 
             <div class="ln-row">
@@ -135,8 +140,7 @@ else:
             </div>
 
             <button class="ln-btn ln-btn-primary ln-btn-block" type="submit">
-                <span class="material-symbols-rounded">person_add</span>
-                Create account
+                <span class="material-symbols-rounded">person_add</span> Create external account
             </button>
         </form>
 

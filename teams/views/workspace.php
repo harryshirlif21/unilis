@@ -1,8 +1,38 @@
 <?php
 session_start();
 
-// Basic auth: only logged-in students (for now) can access workspace
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'student') {
+require_once '../config.php';
+require_once '../includes/team_access.php';
+
+// Get team_id from URL
+$teamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
+
+// Basic auth check
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role'])) {
+    header('Location: /login.php');
+    exit;
+}
+
+$currentUserId = (int) $_SESSION['user_id'];
+$userRole = strtolower((string) $_SESSION['user_role']);
+
+// Check if user can access this team (students must be members, supervisors must be approved)
+$canAccess = false;
+if ($userRole === 'student') {
+    // Students must be team members - check via team_members table
+    $memberCheck = $conn->prepare("SELECT 1 FROM team_members WHERE team_id = ? AND student_id = ? LIMIT 1");
+    if ($memberCheck) {
+        $memberCheck->bind_param('ii', $teamId, $currentUserId);
+        $memberCheck->execute();
+        $canAccess = $memberCheck->get_result()->num_rows > 0;
+        $memberCheck->close();
+    }
+} elseif (in_array($userRole, ['lecturer', 'admin', 'technician'])) {
+    // Supervisors/lecturers/admins use team_access function
+    $canAccess = team_user_can_access_team($conn, $teamId, $currentUserId, $userRole);
+}
+
+if (!$canAccess) {
     header('Location: /login.php');
     exit;
 }
@@ -12,8 +42,7 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-$currentUserId = (int) $_SESSION['user_id'];
-$csrfToken     = $_SESSION['csrf_token'];
+$csrfToken = $_SESSION['csrf_token'];
 ?>
 
 <!DOCTYPE html>
@@ -318,8 +347,12 @@ $csrfToken     = $_SESSION['csrf_token'];
     <header class="workspace-header">
         <h1>Team Workspace</h1>
         <div class="header-meta">
-            Student ID: <?php echo htmlspecialchars($currentUserId); ?><br>
-            <a href="/teams/views/create_team.php">&larr; Back to Teams</a>
+            <?php echo ucfirst($userRole); ?> ID: <?php echo htmlspecialchars($currentUserId); ?><br>
+            <?php if ($userRole === 'student'): ?>
+                <a href="/teams/views/create_team.php">&larr; Back to Teams</a>
+            <?php elseif (in_array($userRole, ['lecturer', 'admin', 'technician'])): ?>
+                <a href="/teams/views/lecturer_teams.php">&larr; Back to Lecturer Teams</a>
+            <?php endif; ?>
         </div>
     </header>
 
@@ -334,6 +367,7 @@ $csrfToken     = $_SESSION['csrf_token'];
             <button class="tab-button" data-tab="tasks">Tasks / Kanban</button>
             <button class="tab-button" data-tab="checklist">Submission Checklist</button>
             <button class="tab-button" data-tab="peer">Peer Evaluation</button>
+            <button class="tab-button supervisor-only" data-tab="supervisor" style="display: none;">Supervisor Tools</button>
             <button class="tab-button" data-tab="activity">Activity Log</button>
             <button class="tab-button" data-tab="health">Health Score</button>
             <button class="tab-button" data-tab="standups">Stand-ups</button>
@@ -508,6 +542,63 @@ $csrfToken     = $_SESSION['csrf_token'];
                 </div>
                 <ul id="standupsList" class="activity-list"></ul>
             </div>
+
+            <div class="tab-panel" id="tab-supervisor">
+                <p class="muted">
+                    Supervisor tools for managing team progress, marks, and membership requests.
+                </p>
+                
+                <div style="margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.75rem 0; color: #1e293b;">📊 Team Insights</h4>
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #64748b;">Load comprehensive team intelligence including files, kanban, checklist, standups, heatmap, and peer evaluation.</p>
+                    <button id="loadInsightsBtn" type="button" style="background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer;">
+                        Load Full Insights
+                    </button>
+                    <span id="loadInsightsStatus" class="muted" style="margin-left: 0.5rem;"></span>
+                </div>
+
+                <div style="margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.75rem 0; color: #1e293b;">👥 Manage Supervisors</h4>
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #64748b;">Add or remove supervisors for this team.</p>
+                    <button id="manageSupervisorsBtn" type="button" style="background: #8b5cf6; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer;">
+                        Manage Supervisors
+                    </button>
+                </div>
+
+                <div style="margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.75rem 0; color: #1e293b;">🏆 Award Marks</h4>
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #64748b;">Award group or individual marks for team members.</p>
+                    <button id="awardMarksBtn" type="button" style="background: #10b981; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer;">
+                        Award Marks
+                    </button>
+                </div>
+
+                <div style="margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.75rem 0; color: #1e293b;">📋 Membership Requests</h4>
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #64748b;">Review and approve/reject team membership leave and removal requests.</p>
+                    <button id="membershipRequestsBtn" type="button" style="background: #f59e0b; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer;">
+                        View Membership Requests
+                    </button>
+                </div>
+
+                <div style="margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.75rem 0; color: #1e293b;">📥 Export Data</h4>
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #64748b;">Export team data and peer evaluation reports.</p>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button id="exportPdfBtn" type="button" style="background: #dc2626; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer;">
+                            Export PDF
+                        </button>
+                        <button id="exportExcelBtn" type="button" style="background: #059669; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer;">
+                            Export Excel
+                        </button>
+                        <button id="exportPeerCsvBtn" type="button" style="background: #6366f1; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer;">
+                            Peer Eval CSV
+                        </button>
+                    </div>
+                </div>
+
+                <div id="supervisorInsightsBody" style="margin-top: 1rem;"></div>
+            </div>
         </div>
     </section>
 </div>
@@ -517,11 +608,15 @@ $csrfToken     = $_SESSION['csrf_token'];
 const urlParams = new URLSearchParams(window.location.search);
 const teamId = urlParams.get('team_id');
 const currentUserId = <?php echo json_encode($currentUserId); ?>;
+const userRole = <?php echo json_encode($userRole); ?>;
 const csrfToken = <?php echo json_encode($csrfToken); ?>;
 
 if (!teamId) {
     document.body.innerHTML = '<div class="workspace-shell"><p class="error">Missing team_id in URL.</p></div>';
 }
+
+// Check if user is supervisor (lecturer, admin, or technician)
+const isSupervisor = ['lecturer', 'admin', 'technician'].includes(userRole);
 
 // --- Tab switching ---
 const tabButtons = document.querySelectorAll('.tab-button');
@@ -530,10 +625,18 @@ const panels = {
     tasks: document.getElementById('tab-tasks'),
     checklist: document.getElementById('tab-checklist'),
     peer: document.getElementById('tab-peer'),
+    supervisor: document.getElementById('tab-supervisor'),
     activity: document.getElementById('tab-activity'),
     health: document.getElementById('tab-health'),
     standups: document.getElementById('tab-standups')
 };
+
+// Show supervisor tab only for supervisors
+if (isSupervisor) {
+    document.querySelectorAll('.supervisor-only').forEach(btn => {
+        btn.style.display = 'inline-block';
+    });
+}
 
 tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -562,6 +665,8 @@ tabButtons.forEach(btn => {
             loadHealth();
         } else if (target === 'standups' && !panels.standups.dataset.loaded) {
             loadStandups();
+        } else if (target === 'supervisor' && !panels.supervisor.dataset.loaded) {
+            panels.supervisor.dataset.loaded = '1';
         }
     });
 });
@@ -1460,6 +1565,72 @@ async function loadHealth() {
         statusEl.classList.add('error');
     }
 }
+
+// --- Supervisor Tools Functions ---
+document.getElementById('loadInsightsBtn')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('loadInsightsStatus');
+    const bodyEl = document.getElementById('supervisorInsightsBody');
+    
+    if (statusEl) statusEl.textContent = 'Loading insights...';
+    if (bodyEl) bodyEl.innerHTML = '';
+    
+    try {
+        const res = await fetch(`/teams/api/lecturer_team_insights.php?team_id=${encodeURIComponent(teamId)}`, {
+            credentials: 'same-origin'
+        });
+        
+        if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+        }
+        
+        const data = await res.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load insights');
+        }
+        
+        if (statusEl) statusEl.textContent = 'Insights loaded successfully';
+        if (bodyEl) bodyEl.innerHTML = data.html || 'Insights data loaded';
+        
+    } catch (err) {
+        if (statusEl) statusEl.textContent = 'Error: ' + err.message;
+        if (statusEl) statusEl.classList.add('error');
+    }
+});
+
+document.getElementById('manageSupervisorsBtn')?.addEventListener('click', () => {
+    // Open supervisor management modal (reuse from lecturer_teams.php)
+    if (typeof openSupervisorModal === 'function') {
+        // Get team title from current page
+        const teamTitle = document.getElementById('teamTitle')?.textContent || 'Team';
+        openSupervisorModal(teamId, teamTitle);
+    } else {
+        // Fallback: navigate to lecturer_teams with team_id
+        window.location.href = `/teams/views/lecturer_teams.php?team_id=${teamId}`;
+    }
+});
+
+document.getElementById('awardMarksBtn')?.addEventListener('click', () => {
+    // Navigate to lecturer_teams for marks management
+    window.location.href = `/teams/views/lecturer_teams.php?team_id=${teamId}`;
+});
+
+document.getElementById('membershipRequestsBtn')?.addEventListener('click', () => {
+    // Navigate to membership requests approval page
+    window.location.href = `/teams/views/approve_membership_requests.php?team_id=${teamId}`;
+});
+
+document.getElementById('exportPdfBtn')?.addEventListener('click', () => {
+    window.open(`/teams/api/export_group_members_pdf.php?team_id=${teamId}`, '_blank');
+});
+
+document.getElementById('exportExcelBtn')?.addEventListener('click', () => {
+    window.open(`/teams/api/export_all_teams_excel.php`, '_blank');
+});
+
+document.getElementById('exportPeerCsvBtn')?.addEventListener('click', () => {
+    window.open(`/teams/api/peer_evaluation_report.php?team_id=${teamId}&format=csv`, '_blank');
+});
 
 // --- Stand-ups: list from standups.php ---
 async function loadStandups() {

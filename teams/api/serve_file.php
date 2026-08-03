@@ -2,13 +2,14 @@
 // Secure file serving endpoint
 session_start();
 
-// Auth check - only lecturers can serve team files
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'lecturer') {
+// Auth check - lecturers, admins, technicians, and approved supervisors can serve team files
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician'])) {
     http_response_code(401);
     die('Unauthorized access');
 }
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../includes/team_access.php';
 
 try {
     $fileId = (int)($_GET['file_id'] ?? 0);
@@ -122,14 +123,12 @@ try {
                 tf.team_id
             FROM team_files tf
             JOIN teams t ON tf.team_id = t.id
-            JOIN units u ON t.unit_id = u.id
-            JOIN lecturer_units lu ON u.id = lu.unit_id
-            WHERE tf.id = ? AND lu.lecturer_id = ?
+            WHERE tf.id = ?
             LIMIT 1
         ";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ii", $fileId, $lecturerId);
+        $stmt->bind_param("i", $fileId);
         $stmt->execute();
         $result = $stmt->get_result();
         
@@ -140,6 +139,10 @@ try {
         
         $file = $result->fetch_assoc();
         $stmt->close();
+
+        if (!team_user_can_access_team($conn, (int)($file['team_id'] ?? 0), $lecturerId, $_SESSION['user_role'])) {
+            throw new Exception('File not found or access denied');
+        }
         
         // Construct the full file path
         $filePath = __DIR__ . '/../../assets/uploads/' . $file['filepath'];

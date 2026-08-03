@@ -9,7 +9,7 @@ error_reporting(E_ERROR | E_PARSE);
 header('Content-Type: application/json');
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
@@ -17,6 +17,7 @@ if (!isset($_SESSION['user_id'])) {
 
 // Load DB connection and health weights
 require_once __DIR__ . '/../config.php'; // loads $conn and HEALTH_SCORE_WEIGHTS
+require_once __DIR__ . '/../includes/team_access.php';
 
 $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : 0;
 
@@ -27,6 +28,12 @@ if ($teamId <= 0) {
 }
 
 try {
+    if (!team_user_can_access_team($conn, $teamId, (int) $_SESSION['user_id'], $_SESSION['user_role'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Access denied for this team']);
+        exit;
+    }
+
     // 1) Tasks done: count of tasks with status = 'Done'
     $sqlDone = "SELECT COUNT(*) AS c FROM team_tasks WHERE team_id = ? AND status = 'Done'";
     $stmt = $conn->prepare($sqlDone);

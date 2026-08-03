@@ -7,7 +7,7 @@ error_reporting(E_ERROR | E_PARSE);
 
 session_start();
 
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician'])) {
     http_response_code(401);
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -15,6 +15,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION[
 }
 
 require_once __DIR__ . '/../../config/db.php'; // mysqli $conn
+require_once __DIR__ . '/../includes/team_access.php';
 
 try {
     $teamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;

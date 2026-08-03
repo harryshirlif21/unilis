@@ -152,6 +152,29 @@ try {
         $stmt_leader->close();
     }
 
+    // ── Auto-assign unit lecturer as primary supervisor ────────────────────────
+    $lecturerStmt = $conn->prepare("
+        SELECT lu.lecturer_id 
+        FROM lecturer_units lu
+        WHERE lu.unit_id = ?
+        LIMIT 1
+    ");
+    $lecturerStmt->bind_param("i", $unit_id);
+    $lecturerStmt->execute();
+    $lecturerResult = $lecturerStmt->get_result();
+    $unit_lecturer = $lecturerResult->fetch_assoc();
+    $lecturerStmt->close();
+
+    if ($unit_lecturer) {
+        $supervisorStmt = $conn->prepare("
+            INSERT INTO team_supervisors (team_id, lecturer_id, supervisor_type, is_primary, status, requested_by, approved_by, approved_at)
+            VALUES (?, ?, 'lecturer', TRUE, 'approved', ?, ?, NOW())
+        ");
+        $supervisorStmt->bind_param("iiii", $team_id, $unit_lecturer['lecturer_id'], $user_id, $unit_lecturer['lecturer_id']);
+        $supervisorStmt->execute();
+        $supervisorStmt->close();
+    }
+
     $conn->commit();
 } catch (Throwable $e) {
     $conn->rollback();

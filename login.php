@@ -30,6 +30,12 @@ if (isset($_SESSION['user_id']) || isset($_SESSION['user_role'])) {
         case 'admin':
             header("Location: admin/dashboard.php");
             break;
+        case 'department_admin':
+            header("Location: phase1/admin/department_admins.php");
+            break;
+        case 'technician':
+            header("Location: phase1/technician/dashboard.php");
+            break;
         default:
             // Fallback: if session exists but role missing
             header("Location: student/dashboard.php");
@@ -116,7 +122,7 @@ unset($_SESSION['login_error']); // Clear after display
                 </div>
             <?php endif; ?>
 
-            <form method="POST" action="actions.php" class="w-full max-w-sm">
+            <form method="POST" action="actions.php<?= isset($_GET['redirect']) ? '?return=' . urlencode($_GET['redirect']) : '' ?>" class="w-full max-w-sm">
                 <input type="hidden" name="action" value="universal_login">
                 <?php if ($leRedirect): ?>
                 <input type="hidden" name="le_redirect" value="<?= htmlspecialchars($leRedirect) ?>">

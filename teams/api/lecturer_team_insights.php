@@ -8,13 +8,14 @@ error_reporting(E_ERROR | E_PARSE);
 header('Content-Type: application/json');
 session_start();
 
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../includes/team_access.php';
 
 $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : 0;
 $lecturerId = (int) $_SESSION['user_id'];
@@ -26,12 +27,18 @@ if ($teamId <= 0) {
 }
 
 try {
-    // Verify lecturer access to this team via assigned unit.
-    $stmt = $conn->prepare("\n        SELECT\n            t.id,\n            t.title,\n            t.unit_id,\n            t.assessment_type,\n            t.status,\n            t.created_at,\n            u.name AS unit_name,\n            u.code AS unit_code\n        FROM teams t\n        JOIN units u ON u.id = t.unit_id\n        JOIN lecturer_units lu ON lu.unit_id = t.unit_id\n        WHERE t.id = ? AND lu.lecturer_id = ?\n        LIMIT 1\n    ");
+    // Verify access to this team.
+    if (!team_user_can_access_team($conn, $teamId, $lecturerId, $_SESSION['user_role'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Access denied for this team']);
+        exit;
+    }
+
+    $stmt = $conn->prepare("\n        SELECT\n            t.id,\n            t.title,\n            t.unit_id,\n            t.assessment_type,\n            t.status,\n            t.created_at,\n            u.name AS unit_name,\n            u.code AS unit_code\n        FROM teams t\n        JOIN units u ON u.id = t.unit_id\n        WHERE t.id = ?\n        LIMIT 1\n    ");
     if (!$stmt) {
         throw new Exception('Failed to prepare team lookup: ' . $conn->error);
     }
-    $stmt->bind_param('ii', $teamId, $lecturerId);
+    $stmt->bind_param('i', $teamId);
     $stmt->execute();
     $team = $stmt->get_result()->fetch_assoc();
     $stmt->close();
@@ -92,7 +99,7 @@ try {
     ];
 
     // Files.
-    $stmt = $conn->prepare("\n        SELECT\n            tf.id,\n            tf.original_name AS file_name,\n            tf.filepath AS file_path,\n            tf.mime_type,\n            tf.file_size,\n            tf.version,\n            tf.uploader_id,\n            tf.uploaded_at,\n            s.name AS uploader_name\n        FROM team_files tf\n        LEFT JOIN students s ON s.id = tf.uploader_id\n        WHERE tf.team_id = ?\n        ORDER BY tf.uploaded_at DESC, tf.id DESC\n        LIMIT 200\n    ");
+    $stmt = $conn->prepare("\n        SELECT\n            tf.id,\n            tf.original_name AS file_name,\n            tf.filepath AS file_path,\n            tf.mime_type,\n            tf.file_size,\n            tf.uploader_id,\n            tf.uploaded_at,\n            s.name AS uploader_name\n        FROM team_files tf\n        LEFT JOIN students s ON s.id = tf.uploader_id\n        WHERE tf.team_id = ?\n        ORDER BY tf.uploaded_at DESC, tf.id DESC\n        LIMIT 200\n    ");
     if (!$stmt) {
         throw new Exception('Failed to prepare files query: ' . $conn->error);
     }
@@ -117,14 +124,13 @@ try {
     $stmt->close();
 
     // Tasks/Kanban.
-    $stmt = $conn->prepare("\n        SELECT\n            t.id,\n            t.title,\n            t.description,\n            t.status,\n            t.priority,\n            t.due_date,\n            t.created_at,\n            t.updated_at,\n            t.created_by,\n            t.assigned_to,\n            creator.name AS creator_name,\n            assignee.name AS assignee_name\n        FROM team_tasks t\n        LEFT JOIN students creator ON creator.id = t.created_by\n        LEFT JOIN students assignee ON assignee.id = t.assigned_to\n        WHERE t.team_id = ?\n        ORDER BY t.updated_at DESC, t.id DESC\n        LIMIT 300\n    ");
+    $stmt = $conn->prepare("\n        SELECT\n            t.id,\n            t.title,\n            t.description,\n            t.status,\n            t.due_date,\n            t.created_at,\n            t.updated_at,\n            t.assigned_to,\n            s.name AS assignee_name\n        FROM team_tasks t\n        LEFT JOIN students s ON s.id = t.assigned_to\n        WHERE t.team_id = ?\n        ORDER BY t.updated_at DESC, t.id DESC\n        LIMIT 300\n    ");
     if ($stmt) {
         $stmt->bind_param('i', $teamId);
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
             $row['id'] = (int) $row['id'];
-            $row['created_by'] = isset($row['created_by']) ? (int) $row['created_by'] : null;
             $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
             $tasks[] = $row;
 
@@ -134,9 +140,6 @@ try {
             }
             $kanbanCounts[$statusKey]++;
 
-            if (isset($members[$row['created_by']])) {
-                $members[$row['created_by']]['tasks_created']++;
-            }
             if (isset($members[$row['assigned_to']])) {
                 $members[$row['assigned_to']]['tasks_assigned']++;
             }
@@ -144,36 +147,51 @@ try {
         $stmt->close();
     }
 
-    // Checklist + signoffs.
-    $stmt = $conn->prepare("SELECT * FROM submission_checklist WHERE team_id = ? ORDER BY id ASC");
-    if ($stmt) {
-        $stmt->bind_param('i', $teamId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($row = $res->fetch_assoc()) {
-            $checklist[] = $row;
-        }
-        $stmt->close();
+    // Checklist + signoffs (only if tables exist).
+    $checklistTableExists = false;
+    $signoffsTableExists = false;
+    try {
+        $r = $conn->query("SHOW TABLES LIKE 'submission_checklist'");
+        $checklistTableExists = $r && $r->num_rows > 0;
+        $r2 = $conn->query("SHOW TABLES LIKE 'submission_signoffs'");
+        $signoffsTableExists = $r2 && $r2->num_rows > 0;
+    } catch (Exception $e) {
+        // Tables don't exist - skip
     }
 
-    $stmt = $conn->prepare("\n        SELECT ss.id, ss.user_id, ss.signed_at, s.name AS user_name\n        FROM submission_signoffs ss\n        LEFT JOIN students s ON s.id = ss.user_id\n        WHERE ss.team_id = ?\n        ORDER BY ss.signed_at DESC\n    ");
-    if ($stmt) {
-        $stmt->bind_param('i', $teamId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($row = $res->fetch_assoc()) {
-            $row['id'] = (int) $row['id'];
-            $row['user_id'] = (int) ($row['user_id'] ?? 0);
-            $signoffs[] = $row;
-            if (isset($members[$row['user_id']])) {
-                $members[$row['user_id']]['checklist_signoffs']++;
+    if ($checklistTableExists) {
+        $stmt = $conn->prepare("SELECT * FROM submission_checklist WHERE team_id = ? ORDER BY id ASC");
+        if ($stmt) {
+            $stmt->bind_param('i', $teamId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) {
+                $checklist[] = $row;
             }
+            $stmt->close();
         }
-        $stmt->close();
+    }
+
+    if ($signoffsTableExists) {
+        $stmt = $conn->prepare("\n        SELECT ss.id, ss.user_id, ss.signed_at, s.name AS user_name\n        FROM submission_signoffs ss\n        LEFT JOIN students s ON s.id = ss.user_id\n        WHERE ss.team_id = ?\n        ORDER BY ss.signed_at DESC\n    ");
+        if ($stmt) {
+            $stmt->bind_param('i', $teamId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) {
+                $row['id'] = (int) $row['id'];
+                $row['user_id'] = (int) ($row['user_id'] ?? 0);
+                $signoffs[] = $row;
+                if (isset($members[$row['user_id']])) {
+                    $members[$row['user_id']]['checklist_signoffs']++;
+                }
+            }
+            $stmt->close();
+        }
     }
 
     // Standups.
-    $stmt = $conn->prepare("\n        SELECT\n            se.id,\n            se.user_id,\n            se.did_today AS yesterday,\n            se.will_do_next AS today,\n            se.blockers,\n            se.created_at,\n            s.name AS user_name\n        FROM standup_entries se\n        LEFT JOIN students s ON s.id = se.user_id\n        WHERE se.team_id = ?\n        ORDER BY se.created_at DESC\n        LIMIT 200\n    ");
+    $stmt = $conn->prepare("\n        SELECT su.id, su.user_id, su.yesterday, su.today, su.blockers, su.created_at, s.name AS user_name\n        FROM team_standups su\n        LEFT JOIN students s ON s.id = su.user_id\n        WHERE su.team_id = ?\n        ORDER BY su.created_at DESC\n        LIMIT 200\n    ");
     if ($stmt) {
         $stmt->bind_param('i', $teamId);
         $stmt->execute();
@@ -189,109 +207,121 @@ try {
         $stmt->close();
     }
 
-    // Activity log (and per-member action stats).
-    $stmt = $conn->prepare("\n        SELECT\n            l.id,\n            l.user_id,\n            l.action_type,\n            l.action_detail,\n            l.created_at,\n            s.name AS user_name\n        FROM team_activity_log l\n        LEFT JOIN students s ON s.id = l.user_id\n        WHERE l.team_id = ?\n        ORDER BY l.created_at DESC\n        LIMIT 300\n    ");
-    if (!$stmt) {
-        throw new Exception('Failed to prepare activity query: ' . $conn->error);
-    }
-    $stmt->bind_param('i', $teamId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) {
-        $row['id'] = (int) $row['id'];
-        $row['user_id'] = (int) ($row['user_id'] ?? 0);
-        $activities[] = $row;
-
-        $sid = $row['user_id'];
-        if (isset($members[$sid])) {
-            $members[$sid]['activity_types'][$row['action_type']] =
-                (int) ($members[$sid]['activity_types'][$row['action_type']] ?? 0) + 1;
-
-            if ($members[$sid]['last_activity_at'] === null) {
-                $members[$sid]['last_activity_at'] = $row['created_at'];
-                $members[$sid]['last_activity'] = [
-                    'action_type' => $row['action_type'],
-                    'action_detail' => $row['action_detail'],
-                    'created_at' => $row['created_at']
-                ];
-            }
-
-            $createdTs = strtotime((string) $row['created_at']);
-            if ($createdTs !== false && $createdTs >= strtotime('-14 days')) {
-                $members[$sid]['activity_count_14d']++;
-            }
-        }
-    }
-    $stmt->close();
-
-    // Peer evaluation summary.
-    $stmt = $conn->prepare("\n        SELECT\n            p.evaluatee_id,\n            s.name AS evaluatee_name,\n            COUNT(*) AS responses,\n            ROUND(AVG(p.contribution), 2) AS avg_contribution,\n            ROUND(AVG(p.communication), 2) AS avg_communication,\n            ROUND(AVG(p.quality), 2) AS avg_quality,\n            ROUND(AVG(p.reliability), 2) AS avg_reliability,\n            ROUND(AVG((p.contribution + p.communication + p.quality + p.reliability) / 4.0), 2) AS avg_overall\n        FROM peer_evaluations p\n        JOIN students s ON s.id = p.evaluatee_id\n        WHERE p.team_id = ?\n        GROUP BY p.evaluatee_id, s.name\n        ORDER BY s.name ASC\n    ");
+    // Activity log (last 14 days).
+    $stmt = $conn->prepare("\n        SELECT log.id, log.user_id, log.team_id, log.action_type, log.action_detail, log.created_at, s.name AS user_name\n        FROM team_activity_log log\n        LEFT JOIN students s ON s.id = log.user_id\n        WHERE log.team_id = ?\n          AND log.created_at >= NOW() - INTERVAL 14 DAY\n        ORDER BY log.created_at DESC\n        LIMIT 500\n    ");
     if ($stmt) {
         $stmt->bind_param('i', $teamId);
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
-            $peerSummary[] = $row;
+            $row['id'] = (int) $row['id'];
+            $row['user_id'] = (int) ($row['user_id'] ?? 0);
+            $arr = [
+                'id' => $row['id'],
+                'user_id' => $row['user_id'],
+                'action_type' => $row['action_type'],
+                'action_detail' => $row['action_detail'],
+                'created_at' => $row['created_at'],
+                'user_name' => $row['user_name']
+            ];
+            $activities[] = $arr;
+            if (isset($members[$row['user_id']])) {
+                $members[$row['user_id']]['activity_count_14d']++;
+                $members[$row['user_id']]['last_activity_at'] = $row['created_at'];
+                $members[$row['user_id']]['activity_types'][$row['action_type']] =
+                    ($members[$row['user_id']]['activity_types'][$row['action_type']] ?? 0) + 1;
+            }
         }
         $stmt->close();
     }
 
-    // Health score + heatmap (same model as health.php).
-    $tasksDone = (int) ($kanbanCounts['Done'] ?? 0);
-    $activityCount7d = 0;
-    $heatMap = [];
-    for ($i = 13; $i >= 0; $i--) {
-        $day = date('Y-m-d', strtotime('-' . $i . ' days'));
-        $heatMap[$day] = 0;
-    }
-    foreach ($activities as $activity) {
-        $ts = strtotime((string) $activity['created_at']);
-        if ($ts !== false) {
-            if ($ts >= strtotime('-7 days')) {
-                $activityCount7d++;
+    // Peer evaluation summary.
+    $stmt = $conn->prepare("SELECT 1");
+    if ($stmt) {
+        if (collation_check($conn)) {
+            $peerStmt = $conn->prepare("\n                SELECT\n                    evaluatee_id,\n                    COUNT(*) AS responses,\n                    AVG(contribution) AS avg_contribution,\n                    AVG(communication) AS avg_communication,\n                    AVG(quality) AS avg_quality,\n                    AVG(reliability) AS avg_reliability,\n                    AVG(overall) AS avg_overall,\n                    MAX(s.student_name) AS evaluatee_name,\n                    MAX(s.reg_no) AS evaluatee_reg_no\n                FROM peer_evaluations pe\n                LEFT JOIN students s ON s.id = pe.evaluatee_id\n                WHERE pe.course_id = (\n                    SELECT t.unit_id FROM teams t WHERE t.id = ?\n                )\n                GROUP BY pe.evaluatee_id\n                ORDER BY avg_overall DESC\n            ");
+            if ($peerStmt) {
+                $peerStmt->bind_param('i', $teamId);
+                $peerStmt->execute();
+                $res = $peerStmt->get_result();
+                while ($row = $res->fetch_assoc()) {
+                    $peerSummary[] = $row;
+                }
+                $peerStmt->close();
             }
-            $dayKey = date('Y-m-d', $ts);
-            if (isset($heatMap[$dayKey])) {
-                $heatMap[$dayKey]++;
+        }
+        $stmt->close();
+    }
+
+    $memberList = array_values($members);
+
+    // Health score.
+    $healthScore = 0;
+    $tasksDone = 0;
+    $activity7d = 0;
+    $heatmap = [];
+
+    if (count($tasks) > 0) {
+        foreach ($tasks as $tk) {
+            if ($tk['status'] === 'Done') $tasksDone++;
+        }
+    }
+    if (count($activities) > 0) {
+        $now = time();
+        foreach ($activities as $act) {
+            $ts = strtotime($act['created_at']);
+            if ($ts && $now - $ts <= 7 * 86400) $activity7d++;
+            if ($ts) {
+                $day = date('Y-m-d', $ts);
+                $heatmap[$day] = ($heatmap[$day] ?? 0) + 1;
             }
         }
     }
 
-    $tasksScore = min($tasksDone / 10.0, 1.0);
-    $activityScore = min($activityCount7d / 20.0, 1.0);
-    $deadlineFactor = 0.5;
-    $healthScore = round((($tasksScore * 40) + ($activityScore * 30) + ($deadlineFactor * 30)));
+    $totalTasks = max(1, count($tasks));
+    $completionRatio = $tasksDone / $totalTasks;
+    $activityRatio = min(1, $activity7d / 30);
+    $healthScore = (int) round(($completionRatio * 40) + ($activityRatio * 60));
 
     echo json_encode([
         'success' => true,
         'team' => $team,
         'summary' => [
-            'member_count' => count($members),
+            'member_count' => count($memberList),
             'file_count' => count($files),
             'task_count' => count($tasks),
             'standup_count' => count($standups),
             'activity_count' => count($activities),
             'kanban_counts' => $kanbanCounts
         ],
+        'members' => $memberList,
+        'files' => $files,
+        'tasks' => $tasks,
+        'standups' => $standups,
+        'activities' => $activities,
+        'checklist' => $checklist,
+        'signoffs' => $signoffs,
+        'peer_summary' => $peerSummary,
         'health' => [
             'score' => $healthScore,
             'tasks_done' => $tasksDone,
-            'activity_7d' => $activityCount7d,
-            'heatmap' => $heatMap
-        ],
-        'members' => array_values($members),
-        'files' => $files,
-        'tasks' => $tasks,
-        'checklist' => $checklist,
-        'signoffs' => $signoffs,
-        'standups' => $standups,
-        'activities' => $activities,
-        'peer_summary' => $peerSummary
+            'activity_7d' => $activity7d,
+            'heatmap' => $heatmap
+        ]
     ]);
+    exit;
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => $e->getMessage()
-    ]);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    exit;
+}
+
+function collation_check($conn) {
+    // Check if peer_evaluations table exists
+    try {
+        $r = $conn->query("SHOW TABLES LIKE 'peer_evaluations'");
+        return $r && $r->num_rows > 0;
+    } catch (Exception $e) {
+        return false;
+    }
 }

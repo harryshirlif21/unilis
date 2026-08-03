@@ -14,5 +14,5 @@ require_once __DIR__ . '/config.php';
 
 learn_logout();
 
-header('Location: /learn/');
+header('Location: /index.html');
 exit;

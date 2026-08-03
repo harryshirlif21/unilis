@@ -27,6 +27,8 @@ function learn_schema_ready(mysqli $conn): bool
 
 /**
  * The signed-in learner, or null.
+ * 
+ * Also checks for UNILIS session and auto-creates external_learner account.
  */
 function learn_current(mysqli $conn): ?array
 {
@@ -34,33 +36,103 @@ function learn_current(mysqli $conn): ?array
         session_start();
     }
 
+    // First check if already logged in as external learner
     $id = (int)($_SESSION[LEARN_SESSION_KEY] ?? 0);
-    if ($id <= 0) {
-        return null;
+    if ($id > 0) {
+        $stmt = $conn->prepare("
+            SELECT id, name, email, is_verified, status
+            FROM external_learners WHERE id = ? LIMIT 1
+        ");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $learner = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($learner && $learner['status'] === 'active') {
+            return [
+                'id' => (int)$learner['id'],
+                'name' => (string)$learner['name'],
+                'email' => (string)$learner['email'],
+                'is_verified' => (int)$learner['is_verified'] === 1,
+            ];
+        }
     }
 
-    $stmt = $conn->prepare("
-        SELECT id, name, email, is_verified, status
-        FROM external_learners WHERE id = ? LIMIT 1
-    ");
-    $stmt->bind_param('i', $id);
-    $stmt->execute();
-    $learner = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    // Check if logged in to UNILIS (student, lecturer, or admin)
+    if (isset($_SESSION['user_id']) && isset($_SESSION['user_email'])) {
+        $unilis_email = $_SESSION['user_email'];
+        $unilis_name = $_SESSION['user_name'] ?? '';
+        
+        // Check if external_learner already exists for this UNILIS user
+        $stmt = $conn->prepare("SELECT id, is_verified, status FROM external_learners WHERE email = ? LIMIT 1");
+        $stmt->bind_param('s', $unilis_email);
+        $stmt->execute();
+        $existing_learner = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
 
-    // Read the row rather than trusting the session, so suspending an account
-    // takes effect on the next request instead of whenever they log out.
-    if (!$learner || $learner['status'] !== 'active') {
-        learn_logout();
-        return null;
+        if ($existing_learner) {
+            if ($existing_learner['status'] !== 'active') {
+                return null;
+            }
+            // Log them in as external learner
+            $_SESSION[LEARN_SESSION_KEY] = (int)$existing_learner['id'];
+            $_SESSION['learner_name'] = $unilis_name;
+            $_SESSION['learner_email'] = $unilis_email;
+            
+            return [
+                'id' => (int)$existing_learner['id'],
+                'name' => $unilis_name,
+                'email' => $unilis_email,
+                'is_verified' => (int)$existing_learner['is_verified'] === 1,
+            ];
+        }
+
+        // Create new external_learner account for UNILIS user
+        // Get password from UNILIS tables
+        $password = '';
+        $role = $_SESSION['user_role'] ?? '';
+        $table = '';
+        if ($role === 'student') $table = 'students';
+        elseif ($role === 'lecturer') $table = 'lecturers';
+        elseif ($role === 'admin') $table = 'admins';
+        elseif ($role === 'department_admin') $table = 'admins';
+        elseif ($role === 'technician') $table = 'technicians';
+        
+        if ($table) {
+            $stmt = $conn->prepare("SELECT password FROM `$table` WHERE id = ? LIMIT 1");
+            $stmt->bind_param('i', $_SESSION['user_id']);
+            $stmt->execute();
+            $result = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($result) {
+                $password = $result['password'];
+            }
+        }
+
+        if ($password) {
+            $stmt = $conn->prepare("
+                INSERT INTO external_learners (name, email, password, is_verified, status)
+                VALUES (?, ?, ?, 1, 'active')
+            ");
+            $stmt->bind_param('sss', $unilis_name, $unilis_email, $password);
+            $stmt->execute();
+            $learnerId = (int)$conn->insert_id;
+            $stmt->close();
+
+            $_SESSION[LEARN_SESSION_KEY] = $learnerId;
+            $_SESSION['learner_name'] = $unilis_name;
+            $_SESSION['learner_email'] = $unilis_email;
+
+            return [
+                'id' => $learnerId,
+                'name' => $unilis_name,
+                'email' => $unilis_email,
+                'is_verified' => true,
+            ];
+        }
     }
 
-    return [
-        'id' => (int)$learner['id'],
-        'name' => (string)$learner['name'],
-        'email' => (string)$learner['email'],
-        'is_verified' => (int)$learner['is_verified'] === 1,
-    ];
+    return null;
 }
 
 /**
@@ -300,11 +372,14 @@ function learn_reissue_verification(mysqli $conn, string $email): ?array
  *
  * Returns ['ok' => true, 'learner' => array] or ['ok' => false, 'error' => string,
  * 'unverified' => bool].
+ * 
+ * Now also accepts UNILIS credentials (students, lecturers, admins).
  */
 function learn_login(mysqli $conn, string $email, string $password): array
 {
     $email = strtolower(trim($email));
 
+    // First try external_learners (existing learn/ accounts)
     $stmt = $conn->prepare("
         SELECT id, name, email, password, is_verified, status
         FROM external_learners WHERE email = ? LIMIT 1
@@ -314,30 +389,106 @@ function learn_login(mysqli $conn, string $email, string $password): array
     $learner = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    // One message for a missing account and a wrong password, so this cannot be
-    // used to enumerate registered addresses.
     $generic = ['ok' => false, 'unverified' => false, 'error' => 'Those details do not match an account.'];
 
-    if (!$learner) {
-        // Still spend the time a hash comparison would, so response timing does
-        // not distinguish a missing account from a wrong password.
-        password_verify($password, '$2y$10$usesomesillystringforsalt0123456789abcdefghijklmnopqrstuv');
-        return $generic;
-    }
-    if (!password_verify($password, (string)$learner['password'])) {
-        return $generic;
-    }
-    if ($learner['status'] !== 'active') {
-        return ['ok' => false, 'unverified' => false, 'error' => 'This account has been suspended.'];
-    }
-    if ((int)$learner['is_verified'] !== 1) {
-        return ['ok' => false, 'unverified' => true, 'error' => 'Please verify your email address first.'];
+    // If external learner exists, try to authenticate
+    if ($learner) {
+        if (!password_verify($password, (string)$learner['password'])) {
+            password_verify($password, '$2y$10$usesomesillystringforsalt0123456789abcdefghijklmnopqrstuv');
+            return $generic;
+        }
+        if ($learner['status'] !== 'active') {
+            return ['ok' => false, 'unverified' => false, 'error' => 'This account has been suspended.'];
+        }
+        if ((int)$learner['is_verified'] !== 1) {
+            return ['ok' => false, 'unverified' => true, 'error' => 'Please verify your email address first.'];
+        }
+
+        return learn_set_learner_session($conn, $learner);
     }
 
+    // Try UNILIS credentials (students, lecturers, admins)
+    $unilis_user = null;
+    $unilis_role = null;
+    
+    foreach (['students', 'lecturers', 'admins'] as $table) {
+        $check = $conn->query("SHOW TABLES LIKE '$table'");
+        $present = $check->num_rows > 0;
+        $check->free();
+        if (!$present) continue;
+
+        $stmt = $conn->prepare("SELECT id, name, email, password FROM `$table` WHERE email = ? LIMIT 1");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($user && password_verify($password, (string)$user['password'])) {
+            $unilis_user = $user;
+            $unilis_role = rtrim($table, 's'); // students -> student, lecturers -> lecturer, etc.
+            break;
+        }
+    }
+
+    if ($unilis_user) {
+        // Check if external_learner already exists for this UNILIS user
+        $stmt = $conn->prepare("SELECT id, is_verified, status FROM external_learners WHERE email = ? LIMIT 1");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $existing_learner = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($existing_learner) {
+            if ($existing_learner['status'] !== 'active') {
+                return ['ok' => false, 'unverified' => false, 'error' => 'This account has been suspended.'];
+            }
+            if ((int)$existing_learner['is_verified'] !== 1) {
+                return ['ok' => false, 'unverified' => true, 'error' => 'Please verify your email address first.'];
+            }
+            // Use existing external_learner account
+            $learner = [
+                'id' => $existing_learner['id'],
+                'name' => $unilis_user['name'],
+                'email' => $unilis_user['email'],
+                'is_verified' => 1,
+                'status' => 'active'
+            ];
+            return learn_set_learner_session($conn, $learner);
+        }
+
+        // Create new external_learner account for UNILIS user
+        $stmt = $conn->prepare("
+            INSERT INTO external_learners (name, email, password, is_verified, status)
+            VALUES (?, ?, ?, 1, 'active')
+        ");
+        $stmt->bind_param('sss', $unilis_user['name'], $unilis_user['email'], $unilis_user['password']);
+        $stmt->execute();
+        $learnerId = (int)$conn->insert_id;
+        $stmt->close();
+
+        $learner = [
+            'id' => $learnerId,
+            'name' => $unilis_user['name'],
+            'email' => $unilis_user['email'],
+            'is_verified' => 1,
+            'status' => 'active'
+        ];
+        return learn_set_learner_session($conn, $learner);
+    }
+
+    // No match found
+    password_verify($password, '$2y$10$usesomesillystringforsalt0123456789abcdefghijklmnopqrstuv');
+    return $generic;
+}
+
+/**
+ * Set learner session and update last login
+ */
+function learn_set_learner_session(mysqli $conn, array $learner): array
+{
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
-    // New id on privilege change, so a session fixed before login is useless.
     session_regenerate_id(true);
     $_SESSION[LEARN_SESSION_KEY] = (int)$learner['id'];
     $_SESSION['learner_name'] = (string)$learner['name'];

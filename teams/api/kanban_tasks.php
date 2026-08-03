@@ -4,13 +4,14 @@
 header('Content-Type: application/json');
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }
 
 require_once __DIR__ . '/../../config/db.php'; // mysqli $conn
+require_once __DIR__ . '/../includes/team_access.php';
 
 $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : 0;
 
@@ -21,6 +22,12 @@ if ($teamId <= 0) {
 }
 
 try {
+    if (!team_user_can_access_team($conn, $teamId, (int) $_SESSION['user_id'], $_SESSION['user_role'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Access denied for this team']);
+        exit;
+    }
+
     // Read-only v1: return tasks grouped by simple status column.
     // We'll extend this later with create/update endpoints and activity logging.
 

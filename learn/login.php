@@ -82,8 +82,7 @@ learn_head(['title' => 'Sign in', 'narrow' => true]);
     </form>
 
     <p class="ln-alt">
-        New here? <a href="/learn/register.php">Create an account</a><br>
-        Student or lecturer? <a href="/login.php">Sign in to UNILIS</a>
+        New here? <a href="/learn/register.php">Create an account</a>
     </p>
 </div>
 <?php

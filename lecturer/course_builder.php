@@ -12,23 +12,60 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 $lecturer_id   = $_SESSION['user_id'];
 $lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
 
-// Fetch units assigned to this lecturer
-$units = [];
-try {
+// ── Detect mode: unit_id (ICLM) or course_id (short course) ──────────────
+$unit_id   = intval($_GET['unit_id']   ?? 0);
+$course_id = intval($_GET['course_id'] ?? 0);
+$mode      = $course_id > 0 ? 'short_course' : 'iclm';
+
+// ── Short course mode: verify access, load course info ────────────────────
+$course_info = null;
+if ($mode === 'short_course') {
     $stmt = $conn->prepare("
-        SELECT u.id, u.name
-        FROM units u
-        JOIN lecturer_units lu ON u.id = lu.unit_id
-        WHERE lu.lecturer_id = ?
-        ORDER BY u.name ASC
+        SELECT pc.*, sct.id AS tutor_id
+        FROM public_courses pc
+        JOIN short_course_tutors sct ON sct.short_course_id = pc.id
+        WHERE pc.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
+        LIMIT 1
     ");
-    $stmt->bind_param("i", $lecturer_id);
+    $stmt->bind_param("ii", $course_id, $lecturer_id);
     $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) $units[] = $row;
+    $course_info = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-} catch (mysqli_sql_exception $e) {
-    error_log("course_builder unit fetch: " . $e->getMessage());
+
+    if (!$course_info) {
+        // Fallback: check if lecturer owns the course
+        $stmt = $conn->prepare("SELECT * FROM public_courses WHERE id = ? AND created_by_lecturer_id = ? LIMIT 1");
+        $stmt->bind_param("ii", $course_id, $lecturer_id);
+        $stmt->execute();
+        $course_info = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
+
+    if (!$course_info) {
+        header("Location: catalogue.php");
+        exit;
+    }
+}
+
+// ── ICLM mode: fetch units assigned to this lecturer ─────────────────────
+$units = [];
+if ($mode === 'iclm') {
+    try {
+        $stmt = $conn->prepare("
+            SELECT u.id, u.name
+            FROM units u
+            JOIN lecturer_units lu ON u.id = lu.unit_id
+            WHERE lu.lecturer_id = ?
+            ORDER BY u.name ASC
+        ");
+        $stmt->bind_param("i", $lecturer_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) $units[] = $row;
+        $stmt->close();
+    } catch (mysqli_sql_exception $e) {
+        error_log("course_builder unit fetch: " . $e->getMessage());
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -36,7 +73,7 @@ try {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Course Builder — UNILIS</title>
+<title><?= $mode === 'short_course' ? 'Short Course Builder' : 'Course Builder' ?> — UNILIS</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
@@ -484,6 +521,36 @@ body {
 }
 .placeholder-inner p { font-size: 0.85rem; color: var(--text-dim); }
 
+/* ── SHORT COURSE INFO ──────────────────────────────────── */
+.course-info-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.course-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+}
+.course-info-row:last-child { border-bottom: none; }
+.course-info-label {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.course-info-value {
+    font-size: 0.85rem;
+    color: var(--text);
+    font-weight: 500;
+}
+
 /* ── MODAL ───────────────────────────────────────────────── */
 .modal-overlay {
     position: fixed; inset: 0;
@@ -695,12 +762,16 @@ body {
 <!-- TOPBAR -->
 <header class="topbar">
     <div class="topbar-brand">
-        UNILIS <span>Course Builder</span>
+        UNILIS <span><?= $mode === 'short_course' ? 'Short Course Builder' : 'Course Builder' ?></span>
     </div>
     <div class="topbar-right">
         <span class="topbar-user"><i class="fas fa-user-circle"></i> <?= htmlspecialchars($lecturer_name) ?></span>
-        <a href="lesson_editor.php" class="btn-nav"><i class="fas fa-pen-nib"></i> Lesson Editor</a>
-        <a href="assessment_builder.php" class="btn-nav"><i class="fas fa-tasks"></i> Assessments</a>
+        <?php if ($mode === 'short_course'): ?>
+            <a href="catalogue.php" class="btn-nav"><i class="fas fa-globe"></i> Short Courses</a>
+        <?php else: ?>
+            <a href="lesson_editor.php" class="btn-nav"><i class="fas fa-pen-nib"></i> Lesson Editor</a>
+            <a href="assessment_builder.php" class="btn-nav"><i class="fas fa-tasks"></i> Assessments</a>
+        <?php endif; ?>
         <a href="dashboard.php" class="btn-nav"><i class="fas fa-home"></i> Dashboard</a>
     </div>
 </header>
@@ -709,17 +780,50 @@ body {
 
     <!-- SIDEBAR -->
     <aside class="sidebar">
-        <div class="sidebar-section">
-            <div class="unit-select-header">
-                <label><i class="fas fa-book"></i> &nbsp;Select Unit</label>
+        <?php if ($mode === 'short_course' && $course_info): ?>
+            <!-- Short course info sidebar -->
+            <div class="sidebar-section">
+                <label><i class="fas fa-graduation-cap"></i> &nbsp;<?= htmlspecialchars($course_info['title']) ?></label>
+                <div class="course-info-card">
+                    <div class="course-info-row">
+                        <span class="course-info-label">Level</span>
+                        <span class="course-info-value"><?= htmlspecialchars(ucfirst($course_info['level'])) ?></span>
+                    </div>
+                    <div class="course-info-row">
+                        <span class="course-info-label">Status</span>
+                        <span class="course-info-value"><?= (int)$course_info['is_published'] === 1 ? 'Published' : 'Draft' ?></span>
+                    </div>
+                    <?php if ($course_info['estimated_hours']): ?>
+                    <div class="course-info-row">
+                        <span class="course-info-label">Est. Hours</span>
+                        <span class="course-info-value"><?= (float)$course_info['estimated_hours'] ?></span>
+                    </div>
+                    <?php endif; ?>
+                    <div class="course-info-row">
+                        <span class="course-info-label">Pass Mark</span>
+                        <span class="course-info-value"><?= (int)$course_info['pass_mark'] ?>%</span>
+                    </div>
+                    <?php if (!empty($course_info['summary'])): ?>
+                    <div style="font-size:0.82rem;color:var(--text-muted);padding-top:6px;border-top:1px solid var(--border)">
+                        <?= htmlspecialchars($course_info['summary']) ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
             </div>
-            <select class="styled-select" id="unit-select">
-                <option value="">— choose a unit —</option>
-                <?php foreach ($units as $u): ?>
-                    <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
+        <?php else: ?>
+            <!-- ICLM mode: unit selector -->
+            <div class="sidebar-section">
+                <div class="unit-select-header">
+                    <label><i class="fas fa-book"></i> &nbsp;Select Unit</label>
+                </div>
+                <select class="styled-select" id="unit-select">
+                    <option value="">— choose a unit —</option>
+                    <?php foreach ($units as $u): ?>
+                        <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        <?php endif; ?>
 
         <div class="sidebar-stats" id="sidebar-stats" style="display:none">
             <div class="stat-item">
@@ -739,8 +843,7 @@ body {
             <button class="btn btn-ghost" onclick="openOutlineModal()">
                 <i class="fas fa-align-left"></i> Course Outline
             </button>
-            <!-- Import from another unit — only shown when lecturer has >1 unit -->
-            <?php if (count($units) > 1): ?>
+            <?php if ($mode === 'iclm' && count($units) > 1): ?>
             <button class="btn btn-ghost" id="btn-import-unit" onclick="openImportUnitModal()" style="border-color:rgba(247,147,79,0.4);color:var(--accent3)">
                 <i class="fas fa-file-import"></i> Import From Unit
             </button>
@@ -749,6 +852,14 @@ body {
                 <i class="fas fa-pen-nib"></i> Edit Lessons
             </a>
         </div>
+
+        <?php if ($mode === 'short_course'): ?>
+        <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border);">
+            <a href="catalogue.php" class="btn btn-ghost" style="width:100%;">
+                <i class="fas fa-arrow-left"></i> Back to Short Courses
+            </a>
+        </div>
+        <?php endif; ?>
 
         <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border);">
             <p style="font-size:0.75rem; color:var(--text-dim); line-height:1.6;">
@@ -761,43 +872,74 @@ body {
     <!-- MAIN CONTENT -->
     <main class="main" id="main-content">
 
-        <div id="unit-placeholder">
-            <div class="placeholder-inner">
-                <i class="fas fa-layer-group"></i>
-                <h2>No Unit Selected</h2>
-                <p>Select a unit from the sidebar to start building your course structure.</p>
-            </div>
-        </div>
-
-        <div id="course-content" style="display:none">
-
-            <div class="course-header-card" id="course-header-card">
-                <div class="course-header-info">
-                    <h2 id="course-unit-name">Unit Name</h2>
-                    <p id="course-description">No description set yet.</p>
-                    <span class="outline-badge outline-unset" id="outline-status">
-                        <i class="fas fa-circle-xmark"></i> Outline not set
-                    </span>
+        <?php if ($mode === 'short_course'): ?>
+            <!-- Short course is auto-loaded -->
+            <div id="course-content" style="display:flex;flex-direction:column;gap:24px;">
+                <div class="course-header-card" id="course-header-card">
+                    <div class="course-header-info">
+                        <h2 id="course-unit-name"><?= htmlspecialchars($course_info['title']) ?></h2>
+                        <p id="course-description"><?= htmlspecialchars($course_info['description'] ?? 'No description set yet.') ?></p>
+                        <span class="outline-badge <?= !empty($course_info['description']) ? 'outline-set' : 'outline-unset' ?>" id="outline-status">
+                            <i class="fas <?= !empty($course_info['description']) ? 'fa-circle-check' : 'fa-circle-xmark' ?>"></i>
+                            <?= !empty($course_info['description']) ? 'Description set' : 'Description not set' ?>
+                        </span>
+                    </div>
+                    <div>
+                        <button class="btn btn-ghost btn-sm" onclick="openOutlineModal()">
+                            <i class="fas fa-edit"></i> Edit Description
+                        </button>
+                    </div>
                 </div>
+
                 <div>
-                    <button class="btn btn-ghost btn-sm" onclick="openOutlineModal()">
-                        <i class="fas fa-edit"></i> Edit Outline
-                    </button>
+                    <div class="tree-toolbar">
+                        <h3><i class="fas fa-sitemap"></i> &nbsp;Course Structure</h3>
+                        <button class="btn btn-primary btn-sm" onclick="openAddModuleModal()">
+                            <i class="fas fa-plus"></i> Add Module
+                        </button>
+                    </div>
+                </div>
+
+                <div id="module-tree"></div>
+            </div>
+        <?php else: ?>
+            <!-- ICLM mode: placeholder until a unit is selected -->
+            <div id="unit-placeholder">
+                <div class="placeholder-inner">
+                    <i class="fas fa-layer-group"></i>
+                    <h2>No Unit Selected</h2>
+                    <p>Select a unit from the sidebar to start building your course structure.</p>
                 </div>
             </div>
 
-            <div>
-                <div class="tree-toolbar">
-                    <h3><i class="fas fa-sitemap"></i> &nbsp;Course Structure</h3>
-                    <button class="btn btn-primary btn-sm" onclick="openAddModuleModal()">
-                        <i class="fas fa-plus"></i> Add Module
-                    </button>
+            <div id="course-content" style="display:none">
+                <div class="course-header-card" id="course-header-card">
+                    <div class="course-header-info">
+                        <h2 id="course-unit-name">Unit Name</h2>
+                        <p id="course-description">No description set yet.</p>
+                        <span class="outline-badge outline-unset" id="outline-status">
+                            <i class="fas fa-circle-xmark"></i> Outline not set
+                        </span>
+                    </div>
+                    <div>
+                        <button class="btn btn-ghost btn-sm" onclick="openOutlineModal()">
+                            <i class="fas fa-edit"></i> Edit Outline
+                        </button>
+                    </div>
                 </div>
+
+                <div>
+                    <div class="tree-toolbar">
+                        <h3><i class="fas fa-sitemap"></i> &nbsp;Course Structure</h3>
+                        <button class="btn btn-primary btn-sm" onclick="openAddModuleModal()">
+                            <i class="fas fa-plus"></i> Add Module
+                        </button>
+                    </div>
+                </div>
+
+                <div id="module-tree"></div>
             </div>
-
-            <div id="module-tree"></div>
-
-        </div>
+        <?php endif; ?>
     </main>
 </div>
 
@@ -824,14 +966,15 @@ body {
 <!-- Course Outline Modal -->
 <div class="modal-overlay" id="outline-modal">
     <div class="modal" style="width:560px">
-        <h3><i class="fas fa-align-left"></i> Course Outline</h3>
+        <h3><i class="fas fa-align-left"></i> <?= $mode === 'short_course' ? 'Course Description' : 'Course Outline' ?></h3>
         <div class="form-group">
-            <label>Course Description</label>
+            <label><?= $mode === 'short_course' ? 'Course Description' : 'Course Description' ?></label>
             <textarea class="form-textarea" id="outline-description"
-                      placeholder="Brief overview of this unit/course..."
+                      placeholder="Brief overview of this course..."
                       oninput="updateCharCount(this,'desc-count',500)"></textarea>
             <div class="char-count"><span id="desc-count">0</span>/500</div>
         </div>
+        <?php if ($mode === 'iclm'): ?>
         <div class="form-group">
             <label>Course Outline / Syllabus</label>
             <textarea class="form-textarea" id="outline-content"
@@ -840,10 +983,11 @@ body {
                       oninput="updateCharCount(this,'outline-count',2000)"></textarea>
             <div class="char-count"><span id="outline-count">0</span>/2000</div>
         </div>
+        <?php endif; ?>
         <div class="modal-actions">
             <button class="btn btn-ghost" onclick="closeModal('outline-modal')">Cancel</button>
             <button class="btn btn-success" onclick="saveOutline()">
-                <i class="fas fa-save"></i> Save Outline
+                <i class="fas fa-save"></i> Save
             </button>
         </div>
     </div>
@@ -885,7 +1029,11 @@ body {
 // ─────────────────────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────────────────────
-let selectedUnitId   = null;
+const MODE        = '<?= $mode ?>';
+const COURSE_ID   = <?= $course_id ?: 'null' ?>;
+const LECTURER_ID = <?= $lecturer_id ?>;
+
+let selectedUnitId   = MODE === 'short_course' ? null : null;
 let selectedUnitName = '';
 let modules          = [];
 let outline          = null;
@@ -895,24 +1043,48 @@ let editingModuleId  = null;
 const ALL_UNITS = <?= json_encode($units) ?>;
 
 // ─────────────────────────────────────────────────────────────
-// UNIT SELECT
+// INIT
 // ─────────────────────────────────────────────────────────────
-document.getElementById('unit-select').addEventListener('change', function () {
-    selectedUnitId   = this.value || null;
-    selectedUnitName = this.options[this.selectedIndex].text;
-    if (!selectedUnitId) { showPlaceholder(); return; }
-    loadCourseTree();
+document.addEventListener('DOMContentLoaded', function() {
+    if (MODE === 'short_course') {
+        loadShortCourseTree();
+    } else {
+        // ICLM mode: set up unit selector
+        const sel = document.getElementById('unit-select');
+        if (sel) {
+            sel.addEventListener('change', function() {
+                selectedUnitId   = this.value || null;
+                selectedUnitName = this.options[this.selectedIndex].text;
+                if (!selectedUnitId) { showPlaceholder(); return; }
+                loadCourseTree();
+            });
+        }
+    }
 });
 
-function showPlaceholder() {
-    document.getElementById('unit-placeholder').style.display  = 'flex';
-    document.getElementById('course-content').style.display    = 'none';
-    document.getElementById('sidebar-stats').style.display     = 'none';
-    document.getElementById('sidebar-actions').style.display   = 'none';
+// ─────────────────────────────────────────────────────────────
+// SHORT COURSE: LOAD FROM PUBLIC TABLES
+// ─────────────────────────────────────────────────────────────
+function loadShortCourseTree() {
+    fetch(`ajax/short_course_get_tree.php?course_id=${COURSE_ID}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { toast(data.message || 'Failed to load', 'error'); return; }
+            modules = data.modules || [];
+            outline = data.outline || null;
+
+            document.getElementById('sidebar-stats').style.display   = 'grid';
+            document.getElementById('sidebar-actions').style.display = 'flex';
+
+            renderOutlineHeader();
+            renderModuleTree();
+            updateStats();
+        })
+        .catch(() => toast('Network error loading course', 'error'));
 }
 
 // ─────────────────────────────────────────────────────────────
-// LOAD COURSE TREE
+// ICLM: LOAD COURSE TREE
 // ─────────────────────────────────────────────────────────────
 function loadCourseTree() {
     fetch(`ajax/get_course_tree.php?unit_id=${selectedUnitId}`)
@@ -937,17 +1109,33 @@ function loadCourseTree() {
         .catch(() => toast('Network error loading course', 'error'));
 }
 
+function showPlaceholder() {
+    document.getElementById('unit-placeholder').style.display  = 'flex';
+    document.getElementById('course-content').style.display    = 'none';
+    document.getElementById('sidebar-stats').style.display     = 'none';
+    document.getElementById('sidebar-actions').style.display   = 'none';
+}
+
 function renderOutlineHeader() {
     const desc  = document.getElementById('course-description');
     const badge = document.getElementById('outline-status');
+    let hasContent = false;
     if (outline && outline.description) {
         desc.textContent = outline.description;
-        badge.className  = 'outline-badge outline-set';
-        badge.innerHTML  = '<i class="fas fa-circle-check"></i> Outline set';
+        hasContent = true;
+    } else if (outline && outline.outline) {
+        desc.textContent = outline.outline;
+        hasContent = true;
     } else {
-        desc.textContent = 'No description set yet. Click Edit Outline to add one.';
+        desc.textContent = MODE === 'short_course' ? 'No description set yet. Click Edit Description to add one.' : 'No description set yet. Click Edit Outline to add one.';
+        hasContent = false;
+    }
+    if (hasContent) {
+        badge.className  = 'outline-badge outline-set';
+        badge.innerHTML  = '<i class="fas fa-circle-check"></i> ' + (MODE === 'short_course' ? 'Description set' : 'Outline set');
+    } else {
         badge.className  = 'outline-badge outline-unset';
-        badge.innerHTML  = '<i class="fas fa-circle-xmark"></i> Outline not set';
+        badge.innerHTML  = '<i class="fas fa-circle-xmark"></i> ' + (MODE === 'short_course' ? 'Description not set' : 'Outline not set');
     }
 }
 
@@ -956,8 +1144,13 @@ function updateStats() {
     document.getElementById('stat-modules').textContent = modules.length;
     document.getElementById('stat-lessons').textContent = totalLessons;
     const btn = document.getElementById('btn-go-lessons');
-    if (selectedUnitId) {
-        btn.href = `lesson_editor.php?unit_id=${selectedUnitId}`;
+    if (selectedUnitId || COURSE_ID) {
+        if (MODE === 'short_course') {
+            // In short course mode, link to lesson_editor with course_id
+            btn.href = `lesson_editor.php?course_id=${COURSE_ID}`;
+        } else {
+            btn.href = `lesson_editor.php?unit_id=${selectedUnitId}`;
+        }
         btn.style.display = 'flex';
     }
 }
@@ -1025,15 +1218,22 @@ function buildModuleCard(mod, idx) {
 }
 
 function buildLessonRowHTML(lesson, moduleId) {
+    const lessonId = lesson.id;
+    let editLink;
+    if (MODE === 'short_course') {
+        editLink = `lesson_editor.php?course_id=${COURSE_ID}&lesson_id=${lessonId}`;
+    } else {
+        editLink = `lesson_editor.php?lesson_id=${lessonId}&unit_id=${selectedUnitId}`;
+    }
     return `
         <div class="lesson-row" draggable="true" data-id="${lesson.id}" data-module="${moduleId}">
             <i class="fas fa-grip-vertical lesson-drag" style="color:var(--text-dim);font-size:0.75rem"></i>
-            <span class="lesson-num">L${lesson.lesson_number}</span>
+            <span class="lesson-num">L${lesson.lesson_number || (lesson.position !== undefined ? lesson.position + 1 : '')}</span>
             <span class="lesson-title" ondblclick="inlineEditLesson(${lesson.id}, ${moduleId})" id="lt-${lesson.id}" title="Double-click to rename">
                 ${escHtml(lesson.title)}
             </span>
             <div class="lesson-actions">
-                <a href="lesson_editor.php?lesson_id=${lesson.id}&unit_id=${selectedUnitId}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
+                <a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
                     <i class="fas fa-pen" style="color:var(--accent)"></i>
                 </a>
                 <button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteLesson(${lesson.id}, '${escAttr(lesson.title)}', ${moduleId})" title="Delete">
@@ -1168,14 +1368,20 @@ function saveModule() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Saving...';
     const body = new FormData();
-    body.append('unit_id',     selectedUnitId);
-    body.append('lecturer_id', '<?= $lecturer_id ?>');
-    body.append('title',       title);
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('lecturer_id', LECTURER_ID);
+    body.append('title', title);
     if (editingModuleId) body.append('module_id', editingModuleId);
-    fetch('ajax/save_module.php', { method: 'POST', body })
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_module.php' : 'ajax/save_module.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
         .then(data => {
-            if (data.success) { toast(data.message, 'success'); closeModal('module-modal'); loadCourseTree(); }
+            if (data.success) { toast(data.message, 'success'); closeModal('module-modal'); reloadTree(); }
             else toast(data.message, 'error');
         })
         .catch(() => toast('Network error', 'error'))
@@ -1184,11 +1390,17 @@ function saveModule() {
 
 function ajaxSaveModule(moduleId, title) {
     const body = new FormData();
-    body.append('module_id',   moduleId);
-    body.append('unit_id',     selectedUnitId);
-    body.append('lecturer_id', '<?= $lecturer_id ?>');
-    body.append('title',       title);
-    fetch('ajax/save_module.php', { method: 'POST', body })
+    body.append('module_id', moduleId);
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('lecturer_id', LECTURER_ID);
+    body.append('title', title);
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_module.php' : 'ajax/save_module.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
         .then(d => toast(d.success ? 'Module renamed' : d.message, d.success ? 'success' : 'error'))
         .catch(() => toast('Rename failed', 'error'));
@@ -1201,10 +1413,16 @@ function confirmDeleteModule(moduleId, title) {
     if (!confirm(`Delete module "${title}" and all its lessons?\n\nThis cannot be undone.`)) return;
     const body = new FormData();
     body.append('module_id', moduleId);
-    body.append('unit_id',   selectedUnitId);
-    fetch('ajax/delete_module.php', { method: 'POST', body })
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_delete_module.php' : 'ajax/delete_module.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
-        .then(d => { if (d.success) { toast('Module deleted', 'success'); loadCourseTree(); } else toast(d.message, 'error'); })
+        .then(d => { if (d.success) { toast('Module deleted', 'success'); reloadTree(); } else toast(d.message, 'error'); })
         .catch(() => toast('Delete failed', 'error'));
 }
 
@@ -1214,12 +1432,18 @@ function confirmDeleteModule(moduleId, title) {
 function ajaxAddLesson(moduleId, title, rowEl) {
     const body = new FormData();
     body.append('module_id', moduleId);
-    body.append('unit_id',   selectedUnitId);
-    body.append('title',     title);
-    fetch('ajax/save_lesson.php', { method: 'POST', body })
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('title', title);
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_lesson.php' : 'ajax/save_lesson.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
         .then(d => {
-            if (d.success) { toast('Lesson added', 'success'); rowEl.remove(); loadCourseTree(); }
+            if (d.success) { toast('Lesson added', 'success'); rowEl.remove(); reloadTree(); }
             else { toast(d.message, 'error'); rowEl.querySelector('button').disabled = false; rowEl.querySelector('button').textContent = 'Add'; }
         })
         .catch(() => toast('Network error', 'error'));
@@ -1229,9 +1453,15 @@ function ajaxSaveLesson(lessonId, moduleId, title) {
     const body = new FormData();
     body.append('lesson_id', lessonId);
     body.append('module_id', moduleId);
-    body.append('unit_id',   selectedUnitId);
-    body.append('title',     title);
-    fetch('ajax/save_lesson.php', { method: 'POST', body })
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('title', title);
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_lesson.php' : 'ajax/save_lesson.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
         .then(d => toast(d.success ? 'Lesson renamed' : d.message, d.success ? 'success' : 'error'))
         .catch(() => toast('Rename failed', 'error'));
@@ -1244,11 +1474,28 @@ function confirmDeleteLesson(lessonId, title, moduleId) {
     if (!confirm(`Delete lesson "${title}"?\n\nAll content blocks will be removed.`)) return;
     const body = new FormData();
     body.append('lesson_id', lessonId);
-    body.append('unit_id',   selectedUnitId);
-    fetch('ajax/delete_lesson.php', { method: 'POST', body })
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_delete_lesson.php' : 'ajax/delete_lesson.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
-        .then(d => { if (d.success) { toast('Lesson deleted', 'success'); loadCourseTree(); } else toast(d.message, 'error'); })
+        .then(d => { if (d.success) { toast('Lesson deleted', 'success'); reloadTree(); } else toast(d.message, 'error'); })
         .catch(() => toast('Delete failed', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// RELOAD TREE
+// ─────────────────────────────────────────────────────────────
+function reloadTree() {
+    if (MODE === 'short_course') {
+        loadShortCourseTree();
+    } else {
+        loadCourseTree();
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1256,42 +1503,63 @@ function confirmDeleteLesson(lessonId, title, moduleId) {
 // ─────────────────────────────────────────────────────────────
 function openOutlineModal() {
     document.getElementById('outline-description').value = outline ? (outline.description || '') : '';
-    document.getElementById('outline-content').value     = outline ? (outline.outline     || '') : '';
-    updateCharCount(document.getElementById('outline-description'), 'desc-count',    500);
-    updateCharCount(document.getElementById('outline-content'),     'outline-count', 2000);
+    if (MODE === 'iclm') {
+        document.getElementById('outline-content').value = outline ? (outline.outline || '') : '';
+        updateCharCount(document.getElementById('outline-content'), 'outline-count', 2000);
+    }
+    updateCharCount(document.getElementById('outline-description'), 'desc-count', 500);
     openModal('outline-modal');
 }
 
 function saveOutline() {
     const desc    = document.getElementById('outline-description').value.trim();
-    const content = document.getElementById('outline-content').value.trim();
+    const content = MODE === 'iclm' ? document.getElementById('outline-content').value.trim() : '';
     const body    = new FormData();
-    body.append('unit_id',     selectedUnitId);
-    body.append('lecturer_id', '<?= $lecturer_id ?>');
+
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('lecturer_id', LECTURER_ID);
     body.append('description', desc);
-    body.append('outline',     content);
-    fetch('ajax/save_course_outline.php', { method: 'POST', body })
+    if (MODE === 'iclm') {
+        body.append('outline', content);
+    }
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_outline.php' : 'ajax/save_course_outline.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
         .then(d => {
-            if (d.success) { outline = { description: desc, outline: content }; renderOutlineHeader(); toast('Outline saved', 'success'); closeModal('outline-modal'); }
-            else toast(d.message, 'error');
+            if (d.success) {
+                if (MODE === 'short_course') {
+                    outline = { description: desc };
+                } else {
+                    outline = { description: desc, outline: content };
+                }
+                renderOutlineHeader();
+                toast('Saved', 'success');
+                closeModal('outline-modal');
+            } else {
+                toast(d.message, 'error');
+            }
         })
         .catch(() => toast('Network error', 'error'));
 }
 
 // ─────────────────────────────────────────────────────────────
-// IMPORT FROM UNIT
+// IMPORT FROM UNIT (ICLM mode only)
 // ─────────────────────────────────────────────────────────────
 let selectedImportSourceId = null;
 
 function openImportUnitModal() {
     if (!selectedUnitId) { toast('Please select a target unit first', 'error'); return; }
+    if (MODE !== 'iclm') { toast('Import is only available for ICLM units', 'error'); return; }
 
     selectedImportSourceId = null;
     document.getElementById('import-confirm-btn').disabled = true;
     document.getElementById('import-target-name').textContent = selectedUnitName;
 
-    // Build the list of other units (exclude currently selected unit)
     const list = document.getElementById('import-unit-list');
     const others = ALL_UNITS.filter(u => String(u.id) !== String(selectedUnitId));
 
@@ -1314,9 +1582,7 @@ function openImportUnitModal() {
 }
 
 function selectImportSource(unitId, cardEl) {
-    // Deselect all
     document.querySelectorAll('.import-unit-card').forEach(c => c.classList.remove('selected'));
-    // Select clicked
     cardEl.classList.add('selected');
     selectedImportSourceId = unitId;
     document.getElementById('import-confirm-btn').disabled = false;
@@ -1324,6 +1590,7 @@ function selectImportSource(unitId, cardEl) {
 
 function confirmImport() {
     if (!selectedImportSourceId || !selectedUnitId) return;
+    if (MODE !== 'iclm') return;
 
     const sourceName = ALL_UNITS.find(u => String(u.id) === String(selectedImportSourceId))?.name || 'that unit';
     if (!confirm(`Import all modules and lessons from "${sourceName}" into "${selectedUnitName}"?\n\nModules with the same title will be skipped.`)) return;
@@ -1383,11 +1650,17 @@ function initModuleDrag() {
 function saveModuleOrder() {
     const ids  = [...document.querySelectorAll('#module-tree .module-card')].map(c => parseInt(c.dataset.id));
     const body = new FormData();
-    body.append('unit_id', selectedUnitId);
-    body.append('order',   JSON.stringify(ids));
-    fetch('ajax/reorder_modules.php', { method: 'POST', body })
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('order', JSON.stringify(ids));
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_reorder_modules.php' : 'ajax/reorder_modules.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
-        .then(d => { if (d.success) loadCourseTree(); })
+        .then(d => { if (d.success) reloadTree(); })
         .catch(() => toast('Reorder failed', 'error'));
 }
 
@@ -1419,9 +1692,15 @@ function saveLessonOrder(moduleId) {
     const ids  = [...list.querySelectorAll('.lesson-row')].map(r => parseInt(r.dataset.id)).filter(id => !isNaN(id));
     const body = new FormData();
     body.append('module_id', moduleId);
-    body.append('unit_id',   selectedUnitId);
-    body.append('order',     JSON.stringify(ids));
-    fetch('ajax/reorder_lessons.php', { method: 'POST', body })
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('order', JSON.stringify(ids));
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_reorder_lessons.php' : 'ajax/reorder_lessons.php';
+    fetch(endpoint, { method: 'POST', body })
         .then(r => r.json())
         .then(() => {})
         .catch(() => toast('Lesson reorder failed', 'error'));
@@ -1463,10 +1742,10 @@ function toast(msg, type = 'info') {
 // UTILS
 // ─────────────────────────────────────────────────────────────
 function escHtml(s) {
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s||'').replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"');
 }
 function escAttr(s) {
-    return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return String(s||'').replace(/'/g,"\\'").replace(/"/g,'"');
 }
 </script>
 </body>

@@ -2,12 +2,13 @@
 // teams/api/get_submissions.php - Get team files for a team
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../includes/team_access.php';
 session_start();
 
 header('Content-Type: application/json');
 
 // Check if user is logged in
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'] ?? '', ['student', 'lecturer'])) {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'] ?? '', ['student', 'lecturer', 'admin', 'technician'])) {
     echo json_encode([
         'success' => false,
         'error' => 'Unauthorized'
@@ -25,6 +26,14 @@ if (!$team_id) {
 }
 
 try {
+    if (!team_user_can_access_team($conn, (int) $team_id, (int) $_SESSION['user_id'], $_SESSION['user_role'] ?? '')) {
+        echo json_encode([
+            'success' => false,
+            'error' => 'Access denied for this team'
+        ]);
+        exit;
+    }
+
     // Get team files from team_files table
     $stmt = $conn->prepare("
         SELECT 

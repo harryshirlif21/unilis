@@ -2,6 +2,9 @@
 session_start();
 include '../actions.php';
 
+// Handle redirect parameter
+$redirect = $_GET['redirect'] ?? '';
+
 // Initialize variables
 $error = '';
 $success = '';

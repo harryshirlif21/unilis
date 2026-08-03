@@ -13,9 +13,13 @@ $admin = $admin_res->fetch_assoc();
 
 $verify_success = $_SESSION['verify_success'] ?? '';
 $verify_error   = $_SESSION['verify_error'] ?? '';
+$admin_success  = $_SESSION['admin_success'] ?? '';
+$admin_error    = $_SESSION['admin_error'] ?? '';
 
 unset($_SESSION['verify_success']);
 unset($_SESSION['verify_error']);
+unset($_SESSION['admin_success']);
+unset($_SESSION['admin_error']);
 
 function ensure_academic_year_settings_table(mysqli $conn): void
 {
@@ -180,6 +184,37 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
         error_log('Academic year progression failed: ' . $e->getMessage());
     }
 }
+
+$supervisedTeams = [];
+try {
+    $stmt = $conn->prepare("
+        SELECT 
+            t.id as team_id,
+            t.title as team_title,
+            u.code as unit_code,
+            u.name as unit_name,
+            t.status,
+            COUNT(DISTINCT tm.student_id) as member_count
+        FROM team_supervisors tsup
+        JOIN teams t ON tsup.team_id = t.id
+        JOIN units u ON t.unit_id = u.id
+        LEFT JOIN team_members tm ON t.id = tm.team_id
+        WHERE tsup.lecturer_id = ?
+          AND tsup.supervisor_type = 'admin'
+          AND tsup.status = 'approved'
+        GROUP BY t.id, t.title, u.code, u.name, t.status
+        ORDER BY t.created_at DESC
+    ");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $supervisedTeams[] = $row;
+    }
+    $stmt->close();
+} catch (Exception $e) {
+    error_log('Error fetching supervised teams for admin: ' . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -214,6 +249,16 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
         .floating-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #eee; }
         .units-grid { padding:12px 16px; display:grid; gap:8px; }
         .unit-card { display:flex; justify-content:space-between; align-items:center; padding:10px; border-radius:6px; background:#fafafa; border:1px solid #eee; }
+        .supervised-section { margin: 24px 0; padding: 18px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
+        .supervised-section h3 { margin-bottom: 12px; color: #374151; }
+        .supervised-list { display: grid; gap: 10px; }
+        .supervised-card { padding: 12px 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; }
+        .supervised-card a { color: #0369a1; font-weight: 600; text-decoration: none; }
+        .supervised-meta { color: #6b7280; font-size: 13px; margin-top: 4px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; margin-right: 8px; }
+        .badge.active { background: #10b981; }
+        .badge.locked { background: #f59e0b; }
+        .badge.archived { background: #6b7280; }
         .unit-actions { display:flex; gap:8px; }
         .edit-btn { background:#3498db; color:white; border:none; padding:6px 8px; border-radius:4px; cursor:pointer; font-size:12px; }
         .edit-btn:hover { background:#2980b9; }
@@ -433,6 +478,12 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
     <button class="menu-item" onclick="openDeleteTestDataModal()" style="color:#d63031;">
         <i class="fas fa-flask"></i> Delete Test Data
     </button>
+    <div class="menu-section-title">Phase 1 - Academic Foundation</div>
+    <button class="menu-item" onclick="window.location.href='../phase1/admin/upgrade_manager.php'"><i class="fas fa-database"></i> System Upgrade Manager</button>
+    <button class="menu-item" onclick="openAddAdminModal()"><i class="fas fa-user-tie"></i> Department Admins</button>
+    <button class="menu-item" onclick="openAddTechnicianModal()"><i class="fas fa-tools"></i> Technicians</button>
+    <div class="menu-section-title">Public Learning</div>
+    <button class="menu-item" onclick="window.location.href='../learn/'"><i class="fas fa-graduation-cap"></i> Public Courses</button>
     <div class="menu-section-title">System</div>
     <button class="menu-item" onclick="alert('System Settings not implemented yet!')"><i class="fas fa-cogs"></i> System Settings</button>
     <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
@@ -443,6 +494,16 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
 
 <!-- Main Content Area -->
 <div class="content">
+    <?php if (!empty($admin_success)): ?>
+        <div class="alert alert-success" style="background:#dcfce7; color:#166534; padding:12px 16px; border-radius:6px; margin-bottom:16px; border:1px solid #86efac;">
+            <i class="fas fa-check-circle"></i> <?= htmlspecialchars($admin_success) ?>
+        </div>
+    <?php endif; ?>
+    <?php if (!empty($admin_error)): ?>
+        <div class="alert alert-error" style="background:#fee2e2; color:#dc2626; padding:12px 16px; border-radius:6px; margin-bottom:16px; border:1px solid #fca5a5;">
+            <i class="fas fa-exclamation-circle"></i> <?= htmlspecialchars($admin_error) ?>
+        </div>
+    <?php endif; ?>
     <h2>System Overview</h2>
 
     <?php
@@ -535,6 +596,20 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
     // that visiting the script directly would not. The list empties itself as
     // scripts are deleted after being applied.
     $migrationScripts = glob(dirname(__DIR__) . '/migrate_*.php') ?: [];
+    // Also include Phase 1 migration scripts - preserve relative path
+    $phase1Migrations = glob(dirname(__DIR__) . '/phase1/database/*.php') ?: [];
+    
+    // Convert root-level migrations to relative paths (just filename)
+    $migrationScripts = array_map(function($path) {
+        return basename($path);
+    }, $migrationScripts);
+    
+    // Phase 1 migrations need their subdirectory path preserved
+    $phase1Migrations = array_map(function($path) {
+        return 'phase1/database/' . basename($path);
+    }, $phase1Migrations);
+    
+    $migrationScripts = array_merge($migrationScripts, $phase1Migrations);
     sort($migrationScripts);
     ?>
     <div class="registration-stats-section">
@@ -549,13 +624,19 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
         <?php else: ?>
             <div style="display:grid; gap:10px;">
                 <?php foreach ($migrationScripts as $path):
-                    $scriptName = basename($path);
+                    $scriptName = $path; // Use full relative path, not just basename
+                    // Build absolute path for filemtime
+                    if (strpos($path, 'phase1/') === 0) {
+                        $absolutePath = dirname(__DIR__) . '/' . $path;
+                    } else {
+                        $absolutePath = dirname(__DIR__) . '/' . $path;
+                    }
                     $outputId = 'migration-output-' . md5($scriptName);
                     ?>
                     <div style="border:1px solid #e1e4e8; border-radius:8px; padding:12px;">
                         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                             <code style="flex:1; min-width:240px; word-break:break-all;"><?= htmlspecialchars($scriptName) ?></code>
-                            <span style="color:#888; font-size:0.85rem;">added <?= date('Y-m-d H:i', filemtime($path)) ?></span>
+                            <span style="color:#888; font-size:0.85rem;">added <?= file_exists($absolutePath) ? date('Y-m-d H:i', filemtime($absolutePath)) : 'unknown' ?></span>
                             <button type="button" class="btn btn-success"
                                     onclick="runMigration('<?= htmlspecialchars($scriptName, ENT_QUOTES) ?>', '<?= $outputId ?>', this)">
                                 <i class="fas fa-play"></i> Run
@@ -617,6 +698,27 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
             </div>
             <div id="registrationStudentCount" class="student-count-text"></div>
         </div>
+    </div>
+
+    <div class="supervised-section">
+        <h3><i class="fas fa-users"></i> Supervised Teams</h3>
+        <?php if (empty($supervisedTeams)): ?>
+            <p style="color:#6b7280;">You are not currently supervising any teams.</p>
+        <?php else: ?>
+            <div class="supervised-list">
+                <?php foreach ($supervisedTeams as $team): ?>
+                    <div class="supervised-card">
+                        <a href="../teams/views/manage_team.php?team_id=<?= (int)$team['team_id'] ?>">
+                            <?= htmlspecialchars($team['team_title']) ?>
+                        </a>
+                        <div class="supervised-meta">
+                            <span class="badge <?= htmlspecialchars($team['status']) ?>"><?= ucfirst(htmlspecialchars($team['status'])) ?></span>
+                            <?= htmlspecialchars($team['unit_code']) ?> · <?= htmlspecialchars($team['unit_name']) ?> · <?= (int)$team['member_count'] ?> member<?= (int)$team['member_count'] === 1 ? '' : 's' ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </div>
 
     <div class="recent-activity-section">
@@ -1164,6 +1266,102 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
         </div>
     </div>
 
+    <!-- ===================== ADD DEPARTMENT ADMIN MODAL ===================== -->
+    <div id="addAdminModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addAdminModal')">×</span>
+            <h3><i class="fas fa-user-tie" style="color:#1e3a8a;"></i> Add Department Admin</h3>
+            <form method="POST" action="../actions.php">
+                <input type="hidden" name="action" value="add_department_admin">
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password *</label>
+                    <input type="password" name="password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="text" name="phone">
+                </div>
+                <div class="form-group">
+                    <label>Staff ID</label>
+                    <input type="text" name="staff_id">
+                </div>
+                <div class="form-group">
+                    <label>Department *</label>
+                    <select name="department_id" required>
+                        <option value="">-- Select Department --</option>
+                        <?php
+                        $dept_query = $conn->query("SELECT id, name FROM departments ORDER BY name");
+                        while ($dept = $dept_query->fetch_assoc()) {
+                            echo '<option value="' . $dept['id'] . '">' . htmlspecialchars($dept['name']) . '</option>';
+                        }
+                        ?>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:16px;">Create Department Admin</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===================== ADD TECHNICIAN MODAL ===================== -->
+    <div id="addTechnicianModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addTechnicianModal')">×</span>
+            <h3><i class="fas fa-tools" style="color:#1e3a8a;"></i> Add Technician</h3>
+            <form method="POST" action="../actions.php">
+                <input type="hidden" name="action" value="add_technician">
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password *</label>
+                    <input type="password" name="password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="text" name="phone">
+                </div>
+                <div class="form-group">
+                    <label>Staff ID *</label>
+                    <input type="text" name="staff_id" required>
+                </div>
+                <div class="form-group">
+                    <label>Department</label>
+                    <select name="department_id">
+                        <option value="">-- Select Department --</option>
+                        <?php
+                        $dept_query = $conn->query("SELECT id, name FROM departments ORDER BY name");
+                        while ($dept = $dept_query->fetch_assoc()) {
+                            echo '<option value="' . $dept['id'] . '">' . htmlspecialchars($dept['name']) . '</option>';
+                        }
+                        ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Specialization</label>
+                    <input type="text" name="specialization">
+                </div>
+                <div class="form-group">
+                    <label>Qualification</label>
+                    <input type="text" name="qualification">
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:16px;">Create Technician</button>
+            </form>
+        </div>
+    </div>
+
 </div><!-- end .content -->
 
 <script>
@@ -1227,6 +1425,8 @@ async function runMigration(scriptName, outputId, button) {
 ───────────────────────────────────────── */
 function openModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'block'; }
 function closeModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+function openAddAdminModal() { openModal('addAdminModal'); }
+function openAddTechnicianModal() { openModal('addTechnicianModal'); }
 window.onclick = function(e) {
     document.querySelectorAll('.modal').forEach(m => { if (e.target === m) m.style.display = 'none'; });
 };

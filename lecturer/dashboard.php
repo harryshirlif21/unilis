@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 }
 
 $lecturer_id   = $_SESSION['user_id'];
-$lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
+ $lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
 
 // Fetch lecturer info for profile popup
 $lecturer_info = [];
@@ -578,7 +578,7 @@ $stmt->close();
             <i class="fas fa-chart-line"></i><span>Assessment Submissions</span>
         </a>
     </li>
-    <li class="purple" onclick="window.location.href='../teams/views/lecturer_teams.php'">
+    <li class="purple" onclick="openTeamsWithUnitCheck()">
         <i class="fas fa-users-cog"></i><span>Teams</span>
     </li>
     <li class="blue">
@@ -605,6 +605,12 @@ $stmt->close();
     <!-- NEW: Notes Sent sidebar item -->
     <li class="notes-sent-btn" id="sidebarNotesSent">
         <i class="fas fa-paper-plane" style="color:#6366f1;"></i><span>Notes Sent</span>
+    </li>
+    <!-- Short Courses - course builder for lecturers -->
+    <li class="green">
+        <a href="catalogue.php" style="color:inherit;text-decoration:none;">
+            <i class="fas fa-graduation-cap"></i><span>Short Courses</span>
+        </a>
     </li>
 </ul>
     </div>
@@ -2510,6 +2516,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Teams navigation - check if multiple units exist, prompt for unit selection
+const lecturerTeamUnits = <?= json_encode($units); ?>;
+
+function openTeamsWithUnitCheck() {
+    // Fetch teams distribution by unit
+    fetch('../teams/api/get_teams_by_unit.php')
+        .then(res => res.json())
+        .then(data => {
+            const unitTeamCounts = data.units || [];
+            const availableUnits = unitTeamCounts.filter(u => parseInt(u.team_count) > 0);
+            
+            if (availableUnits.length === 1) {
+                // Only one unit has teams - go directly
+                window.location.href = '../teams/views/lecturer_teams.php?unit_id=' + availableUnits[0].unit_id;
+            } else if (availableUnits.length > 1) {
+                // Multiple units have teams - prompt for unit selection
+                const unitLabels = availableUnits.map((u, i) => 
+                    `${i + 1}. ${u.unit_code} - ${u.unit_name} (${u.team_count} team${parseInt(u.team_count) === 1 ? '' : 's'})`
+                ).join('\n');
+                const choice = prompt(
+                    `You have teams across multiple units. Please select a unit:\n\n${unitLabels}\n\nEnter unit number (1-${availableUnits.length}):`
+                );
+                const idx = parseInt(choice);
+                if (idx >= 1 && idx <= availableUnits.length) {
+                    const selected = availableUnits[idx - 1];
+                    window.location.href = '../teams/views/lecturer_teams.php?unit_id=' + selected.unit_id;
+                }
+            } else {
+                // No teams available
+                alert('No teams found for your assigned units.');
+            }
+        })
+        .catch(() => {
+            // Fallback: go to teams page directly
+            window.location.href = '../teams/views/lecturer_teams.php';
+        });
+}
 
 // Global notification mark-as-read function (called from onclick)
 function quickMarkRead(notificationId) {

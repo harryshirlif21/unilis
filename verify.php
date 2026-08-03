@@ -63,6 +63,12 @@ if ($token !== '') {
             if ($success) {
                 $message      = "Your email has been successfully verified! You can now log in.";
                 $message_type = 'success';
+                
+                // Handle redirect after verification
+                $redirect = $_GET['redirect'] ?? '';
+                if ($redirect) {
+                    $_SESSION['post_verification_redirect'] = $redirect;
+                }
             } else {
                 $message         = "Verification failed. Please try again.";
                 $message_type    = 'error';

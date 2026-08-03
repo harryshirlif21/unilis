@@ -235,6 +235,21 @@ if (empty($_SESSION['csrf_token'])) {
     <button id="confirmMemberBtn" style="background:#6f42c1;">Confirm Member</button>
 </div>
 
+<div class="settings-panel">
+    <h3>Manage Supervisors</h3>
+    <div id="supervisorSection">
+        <div id="existingSupervisors" style="margin-bottom: 1rem;">
+            <p>Loading supervisors...</p>
+        </div>
+        <div style="margin-top: 1rem;">
+            <input type="email" id="supervisorEmail" placeholder="Enter supervisor email..." style="width: 280px;">
+            <button id="searchSupervisorBtn" style="background:#17a2b8;">Search</button>
+        </div>
+        <div id="searchResults" style="margin-top: 0.5rem;"></div>
+        <p style="font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;">Enter email to search for lecturers/technicians. The supervisor will receive an email to approve the request.</p>
+    </div>
+</div>
+
 <div id="teamSettingsPanel" class="settings-panel" style="display:none;">
     <h3>Team Settings</h3>
     <p style="margin:0 0 0.75rem 0;color:#6c757d;">Team leader can set member limit (maximum 15).</p>
@@ -901,6 +916,155 @@ document.getElementById('submitBtn').addEventListener('click', () => {
     window.location.href = `submit.php?team_id=${teamId}`;
 });
 document.getElementById('refreshInvitesBtn').addEventListener('click', loadInvitations);
+
+// Supervisor management functions
+function canManageSupervisors() {
+    return true;
+}
+
+async function loadSupervisors() {
+    const container = document.getElementById('existingSupervisors');
+    container.innerHTML = '<p>Loading supervisors...</p>';
+    
+    try {
+        const res = await fetch(`/teams/api/get_team_supervisors.php?team_id=${teamId}`, {
+            credentials: 'same-origin'
+        });
+        
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        
+        const data = await res.json();
+        
+        if (!data.success) {
+            container.innerHTML = '<p style="color: #dc3545;">Failed to load supervisors</p>';
+            return;
+        }
+        
+        if (data.supervisors.length === 0) {
+            container.innerHTML = '<p style="color: #6c757d;">No supervisors assigned yet.</p>';
+            return;
+        }
+        
+        let html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
+        data.supervisors.forEach(sup => {
+            const statusClass = sup.status === 'approved' ? 'success' : 
+                               sup.status === 'pending' ? 'warning' : 'error';
+            const statusLabel = sup.status.charAt(0).toUpperCase() + sup.status.slice(1);
+            const typeLabel = sup.supervisor_type === 'technician' ? 'Technician' : 'Lecturer';
+            
+            html += `
+                <div style="padding: 0.5rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                    <strong>${sup.name}</strong> <span style="font-size: 0.8rem; color: #6c757d;">(${typeLabel})</span>
+                    <span style="margin-left: 0.5rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; background: ${sup.status === 'approved' ? '#d4edda' : sup.status === 'pending' ? '#fff3cd' : '#f8d7da'}; color: ${sup.status === 'approved' ? '#155724' : sup.status === 'pending' ? '#856404' : '#721c24'};">${statusLabel}</span>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (err) {
+        console.error('Error loading supervisors:', err);
+        container.innerHTML = '<p style="color: #dc3545;">Error loading supervisors</p>';
+    }
+}
+
+async function searchSupervisor() {
+    const email = document.getElementById('supervisorEmail').value.trim();
+    const resultsDiv = document.getElementById('searchResults');
+    
+    if (!email) {
+        resultsDiv.innerHTML = '<p style="color: #6c757d; font-size: 0.85rem;">Please enter an email address</p>';
+        return;
+    }
+    
+    resultsDiv.innerHTML = '<p style="color: #6c757d; font-size: 0.85rem;">Searching...</p>';
+    
+    try {
+        const res = await fetch(`/teams/api/search_supervisor.php?team_id=${teamId}&email=${encodeURIComponent(email)}`, {
+            credentials: 'same-origin'
+        });
+        
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        
+        const data = await res.json();
+        
+        if (!data.success) {
+            resultsDiv.innerHTML = `<p style="color: #dc3545; font-size: 0.85rem;">${data.message}</p>`;
+            return;
+        }
+        
+        if (data.results.length === 0) {
+            resultsDiv.innerHTML = '<p style="color: #6c757d; font-size: 0.85rem;">No supervisors found with this email</p>';
+            return;
+        }
+        
+        let html = '';
+        data.results.forEach(person => {
+            const typeLabel = person.supervisor_type === 'technician'
+                ? 'Technician'
+                : person.supervisor_type === 'admin'
+                    ? 'Department Admin'
+                    : 'Lecturer';
+            html += `
+                <div style="padding: 0.5rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; margin-bottom: 0.5rem; cursor: pointer;" onclick="nominateSupervisor(${person.id}, '${person.supervisor_type}', '${person.name.replace(/'/g, "\\'")}')">
+                    <strong>${person.name}</strong> <span style="font-size: 0.8rem; color: #6c757d;">(${typeLabel})</span><br>
+                    <span style="font-size: 0.85rem; color: #6c757d;">${person.email}</span><br>
+                    <span style="font-size: 0.8rem; color: #6c757d;">${person.team_count} teams supervised</span>
+                </div>
+            `;
+        });
+        
+        resultsDiv.innerHTML = html;
+    } catch (err) {
+        console.error('Error searching supervisor:', err);
+        resultsDiv.innerHTML = '<p style="color: #dc3545; font-size: 0.85rem;">Error searching supervisor</p>';
+    }
+}
+
+async function nominateSupervisor(personId, supervisorType, personName) {
+    if (!canManageSupervisors()) {
+        showMessage('Only the unit lecturer, admin, or approved supervisor can manage supervisors for this team', 'error');
+        return;
+    }
+
+    if (!confirm(`Nominate ${personName} as supervisor for this team? They will receive an email to approve the request.`)) {
+        return;
+    }
+    
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    
+    try {
+        const res = await fetch('/teams/api/request_supervisor.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                lecturer_id: personId,
+                supervisor_type: supervisorType,
+                csrf_token: csrf
+            })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showMessage(data.message, 'success');
+            document.getElementById('supervisorEmail').value = '';
+            document.getElementById('searchResults').innerHTML = '';
+            loadSupervisors();
+        } else {
+            showMessage(data.message || 'Failed to nominate supervisor', 'error');
+        }
+    } catch (err) {
+        console.error('Error nominating supervisor:', err);
+        showMessage('Error nominating supervisor: ' + (err.message || 'Unknown error'), 'error');
+    }
+}
+
+document.getElementById('searchSupervisorBtn').addEventListener('click', searchSupervisor);
+
+// Load supervisors on page load
+loadSupervisors();
 
 const teamLimitSlider = document.getElementById('teamLimitSlider');
 const teamLimitValue = document.getElementById('teamLimitValue');

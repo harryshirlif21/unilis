@@ -246,7 +246,12 @@ error_log("=== EMAIL RESULT: " . ($email_sent ? 'SUCCESS' : 'FAILED') . " ===");
 
     if ($email_sent) {
         $_SESSION['signup_success'] = "Account created! A verification email has been sent to $email.";
-        header("Location: ../verify.php?sent=1&email=" . urlencode($email));
+        $redirect_url = $_GET['redirect'] ?? '';
+        if ($redirect_url) {
+            header("Location: ../verify.php?sent=1&email=" . urlencode($email) . "&redirect=" . urlencode($redirect_url));
+        } else {
+            header("Location: ../verify.php?sent=1&email=" . urlencode($email));
+        }
         exit;
     } else {
         $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
@@ -261,6 +266,7 @@ if ($action === 'universal_login') {
     $password = $_POST['password'] ?? '';
     $return   = $_GET['return'] ?? '';  // URL query param
     $leRedirect = $_POST['le_redirect'] ?? ''; // Session-based redirect from Live Engagement
+    $postVerificationRedirect = $_SESSION['post_verification_redirect'] ?? ''; // Redirect from verification
 
     if (!$email) {
         $_SESSION['login_error'] = "Please enter a valid email.";
@@ -269,6 +275,26 @@ if ($action === 'universal_login') {
     }
 
     $roles = [
+        'department_admin' => [
+            'table' => 'admins',
+            'fields' => ['id', 'password', 'name'],
+            'redirect' => 'phase1/admin/department_admins.php',
+            'session_map' => ['name' => 'user_name'],
+            'custom_check' => function($conn, $email) {
+                // Check if admin is assigned as department admin
+                $sql = "SELECT a.id, a.password, a.name, da.department_id 
+                        FROM admins a 
+                        JOIN department_admins da ON a.id = da.admin_id 
+                        WHERE a.email = ? AND da.is_active = 1 LIMIT 1";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param('s', $email);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $user = $result->fetch_assoc();
+                $stmt->close();
+                return $user;
+            }
+        ],
         'admin' => [
             'table' => 'admins',
             'fields' => ['id', 'password', 'name'],
@@ -291,12 +317,59 @@ if ($action === 'universal_login') {
                 'year_of_study' => 'year_of_study'
             ],
             'requires_verification' => true
+        ],
+        'technician' => [
+            'table' => 'technicians',
+            'fields' => ['id', 'password', 'name', 'staff_id', 'department_id', 'is_verified'],
+            'redirect' => 'phase1/technician/dashboard.php',
+            'session_map' => [
+                'name' => 'user_name',
+                'staff_id' => 'staff_id',
+                'department_id' => 'department_id'
+            ],
+            'requires_verification' => true
         ]
     ];
 
     $login_success = false;
 
     foreach ($roles as $role => $config) {
+        // Handle custom check for department_admin
+        if (!empty($config['custom_check'])) {
+            $user = $config['custom_check']($conn, $email);
+            if ($user && password_verify($password, $user['password'])) {
+                // SUCCESS: Create session
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_email'] = $email;
+                $_SESSION['user_role'] = $role;
+                $_SESSION['user_name'] = $user['name'];
+                if (isset($user['department_id'])) {
+                    $_SESSION['department_id'] = $user['department_id'];
+                }
+
+                // FINAL REDIRECT
+                $redirectUrl = $return ?: $leRedirect ?: $postVerificationRedirect ?: '';
+                
+                if (isset($_SESSION['le_unilis_token'])) {
+                    $redirectUrl = 'modules/live-engagement/index.php?page=dashboard&le_token=' . $_SESSION['le_unilis_token'];
+                    header("Location: " . $redirectUrl);
+                    exit;
+                }
+                
+                if (!empty($redirectUrl)) {
+                    unset($_SESSION['post_verification_redirect']);
+                    unset($_SESSION['le_login_redirect']);
+                    header("Location: " . $redirectUrl);
+                    exit;
+                }
+
+                header("Location: " . $config['redirect']);
+                $login_success = true;
+                exit;
+            }
+            continue;
+        }
+
         $table = $config['table'];
         $fields = $config['fields'];
         $field_list = implode(', ', $fields);
@@ -331,7 +404,7 @@ if ($action === 'universal_login') {
             }
 
             // FINAL REDIRECT: Check for return URL or session-based redirect (from Live Engagement)
-            $redirectUrl = $return ?: $leRedirect ?: '';
+            $redirectUrl = $return ?: $leRedirect ?: $postVerificationRedirect ?: '';
             
             // Handle Live Engagement token-based SSO
             if (isset($_SESSION['le_unilis_token'])) {
@@ -343,6 +416,7 @@ if ($action === 'universal_login') {
             }
             
             if (!empty($redirectUrl)) {
+                unset($_SESSION['post_verification_redirect']);
                 unset($_SESSION['le_login_redirect']);
                 header("Location: " . $redirectUrl);
                 exit;
@@ -356,6 +430,24 @@ if ($action === 'universal_login') {
     }
 
     if (!$login_success) {
+        // ── Phase 1: Try new role logins ──────────────────────────────────────
+        define('PHASE1_ACCESS', true);
+        require_once __DIR__ . '/phase1/includes/login_handler.php';
+        
+        if (phase1_try_login($email, $password, $conn)) {
+            $role = $_SESSION['user_role'];
+            $redirectUrl = $return ?: $leRedirect ?: phase1_get_role_redirect($role);
+            
+            if (!empty($redirectUrl)) {
+                unset($_SESSION['le_login_redirect']);
+                header("Location: " . $redirectUrl);
+                exit;
+            }
+            
+            header("Location: " . phase1_get_role_redirect($role));
+            exit;
+        }
+        
         $_SESSION['login_error'] = "Invalid email or password.";
         header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
         exit;
@@ -2507,6 +2599,226 @@ if ($action === 'hide_note' || $action === 'delete_note' || $action === 'unhide_
         echo json_encode(['success' => false, 'error' => 'Database error: ' . $stmt->error]);
     }
     $stmt->close();
+    exit;
+}
+
+// === ADD DEPARTMENT ADMIN ===
+if ($action === 'add_department_admin') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
+        die("Access denied. Admin access required.");
+    }
+    
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $phone = trim($_POST['phone'] ?? '');
+    $staff_id = trim($_POST['staff_id'] ?? '');
+    $department_id = (int)($_POST['department_id'] ?? 0);
+    $assigned_by = $_SESSION['user_id'];
+    
+    if (empty($name) || empty($email) || empty($password) || $department_id === 0) {
+        $_SESSION['admin_error'] = "Name, email, password, and department are required.";
+        header("Location: admin/dashboard.php");
+        exit;
+    }
+    
+    // Check if email already exists
+    $check = $conn->prepare("SELECT id FROM admins WHERE email = ?");
+    $check->bind_param("s", $email);
+    $check->execute();
+    if ($check->num_rows > 0) {
+        $_SESSION['admin_error'] = "Email already exists.";
+        header("Location: admin/dashboard.php");
+        exit;
+    }
+    $check->close();
+    
+    // Hash password
+    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+    
+    // Check which columns exist in admins table
+    $check_cols = $conn->query("SHOW COLUMNS FROM admins LIKE 'phone'");
+    $has_phone = $check_cols && $check_cols->num_rows > 0;
+    $check_cols = $conn->query("SHOW COLUMNS FROM admins LIKE 'staff_id'");
+    $has_staff_id = $check_cols && $check_cols->num_rows > 0;
+    $check_cols = $conn->query("SHOW COLUMNS FROM admins LIKE 'is_verified'");
+    $has_is_verified = $check_cols && $check_cols->num_rows > 0;
+    $check_cols = $conn->query("SHOW COLUMNS FROM admins LIKE 'is_super_admin'");
+    $has_is_super_admin = $check_cols && $check_cols->num_rows > 0;
+    
+    // Build insert query based on available columns
+    $columns = ['name', 'email', 'password'];
+    $placeholders = ['?', '?', '?'];
+    $types = 'sss';
+    $values = [$name, $email, $hashed_password];
+    
+    if ($has_phone) {
+        $columns[] = 'phone';
+        $placeholders[] = '?';
+        $types .= 's';
+        $values[] = $phone;
+    }
+    if ($has_staff_id) {
+        $columns[] = 'staff_id';
+        $placeholders[] = '?';
+        $types .= 's';
+        $values[] = $staff_id;
+    }
+    if ($has_is_verified) {
+        $columns[] = 'is_verified';
+        $placeholders[] = '1';
+    }
+    if ($has_is_super_admin) {
+        $columns[] = 'is_super_admin';
+        $placeholders[] = '0';
+    }
+    
+    $sql = "INSERT INTO admins (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param($types, ...$values);
+    
+    if ($stmt->execute()) {
+        $admin_id = $conn->insert_id;
+        
+        // Check if department_admins table exists
+        $check_table = $conn->query("SHOW TABLES LIKE 'department_admins'");
+        if ($check_table && $check_table->num_rows > 0) {
+            // Assign to department
+            $assign_stmt = $conn->prepare("INSERT INTO department_admins (admin_id, department_id, assigned_by) VALUES (?, ?, ?)");
+            $assign_stmt->bind_param("iii", $admin_id, $department_id, $assigned_by);
+            $assign_stmt->execute();
+            $assign_stmt->close();
+        }
+        
+        $_SESSION['admin_success'] = "Department Admin created successfully! They can now log in with their email and password.";
+    } else {
+        $_SESSION['admin_error'] = "Failed to create admin: " . $stmt->error;
+    }
+    $stmt->close();
+    
+    header("Location: admin/dashboard.php");
+    exit;
+}
+
+// === ADD TECHNICIAN ===
+if ($action === 'add_technician') {
+    if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
+        die("Access denied. Admin access required.");
+    }
+    
+    // Check if technicians table exists
+    $check_table = $conn->query("SHOW TABLES LIKE 'technicians'");
+    if (!$check_table || $check_table->num_rows === 0) {
+        $_SESSION['admin_error'] = "Technicians table does not exist. Please run the Phase 1 database migration first.";
+        header("Location: admin/dashboard.php");
+        exit;
+    }
+    
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $phone = trim($_POST['phone'] ?? '');
+    $staff_id = trim($_POST['staff_id'] ?? '');
+    $department_id = (int)($_POST['department_id'] ?? 0);
+    $specialization = trim($_POST['specialization'] ?? '');
+    $qualification = trim($_POST['qualification'] ?? '');
+    
+    if (empty($name) || empty($email) || empty($password) || empty($staff_id)) {
+        $_SESSION['admin_error'] = "Name, email, password, and staff ID are required.";
+        header("Location: admin/dashboard.php");
+        exit;
+    }
+    
+    // Check if email already exists
+    $check = $conn->prepare("SELECT id FROM technicians WHERE email = ?");
+    $check->bind_param("s", $email);
+    $check->execute();
+    if ($check->num_rows > 0) {
+        $_SESSION['admin_error'] = "Email already exists.";
+        header("Location: admin/dashboard.php");
+        exit;
+    }
+    $check->close();
+    
+    // Check if staff_id already exists
+    $check = $conn->prepare("SELECT id FROM technicians WHERE staff_id = ?");
+    $check->bind_param("s", $staff_id);
+    $check->execute();
+    if ($check->num_rows > 0) {
+        $_SESSION['admin_error'] = "Staff ID already exists.";
+        header("Location: admin/dashboard.php");
+        exit;
+    }
+    $check->close();
+    
+    // Hash password
+    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+    
+    // Check which columns exist in technicians table
+    $check_cols = $conn->query("SHOW COLUMNS FROM technicians LIKE 'phone'");
+    $has_phone = $check_cols && $check_cols->num_rows > 0;
+    $check_cols = $conn->query("SHOW COLUMNS FROM technicians LIKE 'department_id'");
+    $has_department = $check_cols && $check_cols->num_rows > 0;
+    $check_cols = $conn->query("SHOW COLUMNS FROM technicians LIKE 'specialization'");
+    $has_specialization = $check_cols && $check_cols->num_rows > 0;
+    $check_cols = $conn->query("SHOW COLUMNS FROM technicians LIKE 'qualification'");
+    $has_qualification = $check_cols && $check_cols->num_rows > 0;
+    $check_cols = $conn->query("SHOW COLUMNS FROM technicians LIKE 'is_active'");
+    $has_is_active = $check_cols && $check_cols->num_rows > 0;
+    $check_cols = $conn->query("SHOW COLUMNS FROM technicians LIKE 'is_verified'");
+    $has_is_verified = $check_cols && $check_cols->num_rows > 0;
+    
+    // Build insert query based on available columns
+    $columns = ['staff_id', 'name', 'email', 'password'];
+    $placeholders = ['?', '?', '?', '?'];
+    $types = 'ssss';
+    $values = [$staff_id, $name, $email, $hashed_password];
+    
+    if ($has_phone) {
+        $columns[] = 'phone';
+        $placeholders[] = '?';
+        $types .= 's';
+        $values[] = $phone;
+    }
+    if ($has_department) {
+        $columns[] = 'department_id';
+        $placeholders[] = '?';
+        $types .= 'i';
+        $values[] = $department_id;
+    }
+    if ($has_specialization) {
+        $columns[] = 'specialization';
+        $placeholders[] = '?';
+        $types .= 's';
+        $values[] = $specialization;
+    }
+    if ($has_qualification) {
+        $columns[] = 'qualification';
+        $placeholders[] = '?';
+        $types .= 's';
+        $values[] = $qualification;
+    }
+    if ($has_is_active) {
+        $columns[] = 'is_active';
+        $placeholders[] = '1';
+    }
+    if ($has_is_verified) {
+        $columns[] = 'is_verified';
+        $placeholders[] = '1';
+    }
+    
+    $sql = "INSERT INTO technicians (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param($types, ...$values);
+    
+    if ($stmt->execute()) {
+        $_SESSION['admin_success'] = "Technician created successfully! They can now log in with their email and password.";
+    } else {
+        $_SESSION['admin_error'] = "Failed to create technician: " . $stmt->error;
+    }
+    $stmt->close();
+    
+    header("Location: admin/dashboard.php");
     exit;
 }
 ?>

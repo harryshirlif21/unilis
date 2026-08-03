@@ -1,0 +1,355 @@
+/* ── Glassmorphism Catalogue Styles ────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+    color: #e0e0e0;
+}
+
+/* ── Glass Header ──────────────────────────────────────────────────────────── */
+.st-header {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 16px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.st-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.st-brand i { color: #818cf8; font-size: 22px; }
+.st-brand strong { color: #a78bfa; }
+
+.st-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.st-nav a {
+    color: rgba(255,255,255,0.7);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color .2s;
+}
+
+.st-nav a:hover { color: #fff; }
+
+/* ── Glass Button ──────────────────────────────────────────────────────────── */
+.st-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all .3s ease;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.st-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.st-btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.st-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.st-btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.st-btn-small {
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
+/* ── Main Content ──────────────────────────────────────────────────────────── */
+.st-main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+}
+
+.st-page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.st-page-head h1 {
+    font-size: 28px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #e0e7ff, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.st-sub {
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    margin-top: 4px;
+    line-height: 1.5;
+}
+
+/* ── Glass Card ────────────────────────────────────────────────────────────── */
+.st-card {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+
+.st-card h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #e0e7ff;
+    margin-bottom: 8px;
+}
+
+/* ── Course Grid ───────────────────────────────────────────────────────────── */
+.st-courses {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 20px;
+}
+
+.st-course {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    overflow: hidden;
+    transition: all .3s ease;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+.st-course:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+    border-color: rgba(129, 140, 248, 0.3);
+}
+
+.st-course-cover {
+    height: 120px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: rgba(255,255,255,0.4);
+    overflow: hidden;
+}
+
+.st-course-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.st-course-body {
+    padding: 20px;
+}
+
+.st-course-body h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.st-course-body h3 a {
+    color: #e0e7ff;
+    text-decoration: none;
+    transition: color .2s;
+}
+
+.st-course-body h3 a:hover { color: #a78bfa; }
+
+.st-course-body .st-sub {
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+/* ── Chips & Meta ──────────────────────────────────────────────────────────── */
+.st-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+}
+
+.st-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.st-chip-live { background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34,197,94,0.2); }
+.st-chip-draft { background: rgba(234, 179, 8, 0.15); color: #facc15; border-color: rgba(234,179,8,0.2); }
+.st-chip-info { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border-color: rgba(59,130,246,0.2); }
+
+/* ── Flash Messages ────────────────────────────────────────────────────────── */
+.st-flash {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.st-flash i { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.st-flash-success { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.2); }
+.st-flash-error { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.2); }
+.st-flash-list { margin: 6px 0 0 16px; color: rgba(255,255,255,0.7); font-size: 13px; }
+
+/* ── Form Fields ───────────────────────────────────────────────────────────── */
+.st-field {
+    margin-bottom: 16px;
+}
+
+.st-field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 6px;
+}
+
+.st-field input,
+.st-field select,
+.st-field textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all .2s;
+}
+
+.st-field input:focus,
+.st-field select:focus,
+.st-field textarea:focus {
+    outline: none;
+    border-color: #818cf8;
+    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+}
+
+.st-field select option { background: #1e1b4b; color: #fff; }
+
+.st-hint {
+    display: block;
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 4px;
+}
+
+.st-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.st-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    margin-bottom: 16px;
+    cursor: pointer;
+}
+
+.st-check input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; accent-color: #818cf8; }
+.st-check div { font-size: 14px; font-weight: 600; color: #e0e7ff; }
+.st-check span { display: block; font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.5); margin-top: 2px; }
+
+/* ── Empty State ───────────────────────────────────────────────────────────── */
+.st-empty {
+    text-align: center;
+    padding: 48px 20px;
+}
+
+.st-empty i { font-size: 48px; color: rgba(255,255,255,0.2); margin-bottom: 16px; }
+.st-empty h2 { color: #e0e7ff; margin-bottom: 8px; }
+.st-empty p { color: rgba(255,255,255,0.5); }
+
+/* ── Footer ────────────────────────────────────────────────────────────────── */
+.st-footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.3);
+}
+
+.st-footer a { color: rgba(255,255,255,0.5); }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .st-header { flex-direction: column; gap: 12px; padding: 12px 16px; }
+    .st-nav { flex-wrap: wrap; justify-content: center; }
+    .st-courses { grid-template-columns: 1fr; }
+    .st-page-head { flex-direction: column; }
+    .st-row { grid-template-columns: 1fr; }
+}
