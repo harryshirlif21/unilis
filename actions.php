@@ -34,6 +34,56 @@ try {
     }
     exit;
 }
+
+// Set up global error handler for uncaught exceptions
+set_exception_handler(function(Throwable $e) {
+    error_log(sprintf(
+        'UNCAUGHT EXCEPTION in actions.php: %s | URI=%s | File=%s:%d',
+        $e->getMessage(),
+        $_SERVER['REQUEST_URI'] ?? 'unknown',
+        $e->getFile(),
+        $e->getLine()
+    ));
+    error_log($e->getTraceAsString());
+
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    
+    if ($isAjax || isset($_POST['action']) || isset($_GET['action'])) {
+        header('Content-Type: application/json', true, 500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Server error occurred',
+            'message' => 'An unexpected error occurred. Please try again.',
+            'debug' => $e->getMessage()
+        ]);
+    } else {
+        http_response_code(500);
+        echo '<h1>Server Error</h1>';
+        echo '<p>An unexpected error occurred. Please try again or contact support.</p>';
+        echo '<pre>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</pre>';
+    }
+    exit;
+});
+
+// Set up global error handler for PHP errors
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    if (!(error_reporting() & $errno)) {
+        return false;
+    }
+    
+    error_log(sprintf(
+        'PHP ERROR in actions.php: [%d] %s | File=%s:%d | URI=%s',
+        $errno,
+        $errstr,
+        $errfile,
+        $errline,
+        $_SERVER['REQUEST_URI'] ?? 'unknown'
+    ));
+    
+    // Don't execute PHP internal error handler
+    return true;
+});
+
 require_once __DIR__ . '/config/meeting.php';
 //require_once 'vendor/autoload.php';
 require_once 'vendor/autoload.php';
@@ -164,97 +214,110 @@ if ($action === 'save_questions' && isset($_SESSION['user_id']) && $_SESSION['us
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signup_student') {
+    try {
+        // === 1. Collect and sanitize input ===
+        $reg_no          = trim($_POST['reg_no'] ?? '');
+        $name            = trim($_POST['name'] ?? '');
+        $email           = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
+        $university_id   = trim($_POST['university'] ?? 'JKUAT'); // Always JKUAT
+        $department_id   = (int)($_POST['department'] ?? 0);
+        $course_id       = (int)($_POST['course'] ?? 0);
+        $year_of_study   = (int)($_POST['year_of_study'] ?? 0);
+        $year_joined     = (int)($_POST['year_joined'] ?? 0);
+        $password        = $_POST['password'] ?? '';
+        $confirm_password= $_POST['confirm_password'] ?? '';
 
-    // === 1. Collect and sanitize input ===
-    $reg_no          = trim($_POST['reg_no'] ?? '');
-    $name            = trim($_POST['name'] ?? '');
-    $email           = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
-    $university_id   = trim($_POST['university'] ?? 'JKUAT'); // Always JKUAT
-    $department_id   = (int)($_POST['department'] ?? 0);
-    $course_id       = (int)($_POST['course'] ?? 0);
-    $year_of_study   = (int)($_POST['year_of_study'] ?? 0);
-    $year_joined     = (int)($_POST['year_joined'] ?? 0);
-    $password        = $_POST['password'] ?? '';
-    $confirm_password= $_POST['confirm_password'] ?? '';
+        // === 2. Validate inputs ===
+        $errors = [];
 
-    // === 2. Validate inputs ===
-    $errors = [];
+        if (empty($reg_no)) $errors[] = "Registration number is required.";
+        if (empty($name)) $errors[] = "Full name is required.";
+        if (!$email) $errors[] = "Please enter a valid email address.";
+        if ($department_id <= 0) $errors[] = "Please select a valid department.";
+        if ($course_id <= 0) $errors[] = "Please select a valid course.";
+        if ($year_of_study < 1 || $year_of_study > 6) $errors[] = "Year of study must be between 1 and 6.";
+        if ($year_joined < 2000 || $year_joined > date('Y')) $errors[] = "Year joined must be between 2000 and " . date('Y') . ".";
+        if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters long.";
+        if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
 
-    if (empty($reg_no)) $errors[] = "Registration number is required.";
-    if (empty($name)) $errors[] = "Full name is required.";
-    if (!$email) $errors[] = "Please enter a valid email address.";
-    if ($department_id <= 0) $errors[] = "Please select a valid department.";
-    if ($course_id <= 0) $errors[] = "Please select a valid course.";
-    if ($year_of_study < 1 || $year_of_study > 6) $errors[] = "Year of study must be between 1 and 6.";
-    if ($year_joined < 2000 || $year_joined > date('Y')) $errors[] = "Year joined must be between 2000 and " . date('Y') . ".";
-    if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters long.";
-    if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
-
-    if (!empty($errors)) {
-        $_SESSION['signup_errors'] = $errors;
-        $_SESSION['old_input'] = $_POST;
-        header("Location: signup.php");
-        exit;
-    }
-
-    // === 3. Check for duplicate reg_no or email ===
-    $stmt = $conn->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
-    $stmt->bind_param("ss", $reg_no, $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $stmt->close();
-        $_SESSION['signup_errors'] = ["Email or Registration number already registered. <a href='../login.php'>Login here</a>"];
-        $_SESSION['old_input'] = $_POST;
-        header("Location: signup.php");
-        exit;
-    }
-    $stmt->close();
-
-    // === 4. Insert student record ===
-    $token       = bin2hex(random_bytes(32));
-    $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
-    $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
-
-    $stmt = $conn->prepare("
-        INSERT INTO students (
-            reg_no, name, email, university_id, department_id, course_id,
-            year_of_study, year_joined, password,
-            verification_code, token_expires_at, is_verified
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    ");
-    $stmt->bind_param(
-        "sssiiiiisss",
-        $reg_no, $name, $email, $university_id, $department_id, $course_id,
-        $year_of_study, $year_joined, $hashed_pass,
-        $token, $expires_at
-    );
-
-    if (!$stmt->execute()) {
-        $_SESSION['signup_errors'] = ["Database error: " . $stmt->error];
-        $_SESSION['old_input'] = $_POST;
-        $stmt->close();
-        header("Location: signup.php");
-        exit;
-    }
-    $stmt->close();
-
-    // === 5. Send verification email ===
-error_log("=== ATTEMPTING EMAIL TO: $email | TOKEN: $token | NAME: $name ===");
-$email_sent = send_verification_email($email, $token, $name);
-error_log("=== EMAIL RESULT: " . ($email_sent ? 'SUCCESS' : 'FAILED') . " ===");
-
-    if ($email_sent) {
-        $_SESSION['signup_success'] = "Account created! A verification email has been sent to $email.";
-        $redirect_url = $_GET['redirect'] ?? '';
-        if ($redirect_url) {
-            header("Location: ../verify.php?sent=1&email=" . urlencode($email) . "&redirect=" . urlencode($redirect_url));
-        } else {
-            header("Location: ../verify.php?sent=1&email=" . urlencode($email));
+        if (!empty($errors)) {
+            $_SESSION['signup_errors'] = $errors;
+            $_SESSION['old_input'] = $_POST;
+            header("Location: signup.php");
+            exit;
         }
-        exit;
-    } else {
-        $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
+
+        // === 3. Check for duplicate reg_no or email ===
+        $stmt = $conn->prepare("SELECT id FROM students WHERE reg_no = ? OR email = ?");
+        if (!$stmt) {
+            throw new Exception("Database error preparing duplicate check: " . $conn->error);
+        }
+        $stmt->bind_param("ss", $reg_no, $email);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception("Database error checking duplicates: " . $stmt->error);
+        }
+        $result = $stmt->get_result();
+        if ($result->num_rows > 0) {
+            $stmt->close();
+            $_SESSION['signup_errors'] = ["Email or Registration number already registered. <a href='../login.php'>Login here</a>"];
+            $_SESSION['old_input'] = $_POST;
+            header("Location: signup.php");
+            exit;
+        }
+        $stmt->close();
+
+        // === 4. Insert student record ===
+        $token       = bin2hex(random_bytes(32));
+        $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
+        $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
+
+        $stmt = $conn->prepare("
+            INSERT INTO students (
+                reg_no, name, email, university_id, department_id, course_id,
+                year_of_study, year_joined, password,
+                verification_code, token_expires_at, is_verified
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        ");
+        if (!$stmt) {
+            throw new Exception("Database error preparing student insert: " . $conn->error);
+        }
+        $stmt->bind_param(
+            "sssiiiiisss",
+            $reg_no, $name, $email, $university_id, $department_id, $course_id,
+            $year_of_study, $year_joined, $hashed_pass,
+            $token, $expires_at
+        );
+
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception("Database error inserting student: " . $stmt->error);
+        }
+        $stmt->close();
+
+        // === 5. Send verification email ===
+        error_log("=== ATTEMPTING EMAIL TO: $email | TOKEN: $token | NAME: $name ===");
+        $email_sent = send_verification_email($email, $token, $name);
+        error_log("=== EMAIL RESULT: " . ($email_sent ? 'SUCCESS' : 'FAILED') . " ===");
+
+        if ($email_sent) {
+            $_SESSION['signup_success'] = "Account created! A verification email has been sent to $email.";
+            $redirect_url = $_GET['redirect'] ?? '';
+            if ($redirect_url) {
+                header("Location: ../verify.php?sent=1&email=" . urlencode($email) . "&redirect=" . urlencode($redirect_url));
+            } else {
+                header("Location: ../verify.php?sent=1&email=" . urlencode($email));
+            }
+            exit;
+        } else {
+            $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
+            header("Location: signup.php");
+            exit;
+        }
+    } catch (Exception $e) {
+        error_log("Student signup error: " . $e->getMessage());
+        $_SESSION['signup_errors'] = ["An error occurred during signup: " . $e->getMessage()];
+        $_SESSION['old_input'] = $_POST;
         header("Location: signup.php");
         exit;
     }
@@ -262,96 +325,171 @@ error_log("=== EMAIL RESULT: " . ($email_sent ? 'SUCCESS' : 'FAILED') . " ===");
 
 // === UNIVERSAL LOGIN WITH RETURN URL SUPPORT ===
 if ($action === 'universal_login') {
-    $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
-    $password = $_POST['password'] ?? '';
-    $return   = $_GET['return'] ?? '';  // URL query param
-    $leRedirect = $_POST['le_redirect'] ?? ''; // Session-based redirect from Live Engagement
-    $postVerificationRedirect = $_SESSION['post_verification_redirect'] ?? ''; // Redirect from verification
+    try {
+        $email    = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
+        $password = $_POST['password'] ?? '';
+        $return   = $_GET['return'] ?? '';  // URL query param
+        $leRedirect = $_POST['le_redirect'] ?? ''; // Session-based redirect from Live Engagement
+        $postVerificationRedirect = $_SESSION['post_verification_redirect'] ?? ''; // Redirect from verification
 
-    if (!$email) {
-        $_SESSION['login_error'] = "Please enter a valid email.";
-        header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
-        exit;
-    }
+        if (!$email) {
+            $_SESSION['login_error'] = "Please enter a valid email.";
+            header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
+            exit;
+        }
 
-    $roles = [
-        'department_admin' => [
-            'table' => 'admins',
-            'fields' => ['id', 'password', 'name'],
-            'redirect' => 'phase1/admin/department_admins.php',
-            'session_map' => ['name' => 'user_name'],
-            'custom_check' => function($conn, $email) {
-                // Check if admin is assigned as department admin
-                $sql = "SELECT a.id, a.password, a.name, da.department_id 
-                        FROM admins a 
-                        JOIN department_admins da ON a.id = da.admin_id 
-                        WHERE a.email = ? AND da.is_active = 1 LIMIT 1";
-                $stmt = $conn->prepare($sql);
-                $stmt->bind_param('s', $email);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $user = $result->fetch_assoc();
-                $stmt->close();
-                return $user;
+        $roles = [
+            'department_admin' => [
+                'table' => 'admins',
+                'fields' => ['id', 'password', 'name'],
+                'redirect' => 'phase1/admin/department_admins.php',
+                'session_map' => ['name' => 'user_name'],
+                'custom_check' => function($conn, $email) {
+                    // Check if admin is assigned as department admin
+                    $sql = "SELECT a.id, a.password, a.name, da.department_id 
+                            FROM admins a 
+                            JOIN department_admins da ON a.id = da.admin_id 
+                            WHERE a.email = ? AND da.is_active = 1 LIMIT 1";
+                    $stmt = $conn->prepare($sql);
+                    if (!$stmt) {
+                        error_log("Department admin login prepare failed: " . $conn->error);
+                        return null;
+                    }
+                    $stmt->bind_param('s', $email);
+                    if (!$stmt->execute()) {
+                        error_log("Department admin login execute failed: " . $stmt->error);
+                        $stmt->close();
+                        return null;
+                    }
+                    $result = $stmt->get_result();
+                    $user = $result->fetch_assoc();
+                    $stmt->close();
+                    return $user;
+                }
+            ],
+            'admin' => [
+                'table' => 'admins',
+                'fields' => ['id', 'password', 'name'],
+                'redirect' => 'admin/dashboard.php',
+                'session_map' => ['name' => 'user_name']
+            ],
+            'lecturer' => [
+                'table' => 'lecturers',
+                'fields' => ['id', 'password', 'name'],
+                'redirect' => 'lecturer/dashboard.php',
+                'session_map' => ['name' => 'user_name']
+            ],
+            'student' => [
+                'table' => 'students',
+                'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'is_verified'],
+                'redirect' => 'student/dashboard.php',
+                'session_map' => [
+                    'name' => 'user_name',
+                    'course_id' => 'course_id',
+                    'year_of_study' => 'year_of_study'
+                ],
+                'requires_verification' => true
+            ],
+            'technician' => [
+                'table' => 'technicians',
+                'fields' => ['id', 'password', 'name', 'staff_id', 'department_id', 'is_verified'],
+                'redirect' => 'phase1/technician/dashboard.php',
+                'session_map' => [
+                    'name' => 'user_name',
+                    'staff_id' => 'staff_id',
+                    'department_id' => 'department_id'
+                ],
+                'requires_verification' => true
+            ]
+        ];
+
+        $login_success = false;
+
+        foreach ($roles as $role => $config) {
+            // Handle custom check for department_admin
+            if (!empty($config['custom_check'])) {
+                $user = $config['custom_check']($conn, $email);
+                if ($user && password_verify($password, $user['password'])) {
+                    // SUCCESS: Create session
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['user_email'] = $email;
+                    $_SESSION['user_role'] = $role;
+                    $_SESSION['user_name'] = $user['name'];
+                    if (isset($user['department_id'])) {
+                        $_SESSION['department_id'] = $user['department_id'];
+                    }
+
+                    // FINAL REDIRECT
+                    $redirectUrl = $return ?: $leRedirect ?: $postVerificationRedirect ?: '';
+                    
+                    if (isset($_SESSION['le_unilis_token'])) {
+                        $redirectUrl = 'modules/live-engagement/index.php?page=dashboard&le_token=' . $_SESSION['le_unilis_token'];
+                        header("Location: " . $redirectUrl);
+                        exit;
+                    }
+                    
+                    if (!empty($redirectUrl)) {
+                        unset($_SESSION['post_verification_redirect']);
+                        unset($_SESSION['le_login_redirect']);
+                        header("Location: " . $redirectUrl);
+                        exit;
+                    }
+
+                    header("Location: " . $config['redirect']);
+                    $login_success = true;
+                    exit;
+                }
+                continue;
             }
-        ],
-        'admin' => [
-            'table' => 'admins',
-            'fields' => ['id', 'password', 'name'],
-            'redirect' => 'admin/dashboard.php',
-            'session_map' => ['name' => 'user_name']
-        ],
-        'lecturer' => [
-            'table' => 'lecturers',
-            'fields' => ['id', 'password', 'name'],
-            'redirect' => 'lecturer/dashboard.php',
-            'session_map' => ['name' => 'user_name']
-        ],
-        'student' => [
-            'table' => 'students',
-            'fields' => ['id', 'password', 'name', 'course_id', 'year_of_study', 'is_verified'],
-            'redirect' => 'student/dashboard.php',
-            'session_map' => [
-                'name' => 'user_name',
-                'course_id' => 'course_id',
-                'year_of_study' => 'year_of_study'
-            ],
-            'requires_verification' => true
-        ],
-        'technician' => [
-            'table' => 'technicians',
-            'fields' => ['id', 'password', 'name', 'staff_id', 'department_id', 'is_verified'],
-            'redirect' => 'phase1/technician/dashboard.php',
-            'session_map' => [
-                'name' => 'user_name',
-                'staff_id' => 'staff_id',
-                'department_id' => 'department_id'
-            ],
-            'requires_verification' => true
-        ]
-    ];
 
-    $login_success = false;
+            $table = $config['table'];
+            $fields = $config['fields'];
+            $field_list = implode(', ', $fields);
 
-    foreach ($roles as $role => $config) {
-        // Handle custom check for department_admin
-        if (!empty($config['custom_check'])) {
-            $user = $config['custom_check']($conn, $email);
+            $sql = "SELECT $field_list FROM $table WHERE email = ? LIMIT 1";
+            $stmt = $conn->prepare($sql);
+            if (!$stmt) {
+                error_log("Login prepare failed for role $role: " . $conn->error);
+                continue;
+            }
+
+            $stmt->bind_param('s', $email);
+            if (!$stmt->execute()) {
+                error_log("Login execute failed for role $role: " . $stmt->error);
+                $stmt->close();
+                continue;
+            }
+            $result = $stmt->get_result();
+            $user = $result->fetch_assoc();
+            $stmt->close();
+
             if ($user && password_verify($password, $user['password'])) {
-                // SUCCESS: Create session
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_email'] = $email;
-                $_SESSION['user_role'] = $role;
-                $_SESSION['user_name'] = $user['name'];
-                if (isset($user['department_id'])) {
-                    $_SESSION['department_id'] = $user['department_id'];
+                // Student verification check
+                if (!empty($config['requires_verification']) && $user['is_verified'] == 0) {
+                    $_SESSION['pending_verification_email'] = $email;
+                    header("Location: verify.php?unverified=1");
+                    exit;
                 }
 
-                // FINAL REDIRECT
+                // SUCCESS: Create session
+                $_SESSION['user_id']    = $user['id'];
+                $_SESSION['user_email'] = $email;
+                $_SESSION['user_role']  = $role;
+
+                foreach ($config['session_map'] as $db_col => $session_key) {
+                    if (isset($user[$db_col])) {
+                        $_SESSION[$session_key] = $user[$db_col];
+                    }
+                }
+
+                // FINAL REDIRECT: Check for return URL or session-based redirect (from Live Engagement)
                 $redirectUrl = $return ?: $leRedirect ?: $postVerificationRedirect ?: '';
                 
+                // Handle Live Engagement token-based SSO
                 if (isset($_SESSION['le_unilis_token'])) {
+                    // Redirect back to Live Engagement with token validation
                     $redirectUrl = 'modules/live-engagement/index.php?page=dashboard&le_token=' . $_SESSION['le_unilis_token'];
+                    // Don't clear token here - let index.php validate and clear it
                     header("Location: " . $redirectUrl);
                     exit;
                 }
@@ -363,178 +501,199 @@ if ($action === 'universal_login') {
                     exit;
                 }
 
+                // Otherwise go to normal dashboard
                 header("Location: " . $config['redirect']);
                 $login_success = true;
                 exit;
             }
-            continue;
         }
 
-        $table = $config['table'];
-        $fields = $config['fields'];
-        $field_list = implode(', ', $fields);
-
-        $sql = "SELECT $field_list FROM $table WHERE email = ? LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) continue;
-
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        if ($user && password_verify($password, $user['password'])) {
-            // Student verification check
-            if (!empty($config['requires_verification']) && $user['is_verified'] == 0) {
-                $_SESSION['pending_verification_email'] = $email;
-                header("Location: verify.php?unverified=1");
-                exit;
-            }
-
-            // SUCCESS: Create session
-            $_SESSION['user_id']    = $user['id'];
-            $_SESSION['user_email'] = $email;
-            $_SESSION['user_role']  = $role;
-
-            foreach ($config['session_map'] as $db_col => $session_key) {
-                if (isset($user[$db_col])) {
-                    $_SESSION[$session_key] = $user[$db_col];
+        if (!$login_success) {
+            // ── Phase 1: Try new role logins ──────────────────────────────────────
+            define('PHASE1_ACCESS', true);
+            require_once __DIR__ . '/phase1/includes/login_handler.php';
+            
+            if (phase1_try_login($email, $password, $conn)) {
+                $role = $_SESSION['user_role'];
+                $redirectUrl = $return ?: $leRedirect ?: phase1_get_role_redirect($role);
+                
+                if (!empty($redirectUrl)) {
+                    unset($_SESSION['le_login_redirect']);
+                    header("Location: " . $redirectUrl);
+                    exit;
                 }
-            }
-
-            // FINAL REDIRECT: Check for return URL or session-based redirect (from Live Engagement)
-            $redirectUrl = $return ?: $leRedirect ?: $postVerificationRedirect ?: '';
-            
-            // Handle Live Engagement token-based SSO
-            if (isset($_SESSION['le_unilis_token'])) {
-                // Redirect back to Live Engagement with token validation
-                $redirectUrl = 'modules/live-engagement/index.php?page=dashboard&le_token=' . $_SESSION['le_unilis_token'];
-                // Don't clear token here - let index.php validate and clear it
-                header("Location: " . $redirectUrl);
+                
+                header("Location: " . phase1_get_role_redirect($role));
                 exit;
             }
             
-            if (!empty($redirectUrl)) {
-                unset($_SESSION['post_verification_redirect']);
-                unset($_SESSION['le_login_redirect']);
-                header("Location: " . $redirectUrl);
-                exit;
-            }
-
-            // Otherwise go to normal dashboard
-            header("Location: " . $config['redirect']);
-            $login_success = true;
+            $_SESSION['login_error'] = "Invalid email or password.";
+            header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
             exit;
         }
-    }
-
-    if (!$login_success) {
-        // ── Phase 1: Try new role logins ──────────────────────────────────────
-        define('PHASE1_ACCESS', true);
-        require_once __DIR__ . '/phase1/includes/login_handler.php';
-        
-        if (phase1_try_login($email, $password, $conn)) {
-            $role = $_SESSION['user_role'];
-            $redirectUrl = $return ?: $leRedirect ?: phase1_get_role_redirect($role);
-            
-            if (!empty($redirectUrl)) {
-                unset($_SESSION['le_login_redirect']);
-                header("Location: " . $redirectUrl);
-                exit;
-            }
-            
-            header("Location: " . phase1_get_role_redirect($role));
-            exit;
-        }
-        
-        $_SESSION['login_error'] = "Invalid email or password.";
-        header("Location: login.php" . ($return ? "?return=" . urlencode($return) : ""));
+    } catch (Exception $e) {
+        error_log("Login error: " . $e->getMessage());
+        $_SESSION['login_error'] = "An error occurred during login. Please try again.";
+        header("Location: login.php" . (isset($return) ? "?return=" . urlencode($return) : ""));
         exit;
     }
 }
 
 // === ADD UNIVERSITY ===
 if ($action === 'add_university') {
-    $name = trim($_POST['university_name']);
+    try {
+        $name = trim($_POST['university_name']);
 
-    // Check if exists
-    $stmt = $pdo->prepare("SELECT id FROM universities WHERE name = :name");
-    $stmt->execute(['name' => $name]);
-    if ($stmt->rowCount() > 0) {
-        $_SESSION['university_error'] = "University already exists.";
-    } else {
-        $stmt = $pdo->prepare("INSERT INTO universities (name) VALUES (:name)");
+        if (empty($name)) {
+            $_SESSION['university_error'] = "University name is required.";
+            header("Location: admin/dashboard.php");
+            exit;
+        }
+
+        // Check if exists
+        $stmt = $pdo->prepare("SELECT id FROM universities WHERE name = :name");
+        if (!$stmt) {
+            throw new Exception("Database error preparing university check: " . print_r($pdo->errorInfo(), true));
+        }
         $stmt->execute(['name' => $name]);
-        $_SESSION['university_success'] = "University added.";
-    }
+        if ($stmt->rowCount() > 0) {
+            $_SESSION['university_error'] = "University already exists.";
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO universities (name) VALUES (:name)");
+            if (!$stmt) {
+                throw new Exception("Database error preparing university insert: " . print_r($pdo->errorInfo(), true));
+            }
+            $stmt->execute(['name' => $name]);
+            $_SESSION['university_success'] = "University added.";
+        }
 
-    header("Location: admin/dashboard.php");
-    exit;
+        header("Location: admin/dashboard.php");
+        exit;
+    } catch (Exception $e) {
+        error_log("Add university error: " . $e->getMessage());
+        $_SESSION['university_error'] = "An error occurred while adding the university: " . $e->getMessage();
+        header("Location: admin/dashboard.php");
+        exit;
+    }
 }
 
 // === ADD DEPARTMENT ===
 if ($action === 'add_department') {
-    $response = array();
-    $name = trim($_POST['department_name']);
-    $university_id = intval($_POST['university_id']);
+    try {
+        $response = array();
+        $name = trim($_POST['department_name']);
+        $university_id = intval($_POST['university_id']);
 
-    // First check if department exists
-    $stmt = $conn->prepare("SELECT id FROM departments WHERE name = ? AND university_id = ?");
-    $stmt->bind_param("si", $name, $university_id);
-    $stmt->execute();
-    $stmt->store_result();
-    
-    if ($stmt->num_rows > 0) {
-        $response['status'] = 'error';
-        $response['message'] = "Department already exists in this university.";
-    } else {
-        // Insert new department with basic fields
-        $stmt = $conn->prepare("INSERT INTO departments (name, university_id) VALUES (?, ?)");
-        $stmt->bind_param("si", $name, $university_id);
-        
-        if ($stmt->execute()) {
-            $response['status'] = 'success';
-            $response['message'] = "Department added successfully.";
-            $response['department_id'] = $stmt->insert_id;
-            $response['department_name'] = $name;
-        } else {
+        if (empty($name) || $university_id <= 0) {
             $response['status'] = 'error';
-            $response['message'] = "Error adding department: " . $stmt->error;
+            $response['message'] = "Department name and university are required.";
+            header('Content-Type: application/json');
+            echo json_encode($response);
+            exit;
         }
+
+        // First check if department exists
+        $stmt = $conn->prepare("SELECT id FROM departments WHERE name = ? AND university_id = ?");
+        if (!$stmt) {
+            throw new Exception("Database error preparing department check: " . $conn->error);
+        }
+        $stmt->bind_param("si", $name, $university_id);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception("Database error checking department: " . $stmt->error);
+        }
+        $stmt->store_result();
+        
+        if ($stmt->num_rows > 0) {
+            $stmt->close();
+            $response['status'] = 'error';
+            $response['message'] = "Department already exists in this university.";
+        } else {
+            $stmt->close();
+            // Insert new department with basic fields
+            $stmt = $conn->prepare("INSERT INTO departments (name, university_id) VALUES (?, ?)");
+            if (!$stmt) {
+                throw new Exception("Database error preparing department insert: " . $conn->error);
+            }
+            $stmt->bind_param("si", $name, $university_id);
+            
+            if ($stmt->execute()) {
+                $response['status'] = 'success';
+                $response['message'] = "Department added successfully.";
+                $response['department_id'] = $stmt->insert_id;
+                $response['department_name'] = $name;
+            } else {
+                $stmt->close();
+                throw new Exception("Database error inserting department: " . $stmt->error);
+            }
+        }
+        $stmt->close();
+        
+        // Return JSON response
+        header('Content-Type: application/json');
+        echo json_encode($response);
+        exit;
+    } catch (Exception $e) {
+        error_log("Add department error: " . $e->getMessage());
+        $response['status'] = 'error';
+        $response['message'] = "An error occurred while adding the department: " . $e->getMessage();
+        header('Content-Type: application/json');
+        echo json_encode($response);
+        exit;
     }
-    $stmt->close();
-    
-    // Return JSON response
-    header('Content-Type: application/json');
-    echo json_encode($response);
-    exit;
 }
 // === ADD COURSE ===
 if ($action === 'add_course') {
+    try {
+        $name = trim($_POST['course_name']);
+        $dept_id = intval($_POST['department_id']);
+        $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 0;
+        $course_type = trim($_POST['course_type']);
 
-    $name = trim($_POST['course_name']);
-    $dept_id = intval($_POST['department_id']);
-    $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 0;
-    $course_type = trim($_POST['course_type']);
+        if (empty($name) || $dept_id <= 0 || empty($course_type)) {
+            $_SESSION['course_error'] = "Course name, department, and type are required.";
+            header("Location: admin/dashboard.php");
+            exit;
+        }
 
-    // Check if course already exists
-    $stmt = $conn->prepare("SELECT id FROM courses WHERE name = ? AND department_id = ?");
-    $stmt->bind_param("si", $name, $dept_id);
-    $stmt->execute();
-    $stmt->store_result();
+        // Check if course already exists
+        $stmt = $conn->prepare("SELECT id FROM courses WHERE name = ? AND department_id = ?");
+        if (!$stmt) {
+            throw new Exception("Database error preparing course check: " . $conn->error);
+        }
+        $stmt->bind_param("si", $name, $dept_id);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception("Database error checking course: " . $stmt->error);
+        }
+        $stmt->store_result();
 
-    if ($stmt->num_rows > 0) {
-        $_SESSION['course_error'] = "Course already exists.";
-    } else {
-        $stmt = $conn->prepare("INSERT INTO courses (name, department_id, duration, course_type) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("siis", $name, $dept_id, $duration, $course_type);
-        $stmt->execute();
-        $_SESSION['course_success'] = "Course added successfully.";
+        if ($stmt->num_rows > 0) {
+            $stmt->close();
+            $_SESSION['course_error'] = "Course already exists.";
+        } else {
+            $stmt->close();
+            $stmt = $conn->prepare("INSERT INTO courses (name, department_id, duration, course_type) VALUES (?, ?, ?, ?)");
+            if (!$stmt) {
+                throw new Exception("Database error preparing course insert: " . $conn->error);
+            }
+            $stmt->bind_param("siis", $name, $dept_id, $duration, $course_type);
+            if (!$stmt->execute()) {
+                $stmt->close();
+                throw new Exception("Database error inserting course: " . $stmt->error);
+            }
+            $stmt->close();
+            $_SESSION['course_success'] = "Course added successfully.";
+        }
+
+        header("Location: admin/dashboard.php");
+        exit;
+    } catch (Exception $e) {
+        error_log("Add course error: " . $e->getMessage());
+        $_SESSION['course_error'] = "An error occurred while adding the course: " . $e->getMessage();
+        header("Location: admin/dashboard.php");
+        exit;
     }
-
-    header("Location: admin/dashboard.php");
-    exit;
 }
 
 // === GET COURSE DETAILS ===
