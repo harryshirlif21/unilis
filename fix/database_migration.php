@@ -6,7 +6,8 @@ require_once __DIR__ . '/../config/db.php';
  * Fixes the missing user_id column in notifications table
  */
 
-echo "<!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html>
 <head>
     <title>Fix Notifications Database</title>
@@ -145,5 +146,4 @@ echo "<!DOCTYPE html>
         </ul>
     </div>
 </body>
-</html>";
-?>
+</html>

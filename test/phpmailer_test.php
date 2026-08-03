@@ -4,7 +4,8 @@
  * Tests if PHPMailer is properly loaded and configured
  */
 
-echo "<!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html>
 <head>
     <title>PHPMailer Test</title>
@@ -211,5 +212,5 @@ function sendFallbackEmail($to, $subject, $message, $headers = "") {
         </ul>
     </div>
 </body>
-</html>";
-?>
+</html>
+

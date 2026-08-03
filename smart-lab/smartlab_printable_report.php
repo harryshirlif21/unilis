@@ -386,6 +386,7 @@ $currentDate = date('d M Y H:i:s');
             <p><?= nl2br(htmlspecialchars($practical['description'])) ?></p>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Readings Data -->
     <?php if (!empty($readings)): ?>
