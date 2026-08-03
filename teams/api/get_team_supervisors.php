@@ -19,6 +19,22 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'], ['lecturer
     exit;
 }
 
+// Check if team tables exist
+$teamTablesExist = false;
+try {
+    $checkTables = $conn->query("SHOW TABLES LIKE 'team_supervisors'");
+    if ($checkTables && $checkTables->num_rows > 0) {
+        $teamTablesExist = true;
+    }
+} catch (Exception $e) {
+    // Tables don't exist
+}
+
+if (!$teamTablesExist) {
+    echo json_encode(['success' => false, 'message' => 'Teams module not available']);
+    exit;
+}
+
 $team_id = (int)($_GET['team_id'] ?? 0);
 
 if ($team_id <= 0) {

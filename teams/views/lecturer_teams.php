@@ -12,6 +12,21 @@ if (!isset($conn) || !$conn) {
     die("Database connection failed.");
 }
 
+// Check if team tables exist before proceeding
+$teamTablesExist = false;
+try {
+    $checkTables = $conn->query("SHOW TABLES LIKE 'team_supervisors'");
+    if ($checkTables && $checkTables->num_rows > 0) {
+        $teamTablesExist = true;
+    }
+} catch (Exception $e) {
+    // Tables don't exist
+}
+
+if (!$teamTablesExist) {
+    die("<h2>Teams Module Not Available</h2><p>The teams system tables have not been created. Please ask your administrator to run the migrate_teams_system.php migration script.</p><p><a href='../../lecturer/lecturer_dashboard.php'>Return to Dashboard</a></p>");
+}
+
 try {
     ensure_team_marks_table($conn);
 } catch (Exception $e) {

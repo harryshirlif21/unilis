@@ -8,6 +8,21 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     exit;
 }
 
+// Check if team tables exist
+$teamTablesExist = false;
+try {
+    $checkTables = $conn->query("SHOW TABLES LIKE 'team_members'");
+    if ($checkTables && $checkTables->num_rows > 0) {
+        $teamTablesExist = true;
+    }
+} catch (Exception $e) {
+    // Tables don't exist
+}
+
+if (!$teamTablesExist) {
+    die("<h2>Teams Module Not Available</h2><p>The teams system tables have not been created. Please ask your administrator to run the migrate_teams_system.php migration script.</p><p><a href='../../lecturer/lecturer_dashboard.php'>Return to Dashboard</a></p>");
+}
+
 $lecturer_id = $_SESSION['user_id'];
 $page_title = "File Requests - UniLIS";
 

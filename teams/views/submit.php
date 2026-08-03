@@ -22,6 +22,21 @@ if (!$team_id) {
 // Load team data and validate student membership
 require_once '../../config/db.php';
 
+// Check if team tables exist
+$teamTablesExist = false;
+try {
+    $checkTables = $conn->query("SHOW TABLES LIKE 'team_members'");
+    if ($checkTables && $checkTables->num_rows > 0) {
+        $teamTablesExist = true;
+    }
+} catch (Exception $e) {
+    // Tables don't exist
+}
+
+if (!$teamTablesExist) {
+    die("<h2>Teams Module Not Available</h2><p>The teams system tables have not been created. Please ask your administrator to run the migrate_teams_system.php migration script.</p><p><a href='../../student/dashboard.php'>Return to Dashboard</a></p>");
+}
+
 $student_id = $_SESSION['user_id'];
 
 // Verify student is a member of this team

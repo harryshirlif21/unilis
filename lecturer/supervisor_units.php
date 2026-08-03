@@ -18,31 +18,44 @@ $lecturer_name = $_SESSION['user_name'];
 
 // Get units where lecturer is supervising teams
 $supervisedUnits = [];
+// Check if team tables exist before querying
+$teamTablesExist = false;
 try {
-    $stmt = $conn->prepare("
-        SELECT DISTINCT
-            u.id as unit_id,
-            u.code as unit_code,
-            u.name as unit_name,
-            COUNT(DISTINCT ts.team_id) as team_count
-        FROM team_supervisors tsup
-        JOIN teams t ON tsup.team_id = t.id
-        JOIN units u ON t.unit_id = u.id
-        WHERE tsup.lecturer_id = ? 
-          AND tsup.supervisor_type = 'lecturer'
-          AND tsup.status = 'approved'
-        GROUP BY u.id, u.code, u.name
-        ORDER BY u.code ASC
-    ");
-    $stmt->bind_param("i", $lecturer_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $supervisedUnits[] = $row;
+    $checkTables = $conn->query("SHOW TABLES LIKE 'team_supervisors'");
+    if ($checkTables && $checkTables->num_rows > 0) {
+        $teamTablesExist = true;
     }
-    $stmt->close();
 } catch (Exception $e) {
-    error_log("Error fetching supervised units: " . $e->getMessage());
+    // Tables don't exist, skip query
+}
+
+if ($teamTablesExist) {
+    try {
+        $stmt = $conn->prepare("
+            SELECT DISTINCT
+                u.id as unit_id,
+                u.code as unit_code,
+                u.name as unit_name,
+                COUNT(DISTINCT ts.team_id) as team_count
+            FROM team_supervisors tsup
+            JOIN teams t ON tsup.team_id = t.id
+            JOIN units u ON t.unit_id = u.id
+            WHERE tsup.lecturer_id = ?
+              AND tsup.supervisor_type = 'lecturer'
+              AND tsup.status = 'approved'
+            GROUP BY u.id, u.code, u.name
+            ORDER BY u.code ASC
+        ");
+        $stmt->bind_param("i", $lecturer_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $supervisedUnits[] = $row;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        error_log("Error fetching supervised units: " . $e->getMessage());
+    }
 }
 ?>
 <!DOCTYPE html>

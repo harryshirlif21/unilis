@@ -11,6 +11,22 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array(
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/team_access.php';
 
+// Check if team tables exist
+$teamTablesExist = false;
+try {
+    $checkTables = $conn->query("SHOW TABLES LIKE 'team_files'");
+    if ($checkTables && $checkTables->num_rows > 0) {
+        $teamTablesExist = true;
+    }
+} catch (Exception $e) {
+    // Tables don't exist
+}
+
+if (!$teamTablesExist) {
+    http_response_code(503);
+    die('Teams module not available');
+}
+
 try {
     $fileId = (int)($_GET['file_id'] ?? 0);
     $submissionId = (int)($_GET['submission_id'] ?? 0);

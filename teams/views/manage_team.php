@@ -1,10 +1,27 @@
 <?php
 session_start();
 
+require_once '../config.php';
+
 // Check if user is logged in and is a student
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'student') {
     header("Location: ../../login.php"); // or wherever your login page is
     exit;
+}
+
+// Check if team tables exist
+$teamTablesExist = false;
+try {
+    $checkTables = $conn->query("SHOW TABLES LIKE 'team_members'");
+    if ($checkTables && $checkTables->num_rows > 0) {
+        $teamTablesExist = true;
+    }
+} catch (Exception $e) {
+    // Tables don't exist
+}
+
+if (!$teamTablesExist) {
+    die("<h2>Teams Module Not Available</h2><p>The teams system tables have not been created. Please ask your administrator to run the migrate_teams_system.php migration script.</p><p><a href='../../student/dashboard.php'>Return to Dashboard</a></p>");
 }
 
 // Get current user info
