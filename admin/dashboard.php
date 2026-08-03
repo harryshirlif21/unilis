@@ -632,6 +632,18 @@ if ($teamTablesExist) {
             reports what it changed. Delete a script from the repository once it has been applied.
         </p>
 
+        <div style="border:1px solid #e1e4e8; border-radius:8px; padding:12px; margin-bottom: 20px; background-color: #f0f4f8;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <strong style="flex:1; min-width:240px;">Run all migrations at once</strong>
+                <button type="button" class="btn btn-primary" id="run-all-migrations-btn" onclick="runAllMigrations(this)">
+                    <i class="fas fa-cogs"></i> Run All Migrations
+                </button>
+            </div>
+            <pre id="all-migrations-output" style="display:none; margin:10px 0 0 0; padding:10px; background:#1e1e1e; color:#e6e6e6; border-radius:6px; overflow:auto; max-height:480px; white-space:pre-wrap; font-size:0.82rem;"></pre>
+        </div>
+
+        <p style="margin:14px 0; color:#666;">Or run scripts individually:</p>
+
         <?php if (empty($migrationScripts)): ?>
             <div class="empty-state">No migration scripts are pending.</div>
         <?php else: ?>
@@ -2381,6 +2393,29 @@ function confirmBulkDeleteTestData() {
 
     document.getElementById('le-diag-spinner').style.display = 'none';
   }
+</script>
+<script>
+    function runAllMigrations(btn) {
+        var output = document.getElementById('all-migrations-output');
+        output.style.display = 'block';
+        output.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running all migrations... This may take a moment.';
+        btn.disabled = true;
+
+        fetch('run_all_migrations.php')
+            .then(response => response.text())
+            .then(text => {
+                output.innerHTML = text;
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+                btn.innerHTML = '<i class="fas fa-check"></i> All Migrations Ran';
+            })
+            .catch(error => {
+                output.innerHTML = '<strong>Error:</strong> ' + error;
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-danger');
+                btn.innerHTML = '<i class="fas fa-times"></i> Error';
+            });
+    }
 </script>
 </body>
 </html>

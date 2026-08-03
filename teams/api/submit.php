@@ -91,6 +91,17 @@ try {
         mkdir($upload_dir, 0755, true);
     }
 
+    $allowed_extensions = ['pdf', 'docx', 'jpg', 'jpeg', 'png', 'gif', 'ppt', 'pptx'];
+    $allowed_mime_types = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ];
+
     $uploaded_files = [];
     
     foreach ($_FILES['files']['name'] as $i => $file_name) {
@@ -99,7 +110,17 @@ try {
         $file_size = $_FILES['files']['size'][$i];
         
         if ($file_error === UPLOAD_ERR_OK) {
-            $file_extension = pathinfo($file_name, PATHINFO_EXTENSION);
+            $file_extension = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+
+            // It's better to check MIME type of the actual file content
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime_type = finfo_file($finfo, $file_tmp);
+            finfo_close($finfo);
+
+            if (!in_array($file_extension, $allowed_extensions) || !in_array($mime_type, $allowed_mime_types)) {
+                throw new Exception("File type not allowed for file '$file_name'. Allowed types: pdf, docx, images, ppt/pptx.");
+            }
+
             $unique_filename = time() . '_' . uniqid() . '.' . $file_extension;
             
             if (move_uploaded_file($file_tmp, $upload_dir . $unique_filename)) {
@@ -114,7 +135,6 @@ try {
                     throw new Exception('Error preparing insert query: ' . $conn->error);
                 }
                 
-                $mime_type = mime_content_type($upload_dir . $unique_filename);
                 $actual_file_size = filesize($upload_dir . $unique_filename);
                 $stmt->bind_param("iisssis", $team_id, $student_id, $file_name, $unique_filename, $unique_filename, $actual_file_size, $mime_type);
                 
