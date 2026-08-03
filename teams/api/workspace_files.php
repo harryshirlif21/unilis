@@ -31,7 +31,7 @@ try {
             original_name AS file_name,
             filepath      AS file_path,
             version,
-            uploader_id   AS uploaded_by,
+            uploader_id,
             tf.mime_type,
             tf.uploaded_at,
             s.name AS uploader_name
