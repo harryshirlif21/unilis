@@ -486,14 +486,9 @@ foreach ($teams as $team) {
     } catch (Exception $e) {
         // team_marks table doesn't exist, skip
     }
-    ";
-    
-    $marksStmt = $conn->prepare($marksSql);
-    $marksStmt->bind_param("i", $team['team_id']);
-    $marksStmt->execute();
-    $existingMarks = $marksStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $marksStmt->close();
-    
+
+    $existingMarks = $teamMarks;
+
     // Fetch team files for each member
     foreach ($teamMembers as &$member) {
         // Get team files uploaded by this member
