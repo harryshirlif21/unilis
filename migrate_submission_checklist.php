@@ -60,8 +60,7 @@ if (!isset($conn) || !$conn) {
 }
 
 $tables = [
-    // Submission checklist table
-    "CREATE TABLE IF NOT EXISTS `submission_checklist` (
+    'submission_checklist' => "CREATE TABLE IF NOT EXISTS `submission_checklist` (
         `id` int NOT NULL AUTO_INCREMENT,
         `team_id` int NOT NULL,
         `item_label` varchar(255) NOT NULL,
@@ -74,8 +73,7 @@ $tables = [
         KEY `idx_submission_checklist_checked_by` (`checked_by`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    // Submission signoffs table
-    "CREATE TABLE IF NOT EXISTS `submission_signoffs` (
+    'submission_signoffs' => "CREATE TABLE IF NOT EXISTS `submission_signoffs` (
         `id` int NOT NULL AUTO_INCREMENT,
         `team_id` int NOT NULL,
         `user_id` int NOT NULL,
@@ -86,8 +84,7 @@ $tables = [
         UNIQUE KEY `idx_team_user_signoff` (`team_id`, `user_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    // Team standups table
-    "CREATE TABLE IF NOT EXISTS `team_standups` (
+    'team_standups' => "CREATE TABLE IF NOT EXISTS `team_standups` (
         `id` int NOT NULL AUTO_INCREMENT,
         `team_id` int NOT NULL,
         `user_id` int NOT NULL,
@@ -100,8 +97,7 @@ $tables = [
         KEY `idx_team_standups_user` (`user_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    // Department admins table (Phase 1 feature)
-    "CREATE TABLE IF NOT EXISTS `department_admins` (
+    'department_admins' => "CREATE TABLE IF NOT EXISTS `department_admins` (
         `id` INT AUTO_INCREMENT PRIMARY KEY,
         `admin_id` INT NOT NULL,
         `department_id` INT NOT NULL,
@@ -120,18 +116,26 @@ $tables = [
 
 $errors = [];
 $success_count = 0;
+$created_tables = [];
 
-foreach ($tables as $sql) {
+foreach ($tables as $table_name => $sql) {
     if (!$conn->query($sql)) {
-        $errors[] = $conn->error;
+        $errors[] = "Failed to create $table_name: " . $conn->error;
     } else {
         $success_count++;
+        $created_tables[] = $table_name;
     }
 }
 
 if (IS_CLI) {
     echo "Submission checklist migration completed.\n";
     echo "Tables created/verified: $success_count\n";
+    if (!empty($created_tables)) {
+        echo "Tables created:\n";
+        foreach ($created_tables as $table) {
+            echo "  ✓ $table\n";
+        }
+    }
     if (!empty($errors)) {
         echo "Errors:\n";
         foreach ($errors as $error) {
@@ -141,12 +145,22 @@ if (IS_CLI) {
 } else {
     echo "Submission checklist migration completed.\n";
     echo "Tables created/verified: $success_count\n";
-    if (!empty($errors)) {
-        echo "\nErrors:\n";
-        foreach ($errors as $error) {
-            echo "  - $error\n";
+    if (!empty($created_tables)) {
+        echo "<h3>Tables Created:</h3>\n";
+        echo "<ul>\n";
+        foreach ($created_tables as $table) {
+            echo "<li style='color: green;'>✓ $table</li>\n";
         }
+        echo "</ul>\n";
+    }
+    if (!empty($errors)) {
+        echo "\n<h3>Errors:</h3>\n";
+        echo "<ul>\n";
+        foreach ($errors as $error) {
+            echo "<li style='color: red;'>$error</li>\n";
+        }
+        echo "</ul>\n";
     } else {
-        echo "\nAll tables created successfully.";
+        echo "<p style='color: green; font-weight: bold;'>All tables created successfully!</p>\n";
     }
 }
