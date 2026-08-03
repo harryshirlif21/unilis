@@ -186,34 +186,47 @@ if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$acad
 }
 
 $supervisedTeams = [];
+// Check if team tables exist before querying
+$teamTablesExist = false;
 try {
-    $stmt = $conn->prepare("
-        SELECT 
-            t.id as team_id,
-            t.title as team_title,
-            u.code as unit_code,
-            u.name as unit_name,
-            t.status,
-            COUNT(DISTINCT tm.student_id) as member_count
-        FROM team_supervisors tsup
-        JOIN teams t ON tsup.team_id = t.id
-        JOIN units u ON t.unit_id = u.id
-        LEFT JOIN team_members tm ON t.id = tm.team_id
-        WHERE tsup.lecturer_id = ?
-          AND tsup.supervisor_type = 'admin'
-          AND tsup.status = 'approved'
-        GROUP BY t.id, t.title, u.code, u.name, t.status
-        ORDER BY t.created_at DESC
-    ");
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $supervisedTeams[] = $row;
+    $checkTables = $conn->query("SHOW TABLES LIKE 'team_supervisors'");
+    if ($checkTables && $checkTables->num_rows > 0) {
+        $teamTablesExist = true;
     }
-    $stmt->close();
 } catch (Exception $e) {
-    error_log('Error fetching supervised teams for admin: ' . $e->getMessage());
+    // Tables don't exist, skip query
+}
+
+if ($teamTablesExist) {
+    try {
+        $stmt = $conn->prepare("
+            SELECT 
+                t.id as team_id,
+                t.title as team_title,
+                u.code as unit_code,
+                u.name as unit_name,
+                t.status,
+                COUNT(DISTINCT tm.student_id) as member_count
+            FROM team_supervisors tsup
+            JOIN teams t ON tsup.team_id = t.id
+            JOIN units u ON t.unit_id = u.id
+            LEFT JOIN team_members tm ON t.id = tm.team_id
+            WHERE tsup.lecturer_id = ?
+              AND tsup.supervisor_type = 'admin'
+              AND tsup.status = 'approved'
+            GROUP BY t.id, t.title, u.code, u.name, t.status
+            ORDER BY t.created_at DESC
+        ");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $supervisedTeams[] = $row;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        error_log('Error fetching supervised teams for admin: ' . $e->getMessage());
+    }
 }
 ?>
 <!DOCTYPE html>
