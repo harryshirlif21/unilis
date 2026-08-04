@@ -1445,6 +1445,33 @@ async function runMigration(scriptName, outputId, button) {
     }
 }
 
+async function runAllMigrations(button) {
+    if (!confirm('Run all migrations now?\n\nThis will alter the database schema and cannot be undone.')) return;
+
+    const output = document.getElementById('all-migrations-output');
+    const originalLabel = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running All...';
+    output.style.display = 'block';
+    output.textContent = 'Starting all migrations...';
+
+    try {
+        const res = await fetch('run_all_migrations.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'text/html' },
+            cache: 'no-store'
+        });
+        const body = (await res.text()).trim();
+        output.innerHTML = body || '(no output)';
+    } catch (err) {
+        output.textContent = 'Request failed: ' + err.message;
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalLabel;
+    }
+}
+
 /* ─────────────────────────────────────────
    Modal open/close
 ───────────────────────────────────────── */

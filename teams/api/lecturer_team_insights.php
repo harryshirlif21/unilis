@@ -257,6 +257,31 @@ try {
         }
     }
 
+    // Fetch supervisors
+    $supervisors = [];
+    $stmt = $conn->prepare("
+        SELECT
+            ts.id,
+            ts.supervisor_type,
+            ts.is_primary,
+            ts.status,
+            COALESCE(l.name, a.name, t.name) AS supervisor_name
+        FROM team_supervisors ts
+        LEFT JOIN lecturers l ON ts.lecturer_id = l.id AND ts.supervisor_type = 'lecturer'
+        LEFT JOIN admins a ON ts.lecturer_id = a.id AND ts.supervisor_type = 'admin'
+        LEFT JOIN technicians t ON ts.lecturer_id = t.id AND ts.supervisor_type = 'technician'
+        WHERE ts.team_id = ?
+    ");
+    if ($stmt) {
+        $stmt->bind_param('i', $teamId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $supervisors[] = $row;
+        }
+        $stmt->close();
+    }
+
     $memberList = array_values($members);
 
     // Health score.
@@ -306,6 +331,7 @@ try {
         'checklist' => $checklist,
         'signoffs' => $signoffs,
         'peer_summary' => $peerSummary,
+        'supervisors' => $supervisors,
         'health' => [
             'score' => $healthScore,
             'tasks_done' => $tasksDone,

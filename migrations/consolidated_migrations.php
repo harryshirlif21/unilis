@@ -18,6 +18,8 @@ function run_all_migrations() {
     if (!isset($conn) || !$conn instanceof mysqli) {
         die('Database connection not available');
     }
+    
+    require_once __DIR__ . '/../phase1/database/migration_001_phase1.php';
 
     $GLOBALS['log'] = [];
 
@@ -232,6 +234,19 @@ function run_all_migrations() {
     fix_collations($conn);
     fix_notifications_columns($conn);
     migrate_note_status($conn);
+
+    // --- Run Phase 1 Migration ---
+    echo "<h1>Running Phase 1 Migrations...</h1>";
+    $phase1_result = phase1_migration_001_run($conn);
+    foreach ($phase1_result['results'] as $result) {
+        $GLOBALS['log'][] = ['label' => 'Phase 1: ' . $result, 'status' => 'ok', 'msg' => ''];
+    }
+    foreach ($phase1_result['errors'] as $error) {
+        $GLOBALS['log'][] = ['label' => 'Phase 1: ' . $error, 'status' => 'err', 'msg' => ''];
+    }
+    foreach ($phase1_result['warnings'] as $warning) {
+        $GLOBALS['log'][] = ['label' => 'Phase 1: ' . $warning, 'status' => 'skip', 'msg' => ''];
+    }
 
     // --- Display log ---
     $log = $GLOBALS['log'];
