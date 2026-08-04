@@ -257,6 +257,13 @@ function run_all_migrations() {
     }
     echo '</table>';
 
+    foreach($log as $r) {
+        if ($r['status'] === 'err') {
+            http_response_code(500);
+            break;
+        }
+    }
+
     return ob_get_clean();
 }
 ?>
