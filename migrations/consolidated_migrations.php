@@ -239,7 +239,17 @@ function run_all_migrations() {
 
     // --- Run Phase 1 Migration ---
     echo "<h1>Running Phase 1 Migrations...</h1>";
-    $phase1_result = phase1_migration_001_run($conn);
+    try {
+        $phase1_result = phase1_migration_001_run($conn);
+    } catch (Throwable $e) {
+        // Never let one migration abort the batch — report it in the log instead.
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        $phase1_result = [
+            'results'  => [],
+            'errors'   => [$e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')'],
+            'warnings' => [],
+        ];
+    }
     foreach ($phase1_result['results'] as $result) {
         $GLOBALS['log'][] = ['label' => 'Phase 1: ' . $result, 'status' => 'ok', 'msg' => ''];
     }

@@ -43,7 +43,6 @@ foreach ($phase1_tables as $table => $description) {
 
 // ── Test 2: Check upgraded columns ──────────────────────────────────────────
 $upgrade_checks = [
-    ['courses', 'course_type', "courses table has course_type column"],
     ['admins', 'is_super_admin', "admins table has is_super_admin column"],
     ['admins', 'is_verified', "admins table has is_verified column"],
     ['lecturers', 'department_id', "lecturers table has department_id column"],

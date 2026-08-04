@@ -648,10 +648,9 @@ if ($action === 'add_course') {
         $name = trim($_POST['course_name']);
         $dept_id = intval($_POST['department_id']);
         $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 0;
-        $course_type = trim($_POST['course_type']);
 
-        if (empty($name) || $dept_id <= 0 || empty($course_type)) {
-            $_SESSION['course_error'] = "Course name, department, and type are required.";
+        if (empty($name) || $dept_id <= 0) {
+            $_SESSION['course_error'] = "Course name and department are required.";
             header("Location: admin/dashboard.php");
             exit;
         }
@@ -673,11 +672,11 @@ if ($action === 'add_course') {
             $_SESSION['course_error'] = "Course already exists.";
         } else {
             $stmt->close();
-            $stmt = $conn->prepare("INSERT INTO courses (name, department_id, duration, course_type) VALUES (?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO courses (name, department_id, duration) VALUES (?, ?, ?)");
             if (!$stmt) {
                 throw new Exception("Database error preparing course insert: " . $conn->error);
             }
-            $stmt->bind_param("siis", $name, $dept_id, $duration, $course_type);
+            $stmt->bind_param("sii", $name, $dept_id, $duration);
             if (!$stmt->execute()) {
                 $stmt->close();
                 throw new Exception("Database error inserting course: " . $stmt->error);
@@ -706,7 +705,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_course_details') {
         exit;
     }
 
-    $stmt = $conn->prepare("SELECT id, name, department_id, duration, course_type FROM courses WHERE id = ?");
+    $stmt = $conn->prepare("SELECT id, name, department_id, duration FROM courses WHERE id = ?");
     $stmt->bind_param('i', $course_id);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -728,9 +727,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
     $name = trim($_POST['course_name'] ?? '');
     $department_id = intval($_POST['department_id'] ?? 0);
     $duration = intval($_POST['duration'] ?? 0);
-    $course_type = trim($_POST['course_type'] ?? '');
 
-    if (!$course_id || !$name || !$department_id || !$duration || !$course_type) {
+    if (!$course_id || !$name || !$department_id || !$duration) {
         $_SESSION['course_error'] = 'All course fields are required.';
         header('Location: admin/dashboard.php');
         exit;
@@ -749,8 +747,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
     }
     $stmt->close();
 
-    $update = $conn->prepare("UPDATE courses SET name = ?, department_id = ?, duration = ?, course_type = ? WHERE id = ?");
-    $update->bind_param('siisi', $name, $department_id, $duration, $course_type, $course_id);
+    $update = $conn->prepare("UPDATE courses SET name = ?, department_id = ?, duration = ? WHERE id = ?");
+    $update->bind_param('siii', $name, $department_id, $duration, $course_id);
     if ($update->execute()) {
         $_SESSION['course_success'] = 'Course updated successfully.';
     } else {

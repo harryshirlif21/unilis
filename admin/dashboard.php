@@ -923,13 +923,6 @@ if ($teamTablesExist) {
                 </select>
                 <label>Duration (Years):</label>
                 <input type="number" name="duration" min="1" required>
-                <label>Course Type:</label>
-                <select name="course_type" required>
-                    <option value="">-- Select Type --</option>
-                    <option value="Degree">Degree</option>
-                    <option value="Diploma">Diploma</option>
-                    <option value="Certificate">Certificate</option>
-                </select>
                 <button type="submit">Save</button>
             </form>
         </div>
@@ -956,13 +949,6 @@ if ($teamTablesExist) {
                 </select>
                 <label>Duration (Years):</label>
                 <input type="number" name="duration" id="editCourseDuration" min="1" required>
-                <label>Course Type:</label>
-                <select name="course_type" id="editCourseType" required>
-                    <option value="">-- Select Type --</option>
-                    <option value="Degree">Degree</option>
-                    <option value="Diploma">Diploma</option>
-                    <option value="Certificate">Certificate</option>
-                </select>
                 <div style="display:flex; gap:10px; margin-top:18px;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('editCourseModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -1670,7 +1656,6 @@ function openEditCourseModal() {
             document.getElementById('editCourseName').value = data.course.name;
             document.getElementById('editCourseDepartment').value = data.course.department_id;
             document.getElementById('editCourseDuration').value = data.course.duration;
-            document.getElementById('editCourseType').value = data.course.course_type;
             openModal('editCourseModal');
         })
         .catch(() => showFloatingMessage('Failed to load course details.', 'error'));

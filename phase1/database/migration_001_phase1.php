@@ -28,21 +28,27 @@ require_once __DIR__ . '/../../config/db.php';
  * Run the Phase 1 database migration
  */
 function phase1_migration_001_run($conn) {
+    // The probes below (SHOW COLUMNS / SHOW TABLES) target tables that may not exist yet
+    // on a database that has not had the earlier migrations applied. config/db.php enables
+    // MYSQLI_REPORT_STRICT, which turns "table doesn't exist" into a thrown mysqli_sql_exception
+    // and kills the whole run with a blank 500. Every probe here is already written as
+    // `if ($check && ...)`, so switch reporting off and let query() return false as intended.
+    mysqli_report(MYSQLI_REPORT_OFF);
+
     $results = [];
     $errors = [];
     $warnings = [];
     
-    // ── 1. UPGRADE: Add course_type to courses if missing ──────────────────────
+    // ── 1. UPGRADE: Drop the retired course_type column from courses ───────────
     $check = $conn->query("SHOW COLUMNS FROM `courses` LIKE 'course_type'");
-    if ($check && $check->num_rows === 0) {
-        $sql = "ALTER TABLE `courses` ADD COLUMN `course_type` VARCHAR(50) DEFAULT 'Degree' AFTER `duration`";
-        if ($conn->query($sql)) {
-            $results[] = "UPGRADED: courses table - added course_type column";
+    if ($check && $check->num_rows > 0) {
+        if ($conn->query("ALTER TABLE `courses` DROP COLUMN `course_type`")) {
+            $results[] = "UPGRADED: courses table - dropped retired course_type column";
         } else {
-            $errors[] = "Failed to add course_type to courses: " . $conn->error;
+            $errors[] = "Failed to drop course_type from courses: " . $conn->error;
         }
     } else {
-        $results[] = "OK: courses table already has course_type column";
+        $results[] = "OK: courses table has no course_type column";
     }
     
     // ── 2. UPGRADE: Add verification columns to students if missing ────────────
@@ -431,23 +437,34 @@ function phase1_migration_001_run($conn) {
     
     // ── 21. Record migration in system_migrations ──────────────────────────────
     $stmt = $conn->prepare("INSERT IGNORE INTO `system_migrations` (`migration`, `batch`, `status`, `completed_at`) VALUES (?, 1, 'completed', NOW())");
-    $migrationName = '001_phase1_academic_foundation';
-    $stmt->bind_param('s', $migrationName);
-    if ($stmt->execute()) {
-        $results[] = "RECORDED: migration 001 in system_migrations";
+    if ($stmt) {
+        $migrationName = '001_phase1_academic_foundation';
+        $stmt->bind_param('s', $migrationName);
+        if ($stmt->execute()) {
+            $results[] = "RECORDED: migration 001 in system_migrations";
+        }
+        $stmt->close();
+    } else {
+        $warnings[] = "Could not record migration 001: " . $conn->error;
     }
-    $stmt->close();
     
     // ── 16. Record version ─────────────────────────────────────────────────────
     $version = '1.0.0';
     $versionLabel = 'Phase 1 - Academic Foundation Expansion';
     $stmt = $conn->prepare("INSERT IGNORE INTO `system_versions` (`version`, `version_label`, `description`, `is_current`) VALUES (?, ?, 'Phase 1: Department Admin, Technician roles, Academic Assignment Engine, Dynamic Permission Engine, System Upgrade Manager', 1)");
-    $stmt->bind_param('ss', $version, $versionLabel);
-    if ($stmt->execute()) {
-        $results[] = "RECORDED: version $version ($versionLabel)";
+    if ($stmt) {
+        $stmt->bind_param('ss', $version, $versionLabel);
+        if ($stmt->execute()) {
+            $results[] = "RECORDED: version $version ($versionLabel)";
+        }
+        $stmt->close();
+    } else {
+        $warnings[] = "Could not record version $version: " . $conn->error;
     }
-    $stmt->close();
-    
+
+    // Restore the strict reporting mode config/db.php installed.
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
     return [
         'success' => empty($errors),
         'results' => $results,

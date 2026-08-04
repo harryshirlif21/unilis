@@ -10,18 +10,15 @@ function columnExists($conn, $table, $column) {
     return ($result && $result->num_rows > 0);
 }
 
-// Only add course_type if it does NOT exist
-if (!columnExists($conn, 'courses', 'course_type')) {
-    $sql = "ALTER TABLE courses 
-            ADD COLUMN course_type VARCHAR(50) NOT NULL DEFAULT 'Degree' AFTER duration";
-
-    if ($conn->query($sql)) {
-        echo "Column 'course_type' added successfully.<br><br>";
+// course_type has been retired — drop it if an older database still carries it
+if (columnExists($conn, 'courses', 'course_type')) {
+    if ($conn->query("ALTER TABLE courses DROP COLUMN course_type")) {
+        echo "Column 'course_type' dropped successfully.<br><br>";
     } else {
-        echo "Error adding course_type: " . $conn->error . "<br><br>";
+        echo "Error dropping course_type: " . $conn->error . "<br><br>";
     }
 } else {
-    echo "Column 'course_type' already exists.<br><br>";
+    echo "Column 'course_type' already removed.<br><br>";
 }
 
 // Show final table structure
