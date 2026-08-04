@@ -13,6 +13,21 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+function tableColumnExists(mysqli $conn, string $table, string $column): bool
+{
+    $escapedTable = $conn->real_escape_string($table);
+    $escapedColumn = $conn->real_escape_string($column);
+    $result = $conn->query("SHOW COLUMNS FROM `{$escapedTable}` LIKE '{$escapedColumn}'");
+    return $result ? $result->num_rows > 0 : false;
+}
+
+function tableExists(mysqli $conn, string $table): bool
+{
+    $escapedTable = $conn->real_escape_string($table);
+    $result = $conn->query("SHOW TABLES LIKE '{$escapedTable}'");
+    return $result ? $result->num_rows > 0 : false;
+}
+
 // Check authentication
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin'])) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -67,10 +82,70 @@ try {
     }
     $assignedStmt->close();
 
-    // Get lecturers and technicians from same department who are supervising less than 5 teams
+    // Determine how admins are linked to departments
+    $adminDepartmentJoin = '';
+    $adminDepartmentWhere = 'a.department_id = ?';
+    if (tableColumnExists($conn, 'admins', 'department_id')) {
+        $adminDepartmentJoin = '';
+        $adminDepartmentWhere = 'a.department_id = ?';
+    } elseif (tableExists($conn, 'department_admins')) {
+        $adminDepartmentJoin = 'JOIN department_admins da ON a.id = da.admin_id AND da.is_active = 1';
+        $adminDepartmentWhere = 'da.department_id = ?';
+    } else {
+        // No department linkage for admins - exclude admin search gracefully
+        $adminDepartmentJoin = '';
+        $adminDepartmentWhere = '1 = 0';
+    }
+
+    $hasTechnicians = tableExists($conn, 'technicians') && tableColumnExists($conn, 'technicians', 'department_id');
+
+    // Get lecturers, technicians, and department admins from same department who are supervising less than 5 teams
     $max_teams = 5;
     $assigned_ids_str = implode(',', array_map('intval', $assigned_ids));
     $assigned_filter = !empty($assigned_ids) ? "AND person_id NOT IN ($assigned_ids_str)" : "";
+
+    $technicianUnion = '';
+    if ($hasTechnicians) {
+        $technicianUnion = "
+            UNION ALL
+            
+            SELECT 
+                t.id as person_id,
+                t.name COLLATE utf8mb4_unicode_ci as name,
+                t.email COLLATE utf8mb4_unicode_ci as email,
+                d.name COLLATE utf8mb4_unicode_ci as department,
+                'technician' COLLATE utf8mb4_unicode_ci as supervisor_type,
+                COUNT(DISTINCT ts.team_id) as team_count
+            FROM technicians t
+            JOIN departments d ON t.department_id = d.id
+            LEFT JOIN team_supervisors ts ON t.id = ts.lecturer_id AND ts.supervisor_type = 'technician' AND ts.status = 'approved'
+            WHERE t.department_id = ?
+              $assigned_filter
+            GROUP BY t.id
+        ";
+    }
+
+    $adminUnion = '';
+    if ($adminDepartmentWhere !== '1 = 0') {
+        $adminUnion = "
+            UNION ALL
+            
+            SELECT 
+                a.id as person_id,
+                a.name COLLATE utf8mb4_unicode_ci as name,
+                a.email COLLATE utf8mb4_unicode_ci as email,
+                d.name COLLATE utf8mb4_unicode_ci as department,
+                'admin' COLLATE utf8mb4_unicode_ci as supervisor_type,
+                COUNT(DISTINCT ts.team_id) as team_count
+            FROM admins a
+            {$adminDepartmentJoin}
+            JOIN departments d ON d.id = a.department_id
+            LEFT JOIN team_supervisors ts ON a.id = ts.lecturer_id AND ts.supervisor_type = 'admin' AND ts.status = 'approved'
+            WHERE {$adminDepartmentWhere}
+              $assigned_filter
+            GROUP BY a.id
+        ";
+    }
 
     $stmt = $conn->prepare("
         SELECT 
@@ -94,27 +169,31 @@ try {
             WHERE l.department_id = ?
               $assigned_filter
             GROUP BY l.id
-            
-            UNION ALL
-            
-            SELECT 
-                t.id as person_id,
-                t.name COLLATE utf8mb4_unicode_ci as name,
-                t.email COLLATE utf8mb4_unicode_ci as email,
-                d.name COLLATE utf8mb4_unicode_ci as department,
-                'technician' COLLATE utf8mb4_unicode_ci as supervisor_type,
-                COUNT(DISTINCT ts.team_id) as team_count
-            FROM technicians t
-            JOIN departments d ON t.department_id = d.id
-            LEFT JOIN team_supervisors ts ON t.id = ts.lecturer_id AND ts.supervisor_type = 'technician' AND ts.status = 'approved'
-            WHERE t.department_id = ?
-              $assigned_filter
-            GROUP BY t.id
+            $technicianUnion
+            $adminUnion
         ) as supervisors
         WHERE team_count < ?
         ORDER BY name ASC
     ");
-    $stmt->bind_param("iii", $department_id, $department_id, $max_teams);
+
+    // Build bind params dynamically
+    $params = [$department_id];
+    $types = 'i';
+
+    if ($hasTechnicians) {
+        $params[] = $department_id;
+        $types .= 'i';
+    }
+
+    if ($adminDepartmentWhere !== '1 = 0') {
+        $params[] = $department_id;
+        $types .= 'i';
+    }
+
+    $params[] = $max_teams;
+    $types .= 'i';
+
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
 
