@@ -810,6 +810,13 @@ $stmt->close();
                             <div class="unit-name">
                                 <?= htmlspecialchars($unit['name']) ?>
                             </div>
+                            <button type="button"
+                                    class="unit-delete-btn"
+                                    data-unit-id="<?= (int)$unit['id'] ?>"
+                                    data-unit-name="<?= htmlspecialchars($unit['name'], ENT_QUOTES) ?>"
+                                    title="Remove this unit from your teaching units">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
                         </div>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -2159,6 +2166,63 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Error updating note status: ' + error.message);
         }
     }
+
+    // ==================== REMOVE UNIT FROM MY UNITS ====================
+    // Use event delegation so the handler works for all unit cards.
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.unit-delete-btn');
+        if (!btn) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const unitId = btn.dataset.unitId;
+        const unitName = btn.dataset.unitName || 'this unit';
+
+        if (!confirm(`Remove "${unitName}" from your teaching units?\n\nThis will unassign the unit from your dashboard. It does not delete the unit itself.`)) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('action', 'remove_unit');
+        formData.append('unit_id', unitId);
+
+        try {
+            const response = await fetch('../actions.php', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            });
+
+            const text = await response.text();
+            let result;
+            try {
+                result = JSON.parse(text);
+            } catch (err) {
+                result = { success: false, error: text || 'Unexpected server response' };
+            }
+
+            if (result.success) {
+                // Remove the card from the DOM without a full reload
+                const card = btn.closest('.unit-slim-tile');
+                if (card) card.remove();
+
+                // If no unit cards remain, show the empty state
+                const grid = document.querySelector('.units-grid');
+                if (grid && !grid.querySelector('.unit-slim-tile')) {
+                    grid.innerHTML = '<p class="no-units">No units assigned yet.</p>';
+                }
+            } else {
+                alert('Error: ' + (result.error || 'Failed to remove unit'));
+            }
+        } catch (error) {
+            console.error('Error removing unit:', error);
+            alert('Error removing unit: ' + error.message);
+        }
+    });
 
     // Upload notes modal
     const uploadNotesModal = document.getElementById('uploadNotesModal');

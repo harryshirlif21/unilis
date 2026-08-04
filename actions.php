@@ -934,6 +934,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'assig
     exit;
 }
 
+// === REMOVE UNIT FROM LECTURER ===
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'remove_unit') {
+    header('Content-Type: application/json');
+    $unit_id = intval($_POST['unit_id'] ?? 0);
+    $lecturer_id = intval($_SESSION['user_id'] ?? 0);
+
+    if (!$unit_id || !$lecturer_id) {
+        echo json_encode(['success' => false, 'error' => 'Missing unit_id or lecturer_id']);
+        exit;
+    }
+
+    // Verify the unit is actually assigned to this lecturer before removing.
+    $check = $conn->prepare("SELECT id FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ?");
+    $check->bind_param("ii", $lecturer_id, $unit_id);
+    $check->execute();
+    $check->store_result();
+
+    if ($check->num_rows === 0) {
+        $check->close();
+        echo json_encode(['success' => false, 'error' => 'Unit is not assigned to you']);
+        exit;
+    }
+    $check->close();
+
+    $remove = $conn->prepare("DELETE FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ?");
+    if (!$remove) {
+        echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $conn->error]);
+        exit;
+    }
+
+    $remove->bind_param("ii", $lecturer_id, $unit_id);
+    if ($remove->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Remove failed: ' . $remove->error]);
+    }
+    $remove->close();
+    exit;
+}
+
 // === EDIT UNIT ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_unit') {
     $unit_id = intval($_POST['unit_id'] ?? 0);
