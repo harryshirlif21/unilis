@@ -20,6 +20,7 @@ function run_all_migrations() {
     }
     
     require_once __DIR__ . '/../phase1/database/migration_001_phase1.php';
+    require_once __DIR__ . '/migrate_unique_unit_assignment.php';
 
     $GLOBALS['log'] = [];
 
@@ -234,6 +235,7 @@ function run_all_migrations() {
     fix_collations($conn);
     fix_notifications_columns($conn);
     migrate_note_status($conn);
+    $GLOBALS['log'][] = migrate_unique_unit_assignment($conn);
 
     // --- Run Phase 1 Migration ---
     echo "<h1>Running Phase 1 Migrations...</h1>";
