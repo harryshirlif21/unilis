@@ -395,25 +395,45 @@ foreach ($teams as $team) {
 /* Fetch team details for all teams (needed for supervisors, semester, etc.) */
 $allTeamDetails = [];
 foreach ($teams as $team) {
-    // Fetch supervisors - use supervisor system if available, otherwise get unit lecturer
-    $supervisorName = '';
+    // Fetch supervisors
+    $supervisors = [];
+
+    // 1. Fetch Global Supervisor (unit lecturer)
+    $unitLecturerSql = "SELECT l.name FROM lecturer_units lu JOIN lecturers l ON lu.lecturer_id = l.id WHERE lu.unit_id = ? LIMIT 1";
+    $unitLecturerStmt = $conn->prepare($unitLecturerSql);
+    $unitLecturerStmt->bind_param("i", $team['unit_id']);
+    $unitLecturerStmt->execute();
+    $unitLecturerRow = $unitLecturerStmt->get_result()->fetch_assoc();
+    $unitLecturerStmt->close();
+
+    if ($unitLecturerRow) {
+        $supervisors[] = ['name' => $unitLecturerRow['name'], 'type' => 'Global Supervisor'];
+    }
+
+    // 2. Fetch Secondary Supervisors
     if ($supervisorSystemExists) {
-        $supSql = "SELECT l.name AS supervisor_name FROM team_supervisors ts JOIN lecturers l ON ts.lecturer_id = l.id WHERE ts.team_id = ? AND ts.status = 'approved' LIMIT 1";
+        $supSql = "
+            SELECT
+                ts.id,
+                ts.supervisor_type,
+                COALESCE(l.name, a.name, t.name) AS supervisor_name
+            FROM team_supervisors ts
+            LEFT JOIN lecturers l ON ts.lecturer_id = l.id AND ts.supervisor_type = 'lecturer'
+            LEFT JOIN admins a ON ts.lecturer_id = a.id AND ts.supervisor_type = 'admin'
+            LEFT JOIN technicians t ON ts.lecturer_id = t.id AND ts.supervisor_type = 'technician'
+            WHERE ts.team_id = ? AND ts.status = 'approved'";
         $supStmt = $conn->prepare($supSql);
         $supStmt->bind_param("i", $team['team_id']);
         $supStmt->execute();
-        $supRow = $supStmt->get_result()->fetch_assoc();
+        $supResult = $supStmt->get_result();
+        while($supRow = $supResult->fetch_assoc()){
+            // Avoid adding the global supervisor twice
+            if($unitLecturerRow && $supRow['supervisor_name'] == $unitLecturerRow['name']){
+                continue;
+            }
+            $supervisors[] = ['name' => $supRow['supervisor_name'], 'type' => 'Secondary Supervisor'];
+        }
         $supStmt->close();
-        $supervisorName = $supRow['supervisor_name'] ?? '';
-    } else {
-        // Fallback: get unit lecturer
-        $unitLecturerSql = "SELECT l.name AS supervisor_name FROM lecturer_units lu JOIN lecturers l ON lu.lecturer_id = l.id WHERE lu.unit_id = ? LIMIT 1";
-        $unitLecturerStmt = $conn->prepare($unitLecturerSql);
-        $unitLecturerStmt->bind_param("i", $team['unit_id']);
-        $unitLecturerStmt->execute();
-        $unitLecturerRow = $unitLecturerStmt->get_result()->fetch_assoc();
-        $unitLecturerStmt->close();
-        $supervisorName = $unitLecturerRow['supervisor_name'] ?? '';
     }
     
     // Fetch semester
@@ -546,7 +566,7 @@ foreach ($teams as $team) {
         'members' => $teamMembers,
         'leader' => $teamLeader,
         'marks' => $existingMarks,
-        'supervisor' => $supRow['supervisor_name'] ?? 'Not assigned',
+        'supervisors' => $supervisors,
         'semester' => $semRow['semester'] ?? 'N/A',
     ];
 }
@@ -2435,7 +2455,7 @@ foreach ($teams as $team) {
             $teamMembers = $td['members'];
             $teamLeader = $td['leader'];
             $existingMarks = $td['marks'];
-            $supervisorName = $td['supervisor'];
+            $supervisors = $td['supervisors'];
             $semester = $td['semester'];
             $teamIndex++;
         ?>
@@ -2490,8 +2510,15 @@ foreach ($teams as $team) {
                         <span class="meta-value"><?= htmlspecialchars($team['assessment_type'] ?: 'General'); ?></span>
                     </div>
                     <div class="team-meta-item">
-                        <span class="meta-label">Supervisor</span>
-                        <span class="meta-value supervisor-name"><?= htmlspecialchars($supervisorName); ?></span>
+                        <span class="meta-label">Supervisors</span>
+                        <?php foreach ($td['supervisors'] as $supervisor): ?>
+                            <span class="meta-value supervisor-name">
+                                <?= htmlspecialchars($supervisor['name']); ?> (<?= htmlspecialchars($supervisor['type']); ?>)
+                            </span>
+                        <?php endforeach; ?>
+                        <?php if (empty($td['supervisors'])): ?>
+                            <span class="meta-value supervisor-name">Not assigned</span>
+                        <?php endif; ?>
                     </div>
                     <div class="team-meta-item">
                         <span class="meta-label">Semester</span>

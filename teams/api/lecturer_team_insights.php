@@ -259,28 +259,44 @@ try {
 
     // Fetch supervisors
     $supervisors = [];
-    $stmt = $conn->prepare("
+
+    // 1. Fetch Global Supervisor (unit lecturer)
+    $unitLecturerSql = "SELECT l.name, l.id FROM lecturer_units lu JOIN lecturers l ON lu.lecturer_id = l.id WHERE lu.unit_id = ? LIMIT 1";
+    $unitLecturerStmt = $conn->prepare($unitLecturerSql);
+    $unitLecturerStmt->bind_param("i", $team['unit_id']);
+    $unitLecturerStmt->execute();
+    $unitLecturerRow = $unitLecturerStmt->get_result()->fetch_assoc();
+    $unitLecturerStmt->close();
+
+    $globalSupervisorId = null;
+    if ($unitLecturerRow) {
+        $supervisors[] = ['name' => $unitLecturerRow['name'], 'type' => 'Global Supervisor', 'id' => $unitLecturerRow['id']];
+        $globalSupervisorId = $unitLecturerRow['id'];
+    }
+
+    // 2. Fetch Secondary Supervisors
+    $supSql = "
         SELECT
             ts.id,
+            ts.lecturer_id,
             ts.supervisor_type,
-            ts.is_primary,
-            ts.status,
             COALESCE(l.name, a.name, t.name) AS supervisor_name
         FROM team_supervisors ts
         LEFT JOIN lecturers l ON ts.lecturer_id = l.id AND ts.supervisor_type = 'lecturer'
         LEFT JOIN admins a ON ts.lecturer_id = a.id AND ts.supervisor_type = 'admin'
         LEFT JOIN technicians t ON ts.lecturer_id = t.id AND ts.supervisor_type = 'technician'
-        WHERE ts.team_id = ?
-    ");
-    if ($stmt) {
-        $stmt->bind_param('i', $teamId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($row = $res->fetch_assoc()) {
-            $supervisors[] = $row;
+        WHERE ts.team_id = ? AND ts.status = 'approved'";
+    $supStmt = $conn->prepare($supSql);
+    $supStmt->bind_param("i", $teamId);
+    $supStmt->execute();
+    $supResult = $supStmt->get_result();
+    while($supRow = $supResult->fetch_assoc()){
+        if($supRow['lecturer_id'] == $globalSupervisorId && $supRow['supervisor_type'] == 'lecturer'){
+            continue;
         }
-        $stmt->close();
+        $supervisors[] = ['name' => $supRow['supervisor_name'], 'type' => 'Secondary Supervisor', 'id' => $supRow['lecturer_id']];
     }
+    $supStmt->close();
 
     $memberList = array_values($members);
 
