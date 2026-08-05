@@ -85,6 +85,7 @@ debugLog("CSRF validation passed.");
 
 // DATABASE & MODELS
 require_once __DIR__ . '/../../config/db.php'; // $conn is mysqli
+require_once __DIR__ . '/../includes/team_access.php';
 require_once __DIR__ . '/../controllers/MemberController.php';
 require_once __DIR__ . '/../models/ActivityLog.php';
 require_once __DIR__ . '/../includes/team_limits.php';

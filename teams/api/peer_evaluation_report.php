@@ -7,7 +7,7 @@ error_reporting(E_ERROR | E_PARSE);
 
 session_start();
 
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician'])) {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician', 'student'])) {
     http_response_code(401);
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -32,17 +32,23 @@ try {
         $format = 'json';
     }
 
-    // Ensure lecturer owns the unit that this team belongs to
+    // Verify access: Team Leader, Class/Group Supervisor, or assigned Lecturer
+    if (!canManageTeam($conn, $teamId, $lecturerId, $_SESSION['user_role'])) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Access denied for this team']);
+        exit;
+    }
+
     $stmt = $conn->prepare("
         SELECT t.id, t.title, t.unit_id, u.name AS unit_name, u.code AS unit_code
         FROM teams t
         JOIN units u ON u.id = t.unit_id
-        JOIN lecturer_units lu ON lu.unit_id = t.unit_id
-        WHERE t.id = ? AND lu.lecturer_id = ?
+        WHERE t.id = ?
         LIMIT 1
     ");
     if (!$stmt) throw new Exception('Failed to prepare team access query: ' . $conn->error);
-    $stmt->bind_param('ii', $teamId, $lecturerId);
+    $stmt->bind_param('i', $teamId);
     $stmt->execute();
     $team = $stmt->get_result()->fetch_assoc();
     $stmt->close();

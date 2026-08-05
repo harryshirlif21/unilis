@@ -3,12 +3,13 @@
 
 session_start();
 
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'technician', 'student'])) {
     http_response_code(401);
     die('Unauthorized access');
 }
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../includes/team_access.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 use Dompdf\Dompdf;
@@ -39,6 +40,11 @@ try {
     $lecturerId = (int) $_SESSION['user_id'];
 
     if ($teamId > 0) {
+        // Verify access: Team Leader, Class/Group Supervisor, or assigned Lecturer
+        if (!canManageTeam($conn, $teamId, $lecturerId, $_SESSION['user_role'])) {
+            throw new Exception('You do not have access to this team');
+        }
+
         $teamSql = "
             SELECT
                 t.id,
@@ -49,39 +55,80 @@ try {
                 u.code AS unit_code
             FROM teams t
             JOIN units u ON t.unit_id = u.id
-            JOIN lecturer_units lu ON lu.unit_id = t.unit_id
-            WHERE t.id = ? AND lu.lecturer_id = ?
+            WHERE t.id = ?
             LIMIT 1
         ";
         $teamStmt = $conn->prepare($teamSql);
         if (!$teamStmt) {
             throw new Exception('Failed to prepare team lookup query: ' . $conn->error);
         }
-        $teamStmt->bind_param('ii', $teamId, $lecturerId);
+        $teamStmt->bind_param('i', $teamId);
         $teamStmt->execute();
         $teams = $teamStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $teamStmt->close();
     } else {
-        $teamSql = "
-            SELECT
-                t.id,
-                t.title AS team_title,
-                t.created_at,
-                t.status,
-                u.name AS unit_name,
-                u.code AS unit_code
-            FROM teams t
-            JOIN units u ON t.unit_id = u.id
-            JOIN lecturer_units lu ON lu.unit_id = t.unit_id
-            WHERE lu.lecturer_id = ?
-            ORDER BY u.code ASC, t.title ASC
-        ";
-        $teamStmt = $conn->prepare($teamSql);
-        if (!$teamStmt) {
-            throw new Exception('Failed to prepare teams query: ' . $conn->error);
+        // No team_id: fetch all teams the user can manage.
+        $userRole = strtolower((string)($_SESSION['user_role'] ?? ''));
+        if ($userRole === 'admin') {
+            $teamSql = "
+                SELECT
+                    t.id,
+                    t.title AS team_title,
+                    t.created_at,
+                    t.status,
+                    u.name AS unit_name,
+                    u.code AS unit_code
+                FROM teams t
+                JOIN units u ON t.unit_id = u.id
+                ORDER BY u.code ASC, t.title ASC
+            ";
+            $teamStmt = $conn->prepare($teamSql);
+            if (!$teamStmt) {
+                throw new Exception('Failed to prepare teams query: ' . $conn->error);
+            }
+            $teamStmt->execute();
+        } else {
+            $teamSql = "
+                SELECT
+                    t.id,
+                    t.title AS team_title,
+                    t.created_at,
+                    t.status,
+                    u.name AS unit_name,
+                    u.code AS unit_code
+                FROM teams t
+                JOIN units u ON t.unit_id = u.id
+                WHERE (
+                    EXISTS (
+                        SELECT 1
+                        FROM lecturer_units lu
+                        WHERE lu.unit_id = t.unit_id
+                          AND lu.lecturer_id = ?
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM team_supervisors ts
+                        WHERE ts.team_id = t.id
+                          AND ts.lecturer_id = ?
+                          AND ts.status = 'approved'
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM team_members tm
+                        WHERE tm.team_id = t.id
+                          AND tm.student_id = ?
+                          AND LOWER(COALESCE(tm.role, '')) = 'leader'
+                    )
+                )
+                ORDER BY u.code ASC, t.title ASC
+            ";
+            $teamStmt = $conn->prepare($teamSql);
+            if (!$teamStmt) {
+                throw new Exception('Failed to prepare teams query: ' . $conn->error);
+            }
+            $teamStmt->bind_param('iii', $lecturerId, $lecturerId, $lecturerId);
+            $teamStmt->execute();
         }
-        $teamStmt->bind_param('i', $lecturerId);
-        $teamStmt->execute();
         $teams = $teamStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $teamStmt->close();
     }

@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role'])) {
 }
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../includes/team_access.php';
 
 try {
     $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;

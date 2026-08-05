@@ -419,101 +419,97 @@ if (isset($_POST['generate_pdf'])) {
                                         <tr>
                                             <th>Title</th>
                                             <th>Deadline</th>
+                                            <th>Assignment File</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody>";
-                    foreach ($unitAssignments as $a) {
-                        $filePath = $a['file_path'] ?? '';
-                        $fullPath = "../assets/uploads/assignments/" . htmlspecialchars($filePath);
+                                    <tbody>
+                                        <?php
+                                        foreach ($unitAssignments as $a) {
+                                            $filePath = $a['file_path'] ?? '';
+                                            $fullPath = "../assets/uploads/assignments/" . htmlspecialchars($filePath);
 
-                        $deadline = new DateTime($a['deadline']);
-                        $passed = $now > $deadline;
-                        $allowLate = (int)($a['allow_late_submission'] ?? 1) === 1;
+                                            $deadline = new DateTime($a['deadline']);
+                                            $passed = $now > $deadline;
+                                            $allowLate = (int)($a['allow_late_submission'] ?? 1) === 1;
 
-                        $submissionQuery = $conn->prepare("
-                            SELECT file_path, is_late, submitted_at
-                            FROM submissions
-                            WHERE assignment_id = ? AND student_id = ?
-                        ");
-                        $submissionQuery->bind_param("ii", $a['id'], $student_id);
-                        $submissionQuery->execute();
-                        $submissionResult = $submissionQuery->get_result()->fetch_assoc();
-                        $submissionQuery->close();
+                                            $submissionQuery = $conn->prepare("
+                                                SELECT file_path, is_late, submitted_at
+                                                FROM submissions
+                                                WHERE assignment_id = ? AND student_id = ?
+                                            ");
+                                            $submissionQuery->bind_param("ii", $a['id'], $student_id);
+                                            $submissionQuery->execute();
+                                            $submissionResult = $submissionQuery->get_result()->fetch_assoc();
+                                            $submissionQuery->close();
 
-                        $alreadySubmitted = !empty($submissionResult['file_path']);
-                        $blockedByDeadline = $passed && !$allowLate;
-                        $disabledAttr = $blockedByDeadline ? "disabled" : "";
+                                            $alreadySubmitted = !empty($submissionResult['file_path']);
+                                            $blockedByDeadline = $passed && !$allowLate;
 
-                        if ($blockedByDeadline) {
-                            $statusLabel = "<span style='color:#991b1b;font-weight:600;'>Closed</span>";
-                        } elseif ($passed) {
-                            $statusLabel = "<span style='color:#b45309;font-weight:600;'>Late submissions allowed</span>";
-                        } else {
-                            $statusLabel = "<span style='color:#166534;'>Open</span>";
-                        }
+                                            // Determine status label
+                                            if ($blockedByDeadline) {
+                                                $statusLabel = "<span style='color:#991b1b;font-weight:600;'>Closed</span>";
+                                            } elseif ($passed) {
+                                                $statusLabel = "<span style='color:#b45309;font-weight:600;'>Late submissions allowed</span>";
+                                            } else {
+                                                $statusLabel = "<span style='color:#166534;'>Open</span>";
+                                            }
+                                            if ($alreadySubmitted && !empty($submissionResult['is_late'])) {
+                                                $statusLabel .= " <small>(submitted late)</small>";
+                                            }
+                                            
+                                            // Prepare file cell
+                                            $fileCell = "<em>No file</em>";
+                                            if (!empty($filePath) && file_exists($fullPath)) {
+                                                $fileCell = "<div class='file-actions'>
+                                                    <a href='$fullPath' target='_blank' class='action-btn view-file-btn'>
+                                                        <i class='fas fa-eye'></i> View
+                                                    </a>
+                                                    <a href='$fullPath' download class='action-btn download-file-btn'>
+                                                        <i class='fas fa-download'></i> Download
+                                                    </a>
+                                                </div>";
+                                            }
 
-                        if ($alreadySubmitted && !empty($submissionResult['is_late'])) {
-                            $statusLabel .= " <small>(submitted late)</small>";
-                        }
+                                            // Build actions cell
+                                            $actions = '';
+                                            if (!$blockedByDeadline) {
+                                                $submitLabel = $alreadySubmitted ? 'Resubmit' : ($passed ? 'Submit (Late)' : 'Submit');
+                                                $actions .= "<form method='POST' enctype='multipart/form-data' action='submit_assignment.php' class='submit-form' style='margin-bottom: 5px;'>
+                                                    <input type='hidden' name='assignment_id' value='{$a['id']}'>
+                                                    <input type='file' name='file' accept='.pdf,.doc,.docx' required>
+                                                    <button type='submit' class='btn-submit'>{$submitLabel}</button>
+                                                </form>";
+                                            }
+                                            
+                                            if ($alreadySubmitted) {
+                                                $submittedFile = "../assets/uploads/submissions/" . htmlspecialchars($submissionResult['file_path']);
+                                                if (file_exists($submittedFile)) {
+                                                    $submittedWhen = !empty($submissionResult['submitted_at']) ? date('d M Y, h:i A', strtotime($submissionResult['submitted_at'])) : '';
+                                                    $actions .= "<div class='submission-status' style='margin-top: 8px;'>
+                                                        <span class='status-label' style='font-size: 0.85em;'>Your Submission " . ($submittedWhen ? " ($submittedWhen)" : '') . ":</span>
+                                                        <a href='$submittedFile' target='_blank' class='action-btn' style='margin-left: 5px;'><i class='fas fa-eye'></i> View</a>
+                                                        <a href='$submittedFile' download class='action-btn'><i class='fas fa-download'></i> Download</a>";
+                                                    $actions .= "</div>";
+                                                }
+                                            }
 
-                        $actions = '';
-                        
-                        // Submit feature first
-                        if (!$blockedByDeadline) {
-                            $submitLabel = $passed ? 'Submit (Late)' : 'Submit Assignment';
-                            $actions .= "<form method='POST' enctype='multipart/form-data' action='submit_assignment.php' class='submit-form'>
-                                <input type='hidden' name='assignment_id' value='{$a['id']}'>
-                                <input type='file' name='file' accept='.pdf,.doc,.docx' required>
-                                <button type='submit' class='btn-submit'>$submitLabel</button>
-                            </form>";
-                        }
+                                            if (empty($actions)) {
+                                                $actions = '<em>No actions available</em>';
+                                            }
 
-                        // File view button if lecturer sent a file
-                        if (!empty($filePath) && file_exists($fullPath)) {
-                            $actions .= "<div class='file-actions'>
-                                <span class='file-label'>Assignment File:</span>
-                                <a href='$fullPath' target='_blank' class='action-btn view-file-btn'>
-                                    <i class='fas fa-eye'></i> View File
-                                </a>
-                                <a href='$fullPath' download class='action-btn download-file-btn'>
-                                    <i class='fas fa-download'></i> Download
-                                </a>
-                            </div>";
-                        }
-
-                        // Show submission status if already submitted
-                        if ($alreadySubmitted) {
-                            $submittedFile = "../assets/uploads/submissions/" . htmlspecialchars($submissionResult['file_path']);
-                            if (file_exists($submittedFile)) {
-                                $submittedWhen = !empty($submissionResult['submitted_at'])
-                                    ? date('d M Y, h:i A', strtotime($submissionResult['submitted_at']))
-                                    : '';
-                                $actions .= "<div class='submission-status'>
-                                    <span class='status-label'>Your Submission" . ($submittedWhen ? " ($submittedWhen)" : '') . ":</span>
-                                    <a href='$submittedFile' target='_blank' class='action-btn'>
-                                        <i class='fas fa-eye'></i> View
-                                    </a>
-                                    <a href='$submittedFile' download class='action-btn'>
-                                        <i class='fas fa-download'></i> Download
-                                    </a>";
-                                if (!$blockedByDeadline) {
-                                    $actions .= "<span class='resubmit-note'><em>You may upload again to replace your submission.</em></span>";
-                                }
-                                $actions .= "</div>";
-                            }
-                        }
-
-                        echo "<tr>
-                                <td>" . htmlspecialchars($a['title']) . "</td>
-                                <td>" . date("d M Y, h:i A", strtotime($a['deadline'])) . "</td>
-                                <td>$statusLabel</td>
-                                <td class='actions-cell'>$actions</td>
-                              </tr>";
-                    }
-
-                    echo "</tbody></table>
+                                            echo "<tr>
+                                                    <td>" . htmlspecialchars($a['title']) . "</td>
+                                                    <td>" . date("d M Y, h:i A", strtotime($a['deadline'])) . "</td>
+                                                    <td>{$fileCell}</td>
+                                                    <td>{$statusLabel}</td>
+                                                    <td class='actions-cell'>{$actions}</td>
+                                                  </tr>";
+                                        }
+                                        ?>
+                                    </tbody>
+                                </table>
                                 </div>
                             </div>
                         </div></div>";
