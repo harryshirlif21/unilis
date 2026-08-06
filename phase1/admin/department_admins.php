@@ -213,6 +213,9 @@ if ($action === 'add_short_course') {
     $duration = trim($_POST['duration'] ?? '');
     $department_id_input = (int)($_POST['department_id'] ?? 0);
     $banner = $_FILES['banner'] ?? null;
+    $pricing = $_POST['pricing'] ?? 'free';
+    $price = (float)($_POST['price'] ?? 0);
+    $payment_methods = $_POST['payment_methods'] ?? [];
     
     if ($name && $code && $duration && $department_id_input) {
         $checkTable = $conn->query("SHOW TABLES LIKE 'public_courses'");
@@ -230,10 +233,26 @@ if ($action === 'add_short_course') {
             // Generate slug from name
             $slug = strtolower(preg_replace('/[^a-z0-9]+/', '-', $name));
             
-            $stmt = $conn->prepare("INSERT INTO public_courses (slug, title, code, summary, description, duration, department_id, cover_image, created_by_lecturer_id, is_published) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
-            $stmt->bind_param('sssssssii', $slug, $name, $code, $description, $description, $duration, $department_id_input, $banner_path, $_SESSION['user_id']);
+            // Ensure payment columns exist
+            $ensureCols = [
+                'is_paid' => "ALTER TABLE public_courses ADD COLUMN is_paid TINYINT(1) NOT NULL DEFAULT 0 AFTER pass_mark",
+                'price' => "ALTER TABLE public_courses ADD COLUMN price DECIMAL(10,2) DEFAULT NULL AFTER is_paid",
+                'payment_methods' => "ALTER TABLE public_courses ADD COLUMN payment_methods VARCHAR(255) DEFAULT NULL AFTER price",
+            ];
+            foreach ($ensureCols as $colName => $alterSql) {
+                $colCheck = $conn->query("SHOW COLUMNS FROM public_courses LIKE '$colName'");
+                if (!$colCheck || $colCheck->num_rows === 0) {
+                    @$conn->query($alterSql);
+                }
+            }
+            
+            $is_paid = $pricing === 'paid' ? 1 : 0;
+            $methods_str = $is_paid ? implode(',', array_map('trim', $payment_methods)) : '';
+            
+            $stmt = $conn->prepare("INSERT INTO public_courses (slug, title, code, summary, description, duration, department_id, cover_image, created_by_lecturer_id, is_published, is_paid, price, payment_methods) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)");
+            $stmt->bind_param('sssssssiiids', $slug, $name, $code, $description, $description, $duration, $department_id_input, $banner_path, $_SESSION['user_id'], $is_paid, $price, $methods_str);
             if ($stmt->execute()) {
-                $message = "Short course added successfully!";
+                $message = "Short course added successfully! " . ($is_paid ? "Price: KSh " . number_format($price, 2) : "Free course");
                 $message_type = 'success';
                 // Mark that short_courses needs to be refreshed
                 $short_courses_refreshed = true;
@@ -890,10 +909,55 @@ if ($department_id) {
                             <label>Banner Image</label>
                             <input type="file" name="banner" accept="image/*">
                         </div>
+                        <div class="form-group">
+                            <label>Course Pricing</label>
+                            <div style="display:flex;gap:12px;margin-top:4px;">
+                                <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
+                                    <input type="radio" name="pricing" value="free" checked id="pricing_free" onchange="togglePricing()"> Free
+                                </label>
+                                <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
+                                    <input type="radio" name="pricing" value="paid" id="pricing_paid" onchange="togglePricing()"> Paid
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-group" id="price_group" style="display:none;">
+                            <label>Price (KSh) *</label>
+                            <input type="number" name="price" min="0" step="0.01" placeholder="e.g. 2000">
+                        </div>
+                        <div class="form-group" id="payment_methods_group" style="display:none;">
+                            <label>Accepted Payment Methods</label>
+                            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;">
+                                    <input type="checkbox" name="payment_methods[]" value="mpesa" checked>
+                                    <i class="fas fa-mobile-alt" style="color:#43b02a;"></i> M-Pesa (STK Push)
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;">
+                                    <input type="checkbox" name="payment_methods[]" value="card">
+                                    <i class="fas fa-credit-card" style="color:#2563eb;"></i> Card (Visa / Mastercard)
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;">
+                                    <input type="checkbox" name="payment_methods[]" value="bank">
+                                    <i class="fas fa-landmark" style="color:#7c3aed;"></i> Bank Transfer
+                                </label>
+                            </div>
+                        </div>
                         <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Short Course</button>
                     </form>
                 </div>
             </div>
+            
+            <script>
+            function togglePricing() {
+                const isPaid = document.getElementById('pricing_paid').checked;
+                document.getElementById('price_group').style.display = isPaid ? '' : 'none';
+                document.getElementById('payment_methods_group').style.display = isPaid ? '' : 'none';
+                if (isPaid) {
+                    document.querySelector('#price_group input[name="price"]').required = true;
+                } else {
+                    document.querySelector('#price_group input[name="price"]').required = false;
+                }
+            }
+            </script>
             
             <!-- Assign Tutor to Short Course -->
             <div class="card">

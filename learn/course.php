@@ -260,6 +260,7 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
     </article>
 <?php endif; ?>
 
+<?php if ($learner !== null): ?>
 <h2 style="font-size:1.15rem; color:var(--ln-ink); margin:0 0 14px;">Course outline</h2>
 
 <?php if (!$modules && !$finals): ?>
@@ -341,6 +342,7 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
             </div>
         <?php endif; ?>
     </div>
+<?php endif; ?>
 <?php endif; ?>
 <?php
 learn_foot();

@@ -92,7 +92,9 @@ studio_head('My open courses');
         </p>
     </div>
     <div class="st-actions">
-        <a class="st-btn st-btn-primary" href="#new-course"><i class="fas fa-plus"></i> New course</a>
+        <span class="st-chip st-chip-info">
+            <i class="fas fa-user-graduate"></i> <?= htmlspecialchars($actor['name'] ?? 'Lecturer') ?>
+        </span>
     </div>
 </div>
 
@@ -165,66 +167,5 @@ studio_head('My open courses');
     </div>
 <?php endif; ?>
 
-<!-- New Course Form -->
-<div class="st-card" id="new-course">
-    <h2>Create a new open course</h2>
-    <p class="st-sub">
-        Everything here can be changed later. The public URL is generated from the title
-        and stops following it once the course is published, so bookmarks keep working.
-    </p>
-
-    <form method="post" style="margin-top:16px;">
-        <input type="hidden" name="csrf_token" value="<?= studio_e(catalogue_csrf_token()) ?>">
-
-        <div class="st-field">
-            <label for="title">Title</label>
-            <input id="title" name="title" type="text" required maxlength="200"
-                   placeholder="e.g. Introduction to Cyber Hygiene">
-        </div>
-
-        <div class="st-field">
-            <label for="summary">Summary</label>
-            <input id="summary" name="summary" type="text" maxlength="400"
-                   placeholder="One line for the catalogue card">
-        </div>
-
-        <div class="st-field">
-            <label for="description">Description</label>
-            <textarea id="description" name="description" rows="3"
-                      placeholder="What the course covers and who it is for."></textarea>
-        </div>
-
-        <div class="st-row">
-            <div class="st-field">
-                <label for="level">Level</label>
-                <select id="level" name="level">
-                    <option value="beginner">Beginner</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                </select>
-            </div>
-            <div class="st-field">
-                <label for="estimated_hours">Estimated hours</label>
-                <input id="estimated_hours" name="estimated_hours" type="number" step="0.5" min="0.5"
-                       placeholder="e.g. 6">
-            </div>
-            <div class="st-field">
-                <label for="pass_mark">Pass mark (%)</label>
-                <input id="pass_mark" name="pass_mark" type="number" min="1" max="100" value="70" required>
-                <span class="st-hint">Each assessment must reach this to count as passed.</span>
-            </div>
-        </div>
-
-        <label class="st-check">
-            <input type="checkbox" name="certificate_enabled" value="1" checked>
-            <div>
-                Award a certificate on completion
-                <span>Issued once every lesson is complete and every assessment passed.</span>
-            </div>
-        </label>
-
-        <button class="st-btn st-btn-primary" type="submit"><i class="fas fa-plus"></i> Create draft</button>
-    </form>
-</div>
 <?php
 studio_foot();

@@ -60,8 +60,17 @@ learn_head(['title' => 'Open courses', 'learner' => $learner]);
             <?php foreach ($courses as $course): ?>
                 <a class="ln-course" href="/learn/course.php?c=<?= learn_e($course['slug']) ?>">
                     <div class="ln-course-cover">
-                        <?php if (!empty($course['cover_image'])): ?>
-                            <img src="<?= learn_e($course['cover_image']) ?>" alt="">
+                        <?php if (!empty($course['cover_image']) && $course['cover_image'] !== '0'): ?>
+                            <?php
+                            // Normalize the image path: stored as relative "uploads/..." but
+                            // the learn pages live under /learn/, so prefix with / to resolve
+                            // from the site root.
+                            $coverPath = $course['cover_image'];
+                            if (strpos($coverPath, 'http') !== 0 && strpos($coverPath, '/') !== 0) {
+                                $coverPath = '/' . $coverPath;
+                            }
+                            ?>
+                            <img src="<?= learn_e($coverPath) ?>" alt="">
                         <?php else: ?>
                             <span class="material-symbols-rounded">school</span>
                         <?php endif; ?>

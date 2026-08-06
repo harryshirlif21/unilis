@@ -158,7 +158,8 @@ if ($lesson_id) {
         if ($mode === 'short_course') {
             // Short course: verify via public_course_lessons -> public_course_modules -> short_course_tutors
             $stmt = $conn->prepare("
-                SELECT l.id, l.title, l.module_id, m.title AS module_title, m.course_id
+                SELECT l.id, l.title, l.module_id, l.content_html, l.video_url, l.attachment_path,
+                       m.title AS module_title, m.course_id
                 FROM public_course_lessons l
                 JOIN public_course_modules m ON l.module_id = m.id
                 JOIN short_course_tutors sct ON sct.short_course_id = m.course_id
@@ -168,6 +169,17 @@ if ($lesson_id) {
             $stmt->execute();
             $current_lesson = $stmt->get_result()->fetch_assoc();
             $stmt->close();
+
+            // For short courses, content is stored in public_course_lessons.content_html
+            // Convert it to a single text block so the editor can display it
+            if ($current_lesson && !empty($current_lesson['content_html'])) {
+                $content_blocks[] = [
+                    'id' => 0,
+                    'block_type' => 'text',
+                    'content' => $current_lesson['content_html'],
+                    'position' => 0,
+                ];
+            }
         } else {
             // ICLM: ownership verified via lecturer_units
             $stmt = $conn->prepare("
@@ -182,20 +194,20 @@ if ($lesson_id) {
             $stmt->execute();
             $current_lesson = $stmt->get_result()->fetch_assoc();
             $stmt->close();
-        }
 
-        if ($current_lesson) {
-            $stmt = $conn->prepare("
-                SELECT id, block_type, content, position
-                FROM lesson_content_blocks
-                WHERE lesson_id = ?
-                ORDER BY position ASC, id ASC
-            ");
-            $stmt->bind_param("i", $lesson_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            while ($row = $result->fetch_assoc()) $content_blocks[] = $row;
-            $stmt->close();
+            if ($current_lesson) {
+                $stmt = $conn->prepare("
+                    SELECT id, block_type, content, position
+                    FROM lesson_content_blocks
+                    WHERE lesson_id = ?
+                    ORDER BY position ASC, id ASC
+                ");
+                $stmt->bind_param("i", $lesson_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) $content_blocks[] = $row;
+                $stmt->close();
+            }
         }
     } catch (mysqli_sql_exception $e) {
         error_log("lesson_editor blocks: " . $e->getMessage());
@@ -723,6 +735,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 // ─────────────────────────────────────────────────────────
 const LESSON_ID = <?= $lesson_id ?: 'null' ?>;
 const UNIT_ID   = <?= $unit_id   ?: 'null' ?>;
+const MODE      = '<?= $mode ?>';
+const COURSE_ID = <?= $course_id ?: 'null' ?>;
 
 // Existing blocks from PHP (to populate on load)
 const EXISTING_BLOCKS = <?= json_encode($content_blocks) ?>;
@@ -1339,11 +1353,12 @@ function saveBlock(localId) {
     const cards = [...document.querySelectorAll('#blocks-container .block-card')];
     fd.append('position', cards.findIndex(c => parseInt(c.dataset.lid) === localId));
 
-    fetch('ajax/save_content_block.php', { method: 'POST', body: fd })
+    const endpoint = MODE === 'short_course' ? 'ajax/save_short_course_content.php' : 'ajax/save_content_block.php';
+    fetch(endpoint, { method: 'POST', body: fd })
         .then(r => r.json())
         .then(d => {
             if (d.success) {
-                b.dbId    = d.block_id;
+                b.dbId    = d.block_id || 0;
                 b.content = content;
                 b.saved   = true;
                 setStatus(localId, 'saved');
@@ -1425,6 +1440,26 @@ function deleteBlock(localId) {
         return;
     }
 
+    if (MODE === 'short_course') {
+        // For short courses, clearing content means setting content_html to empty
+        const fd = new FormData();
+        fd.append('lesson_id', LESSON_ID);
+        fd.append('block_type', 'text');
+        fd.append('content', '');
+        fetch('ajax/save_short_course_content.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    blocks = blocks.filter(b => b.localId !== localId);
+                    card?.remove();
+                    updateBlockCount();
+                    toast('Content cleared', 'success');
+                } else toast(d.message, 'error');
+            })
+            .catch(() => toast('Delete failed', 'error'));
+        return;
+    }
+
     const fd = new FormData();
     fd.append('block_id', b.dbId);
     fd.append('lesson_id', LESSON_ID);
@@ -1446,6 +1481,9 @@ function deleteBlock(localId) {
 // REORDER (drag-drop saves positions)
 // ─────────────────────────────────────────────────────────
 function saveBlockOrder() {
+    // Short courses store content as a single content_html field, so reordering is not applicable
+    if (MODE === 'short_course') return;
+
     const ids = [...document.querySelectorAll('#blocks-container .block-card')]
                     .map(c => {
                         const lid = parseInt(c.dataset.lid);
