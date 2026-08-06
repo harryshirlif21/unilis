@@ -1,12 +1,21 @@
 <?php
 require_once '../config/db.php';
 require_once '../includes/ensure_assignment_submission_schema.php';
-require_once '../vendor/autoload.php'; // Dompdf autoload
+
+// Load Dompdf only if available (avoids fatal error on servers without vendor/)
+if (file_exists('../vendor/autoload.php')) {
+    require_once '../vendor/autoload.php';
+}
 use Dompdf\Dompdf;
 
 session_start();
 
-ensure_assignment_submission_schema($conn);
+// Ensure late-submission schema exists, but don't crash the page if it fails
+try {
+    ensure_assignment_submission_schema($conn);
+} catch (Throwable $e) {
+    error_log('ensure_assignment_submission_schema failed: ' . $e->getMessage());
+}
 
 // Redirect if not logged in or not a student
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
@@ -203,54 +212,58 @@ if (isset($_POST['generate_pdf'])) {
             </thead>
             <tbody id="interactive-rows">
             <?php
-            $query = $conn->prepare("
-                SELECT 
-                    a.id, 
-                    a.title, 
-                    a.due_date, 
-                    u.name AS unit_name,
-                    u.id   AS unit_id
-                FROM interactive_assignments a
-                JOIN units u ON a.unit_id = u.id
-                WHERE u.course_id = ? 
-                  AND u.year = ? 
-                  AND a.due_date >= NOW()
-                ORDER BY a.due_date ASC
-            ");
-            $query->bind_param("ii", $course_id, $year_of_study);
-            $query->execute();
-            $result = $query->get_result();
+            try {
+                $query = $conn->prepare("
+                    SELECT 
+                        a.id, 
+                        a.title, 
+                        a.due_date, 
+                        u.name AS unit_name,
+                        u.id   AS unit_id
+                    FROM interactive_assignments a
+                    JOIN units u ON a.unit_id = u.id
+                    WHERE u.course_id = ? 
+                      AND u.year = ? 
+                      AND a.due_date >= NOW()
+                    ORDER BY a.due_date ASC
+                ");
+                $query->bind_param("ii", $course_id, $year_of_study);
+                $query->execute();
+                $result = $query->get_result();
 
-            if ($result->num_rows === 0) {
-                echo "<tr><td colspan='4' class='text-center'>No active interactive assignments or CATs at the moment.</td></tr>";
-            } else {
-                while ($row = $result->fetch_assoc()) {
+                if ($result->num_rows === 0) {
+                    echo "<tr><td colspan='4' class='text-center'>No active interactive assignments or CATs at the moment.</td></tr>";
+                } else {
+                    while ($row = $result->fetch_assoc()) {
 
-                    // Check if already submitted
-                    $check = $conn->prepare("
-                        SELECT 1 
-                        FROM interactive_submissions 
-                        WHERE assignment_id = ? AND student_id = ?
-                    ");
-                    $check->bind_param("ii", $row['id'], $student_id);
-                    $check->execute();
-                    $submitted = $check->get_result()->num_rows > 0;
-                    $check->close();
+                        // Check if already submitted
+                        $check = $conn->prepare("
+                            SELECT 1 
+                            FROM interactive_submissions 
+                            WHERE assignment_id = ? AND student_id = ?
+                        ");
+                        $check->bind_param("ii", $row['id'], $student_id);
+                        $check->execute();
+                        $submitted = $check->get_result()->num_rows > 0;
+                        $check->close();
 
-                    $action_html = $submitted
-                        ? '<span class="submitted">Submitted</span>'
-                        : '<a href="take_interactive_assignment.php?id=' . $row['id'] . '" class="action-btn">Answer MCQs</a>';
+                        $action_html = $submitted
+                            ? '<span class="submitted">Submitted</span>'
+                            : '<a href="take_interactive_assignment.php?id=' . $row['id'] . '" class="action-btn">Answer MCQs</a>';
 
-                    echo "
-                    <tr data-unit=\"{$row['unit_id']}\">
-                        <td>" . htmlspecialchars($row['unit_name']) . "</td>
-                        <td>" . htmlspecialchars($row['title']) . "</td>
-                        <td>" . date('d M Y, h:i A', strtotime($row['due_date'])) . "</td>
-                        <td>$action_html</td>
-                    </tr>";
+                        echo "
+                        <tr data-unit=\"{$row['unit_id']}\">
+                            <td>" . htmlspecialchars($row['unit_name']) . "</td>
+                            <td>" . htmlspecialchars($row['title']) . "</td>
+                            <td>" . date('d M Y, h:i A', strtotime($row['due_date'])) . "</td>
+                            <td>$action_html</td>
+                        </tr>";
+                    }
                 }
+                $query->close();
+            } catch (mysqli_sql_exception $e) {
+                echo "<tr><td colspan='4' class='text-center'>Interactive assignments are not available at the moment.</td></tr>";
             }
-            $query->close();
             ?>
             </tbody>
         </table>
@@ -424,9 +437,9 @@ if (isset($_POST['generate_pdf'])) {
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        <?php
-                                        foreach ($unitAssignments as $a) {
+                                    <tbody>";
+
+foreach ($unitAssignments as $a) {
                                             $filePath = $a['file_path'] ?? '';
                                             $fullPath = "../assets/uploads/assignments/" . htmlspecialchars($filePath);
 
@@ -507,8 +520,8 @@ if (isset($_POST['generate_pdf'])) {
                                                     <td class='actions-cell'>{$actions}</td>
                                                   </tr>";
                                         }
-                                        ?>
-                                    </tbody>
+
+echo "</tbody>
                                 </table>
                                 </div>
                             </div>
