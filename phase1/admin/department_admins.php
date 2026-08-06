@@ -459,26 +459,24 @@ if ($department_id) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0a0e1a;
-            --bg2: #0f1524;
-            --surface: #151b2e;
-            --surface2: #1c2440;
-            --surface3: #232e52;
-            --border: #2a3558;
-            --accent: #7c5cff;
-            --accent2: #00d4ff;
-            --accent3: #ff6b9d;
-            --success: #22c55e;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --surface2: #f1f5f9;
+            --border: #e2e8f0;
+            --accent: #6366f1;
+            --accent2: #8b5cf6;
+            --accent3: #06b6d4;
+            --success: #10b981;
             --danger: #ef4444;
             --warning: #f59e0b;
-            --text: #e8ecf4;
-            --text-muted: #8b93a7;
-            --text-dim: #5a6275;
-            --radius: 16px;
-            --radius-sm: 10px;
-            --shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-            --glow: 0 0 20px rgba(124, 92, 255, 0.2);
-            --tr: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --text-dim: #94a3b8;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+            --shadow-lg: 0 10px 30px rgba(0,0,0,0.08);
+            --tr: 0.15s ease;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -488,338 +486,425 @@ if ($department_id) {
             background: var(--bg);
             min-height: 100vh;
             color: var(--text);
-            position: relative;
-            overflow-x: hidden;
         }
 
-        /* Animated gradient background */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: -50%;
-            background: radial-gradient(ellipse at 20% 20%, rgba(124, 92, 255, 0.15) 0%, transparent 50%),
-                        radial-gradient(ellipse at 80% 80%, rgba(0, 212, 255, 0.12) 0%, transparent 50%),
-                        radial-gradient(ellipse at 50% 50%, rgba(255, 107, 157, 0.08) 0%, transparent 60%);
-            z-index: -1;
-            animation: bgFloat 20s ease-in-out infinite alternate;
-        }
-
-        @keyframes bgFloat {
-            0% { transform: translate(0, 0) rotate(0deg); }
-            100% { transform: translate(5%, 3%) rotate(3deg); }
-        }
-
-        /* Grid overlay */
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image: linear-gradient(rgba(124, 92, 255, 0.03) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(124, 92, 255, 0.03) 1px, transparent 1px);
-            background-size: 40px 40px;
-            z-index: -1;
-            pointer-events: none;
-        }
-
-        /* ── HEADER ── */
-        .glass-header {
-            background: rgba(15, 21, 36, 0.8);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+        /* ── TOP NAV ── */
+        .topbar {
+            background: var(--surface);
             border-bottom: 1px solid var(--border);
-            padding: 18px 40px;
+            padding: 0 32px;
+            height: 64px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
             position: sticky;
             top: 0;
             z-index: 100;
         }
 
-        .user-info { display: flex; align-items: center; gap: 16px; }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--text);
+        }
 
-        .user-avatar {
-            width: 46px;
-            height: 46px;
-            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
-            border-radius: 14px;
+        .brand-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 20px;
-            font-weight: 800;
-            box-shadow: var(--glow);
+            font-size: 16px;
         }
 
-        .user-details h2 {
-            color: var(--text);
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 2px;
-            letter-spacing: -0.02em;
-        }
-
-        .user-details p {
+        .brand small {
+            font-weight: 400;
             color: var(--text-muted);
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-chip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
         }
 
         .logout-btn {
-            background: rgba(124, 92, 255, 0.1);
-            color: var(--accent2);
-            border: 1px solid rgba(0, 212, 255, 0.25);
-            padding: 10px 22px;
+            background: var(--surface2);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
             border-radius: var(--radius-sm);
             cursor: pointer;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 500;
             transition: var(--tr);
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .logout-btn:hover {
-            background: rgba(0, 212, 255, 0.15);
-            border-color: var(--accent2);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.15);
+            background: #fee2e2;
+            color: var(--danger);
+            border-color: #fecaca;
         }
 
-        /* ── CONTAINER ── */
-        .container {
-            max-width: 1440px;
-            margin: 0 auto;
-            padding: 36px 40px;
+        /* ── LAYOUT ── */
+        .layout {
+            display: flex;
+            min-height: calc(100vh - 64px);
+        }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            width: 240px;
+            min-width: 240px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sidebar-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            padding: 12px 12px 6px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--tr);
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .nav-item i {
+            width: 18px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .nav-item:hover {
+            background: var(--surface2);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: rgba(99, 102, 241, 0.08);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .nav-item .count {
+            margin-left: auto;
+            background: var(--surface2);
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .nav-item.active .count {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent);
+        }
+
+        /* ── MAIN ── */
+        .main {
+            flex: 1;
+            padding: 28px 32px;
+            overflow-y: auto;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+
+        .page-header p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
         }
 
         /* ── MESSAGE ── */
         .message {
-            padding: 14px 20px;
+            padding: 12px 16px;
             border-radius: var(--radius-sm);
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             font-size: 13px;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 12px;
-            animation: slideIn 0.3s ease;
-            backdrop-filter: blur(12px);
+            gap: 10px;
+            animation: slideIn 0.25s ease;
         }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateY(-10px); }
+            from { opacity: 0; transform: translateY(-8px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .message.success { background: rgba(34, 197, 94, 0.1); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.25); }
-        .message.error { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.25); }
-        .message.warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.25); }
+        .message.success { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .message.warning { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
 
-        /* ── STATS ROW ── */
+        /* ── STATS ── */
         .stats-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 16px;
             margin-bottom: 28px;
         }
 
         .stat-card {
-            background: linear-gradient(145deg, rgba(21, 27, 46, 0.9), rgba(15, 21, 36, 0.9));
-            backdrop-filter: blur(20px);
+            background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 22px 18px;
-            text-align: center;
+            padding: 20px;
             box-shadow: var(--shadow);
             transition: var(--tr);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
-            opacity: 0.6;
         }
 
         .stat-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(124, 92, 255, 0.4);
-            box-shadow: 0 12px 40px rgba(124, 92, 255, 0.15);
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
         }
 
-        .stat-card i {
-            font-size: 24px;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .stat-card .stat-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            margin-bottom: 12px;
         }
+
+        .stat-card .stat-icon.purple { background: rgba(99,102,241,0.1); color: var(--accent); }
+        .stat-card .stat-icon.blue { background: rgba(6,182,212,0.1); color: var(--accent3); }
+        .stat-card .stat-icon.green { background: rgba(16,185,129,0.1); color: var(--success); }
+        .stat-card .stat-icon.orange { background: rgba(245,158,11,0.1); color: var(--warning); }
+        .stat-card .stat-icon.red { background: rgba(239,68,68,0.1); color: var(--danger); }
 
         .stat-card .number {
-            font-size: 30px;
-            font-weight: 800;
+            font-size: 24px;
+            font-weight: 700;
             color: var(--text);
-            letter-spacing: -0.03em;
+            letter-spacing: -0.02em;
         }
 
         .stat-card .label {
-            font-size: 11px;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-top: 4px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
         }
 
-        /* ── GRID ── */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-            gap: 20px;
+        /* ── PANELS ── */
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         /* ── CARDS ── */
         .card {
-            background: linear-gradient(145deg, rgba(21, 27, 46, 0.9), rgba(15, 21, 36, 0.85));
-            backdrop-filter: blur(20px);
+            background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius);
             box-shadow: var(--shadow);
+            margin-bottom: 20px;
             overflow: hidden;
-            transition: var(--tr);
-            position: relative;
-        }
-
-        .card:hover {
-            transform: translateY(-3px);
-            border-color: rgba(124, 92, 255, 0.35);
-            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 30px rgba(124, 92, 255, 0.08);
         }
 
         .card-header {
-            padding: 20px 24px;
+            padding: 16px 20px;
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 14px;
-            background: rgba(28, 36, 64, 0.5);
-        }
-
-        .card-header i {
-            font-size: 20px;
-            padding: 10px;
-            border-radius: var(--radius-sm);
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            color: white;
-            box-shadow: var(--glow);
+            gap: 10px;
         }
 
         .card-header h3 {
-            font-size: 16px;
-            font-weight: 700;
+            font-size: 14px;
+            font-weight: 600;
             color: var(--text);
-            letter-spacing: -0.01em;
         }
 
-        .card-body { padding: 24px; }
+        .card-header .card-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            background: rgba(99,102,241,0.1);
+            color: var(--accent);
+        }
+
+        .card-body {
+            padding: 20px;
+        }
 
         /* ── FORMS ── */
-        .form-group { margin-bottom: 16px; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
 
         .form-group label {
             display: block;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 500;
             color: var(--text-muted);
-            margin-bottom: 8px;
-            letter-spacing: 0.02em;
+            margin-bottom: 6px;
         }
 
         .form-group input,
         .form-group select,
         .form-group textarea {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 14px;
             background: var(--surface2);
             border: 1px solid var(--border);
             border-radius: var(--radius-sm);
-            font-size: 14px;
+            font-size: 13px;
             font-family: 'Inter', sans-serif;
             color: var(--text);
             transition: var(--tr);
             outline: none;
         }
 
-        .form-group input::placeholder,
-        .form-group textarea::placeholder {
-            color: var(--text-dim);
-        }
-
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15);
+            background: var(--surface);
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
         }
 
         .form-group select {
             appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b93a7' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 14px center;
-            padding-right: 36px;
+            background-position: right 12px center;
+            padding-right: 32px;
         }
 
         /* ── BUTTONS ── */
         .btn {
-            padding: 12px 24px;
+            padding: 10px 20px;
             border: none;
             border-radius: var(--radius-sm);
             cursor: pointer;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 500;
             transition: var(--tr);
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             font-family: 'Inter', sans-serif;
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+            background: var(--accent);
             color: white;
-            box-shadow: 0 4px 16px rgba(124, 92, 255, 0.3);
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(124, 92, 255, 0.4);
+            background: #4f46e5;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99,102,241,0.3);
         }
 
         .btn-danger {
-            background: rgba(239, 68, 68, 0.15);
+            background: #fef2f2;
             color: var(--danger);
-            border: 1px solid rgba(239, 68, 68, 0.3);
+            border: 1px solid #fecaca;
         }
 
         .btn-danger:hover {
-            background: rgba(239, 68, 68, 0.25);
+            background: #fee2e2;
         }
 
         .btn-sm {
-            padding: 7px 14px;
+            padding: 6px 12px;
             font-size: 12px;
         }
 
         /* ── TABLE ── */
+        .table-wrap {
+            overflow-x: auto;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -827,25 +912,29 @@ if ($department_id) {
         }
 
         th {
-            background: rgba(28, 36, 64, 0.5);
-            padding: 14px 16px;
+            background: var(--surface2);
+            padding: 12px 16px;
             text-align: left;
             font-size: 11px;
-            font-weight: 700;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.05em;
             color: var(--text-muted);
             border-bottom: 1px solid var(--border);
         }
 
         td {
-            padding: 14px 16px;
-            border-bottom: 1px solid rgba(42, 53, 88, 0.5);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
             color: var(--text);
         }
 
+        tr:last-child td {
+            border-bottom: none;
+        }
+
         tr:hover td {
-            background: rgba(124, 92, 255, 0.04);
+            background: #f8fafc;
         }
 
         .empty-state {
@@ -855,619 +944,751 @@ if ($department_id) {
         }
 
         .empty-state i {
-            font-size: 40px;
-            margin-bottom: 12px;
+            font-size: 32px;
+            margin-bottom: 10px;
             opacity: 0.4;
         }
 
-        .banner-preview {
-            width: 100%;
-            height: 120px;
-            object-fit: cover;
-            border-radius: var(--radius-sm);
-            margin-top: 12px;
+        /* ── PRICING TOGGLE ── */
+        .pricing-options {
+            display: flex;
+            gap: 16px;
+            margin-top: 4px;
         }
 
-        /* ── SCROLLBAR ── */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg); }
-        ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+        .pricing-options label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .payment-methods {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .payment-methods label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text);
+        }
 
         /* ── RESPONSIVE ── */
         @media (max-width: 768px) {
-            .container { padding: 20px; }
-            .glass-header { padding: 14px 20px; }
+            .layout { flex-direction: column; }
+            .sidebar { width: 100%; min-width: unset; flex-direction: row; flex-wrap: wrap; padding: 12px; }
+            .sidebar-label { display: none; }
+            .nav-item { width: auto; }
+            .main { padding: 16px; }
+            .topbar { padding: 0 16px; }
             .stats-row { grid-template-columns: repeat(2, 1fr); }
-            .dashboard-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <div class="glass-header">
-        <div class="user-info">
-            <div class="user-avatar"><?= substr($user_name, 0, 1) ?></div>
-            <div class="user-details">
-                <h2><?= htmlspecialchars($user_name) ?></h2>
-                <p><?= htmlspecialchars($dept_name) ?> • Department Admin</p>
-            </div>
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon"><i class="fas fa-graduation-cap"></i></div>
+            UNILIS <small>Department Admin</small>
         </div>
-        <a href="../../logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        <div class="topbar-right">
+            <div class="user-chip">
+                <div class="user-avatar"><?= substr($user_name, 0, 1) ?></div>
+                <span><?= htmlspecialchars($user_name) ?></span>
+            </div>
+            <a href="../../logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-label">Overview</div>
+            <button class="nav-item active" data-panel="overview" onclick="switchPanel('overview', this)">
+                <i class="fas fa-th-large"></i> Overview
+            </button>
+
+            <div class="sidebar-label">Add</div>
+            <button class="nav-item" data-panel="lecturers" onclick="switchPanel('lecturers', this)">
+                <i class="fas fa-chalkboard-teacher"></i> Lecturers
+            </button>
+            <button class="nav-item" data-panel="courses" onclick="switchPanel('courses', this)">
+                <i class="fas fa-book"></i> Courses
+            </button>
+            <button class="nav-item" data-panel="units" onclick="switchPanel('units', this)">
+                <i class="fas fa-cubes"></i> Units
+            </button>
+            <button class="nav-item" data-panel="short-courses" onclick="switchPanel('short-courses', this)">
+                <i class="fas fa-graduation-cap"></i> Short Courses
+            </button>
+            <button class="nav-item" data-panel="technicians" onclick="switchPanel('technicians', this)">
+                <i class="fas fa-tools"></i> Technicians
+            </button>
+
+            <div class="sidebar-label">Manage</div>
+            <button class="nav-item" data-panel="tutors" onclick="switchPanel('tutors', this)">
+                <i class="fas fa-user-plus"></i> Assign Tutors
+            </button>
+        </aside>
+
+        <main class="main">
+            <?php if ($message): ?>
+                <div class="message <?= $message_type ?>">
+                    <i class="fas fa-<?= $message_type === 'success' ? 'check-circle' : 'exclamation-circle' ?>"></i>
+                    <?= htmlspecialchars($message) ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- OVERVIEW -->
+            <div class="panel active" id="panel-overview">
+                <div class="page-header">
+                    <h1>Overview</h1>
+                    <p>Manage your department's academic resources</p>
+                </div>
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-chalkboard-teacher"></i></div>
+                        <div class="number"><?= $lecturers ? $lecturers->num_rows : 0 ?></div>
+                        <div class="label">Lecturers</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-book"></i></div>
+                        <div class="number"><?= $courses ? $courses->num_rows : 0 ?></div>
+                        <div class="label">Courses</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-cubes"></i></div>
+                        <div class="number"><?= $units ? $units->num_rows : 0 ?></div>
+                        <div class="label">Units</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class="fas fa-graduation-cap"></i></div>
+                        <div class="number"><?= $short_courses ? $short_courses->num_rows : 0 ?></div>
+                        <div class="label">Short Courses</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red"><i class="fas fa-tools"></i></div>
+                        <div class="number"><?= $technicians ? $technicians->num_rows : 0 ?></div>
+                        <div class="label">Technicians</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-chalkboard-teacher"></i></div>
+                        <h3>Lecturers</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Staff ID</th></tr></thead>
+                                <tbody>
+                                    <?php if ($lecturers && $lecturers->num_rows > 0): ?>
+                                        <?php while ($l = $lecturers->fetch_assoc()): ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($l['name']) ?></td>
+                                                <td><?= htmlspecialchars($l['email']) ?></td>
+                                                <td><?= htmlspecialchars($l['phone'] ?? '—') ?></td>
+                                                <td><?= htmlspecialchars($l['staff_id'] ?? '—') ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr><td colspan="4" class="empty-state"><i class="fas fa-chalkboard-teacher"></i><p>No lecturers added yet</p></td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-graduation-cap"></i></div>
+                        <h3>Short Courses</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Name</th><th>Tutors</th><th>Banner</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    <?php if ($short_courses && $short_courses->num_rows > 0): ?>
+                                        <?php
+                                        $short_courses->data_seek(0);
+                                        while ($sc = $short_courses->fetch_assoc()):
+                                            $tutors = [];
+                                            if ($short_course_tutors) {
+                                                $short_course_tutors->data_seek(0);
+                                                while ($t = $short_course_tutors->fetch_assoc()) {
+                                                    if ($t['short_course_id'] == $sc['id']) $tutors[] = $t['lecturer_name'];
+                                                }
+                                            }
+                                        ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($sc['name']) ?></td>
+                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : '—' ?></td>
+                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : '—' ?></td>
+                                                <td>
+                                                    <form method="POST" onsubmit="return confirm('Delete this short course?')" style="display:inline;">
+                                                        <input type="hidden" name="action" value="delete_short_course">
+                                                        <input type="hidden" name="id" value="<?= $sc['id'] ?>">
+                                                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr><td colspan="4" class="empty-state"><i class="fas fa-graduation-cap"></i><p>No short courses added yet</p></td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LECTURERS -->
+            <div class="panel" id="panel-lecturers">
+                <div class="page-header">
+                    <h1>Lecturers</h1>
+                    <p>Add and manage department lecturers</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-user-plus"></i></div>
+                        <h3>Add Lecturer</h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" enctype="multipart/form-data">
+                            <input type="hidden" name="action" value="add_lecturer">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Name *</label>
+                                    <input type="text" name="name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Email *</label>
+                                    <input type="email" name="email" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Password *</label>
+                                    <input type="password" name="password" required minlength="6">
+                                </div>
+                                <div class="form-group">
+                                    <label>Phone</label>
+                                    <input type="text" name="phone">
+                                </div>
+                                <div class="form-group">
+                                    <label>Staff ID</label>
+                                    <input type="text" name="staff_id">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Lecturer</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-list"></i></div>
+                        <h3>All Lecturers</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Staff ID</th></tr></thead>
+                                <tbody>
+                                    <?php if ($lecturers && $lecturers->num_rows > 0): ?>
+                                        <?php while ($l = $lecturers->fetch_assoc()): ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($l['name']) ?></td>
+                                                <td><?= htmlspecialchars($l['email']) ?></td>
+                                                <td><?= htmlspecialchars($l['phone'] ?? '—') ?></td>
+                                                <td><?= htmlspecialchars($l['staff_id'] ?? '—') ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr><td colspan="4" class="empty-state"><i class="fas fa-chalkboard-teacher"></i><p>No lecturers added yet</p></td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COURSES -->
+            <div class="panel" id="panel-courses">
+                <div class="page-header">
+                    <h1>Courses</h1>
+                    <p>Add and manage department courses</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-plus"></i></div>
+                        <h3>Add Course</h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST">
+                            <input type="hidden" name="action" value="add_course">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Course Name *</label>
+                                    <input type="text" name="name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Course Code</label>
+                                    <input type="text" name="code">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea name="description" rows="3"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Course</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-list"></i></div>
+                        <h3>All Courses</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Name</th><th>Code</th></tr></thead>
+                                <tbody>
+                                    <?php if ($courses && $courses->num_rows > 0): ?>
+                                        <?php while ($c = $courses->fetch_assoc()): ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($c['name']) ?></td>
+                                                <td><?= htmlspecialchars($c['code'] ?? '—') ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr><td colspan="2" class="empty-state"><i class="fas fa-book"></i><p>No courses added yet</p></td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- UNITS -->
+            <div class="panel" id="panel-units">
+                <div class="page-header">
+                    <h1>Units</h1>
+                    <p>Add and manage course units</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-plus"></i></div>
+                        <h3>Add Unit</h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST">
+                            <input type="hidden" name="action" value="add_unit">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Unit Name *</label>
+                                    <input type="text" name="name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Unit Code *</label>
+                                    <input type="text" name="code" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Course *</label>
+                                    <select name="course_id" required>
+                                        <option value="">-- Select Course --</option>
+                                        <?php if ($courses): while ($c = $courses->fetch_assoc()): ?>
+                                            <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?><?= isset($c['code']) && $c['code'] ? ' (' . htmlspecialchars($c['code']) . ')' : '' ?></option>
+                                        <?php endwhile; endif; ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Unit</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-list"></i></div>
+                        <h3>All Units</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Name</th><th>Code</th><th>Course</th></tr></thead>
+                                <tbody>
+                                    <?php if ($units && $units->num_rows > 0): ?>
+                                        <?php while ($u = $units->fetch_assoc()): ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($u['name']) ?></td>
+                                                <td><?= htmlspecialchars($u['code']) ?></td>
+                                                <td><?= htmlspecialchars($u['course_name']) ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr><td colspan="3" class="empty-state"><i class="fas fa-cubes"></i><p>No units added yet</p></td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SHORT COURSES -->
+            <div class="panel" id="panel-short-courses">
+                <div class="page-header">
+                    <h1>Short Courses</h1>
+                    <p>Create and manage open short courses</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-plus"></i></div>
+                        <h3>Add Short Course</h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" enctype="multipart/form-data">
+                            <input type="hidden" name="action" value="add_short_course">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Course Name *</label>
+                                    <input type="text" name="name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Course Code *</label>
+                                    <input type="text" name="code" required placeholder="e.g., SC-101">
+                                </div>
+                                <div class="form-group">
+                                    <label>Duration *</label>
+                                    <input type="text" name="duration" required placeholder="e.g., 4 weeks">
+                                </div>
+                                <div class="form-group">
+                                    <label>Department *</label>
+                                    <select name="department_id" required>
+                                        <option value="">-- Select --</option>
+                                        <?php if ($all_departments): while ($dept = $all_departments->fetch_assoc()): ?>
+                                            <option value="<?= $dept['id'] ?>" <?= $dept['id'] == $department_id ? 'selected' : '' ?>><?= htmlspecialchars($dept['name']) ?></option>
+                                        <?php endwhile; endif; ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea name="description" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Banner Image</label>
+                                <input type="file" name="banner" accept="image/*">
+                            </div>
+                            <div class="form-group">
+                                <label>Course Pricing</label>
+                                <div class="pricing-options">
+                                    <label><input type="radio" name="pricing" value="free" checked id="pricing_free" onchange="togglePricing()"> Free</label>
+                                    <label><input type="radio" name="pricing" value="paid" id="pricing_paid" onchange="togglePricing()"> Paid</label>
+                                </div>
+                            </div>
+                            <div class="form-group" id="price_group" style="display:none;">
+                                <label>Price (KSh) *</label>
+                                <input type="number" name="price" min="0" step="0.01" placeholder="e.g. 2000">
+                            </div>
+                            <div class="form-group" id="payment_methods_group" style="display:none;">
+                                <label>Accepted Payment Methods</label>
+                                <div class="payment-methods">
+                                    <label><input type="checkbox" name="payment_methods[]" value="mpesa" checked> <i class="fas fa-mobile-alt" style="color:#10b981;"></i> M-Pesa (STK Push)</label>
+                                    <label><input type="checkbox" name="payment_methods[]" value="card"> <i class="fas fa-credit-card" style="color:#6366f1;"></i> Card (Visa / Mastercard)</label>
+                                    <label><input type="checkbox" name="payment_methods[]" value="bank"> <i class="fas fa-landmark" style="color:#8b5cf6;"></i> Bank Transfer</label>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Short Course</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-list"></i></div>
+                        <h3>All Short Courses</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Name</th><th>Tutors</th><th>Banner</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    <?php if ($short_courses && $short_courses->num_rows > 0): ?>
+                                        <?php
+                                        $short_courses->data_seek(0);
+                                        while ($sc = $short_courses->fetch_assoc()):
+                                            $tutors = [];
+                                            if ($short_course_tutors) {
+                                                $short_course_tutors->data_seek(0);
+                                                while ($t = $short_course_tutors->fetch_assoc()) {
+                                                    if ($t['short_course_id'] == $sc['id']) $tutors[] = $t['lecturer_name'];
+                                                }
+                                            }
+                                        ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($sc['name']) ?></td>
+                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : '—' ?></td>
+                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : '—' ?></td>
+                                                <td>
+                                                    <form method="POST" onsubmit="return confirm('Delete this short course?')" style="display:inline;">
+                                                        <input type="hidden" name="action" value="delete_short_course">
+                                                        <input type="hidden" name="id" value="<?= $sc['id'] ?>">
+                                                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr><td colspan="4" class="empty-state"><i class="fas fa-graduation-cap"></i><p>No short courses added yet</p></td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TECHNICIANS -->
+            <div class="panel" id="panel-technicians">
+                <div class="page-header">
+                    <h1>Lab Technicians</h1>
+                    <p>Add and manage lab technicians</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-plus"></i></div>
+                        <h3>Add Lab Technician</h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST">
+                            <input type="hidden" name="action" value="add_lab_technician">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Name *</label>
+                                    <input type="text" name="name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Email *</label>
+                                    <input type="email" name="email" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Password *</label>
+                                    <input type="password" name="password" required minlength="6">
+                                </div>
+                                <div class="form-group">
+                                    <label>Phone</label>
+                                    <input type="text" name="phone">
+                                </div>
+                                <div class="form-group">
+                                    <label>Staff ID *</label>
+                                    <input type="text" name="staff_id" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Technician</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-list"></i></div>
+                        <h3>All Technicians</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Staff ID</th></tr></thead>
+                                <tbody>
+                                    <?php if ($technicians && $technicians->num_rows > 0): ?>
+                                        <?php while ($t = $technicians->fetch_assoc()): ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($t['name']) ?></td>
+                                                <td><?= htmlspecialchars($t['email']) ?></td>
+                                                <td><?= htmlspecialchars($t['phone'] ?? '—') ?></td>
+                                                <td><?= htmlspecialchars($t['staff_id']) ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr><td colspan="4" class="empty-state"><i class="fas fa-tools"></i><p>No technicians added yet</p></td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TUTORS -->
+            <div class="panel" id="panel-tutors">
+                <div class="page-header">
+                    <h1>Assign Tutors</h1>
+                    <p>Assign lecturers to short courses</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-user-plus"></i></div>
+                        <h3>Assign Tutor to Short Course</h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" id="assignTutorForm">
+                            <input type="hidden" name="action" value="assign_tutor_to_short_course">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Short Course *</label>
+                                    <select name="short_course_id" id="assignShortCourseId" required>
+                                        <option value="">-- Select Short Course --</option>
+                                        <?php
+                                        if ($short_courses):
+                                            $short_courses->data_seek(0);
+                                            while ($sc = $short_courses->fetch_assoc()):
+                                        ?>
+                                            <option value="<?= $sc['id'] ?>"><?= htmlspecialchars($sc['name']) ?></option>
+                                        <?php
+                                            endwhile;
+                                        else:
+                                        ?>
+                                            <option value="" disabled>No short courses available. Create one first.</option>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Lecturer Email *</label>
+                                    <div style="display:flex;gap:8px;">
+                                        <input type="email" name="lecturer_email" id="lecturerEmailInput" required placeholder="Enter lecturer email" style="flex:1;">
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="searchLecturer()" style="white-space:nowrap;">
+                                            <i class="fas fa-search"></i> Search
+                                        </button>
+                                    </div>
+                                    <div id="lecturerSearchResult" style="margin-top:8px;padding:10px 14px;border-radius:8px;display:none;font-size:13px;"></div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="assignTutorBtn" disabled>
+                                <i class="fas fa-user-plus"></i> Confirm & Assign Tutor
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <?php if ($short_course_tutors && $short_course_tutors->num_rows > 0): ?>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-list"></i></div>
+                        <h3>Assigned Tutors</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Short Course</th><th>Lecturer</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    <?php while ($t = $short_course_tutors->fetch_assoc()): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($t['course_name']) ?></td>
+                                            <td><?= htmlspecialchars($t['lecturer_name']) ?></td>
+                                            <td>
+                                                <form method="POST" onsubmit="return confirm('Remove this tutor?')" style="display:inline;">
+                                                    <input type="hidden" name="action" value="remove_tutor_from_short_course">
+                                                    <input type="hidden" name="id" value="<?= $t['id'] ?>">
+                                                    <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+        </main>
     </div>
-    
-    <div class="container">
-        <?php if ($message): ?>
-            <div class="message <?= $message_type ?>">
-                <i class="fas fa-<?= $message_type === 'success' ? 'check-circle' : 'exclamation-circle' ?>"></i>
-                <?= htmlspecialchars($message) ?>
-            </div>
-        <?php endif; ?>
-        
-        <div class="stats-row">
-            <div class="stat-card">
-                <i class="fas fa-chalkboard-teacher"></i>
-                <div class="number"><?= $lecturers ? $lecturers->num_rows : 0 ?></div>
-                <div class="label">Lecturers</div>
-            </div>
-            <div class="stat-card">
-                <i class="fas fa-book"></i>
-                <div class="number"><?= $courses ? $courses->num_rows : 0 ?></div>
-                <div class="label">Courses</div>
-            </div>
-            <div class="stat-card">
-                <i class="fas fa-cubes"></i>
-                <div class="number"><?= $units ? $units->num_rows : 0 ?></div>
-                <div class="label">Units</div>
-            </div>
-            <div class="stat-card">
-                <i class="fas fa-graduation-cap"></i>
-                <div class="number"><?= $short_courses ? $short_courses->num_rows : 0 ?></div>
-                <div class="label">Short Courses</div>
-            </div>
-            <div class="stat-card">
-                <i class="fas fa-tools"></i>
-                <div class="number"><?= $technicians ? $technicians->num_rows : 0 ?></div>
-                <div class="label">Technicians</div>
-            </div>
-        </div>
-        
-        <div class="dashboard-grid">
-            <!-- Add Lecturer -->
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                    <h3>Add Lecturer</h3>
-                </div>
-                <div class="card-body">
-                    <form method="POST" enctype="multipart/form-data">
-                        <input type="hidden" name="action" value="add_lecturer">
-                        <div class="form-group">
-                            <label>Name *</label>
-                            <input type="text" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Email *</label>
-                            <input type="email" name="email" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Password *</label>
-                            <input type="password" name="password" required minlength="6">
-                        </div>
-                        <div class="form-group">
-                            <label>Phone</label>
-                            <input type="text" name="phone">
-                        </div>
-                        <div class="form-group">
-                            <label>Staff ID</label>
-                            <input type="text" name="staff_id">
-                        </div>
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Lecturer</button>
-                    </form>
-                </div>
-            </div>
-            
-            <!-- Add Course -->
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-book"></i>
-                    <h3>Add Course</h3>
-                </div>
-                <div class="card-body">
-                    <form method="POST">
-                        <input type="hidden" name="action" value="add_course">
-                        <div class="form-group">
-                            <label>Course Name *</label>
-                            <input type="text" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Course Code</label>
-                            <input type="text" name="code">
-                        </div>
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea name="description" rows="3"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Course</button>
-                    </form>
-                </div>
-            </div>
-            
-            <!-- Add Unit -->
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-cubes"></i>
-                    <h3>Add Unit</h3>
-                </div>
-                <div class="card-body">
-                    <form method="POST">
-                        <input type="hidden" name="action" value="add_unit">
-                        <div class="form-group">
-                            <label>Unit Name *</label>
-                            <input type="text" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Unit Code *</label>
-                            <input type="text" name="code" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Course *</label>
-                            <select name="course_id" required>
-                                <option value="">-- Select Course --</option>
-                                <?php if ($courses): while ($c = $courses->fetch_assoc()): ?>
-                                    <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?><?= isset($c['code']) && $c['code'] ? ' (' . htmlspecialchars($c['code']) . ')' : '' ?></option>
-                                <?php endwhile; endif; ?>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Unit</button>
-                    </form>
-                </div>
-            </div>
-            
-            <!-- Add Short Course -->
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-graduation-cap"></i>
-                    <h3>Add Short Course</h3>
-                </div>
-                <div class="card-body">
-                    <form method="POST" enctype="multipart/form-data">
-                        <input type="hidden" name="action" value="add_short_course">
-                        <div class="form-group">
-                            <label>Course Name *</label>
-                            <input type="text" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Course Code *</label>
-                            <input type="text" name="code" required placeholder="e.g., SC-101">
-                        </div>
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea name="description" rows="2"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label>Duration *</label>
-                            <input type="text" name="duration" required placeholder="e.g., 4 weeks">
-                        </div>
-                        <div class="form-group">
-                            <label>Department *</label>
-                            <select name="department_id" required>
-                                <option value="">-- Select Department --</option>
-                                <?php if ($all_departments): while ($dept = $all_departments->fetch_assoc()): ?>
-                                    <option value="<?= $dept['id'] ?>" <?= $dept['id'] == $department_id ? 'selected' : '' ?>><?= htmlspecialchars($dept['name']) ?></option>
-                                <?php endwhile; endif; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Banner Image</label>
-                            <input type="file" name="banner" accept="image/*">
-                        </div>
-                        <div class="form-group">
-                            <label>Course Pricing</label>
-                            <div style="display:flex;gap:12px;margin-top:4px;">
-                                <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
-                                    <input type="radio" name="pricing" value="free" checked id="pricing_free" onchange="togglePricing()"> Free
-                                </label>
-                                <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
-                                    <input type="radio" name="pricing" value="paid" id="pricing_paid" onchange="togglePricing()"> Paid
-                                </label>
-                            </div>
-                        </div>
-                        <div class="form-group" id="price_group" style="display:none;">
-                            <label>Price (KSh) *</label>
-                            <input type="number" name="price" min="0" step="0.01" placeholder="e.g. 2000">
-                        </div>
-                        <div class="form-group" id="payment_methods_group" style="display:none;">
-                            <label>Accepted Payment Methods</label>
-                            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
-                                <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;">
-                                    <input type="checkbox" name="payment_methods[]" value="mpesa" checked>
-                                    <i class="fas fa-mobile-alt" style="color:#43b02a;"></i> M-Pesa (STK Push)
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;">
-                                    <input type="checkbox" name="payment_methods[]" value="card">
-                                    <i class="fas fa-credit-card" style="color:#2563eb;"></i> Card (Visa / Mastercard)
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;">
-                                    <input type="checkbox" name="payment_methods[]" value="bank">
-                                    <i class="fas fa-landmark" style="color:#7c3aed;"></i> Bank Transfer
-                                </label>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Short Course</button>
-                    </form>
-                </div>
-            </div>
-            
-            <script>
-            function togglePricing() {
-                const isPaid = document.getElementById('pricing_paid').checked;
-                document.getElementById('price_group').style.display = isPaid ? '' : 'none';
-                document.getElementById('payment_methods_group').style.display = isPaid ? '' : 'none';
-                if (isPaid) {
-                    document.querySelector('#price_group input[name="price"]').required = true;
-                } else {
-                    document.querySelector('#price_group input[name="price"]').required = false;
-                }
-            }
-            </script>
-            
-            <!-- Assign Tutor to Short Course -->
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-user-plus"></i>
-                    <h3>Assign Tutor to Short Course</h3>
-                </div>
-                <div class="card-body">
-                    <form method="POST" id="assignTutorForm">
-                        <input type="hidden" name="action" value="assign_tutor_to_short_course">
-                        <div class="form-group">
-                            <label>Short Course *</label>
-                            <select name="short_course_id" id="assignShortCourseId" required>
-                                <option value="">-- Select Short Course --</option>
-                                <?php 
-                                if ($short_courses): 
-                                    $short_courses->data_seek(0); 
-                                    while ($sc = $short_courses->fetch_assoc()): 
-                                ?>
-                                    <option value="<?= $sc['id'] ?>"><?= htmlspecialchars($sc['name']) ?></option>
-                                <?php 
-                                    endwhile; 
-                                else: 
-                                ?>
-                                    <option value="" disabled>No short courses available. Create one first.</option>
-                                <?php endif; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Lecturer Email *</label>
-                            <div style="display:flex;gap:8px;">
-                                <input type="email" name="lecturer_email" id="lecturerEmailInput" required placeholder="Enter lecturer email address" style="flex:1;">
-                                <button type="button" class="btn btn-primary btn-sm" onclick="searchLecturer()" style="padding:12px 16px;white-space:nowrap;">
-                                    <i class="fas fa-search"></i> Search
-                                </button>
-                            </div>
-                            <div id="lecturerSearchResult" style="margin-top:8px;padding:10px 14px;border-radius:8px;display:none;font-size:13px;"></div>
-                        </div>
-                        <button type="submit" class="btn btn-primary" id="assignTutorBtn" disabled>
-                            <i class="fas fa-user-plus"></i> Confirm & Assign Tutor
-                        </button>
-                    </form>
-                </div>
-            </div>
-            
-<script>
-async function searchLecturer() {
-    const email = document.getElementById('lecturerEmailInput').value.trim();
-    const resultDiv = document.getElementById('lecturerSearchResult');
-    const assignBtn = document.getElementById('assignTutorBtn');
-    
-    if (!email) {
-        resultDiv.style.display = 'block';
-        resultDiv.style.background = '#fee2e2';
-        resultDiv.style.color = '#dc2626';
-        resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter an email address.';
-        assignBtn.disabled = true;
-        return;
+
+    <script>
+    function switchPanel(panelId, el) {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById('panel-' + panelId).classList.add('active');
+        if (el) el.classList.add('active');
     }
-    
-    resultDiv.style.display = 'block';
-    resultDiv.style.background = '#f3f4f6';
-    resultDiv.style.color = '#374151';
-    resultDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
-    assignBtn.disabled = true;
-    
-    try {
-        const formData = new FormData();
-        formData.append('action', 'search_lecturer');
-        formData.append('email', email);
+
+    function togglePricing() {
+        const isPaid = document.getElementById('pricing_paid').checked;
+        document.getElementById('price_group').style.display = isPaid ? '' : 'none';
+        document.getElementById('payment_methods_group').style.display = isPaid ? '' : 'none';
+        if (isPaid) {
+            document.querySelector('#price_group input[name="price"]').required = true;
+        } else {
+            document.querySelector('#price_group input[name="price"]').required = false;
+        }
+    }
+
+    async function searchLecturer() {
+        const email = document.getElementById('lecturerEmailInput').value.trim();
+        const resultDiv = document.getElementById('lecturerSearchResult');
+        const assignBtn = document.getElementById('assignTutorBtn');
         
-        const response = await fetch('', { method: 'POST', body: formData });
-        const text = await response.text();
+        if (!email) {
+            resultDiv.style.display = 'block';
+            resultDiv.style.background = '#fef2f2';
+            resultDiv.style.color = '#dc2626';
+            resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter an email address.';
+            assignBtn.disabled = true;
+            return;
+        }
         
-        // Parse the JSON from the response (it's at the start before any HTML)
-        const jsonMatch = text.match(/\{.*\}/s);
-        if (jsonMatch) {
-            const data = JSON.parse(jsonMatch[0]);
-            if (data.found) {
-                resultDiv.style.background = '#dcfce7';
-                resultDiv.style.color = '#166534';
-                resultDiv.innerHTML = '<i class="fas fa-check-circle"></i> <strong>' + data.name + '</strong> (' + data.email + ')';
-                assignBtn.disabled = false;
+        resultDiv.style.display = 'block';
+        resultDiv.style.background = '#f1f5f9';
+        resultDiv.style.color = '#334155';
+        resultDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
+        assignBtn.disabled = true;
+        
+        try {
+            const formData = new FormData();
+            formData.append('action', 'search_lecturer');
+            formData.append('email', email);
+            
+            const response = await fetch('', { method: 'POST', body: formData });
+            const text = await response.text();
+            
+            const jsonMatch = text.match(/\{.*\}/s);
+            if (jsonMatch) {
+                const data = JSON.parse(jsonMatch[0]);
+                if (data.found) {
+                    resultDiv.style.background = '#ecfdf5';
+                    resultDiv.style.color = '#059669';
+                    resultDiv.innerHTML = '<i class="fas fa-check-circle"></i> <strong>' + data.name + '</strong> (' + data.email + ')';
+                    assignBtn.disabled = false;
+                } else {
+                    resultDiv.style.background = '#fef2f2';
+                    resultDiv.style.color = '#dc2626';
+                    resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> No lecturer found with email: ' + email;
+                    assignBtn.disabled = true;
+                }
             } else {
-                resultDiv.style.background = '#fee2e2';
+                resultDiv.style.background = '#fef2f2';
                 resultDiv.style.color = '#dc2626';
-                resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> No lecturer found with email: ' + email;
+                resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error searching for lecturer.';
                 assignBtn.disabled = true;
             }
-        } else {
-            resultDiv.style.background = '#fee2e2';
+        } catch (error) {
+            resultDiv.style.background = '#fef2f2';
             resultDiv.style.color = '#dc2626';
-            resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error searching for lecturer.';
+            resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Network error. Please try again.';
             assignBtn.disabled = true;
         }
-    } catch (error) {
-        resultDiv.style.background = '#fee2e2';
-        resultDiv.style.color = '#dc2626';
-        resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Network error. Please try again.';
-        assignBtn.disabled = true;
     }
-}
-</script>
-            
-            <!-- Add Lab Technician -->
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-tools"></i>
-                    <h3>Add Lab Technician</h3>
-                </div>
-                <div class="card-body">
-                    <form method="POST">
-                        <input type="hidden" name="action" value="add_lab_technician">
-                        <div class="form-group">
-                            <label>Name *</label>
-                            <input type="text" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Email *</label>
-                            <input type="email" name="email" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Password *</label>
-                            <input type="password" name="password" required minlength="6">
-                        </div>
-                        <div class="form-group">
-                            <label>Phone</label>
-                            <input type="text" name="phone">
-                        </div>
-                        <div class="form-group">
-                            <label>Staff ID *</label>
-                            <input type="text" name="staff_id" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Technician</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Lecturers List -->
-        <div class="card" style="margin-top: 24px;">
-            <div class="card-header">
-                <i class="fas fa-chalkboard-teacher"></i>
-                <h3>Lecturers</h3>
-            </div>
-            <div class="card-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Phone</th>
-                            <th>Staff ID</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($lecturers && $lecturers->num_rows > 0): ?>
-                            <?php while ($l = $lecturers->fetch_assoc()): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($l['name']) ?></td>
-                                    <td><?= htmlspecialchars($l['email']) ?></td>
-                                    <td><?= htmlspecialchars($l['phone'] ?? '—') ?></td>
-                                    <td><?= htmlspecialchars($l['staff_id'] ?? '—') ?></td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="4" class="empty-state"><i class="fas fa-chalkboard-teacher"></i><p>No lecturers added yet</p></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-        <!-- Courses List -->
-        <div class="card" style="margin-top: 24px;">
-            <div class="card-header">
-                <i class="fas fa-book"></i>
-                <h3>Courses</h3>
-            </div>
-            <div class="card-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Code</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($courses && $courses->num_rows > 0): ?>
-                            <?php while ($c = $courses->fetch_assoc()): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($c['name']) ?></td>
-                                    <td><?= htmlspecialchars($c['code'] ?? '—') ?></td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="2" class="empty-state"><i class="fas fa-book"></i><p>No courses added yet</p></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-        <!-- Units List -->
-        <div class="card" style="margin-top: 24px;">
-            <div class="card-header">
-                <i class="fas fa-cubes"></i>
-                <h3>Units</h3>
-            </div>
-            <div class="card-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Code</th>
-                            <th>Course</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($units && $units->num_rows > 0): ?>
-                            <?php while ($u = $units->fetch_assoc()): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($u['name']) ?></td>
-                                    <td><?= htmlspecialchars($u['code']) ?></td>
-                                    <td><?= htmlspecialchars($u['course_name']) ?></td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="3" class="empty-state"><i class="fas fa-cubes"></i><p>No units added yet</p></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-        <!-- Short Courses List -->
-        <div class="card" style="margin-top: 24px;">
-            <div class="card-header">
-                <i class="fas fa-graduation-cap"></i>
-                <h3>Short Courses</h3>
-            </div>
-            <div class="card-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Tutors</th>
-                            <th>Banner</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($short_courses && $short_courses->num_rows > 0): ?>
-                            <?php 
-                            // Reset pointer for second iteration
-                            $short_courses->data_seek(0);
-                            while ($sc = $short_courses->fetch_assoc()): 
-                                // Get tutors for this short course
-                                $tutors = [];
-                                if ($short_course_tutors) {
-                                    $short_course_tutors->data_seek(0);
-                                    while ($t = $short_course_tutors->fetch_assoc()) {
-                                        if ($t['short_course_id'] == $sc['id']) {
-                                            $tutors[] = $t['lecturer_name'];
-                                        }
-                                    }
-                                }
-                            ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($sc['name']) ?></td>
-                                    <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : '—' ?></td>
-                                    <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : '—' ?></td>
-                                    <td>
-                                        <form method="POST" onsubmit="return confirm('Delete this short course and all its modules/tutors?')" style="display:inline;">
-                                            <input type="hidden" name="action" value="delete_short_course">
-                                            <input type="hidden" name="id" value="<?= $sc['id'] ?>">
-                                            <button type="submit" class="btn btn-sm" style="background:#ef4444;color:#fff;padding:4px 12px;">Delete</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="4" class="empty-state"><i class="fas fa-graduation-cap"></i><p>No short courses added yet</p></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-        <!-- Short Course Tutors List -->
-        <?php if ($short_course_tutors && $short_course_tutors->num_rows > 0): ?>
-        <div class="card" style="margin-top: 24px;">
-            <div class="card-header">
-                <i class="fas fa-user-graduate"></i>
-                <h3>Assigned Tutors</h3>
-            </div>
-            <div class="card-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Short Course</th>
-                            <th>Lecturer</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php while ($t = $short_course_tutors->fetch_assoc()): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($t['course_name']) ?></td>
-                                <td><?= htmlspecialchars($t['lecturer_name']) ?></td>
-                                <td>
-                                    <form method="POST" onsubmit="return confirm('Remove this tutor from the course?')" style="display:inline;">
-                                        <input type="hidden" name="action" value="remove_tutor_from_short_course">
-                                        <input type="hidden" name="id" value="<?= $t['id'] ?>">
-                                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        <?php endwhile; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <?php endif; ?>
-        
-        <!-- Lab Technicians List -->
-        <div class="card" style="margin-top: 24px;">
-            <div class="card-header">
-                <i class="fas fa-tools"></i>
-                <h3>Lab Technicians</h3>
-            </div>
-            <div class="card-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Phone</th>
-                            <th>Staff ID</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($technicians && $technicians->num_rows > 0): ?>
-                            <?php while ($t = $technicians->fetch_assoc()): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($t['name']) ?></td>
-                                    <td><?= htmlspecialchars($t['email']) ?></td>
-                                    <td><?= htmlspecialchars($t['phone'] ?? '—') ?></td>
-                                    <td><?= htmlspecialchars($t['staff_id']) ?></td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="4" class="empty-state"><i class="fas fa-tools"></i><p>No technicians added yet</p></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+    </script>
 </body>
 </html>
