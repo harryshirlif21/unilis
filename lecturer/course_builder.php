@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 session_start();
 require_once '../config/db.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'], ['lecturer', 'admin', 'department_admin'], true)) {
     header("Location: ../login.php");
     exit;
 }
@@ -17,28 +17,46 @@ $unit_id   = intval($_GET['unit_id']   ?? 0);
 $course_id = intval($_GET['course_id'] ?? 0);
 $mode      = $course_id > 0 ? 'short_course' : 'iclm';
 
+// If a department admin or admin is accessing without course_id, default to short course catalogue
+if ($mode === 'iclm' && in_array($_SESSION['user_role'], ['department_admin'], true)) {
+    header("Location: ../phase1/admin/department_admins.php");
+    exit;
+}
+
 // ── Short course mode: verify access, load course info ────────────────────
 $course_info = null;
 if ($mode === 'short_course') {
-    $stmt = $conn->prepare("
-        SELECT pc.*, sct.id AS tutor_id
-        FROM public_courses pc
-        JOIN short_course_tutors sct ON sct.short_course_id = pc.id
-        WHERE pc.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
-        LIMIT 1
-    ");
-    $stmt->bind_param("ii", $course_id, $lecturer_id);
-    $stmt->execute();
-    $course_info = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $is_admin = in_array($_SESSION['user_role'], ['admin', 'department_admin'], true);
 
-    if (!$course_info) {
-        // Fallback: check if lecturer owns the course
-        $stmt = $conn->prepare("SELECT * FROM public_courses WHERE id = ? AND created_by_lecturer_id = ? LIMIT 1");
+    if ($is_admin) {
+        // Admins / department admins can access any short course
+        $stmt = $conn->prepare("SELECT * FROM public_courses WHERE id = ? LIMIT 1");
+        $stmt->bind_param("i", $course_id);
+        $stmt->execute();
+        $course_info = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    } else {
+        // Lecturers: check assigned tutor or owner
+        $stmt = $conn->prepare("
+            SELECT pc.*, sct.id AS tutor_id
+            FROM public_courses pc
+            JOIN short_course_tutors sct ON sct.short_course_id = pc.id
+            WHERE pc.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
+            LIMIT 1
+        ");
         $stmt->bind_param("ii", $course_id, $lecturer_id);
         $stmt->execute();
         $course_info = $stmt->get_result()->fetch_assoc();
         $stmt->close();
+
+        if (!$course_info) {
+            // Fallback: check if lecturer owns the course
+            $stmt = $conn->prepare("SELECT * FROM public_courses WHERE id = ? AND created_by_lecturer_id = ? LIMIT 1");
+            $stmt->bind_param("ii", $course_id, $lecturer_id);
+            $stmt->execute();
+            $course_info = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
     }
 
     if (!$course_info) {

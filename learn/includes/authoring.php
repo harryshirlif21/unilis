@@ -101,7 +101,7 @@ function catalogue_actor(): ?array
     $role = (string)($_SESSION['user_role'] ?? '');
     $id = (int)($_SESSION['user_id'] ?? 0);
 
-    if ($id <= 0 || !in_array($role, ['lecturer', 'admin'], true)) {
+    if ($id <= 0 || !in_array($role, ['lecturer', 'admin', 'department_admin'], true)) {
         return null;
     }
 

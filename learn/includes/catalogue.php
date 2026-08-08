@@ -36,6 +36,18 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
+    // Normalise cover_image so it always resolves from the web root.
+    // Department admins store relative paths like "uploads/short_courses/x.jpg",
+    // while the authoring UI stores root-absolute "/uploads/...". A relative
+    // path rendered on /learn/ would resolve to /learn/uploads/... and 404.
+    foreach ($rows as &$row) {
+        $cover = (string)($row['cover_image'] ?? '');
+        if ($cover !== '' && strpos($cover, '/') !== 0) {
+            $row['cover_image'] = '/' . ltrim($cover, '/');
+        }
+    }
+    unset($row);
+
     return $rows;
 }
 
@@ -397,6 +409,12 @@ function learn_my_courses(mysqli $conn, int $learnerId): array
     $stmt->close();
 
     foreach ($rows as &$row) {
+        // Normalise cover_image (see learn_catalogue() for why).
+        $cover = (string)($row['cover_image'] ?? '');
+        if ($cover !== '' && strpos($cover, '/') !== 0) {
+            $row['cover_image'] = '/' . ltrim($cover, '/');
+        }
+
         $row['progress'] = learn_progress($conn, $learnerId, (int)$row['id']);
         $row['certificate'] = learn_certificate_for($conn, $learnerId, (int)$row['id']);
     }

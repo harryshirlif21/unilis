@@ -441,7 +441,10 @@ if (isset($_POST['generate_pdf'])) {
 
 foreach ($unitAssignments as $a) {
                                             $filePath = $a['file_path'] ?? '';
-                                            $fullPath = "../assets/uploads/assignments/" . htmlspecialchars($filePath);
+                                            // Use __DIR__ for reliable filesystem check (relative paths depend on CWD)
+                                            $fullPath = __DIR__ . "/../assets/uploads/assignments/" . $filePath;
+                                            // Use rawurlencode for the URL portion only (not the full path)
+                                            $fullUrl = "../assets/uploads/assignments/" . rawurlencode($filePath);
 
                                             $deadline = new DateTime($a['deadline']);
                                             $passed = $now > $deadline;
@@ -476,10 +479,10 @@ foreach ($unitAssignments as $a) {
                                             $fileCell = "<em>No file</em>";
                                             if (!empty($filePath) && file_exists($fullPath)) {
                                                 $fileCell = "<div class='file-actions'>
-                                                    <a href='$fullPath' target='_blank' class='action-btn view-file-btn'>
+                                                    <a href='$fullUrl' target='_blank' class='action-btn view-file-btn'>
                                                         <i class='fas fa-eye'></i> View
                                                     </a>
-                                                    <a href='$fullPath' download class='action-btn download-file-btn'>
+                                                    <a href='$fullUrl' download class='action-btn download-file-btn'>
                                                         <i class='fas fa-download'></i> Download
                                                     </a>
                                                 </div>";
@@ -497,13 +500,14 @@ foreach ($unitAssignments as $a) {
                                             }
                                             
                                             if ($alreadySubmitted) {
-                                                $submittedFile = "../assets/uploads/submissions/" . htmlspecialchars($submissionResult['file_path']);
-                                                if (file_exists($submittedFile)) {
+                                                $submittedFilePath = __DIR__ . "/../assets/uploads/submissions/" . $submissionResult['file_path'];
+                                                $submittedFileUrl = "../assets/uploads/submissions/" . rawurlencode($submissionResult['file_path']);
+                                                if (file_exists($submittedFilePath)) {
                                                     $submittedWhen = !empty($submissionResult['submitted_at']) ? date('d M Y, h:i A', strtotime($submissionResult['submitted_at'])) : '';
                                                     $actions .= "<div class='submission-status' style='margin-top: 8px;'>
                                                         <span class='status-label' style='font-size: 0.85em;'>Your Submission " . ($submittedWhen ? " ($submittedWhen)" : '') . ":</span>
-                                                        <a href='$submittedFile' target='_blank' class='action-btn' style='margin-left: 5px;'><i class='fas fa-eye'></i> View</a>
-                                                        <a href='$submittedFile' download class='action-btn'><i class='fas fa-download'></i> Download</a>";
+                                                        <a href='$submittedFileUrl' target='_blank' class='action-btn' style='margin-left: 5px;'><i class='fas fa-eye'></i> View</a>
+                                                        <a href='$submittedFileUrl' download class='action-btn'><i class='fas fa-download'></i> Download</a>";
                                                     $actions .= "</div>";
                                                 }
                                             }

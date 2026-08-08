@@ -1137,6 +1137,9 @@ if ($department_id) {
                                                 <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : '—' ?></td>
                                                 <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : '—' ?></td>
                                                 <td>
+                                                    <a href="../lecturer/course_builder.php?course_id=<?= $sc['id'] ?>" class="btn btn-primary btn-sm" style="margin-right:4px;">
+                                                        <i class="fas fa-pen"></i> Edit
+                                                    </a>
                                                     <form method="POST" onsubmit="return confirm('Delete this short course?')" style="display:inline;">
                                                         <input type="hidden" name="action" value="delete_short_course">
                                                         <input type="hidden" name="id" value="<?= $sc['id'] ?>">
@@ -1443,6 +1446,9 @@ if ($department_id) {
                                                 <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : '—' ?></td>
                                                 <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : '—' ?></td>
                                                 <td>
+                                                    <a href="../lecturer/course_builder.php?course_id=<?= $sc['id'] ?>" class="btn btn-primary btn-sm" style="margin-right:4px;">
+                                                        <i class="fas fa-pen"></i> Edit
+                                                    </a>
                                                     <form method="POST" onsubmit="return confirm('Delete this short course?')" style="display:inline;">
                                                         <input type="hidden" name="action" value="delete_short_course">
                                                         <input type="hidden" name="id" value="<?= $sc['id'] ?>">

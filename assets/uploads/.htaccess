@@ -1,0 +1,15 @@
+# Allow serving of uploaded assignment/submission files.
+# The root .htaccess denies .pptx and other extensions globally;
+# this override re-enables them for the uploads directory only.
+
+<FilesMatch "(?i)\.(pdf|doc|docx|ppt|pptx|xls|xlsx|txt|zip|rar|jpg|jpeg|png|gif|webp)$">
+    Require all granted
+</FilesMatch>
+
+# Prevent execution of any PHP or script files in uploads
+<FilesMatch "(?i)\.(php|php3|php4|php5|php7|phtml|pl|py|cgi|asp|aspx|sh|exe)$">
+    Require all denied
+</FilesMatch>
+
+# Disable directory listing
+Options -Indexes

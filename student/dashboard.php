@@ -99,6 +99,123 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
         }
     }
 }
+
+// ============================================================
+// DYNAMIC ASSIGNMENT DATA
+// ============================================================
+$assignmentStats = [
+    'total'       => 0,
+    'submitted'   => 0,
+    'pending'     => 0,
+    'due_this_week' => 0,
+    'completion_pct' => 0,
+    'upcoming'    => [],
+];
+
+try {
+    // Fetch all regular assignments for the student's course & year
+    $assign_stmt = $conn->prepare("
+        SELECT a.id, a.title, a.deadline, a.allow_late_submission, u.name AS unit_name
+        FROM assignments a
+        JOIN units u ON a.unit_id = u.id
+        WHERE u.course_id = ? AND u.year = ?
+        ORDER BY a.deadline ASC
+    ");
+    $assign_stmt->bind_param("ii", $course_id, $year_of_study);
+    $assign_stmt->execute();
+    $assign_result = $assign_stmt->get_result();
+
+    $now = new DateTime();
+    $weekEnd = (new DateTime())->modify('+7 days');
+
+    while ($a = $assign_result->fetch_assoc()) {
+        $assignmentStats['total']++;
+
+        // Check if this assignment has been submitted by the student
+        $sub_check = $conn->prepare("
+            SELECT 1 FROM submissions
+            WHERE assignment_id = ? AND student_id = ?
+        ");
+        $sub_check->bind_param("ii", $a['id'], $student_id);
+        $sub_check->execute();
+        $is_submitted = $sub_check->get_result()->num_rows > 0;
+        $sub_check->close();
+
+        if ($is_submitted) {
+            $assignmentStats['submitted']++;
+        } else {
+            $assignmentStats['pending']++;
+
+            // Check if due within the next 7 days (and not past deadline without late submission)
+            $deadline = new DateTime($a['deadline']);
+            $allowLate = (int)($a['allow_late_submission'] ?? 1) === 1;
+            $isOpen = $now <= $deadline || $allowLate;
+
+            if ($isOpen && $deadline >= $now && $deadline <= $weekEnd) {
+                $assignmentStats['due_this_week']++;
+                $assignmentStats['upcoming'][] = [
+                    'title'     => $a['title'],
+                    'unit_name' => $a['unit_name'],
+                    'deadline'  => $a['deadline'],
+                ];
+            }
+        }
+    }
+    $assign_stmt->close();
+
+    // Also count interactive assignments (CATs) due this week
+    $ia_stmt = $conn->prepare("
+        SELECT a.id, a.title, a.due_date, u.name AS unit_name
+        FROM interactive_assignments a
+        JOIN units u ON a.unit_id = u.id
+        WHERE u.course_id = ? AND u.year = ?
+          AND a.due_date >= NOW()
+        ORDER BY a.due_date ASC
+    ");
+    $ia_stmt->bind_param("ii", $course_id, $year_of_study);
+    $ia_stmt->execute();
+    $ia_result = $ia_stmt->get_result();
+
+    while ($ia = $ia_result->fetch_assoc()) {
+        $ia_deadline = new DateTime($ia['due_date']);
+        if ($ia_deadline >= $now && $ia_deadline <= $weekEnd) {
+            // Check if already submitted
+            $ia_sub_check = $conn->prepare("
+                SELECT 1 FROM interactive_submissions
+                WHERE assignment_id = ? AND student_id = ?
+            ");
+            $ia_sub_check->bind_param("ii", $ia['id'], $student_id);
+            $ia_sub_check->execute();
+            $ia_submitted = $ia_sub_check->get_result()->num_rows > 0;
+            $ia_sub_check->close();
+
+            if (!$ia_submitted) {
+                $assignmentStats['due_this_week']++;
+                $assignmentStats['upcoming'][] = [
+                    'title'     => $ia['title'],
+                    'unit_name' => $ia['unit_name'],
+                    'deadline'  => $ia['due_date'],
+                ];
+            }
+        }
+    }
+    $ia_stmt->close();
+
+    // Calculate completion percentage
+    if ($assignmentStats['total'] > 0) {
+        $assignmentStats['completion_pct'] = round(($assignmentStats['submitted'] / $assignmentStats['total']) * 100);
+    }
+
+    // Sort upcoming by deadline
+    usort($assignmentStats['upcoming'], function($x, $y) {
+        return strtotime($x['deadline']) - strtotime($y['deadline']);
+    });
+    // Limit to 3 for display
+    $assignmentStats['upcoming'] = array_slice($assignmentStats['upcoming'], 0, 3);
+
+} catch (Exception $e) {
+    error_log("Error fetching assignment stats: " . $e->getMessage());
+}
 ?>
 
 <!DOCTYPE html>
@@ -1200,15 +1317,15 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
                 
                 <div class="card-stats">
                     <div class="card-stat">
-                        <div class="card-stat-value">7</div>
+                        <div class="card-stat-value"><?= $assignmentStats['total'] ?></div>
                         <div class="card-stat-label">Total</div>
                     </div>
                     <div class="card-stat">
-                        <div class="card-stat-value" style="color: var(--success-600);">4</div>
+                        <div class="card-stat-value" style="color: var(--success-600);"><?= $assignmentStats['submitted'] ?></div>
                         <div class="card-stat-label">Submitted</div>
                     </div>
                     <div class="card-stat">
-                        <div class="card-stat-value" style="color: var(--warning-600);">3</div>
+                        <div class="card-stat-value" style="color: var(--warning-600);"><?= $assignmentStats['pending'] ?></div>
                         <div class="card-stat-label">Pending</div>
                     </div>
                 </div>
@@ -1216,19 +1333,41 @@ foreach ($studentMeetingsByUnit as $unitGroup) {
                 <div class="card-progress">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                         <span style="font-size: 0.875rem; font-weight: 600;">Completion</span>
-                        <span style="font-size: 0.875rem; color: var(--neutral-500);">57%</span>
+                        <span style="font-size: 0.875rem; color: var(--neutral-500);"><?= $assignmentStats['completion_pct'] ?>%</span>
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: 57%; background: linear-gradient(90deg, var(--success-500), var(--success-600));"></div>
+                        <div class="progress-fill" style="width: <?= $assignmentStats['completion_pct'] ?>%; background: linear-gradient(90deg, var(--success-500), var(--success-600));"></div>
                     </div>
                 </div>
                 
-                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--warning-50); border-radius: var(--radius-lg); border-left: 4px solid var(--warning-500);">
-                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--warning-700); font-weight: 500;">
-                        <span class="material-symbols-outlined" style="font-size: 1.25rem;">schedule</span>
-                        2 assignments due this week
+                <?php if ($assignmentStats['due_this_week'] > 0): ?>
+                    <div style="margin-top: 1rem; padding: 0.75rem; background: var(--warning-50); border-radius: var(--radius-lg); border-left: 4px solid var(--warning-500);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--warning-700); font-weight: 500; margin-bottom: 0.5rem;">
+                            <span class="material-symbols-outlined" style="font-size: 1.25rem;">schedule</span>
+                            <?= $assignmentStats['due_this_week'] ?> assignment<?= $assignmentStats['due_this_week'] > 1 ? 's' : '' ?> due this week
+                        </div>
+                        <?php foreach ($assignmentStats['upcoming'] as $up): ?>
+                            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-top: 1px solid rgba(217, 119, 6, 0.15);">
+                                <span class="material-symbols-outlined" style="font-size: 1rem; color: var(--warning-600);">assignment</span>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-size: 0.8rem; font-weight: 600; color: var(--neutral-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        <?= htmlspecialchars($up['title']) ?>
+                                    </div>
+                                    <div style="font-size: 0.7rem; color: var(--neutral-500);">
+                                        <?= htmlspecialchars($up['unit_name']) ?> • <?= date('d M, h:i A', strtotime($up['deadline'])) ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
-                </div>
+                <?php else: ?>
+                    <div style="margin-top: 1rem; padding: 0.75rem; background: var(--success-50); border-radius: var(--radius-lg); border-left: 4px solid var(--success-500);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--success-700); font-weight: 500;">
+                            <span class="material-symbols-outlined" style="font-size: 1.25rem;">check_circle</span>
+                            No assignments due this week. Great job! 🎉
+                        </div>
+                    </div>
+                <?php endif; ?>
                 
                 <div class="card-actions">
                     <a href="take_assignment.php" class="btn btn-success flex-1">
