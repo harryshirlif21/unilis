@@ -180,8 +180,8 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
         $stmt = $conn->prepare("
             SELECT s.id, s.name, s.email 
             FROM students s
-            JOIN student_unit_enrollments sue ON s.id = sue.student_id
-            WHERE sue.unit_id = ? AND s.is_verified = 1
+            JOIN units u ON s.course_id = u.course_id
+            WHERE u.id = ? AND s.is_verified = 1
         ");
         $stmt->bind_param("i", $unit_id);
         $stmt->execute();
@@ -322,8 +322,8 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
         $stmt = $conn->prepare("
             SELECT s.id, s.name, s.email 
             FROM students s
-            JOIN student_unit_enrollments sue ON s.id = sue.student_id
-            WHERE sue.unit_id = ? AND s.is_verified = 1
+            JOIN units u ON s.course_id = u.course_id
+            WHERE u.id = ? AND s.is_verified = 1
         ");
         $stmt->bind_param("i", $unit_id);
         $stmt->execute();

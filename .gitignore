@@ -12,3 +12,4 @@ __pycache__/
 # anything committed here is a candidate for being served; a 390KB dump of 60
 # tables was downloadable this way. Keep schema and backups out of git.
 *.sql
+*.bak

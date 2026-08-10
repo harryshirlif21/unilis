@@ -345,3 +345,19 @@ form button[type="submit"]:hover {
         padding: 10px;
     }
 }
+.alert {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: 12px 0;
+    font-weight: 500;
+}
+.alert-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+.alert-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
