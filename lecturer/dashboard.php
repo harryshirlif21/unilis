@@ -764,6 +764,24 @@ $stmt->close();
                 </button>
             </div>
 
+            <!-- Assignment creation feedback (success / error) -->
+            <?php if (!empty($_SESSION['assignment_success'])): ?>
+                <div class="assignment-alert assignment-alert-success" id="assignmentSuccessMsg">
+                    <i class="fas fa-check-circle"></i>
+                    <?= htmlspecialchars($_SESSION['assignment_success']) ?>
+                    <span class="alert-close" title="Dismiss" onclick="this.parentElement.style.display='none'">&times;</span>
+                </div>
+                <?php unset($_SESSION['assignment_success']); ?>
+            <?php endif; ?>
+            <?php if (!empty($_SESSION['assignment_error'])): ?>
+                <div class="assignment-alert assignment-alert-error" id="assignmentErrorMsg">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <?= htmlspecialchars($_SESSION['assignment_error']) ?>
+                    <span class="alert-close" title="Dismiss" onclick="this.parentElement.style.display='none'">&times;</span>
+                </div>
+                <?php unset($_SESSION['assignment_error']); ?>
+            <?php endif; ?>
+
             <div id="interactive-tiles-section" class="hidden">
                 <div class="tiles-grid">
                     <a href="create_questions.php" class="tile-card">
@@ -785,8 +803,75 @@ $stmt->close();
                 </div>
             </div>
 
-            <div id="assignments-table-section" class="hidden">
-                <!-- Your assignments table PHP here -->
+            <div id="assignments-sent-section">
+                <h4 class="assignments-sent-heading">Assignments Sent Per Unit</h4>
+                <?php
+                $assignmentUnits = [];
+                $stmt = $conn->prepare("
+                    SELECT a.id, a.title, a.deadline, a.file_path,
+                           u.id AS unit_id, u.name AS unit_name
+                    FROM assignments a
+                    JOIN units u ON a.unit_id = u.id
+                    JOIN lecturer_units lu ON lu.unit_id = a.unit_id
+                    WHERE lu.lecturer_id = ?
+                    ORDER BY u.name ASC, a.deadline DESC
+                ");
+                if ($stmt) {
+                    $stmt->bind_param("i", $lecturer_id);
+                    $stmt->execute();
+                    $res = $stmt->get_result();
+                    while ($row = $res->fetch_assoc()) {
+                        $assignmentUnits[$row['unit_id']]['name'] = $row['unit_name'];
+                        $assignmentUnits[$row['unit_id']]['assignments'][] = $row;
+                    }
+                    $stmt->close();
+                }
+
+                if (empty($assignmentUnits)): ?>
+                    <p class="no-units">No assignments sent yet. Click “Upload Assignment” to create and send your first one.</p>
+                <?php else: ?>
+                    <div class="assignment-sent-grid">
+                        <?php foreach ($assignmentUnits as $unitId => $unitData):
+                            $total = count($unitData['assignments']);
+                            $now = new DateTime();
+                            $open = 0; $closed = 0;
+                            foreach ($unitData['assignments'] as $asg) {
+                                (new DateTime($asg['deadline'])) > $now ? $open++ : $closed++;
+                            }
+                        ?>
+                            <div class="assignment-sent-card">
+                                <div class="assignment-sent-header">
+                                    <h4><?= htmlspecialchars($unitData['name']) ?></h4>
+                                    <span class="assignment-sent-count"><?= $total ?> Sent</span>
+                                </div>
+                                <div class="assignment-sent-stats">
+                                    <span class="asg-stat total"><?= $total ?> Total</span>
+                                    <span class="asg-stat open"><?= $open ?> Open</span>
+                                    <span class="asg-stat closed"><?= $closed ?> Closed</span>
+                                </div>
+                                <div class="assignment-sent-list">
+                                    <?php foreach ($unitData['assignments'] as $asg): ?>
+                                        <div class="assignment-sent-item">
+                                            <div class="asg-title">
+                                                <i class="fas fa-file-alt"></i>
+                                                <span><?= htmlspecialchars($asg['title']) ?></span>
+                                            </div>
+                                            <div class="asg-meta">
+                                                <span class="asg-meta-col">
+                                                    <i class="fas fa-calendar-alt"></i>
+                                                    Due <?= date('d M Y, h:i A', strtotime($asg['deadline'])) ?>
+                                                </span>
+                                                <span class="asg-file">
+                                                    <?= !empty($asg['file_path']) ? '<i class="fas fa-paperclip"></i> File attached' : '<em>No file</em>' ?>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <div id="submissions-section" class="hidden">
@@ -1662,7 +1747,8 @@ $stmt->close();
     <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl" style="max-width: 580px; max-height: 92vh; overflow-y: auto;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10" id="assignmentModalClose">×</span>
         <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">Create Assignment</h3>
-        <form action="../actions.php" method="POST">
+        <!-- enctype is REQUIRED so the assignment file actually uploads (fixes student/take-assignment showing no file) -->
+        <form action="../actions.php" method="POST" enctype="multipart/form-data">
             <input type="hidden" name="action" value="create_assignment">
             <div class="modal-body">
                 <div class="form-group">

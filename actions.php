@@ -1391,7 +1391,7 @@ if ($action === 'create_assignment') {
 
     if ($stmt->execute()) {
         $assignment_id = $conn->insert_id;
-        $_SESSION['assignment_success'] = "Assignment created.";
+        $_SESSION['assignment_success'] = "Assignment sent successfully!";
 
         // === SEND NOTIFICATIONS & EMAILS TO STUDENTS ===
         notify_students_assignment_posted($conn, $unit_id, $assignment_id, $title, $due_date);

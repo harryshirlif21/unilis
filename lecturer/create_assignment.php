@@ -63,7 +63,12 @@ while ($row = $result->fetch_assoc()) {
 
                 <div class="form-group">
                     <label for="deadline">Deadline:</label>
-                    <input type="datetime-local" name="deadline" id="deadline" required>
+                    <input type="datetime-local" name="due_date" id="deadline" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="assignment_file">Attach File (optional):</label>
+                    <input type="file" name="assignment_file" id="assignment_file">
                 </div>
             </div>
 

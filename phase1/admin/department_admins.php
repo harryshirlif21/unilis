@@ -271,6 +271,113 @@ if ($action === 'add_short_course') {
     }
 }
 
+// Edit Short Course
+if ($action === 'edit_short_course') {
+    $id = (int)($_POST['id'] ?? 0);
+    $name = trim($_POST['name'] ?? '');
+    $code = trim($_POST['code'] ?? '');
+    $description = trim($_POST['description'] ?? '');
+    $duration = trim($_POST['duration'] ?? '');
+    $department_id_input = (int)($_POST['department_id'] ?? 0);
+    $banner = $_FILES['banner'] ?? null;
+    $pricing = $_POST['pricing'] ?? 'free';
+    $price = (float)($_POST['price'] ?? 0);
+    $payment_methods = $_POST['payment_methods'] ?? [];
+
+    if ($id && $name && $code && $duration && $department_id_input) {
+        $checkTable = $conn->query("SHOW TABLES LIKE 'public_courses'");
+        if ($checkTable && $checkTable->num_rows > 0) {
+            // Handle banner upload if provided
+            $banner_path = null;
+            if ($banner && $banner['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = __DIR__ . '/../../uploads/short_courses/';
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0755, true);
+                }
+                $banner_path = 'uploads/short_courses/' . time() . '_' . basename($banner['name']);
+                move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $banner_path);
+            }
+
+            // Generate slug from name
+            $slug = strtolower(preg_replace('/[^a-z0-9]+/', '-', $name));
+
+            // Ensure payment columns exist
+            $ensureCols = [
+                'is_paid' => "ALTER TABLE public_courses ADD COLUMN is_paid TINYINT(1) NOT NULL DEFAULT 0 AFTER pass_mark",
+                'price' => "ALTER TABLE public_courses ADD COLUMN price DECIMAL(10,2) DEFAULT NULL AFTER is_paid",
+                'payment_methods' => "ALTER TABLE public_courses ADD COLUMN payment_methods VARCHAR(255) DEFAULT NULL AFTER price",
+            ];
+            foreach ($ensureCols as $colName => $alterSql) {
+                $colCheck = $conn->query("SHOW COLUMNS FROM public_courses LIKE '$colName'");
+                if (!$colCheck || $colCheck->num_rows === 0) {
+                    @$conn->query($alterSql);
+                }
+            }
+
+            $is_paid = $pricing === 'paid' ? 1 : 0;
+            $methods_str = $is_paid ? implode(',', array_map('trim', $payment_methods)) : '';
+
+            // Build dynamic update query based on which columns exist
+            $updates = ['slug = ?', 'title = ?', 'summary = ?', 'description = ?'];
+            $params = [$slug, $name, $description, $description];
+            $types = 'ssss';
+
+            $editOptional = ['code', 'duration', 'department_id', 'is_paid', 'price', 'payment_methods'];
+            $editValues = [
+                'code' => $code,
+                'duration' => $duration,
+                'department_id' => (int)$department_id_input,
+                'is_paid' => $is_paid,
+                'price' => $price,
+                'payment_methods' => $methods_str,
+            ];
+            $editTypes = [
+                'code' => 's',
+                'duration' => 's',
+                'department_id' => 'i',
+                'is_paid' => 'i',
+                'price' => 'd',
+                'payment_methods' => 's',
+            ];
+
+            foreach ($editOptional as $editCol) {
+                $editCheck = $conn->query("SHOW COLUMNS FROM public_courses LIKE '$editCol'");
+                if ($editCheck && $editCheck->num_rows > 0) {
+                    $updates[] = "$editCol = ?";
+                    $params[] = $editValues[$editCol];
+                    $types .= $editTypes[$editCol];
+                }
+            }
+
+            if ($banner_path) {
+                $updates[] = 'cover_image = ?';
+                $params[] = $banner_path;
+                $types .= 's';
+            }
+
+            $params[] = $id;
+            $types .= 'i';
+
+            $stmt = $conn->prepare("UPDATE public_courses SET " . implode(', ', $updates) . " WHERE id = ?");
+            $stmt->bind_param($types, ...$params);
+            if ($stmt->execute()) {
+                $message = "Short course updated successfully!";
+                $message_type = 'success';
+            } else {
+                $message = "Failed to update short course: " . $stmt->error;
+                $message_type = 'error';
+            }
+            $stmt->close();
+        } else {
+            $message = "Public courses table does not exist.";
+            $message_type = 'error';
+        }
+    } else {
+        $message = "Course Name, Code, Duration, and Department are required.";
+        $message_type = 'error';
+    }
+}
+
 // Delete Short Course
 if ($action === 'delete_short_course') {
     $id = (int)($_POST['id'] ?? 0);
@@ -421,7 +528,17 @@ if ($checkUnits && $checkUnits->num_rows > 0) {
 $short_courses = false;
 $checkPublicCourses = $conn->query("SHOW TABLES LIKE 'public_courses'");
 if ($checkPublicCourses && $checkPublicCourses->num_rows > 0) {
-    $short_courses = $conn->query("SELECT id, title as name, summary as description, cover_image as banner FROM public_courses ORDER BY title");
+    // Build dynamic column list based on what exists in the table
+    $scColumns = ['id', 'title as name', 'summary as description', 'cover_image as banner'];
+    $scOptional = ['code', 'duration', 'department_id', 'is_paid', 'price', 'payment_methods'];
+    foreach ($scOptional as $col) {
+        $colCheck = $conn->query("SHOW COLUMNS FROM public_courses LIKE '$col'");
+        if ($colCheck && $colCheck->num_rows > 0) {
+            $scColumns[] = $col;
+        }
+    }
+    $scFields = implode(', ', $scColumns);
+    $short_courses = $conn->query("SELECT $scFields FROM public_courses ORDER BY title");
 }
 
 // Get short course tutors
@@ -1137,9 +1254,9 @@ if ($department_id) {
                                                 <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : '—' ?></td>
                                                 <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : '—' ?></td>
                                                 <td>
-                                                    <a href="../lecturer/course_builder.php?course_id=<?= $sc['id'] ?>" class="btn btn-primary btn-sm" style="margin-right:4px;">
+                                                    <button type="button" class="btn btn-primary btn-sm" style="margin-right:4px;" data-edit-sc='<?= htmlspecialchars(json_encode($sc), ENT_QUOTES, 'UTF-8') ?>' onclick="openEditModalFromBtn(this)">
                                                         <i class="fas fa-pen"></i> Edit
-                                                    </a>
+                                                    </button>
                                                     <form method="POST" onsubmit="return confirm('Delete this short course?')" style="display:inline;">
                                                         <input type="hidden" name="action" value="delete_short_course">
                                                         <input type="hidden" name="id" value="<?= $sc['id'] ?>">
@@ -1446,9 +1563,9 @@ if ($department_id) {
                                                 <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : '—' ?></td>
                                                 <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : '—' ?></td>
                                                 <td>
-                                                    <a href="../lecturer/course_builder.php?course_id=<?= $sc['id'] ?>" class="btn btn-primary btn-sm" style="margin-right:4px;">
+                                                    <button type="button" class="btn btn-primary btn-sm" style="margin-right:4px;" data-edit-sc='<?= htmlspecialchars(json_encode($sc), ENT_QUOTES, 'UTF-8') ?>' onclick="openEditModalFromBtn(this)">
                                                         <i class="fas fa-pen"></i> Edit
-                                                    </a>
+                                                    </button>
                                                     <form method="POST" onsubmit="return confirm('Delete this short course?')" style="display:inline;">
                                                         <input type="hidden" name="action" value="delete_short_course">
                                                         <input type="hidden" name="id" value="<?= $sc['id'] ?>">
@@ -1621,6 +1738,75 @@ if ($department_id) {
         </main>
     </div>
 
+    <!-- Edit Short Course Modal -->
+    <div id="editShortCourseModal" class="modal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); overflow-y:auto;">
+        <div style="background:var(--surface); max-width:640px; margin:5% auto; padding:28px 32px; border-radius:var(--radius); box-shadow:var(--shadow-lg); position:relative;">
+            <button type="button" onclick="closeEditModal()" style="position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:14px;">&times;</button>
+            <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:20px; color:var(--text); display:flex; align-items:center; gap:10px;">
+                <i class="fas fa-pen"></i> Edit Short Course
+            </h3>
+            <form method="POST" enctype="multipart/form-data" action="">
+                <input type="hidden" name="action" value="edit_short_course">
+                <input type="hidden" name="id" id="edit_id">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Course Name *</label>
+                        <input type="text" name="name" id="edit_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Course Code *</label>
+                        <input type="text" name="code" id="edit_code" required placeholder="e.g., SC-101">
+                    </div>
+                    <div class="form-group">
+                        <label>Duration *</label>
+                        <input type="text" name="duration" id="edit_duration" required placeholder="e.g., 4 weeks">
+                    </div>
+                    <div class="form-group">
+                        <label>Department *</label>
+                        <select name="department_id" id="edit_department_id" required>
+                            <option value="">-- Select --</option>
+                            <?php if ($all_departments): $all_departments->data_seek(0); while ($dept = $all_departments->fetch_assoc()): ?>
+                                <option value="<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></option>
+                            <?php endwhile; endif; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="description" id="edit_description" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Banner Image</label>
+                    <input type="file" name="banner" accept="image/*">
+                    <p style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Leave empty to keep the current banner.</p>
+                </div>
+                <div class="form-group">
+                    <label>Course Pricing</label>
+                    <div class="pricing-options">
+                        <label><input type="radio" name="pricing" value="free" id="edit_pricing_free" onchange="toggleEditPricing()"> Free</label>
+                        <label><input type="radio" name="pricing" value="paid" id="edit_pricing_paid" onchange="toggleEditPricing()"> Paid</label>
+                    </div>
+                </div>
+                <div class="form-group" id="edit_price_group" style="display:none;">
+                    <label>Price (KSh) *</label>
+                    <input type="number" name="price" id="edit_price" min="0" step="0.01" placeholder="e.g. 2000">
+                </div>
+                <div class="form-group" id="edit_payment_methods_group" style="display:none;">
+                    <label>Accepted Payment Methods</label>
+                    <div class="payment-methods">
+                        <label><input type="checkbox" name="payment_methods[]" value="mpesa" id="edit_pay_mpesa"> <i class="fas fa-mobile-alt" style="color:#10b981;"></i> M-Pesa (STK Push)</label>
+                        <label><input type="checkbox" name="payment_methods[]" value="card" id="edit_pay_card"> <i class="fas fa-credit-card" style="color:#6366f1;"></i> Card (Visa / Mastercard)</label>
+                        <label><input type="checkbox" name="payment_methods[]" value="bank" id="edit_pay_bank"> <i class="fas fa-landmark" style="color:#8b5cf6;"></i> Bank Transfer</label>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()" style="background:var(--surface2); color:var(--text-muted); border:1px solid var(--border);">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
     function switchPanel(panelId, el) {
         document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -1628,6 +1814,59 @@ if ($department_id) {
         document.getElementById('panel-' + panelId).classList.add('active');
         if (el) el.classList.add('active');
     }
+
+    function openEditModalFromBtn(btn) {
+        try {
+            const sc = JSON.parse(btn.getAttribute('data-edit-sc'));
+            openEditModal(sc);
+        } catch (e) {
+            console.error('Failed to parse edit data:', e);
+        }
+    }
+
+    function openEditModal(sc) {
+        document.getElementById('edit_id').value = sc.id || '';
+        document.getElementById('edit_name').value = sc.name || '';
+        document.getElementById('edit_code').value = sc.code || '';
+        document.getElementById('edit_duration').value = sc.duration || '';
+        document.getElementById('edit_description').value = sc.description || '';
+        document.getElementById('edit_department_id').value = sc.department_id || '';
+        document.getElementById('edit_price').value = sc.price || '';
+
+        // Payment methods
+        const methods = sc.payment_methods ? String(sc.payment_methods).split(',') : [];
+        document.getElementById('edit_pay_mpesa').checked = methods.includes('mpesa');
+        document.getElementById('edit_pay_card').checked = methods.includes('card');
+        document.getElementById('edit_pay_bank').checked = methods.includes('bank');
+
+        // Pricing radio
+        const isPaid = parseInt(sc.is_paid) === 1;
+        document.getElementById('edit_pricing_free').checked = !isPaid;
+        document.getElementById('edit_pricing_paid').checked = isPaid;
+        toggleEditPricing();
+
+        document.getElementById('editShortCourseModal').style.display = 'block';
+    }
+
+    function closeEditModal() {
+        document.getElementById('editShortCourseModal').style.display = 'none';
+    }
+
+    function toggleEditPricing() {
+        const isPaid = document.getElementById('edit_pricing_paid').checked;
+        document.getElementById('edit_price_group').style.display = isPaid ? '' : 'none';
+        document.getElementById('edit_payment_methods_group').style.display = isPaid ? '' : 'none';
+        if (isPaid) {
+            document.getElementById('edit_price').required = true;
+        } else {
+            document.getElementById('edit_price').required = false;
+        }
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('editShortCourseModal').addEventListener('click', function(e) {
+        if (e.target === this) closeEditModal();
+    });
 
     function togglePricing() {
         const isPaid = document.getElementById('pricing_paid').checked;
