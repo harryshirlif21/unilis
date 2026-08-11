@@ -2463,6 +2463,57 @@ function tableColumnExists(mysqli $conn, string $table, string $column): bool {
     return $exists;
 }
 
+function reassignTeamLeadershipBeforeDelete(mysqli $conn, int $student_id): bool {
+    // Find every team where this student currently leads
+    $stmt = $conn->prepare("SELECT team_id FROM team_members WHERE student_id = ? AND role = 'leader'");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('i', $student_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $teamIds = [];
+    while ($row = $result->fetch_assoc()) {
+        $teamIds[] = (int) $row['team_id'];
+    }
+    $stmt->close();
+
+    foreach ($teamIds as $teamId) {
+        // Promote the earliest-added other member on this team
+        $findStmt = $conn->prepare("
+            SELECT id FROM team_members
+            WHERE team_id = ? AND student_id != ?
+            ORDER BY id ASC
+            LIMIT 1
+        ");
+        if (!$findStmt) {
+            return false;
+        }
+        $findStmt->bind_param('ii', $teamId, $student_id);
+        $findStmt->execute();
+        $findResult = $findStmt->get_result();
+        $nextLeader = $findResult->fetch_assoc();
+        $findStmt->close();
+
+        if ($nextLeader) {
+            $newLeaderMemberId = (int) $nextLeader['id'];
+            $updateStmt = $conn->prepare("UPDATE team_members SET role = 'leader' WHERE id = ?");
+            if (!$updateStmt) {
+                return false;
+            }
+            $updateStmt->bind_param('i', $newLeaderMemberId);
+            if (!$updateStmt->execute()) {
+                $updateStmt->close();
+                return false;
+            }
+            $updateStmt->close();
+        }
+        // If no other member exists, the team has only this student -
+        // deleteStudentDependencies() will safely remove the now-empty team.
+    }
+
+    return true;
+}
 // === DELETE SINGLE STUDENT ===
 if ($action === 'delete_student') {
     header('Content-Type: application/json');
@@ -2475,6 +2526,10 @@ if ($action === 'delete_student') {
 
     try {
         $conn->begin_transaction();
+
+        if (!reassignTeamLeadershipBeforeDelete($conn, $student_id)) {
+            throw new Exception('Failed to reassign team leadership before delete for student ID ' . $student_id . '.');
+        }
 
         if (!deleteStudentDependencies($conn, $student_id)) {
             throw new Exception('Failed to clear dependent records before delete.');
@@ -2531,7 +2586,11 @@ if ($action === 'bulk_delete_students') {
         }
 
         foreach ($ids as $student_id) {
-            if (!deleteStudentDependencies($conn, $student_id)) {
+            if (!reassignTeamLeadershipBeforeDelete($conn, $student_id)) {
+            throw new Exception('Failed to reassign team leadership before delete for student ID ' . $student_id . '.');
+        }
+
+        if (!deleteStudentDependencies($conn, $student_id)) {
                 throw new Exception('Failed to clear dependent records for student ID ' . $student_id . '.');
             }
 
