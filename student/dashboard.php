@@ -48,14 +48,6 @@ try {
     $department_name = $student['department_name'] ?: 'Not set';
     $university_name = $student['university_name'] ?: 'Not set';
 
-    $universities = [];
-    $uniResult = $conn->query('SELECT id, name FROM universities ORDER BY name ASC');
-    if ($uniResult) {
-        while ($row = $uniResult->fetch_assoc()) {
-            $universities[] = $row;
-        }
-    }
-
     $departments = [];
     $deptResult = $conn->query('SELECT id, name, university_id FROM departments ORDER BY name ASC');
     if ($deptResult) {
@@ -1271,18 +1263,33 @@ try {
         </div>
 
         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--neutral-200);">
-            <div style="font-size: 0.8125rem; font-weight: 700; color: var(--neutral-700); margin-bottom: 0.75rem;">Update academic profile</div>
-            <div class="profile-field">
-                <label for="profile-university">School</label>
-                <select id="profile-university">
-                    <option value="">Select school</option>
-                    <?php foreach ($universities as $university): ?>
-                        <option value="<?= (int) $university['id'] ?>" <?= (int) ($student['university_id'] ?? 0) === (int) $university['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($university['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
+            <button type="button" class="btn btn-primary w-full" onclick="openAcademicProfileModal()">
+                <span class="material-symbols-outlined">edit</span>
+                Update Academic Profile
+            </button>
+        </div>
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--neutral-200); display: flex; gap: 0.75rem;">
+            <a href="my_progress.php" class="btn btn-primary flex-1">
+                <span class="material-symbols-outlined">trending_up</span>
+                Progress
+            </a>
+            <a href="../logout.php" class="btn btn-danger flex-1">
+                <span class="material-symbols-outlined">logout</span>
+                Logout
+            </a>
+        </div>
+    </div>
+
+    <!-- Academic Profile Update Modal -->
+    <div id="academicProfileModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="hideModal('academicProfileModal')" aria-label="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <h3 style="display:flex;align-items:center;gap:0.5rem;margin:0 0 1rem 0;font-size:1.25rem;font-weight:700;color:var(--neutral-900);">
+                <span class="material-symbols-outlined">school</span>
+                Update Academic Profile
+            </h3>
             <div class="profile-field">
                 <label for="profile-department">Department</label>
                 <select id="profile-department">
@@ -1305,19 +1312,9 @@ try {
             </div>
             <button type="button" class="btn btn-primary w-full" id="update-profile-btn">
                 <span class="material-symbols-outlined">save</span>
-                Update Profile
+                Save Changes
             </button>
             <div id="profile-update-status" class="profile-status"></div>
-        </div>
-        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--neutral-200); display: flex; gap: 0.75rem;">
-            <a href="my_progress.php" class="btn btn-primary flex-1">
-                <span class="material-symbols-outlined">trending_up</span>
-                Progress
-            </a>
-            <a href="../logout.php" class="btn btn-danger flex-1">
-                <span class="material-symbols-outlined">logout</span>
-                Logout
-            </a>
         </div>
     </div>
     
@@ -1935,6 +1932,17 @@ try {
             year_of_study: <?= (int) ($student['year_of_study'] ?? 0) ?>
         };
 
+        function getProfileUniversityId() {
+            if (Number(profileCurrent.university_id) > 0) {
+                return Number(profileCurrent.university_id);
+            }
+
+            const currentDept = profileDepartments.find(
+                dept => Number(dept.id) === Number(profileCurrent.department_id)
+            );
+            return currentDept ? Number(currentDept.university_id) : 0;
+        }
+
         function populateProfileDepartments(universityId, selectedDepartmentId = 0) {
             const departmentSelect = document.getElementById('profile-department');
             const courseSelect = document.getElementById('profile-course');
@@ -1943,7 +1951,10 @@ try {
             departmentSelect.innerHTML = '<option value="">Select department</option>';
             courseSelect.innerHTML = '<option value="">Select course</option>';
 
-            const matching = profileDepartments.filter(dept => Number(dept.university_id) === Number(universityId));
+            const resolvedUniversityId = Number(universityId) > 0 ? Number(universityId) : getProfileUniversityId();
+            const matching = resolvedUniversityId > 0
+                ? profileDepartments.filter(dept => Number(dept.university_id) === resolvedUniversityId)
+                : profileDepartments.slice();
             const departmentsToShow = [...matching];
 
             if (selectedDepartmentId && !departmentsToShow.some(dept => Number(dept.id) === Number(selectedDepartmentId))) {
@@ -1986,35 +1997,39 @@ try {
         }
 
         function initProfileAcademicForm() {
-            const universitySelect = document.getElementById('profile-university');
-            if (!universitySelect) return;
-
-            if (profileCurrent.university_id) {
-                universitySelect.value = String(profileCurrent.university_id);
+            const yearSelect = document.getElementById('profile-year');
+            if (yearSelect && profileCurrent.year_of_study) {
+                yearSelect.value = String(profileCurrent.year_of_study);
             }
 
-            populateProfileDepartments(
-                universitySelect.value || profileCurrent.university_id,
-                profileCurrent.department_id
-            );
+            populateProfileDepartments(getProfileUniversityId(), profileCurrent.department_id);
+            setProfileStatus('');
+        }
+
+        function openAcademicProfileModal() {
+            const profilePopup = document.getElementById('profile-popup');
+            if (profilePopup) {
+                profilePopup.style.display = 'none';
+            }
+            initProfileAcademicForm();
+            showModal('academicProfileModal');
         }
 
         function setProfileStatus(message, type = 'error') {
             const statusEl = document.getElementById('profile-update-status');
             if (!statusEl) return;
             statusEl.textContent = message;
-            statusEl.className = 'profile-status ' + type;
+            statusEl.className = message ? ('profile-status ' + type) : 'profile-status';
         }
 
         async function updateStudentAcademicProfile() {
-            const universityId = Number(document.getElementById('profile-university')?.value || 0);
             const departmentId = Number(document.getElementById('profile-department')?.value || 0);
             const courseId = Number(document.getElementById('profile-course')?.value || 0);
             const yearOfStudy = Number(document.getElementById('profile-year')?.value || 0);
             const btn = document.getElementById('update-profile-btn');
 
-            if (!universityId || !departmentId || !courseId || !yearOfStudy) {
-                setProfileStatus('Please select school, department, course, and year.');
+            if (!departmentId || !courseId || !yearOfStudy) {
+                setProfileStatus('Please select department, course, and year.');
                 return;
             }
 
@@ -2028,7 +2043,6 @@ try {
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        university_id: universityId,
                         department_id: departmentId,
                         course_id: courseId,
                         year_of_study: yearOfStudy,
@@ -2041,26 +2055,26 @@ try {
                     throw new Error(data?.message || ('HTTP ' + res.status));
                 }
 
-                profileCurrent.university_id = universityId;
                 profileCurrent.department_id = departmentId;
                 profileCurrent.course_id = courseId;
                 profileCurrent.year_of_study = yearOfStudy;
+                if (Number(data.university_id) > 0) {
+                    profileCurrent.university_id = Number(data.university_id);
+                }
 
-                const universityName = document.querySelector('#profile-university option:checked')?.textContent || '';
                 const departmentName = document.querySelector('#profile-department option:checked')?.textContent || '';
                 const courseName = data.course_name || document.querySelector('#profile-course option:checked')?.textContent || '';
 
-                const uniDisplay = document.getElementById('profile-university-display');
                 const deptDisplay = document.getElementById('profile-department-display');
                 const courseDisplay = document.getElementById('profile-course-display');
                 const yearDisplay = document.getElementById('profile-year-display');
 
-                if (uniDisplay) uniDisplay.textContent = universityName;
                 if (deptDisplay) deptDisplay.textContent = departmentName;
                 if (courseDisplay) courseDisplay.textContent = courseName;
                 if (yearDisplay) yearDisplay.textContent = `Year ${yearOfStudy} • Joined <?= htmlspecialchars($student['year_joined']) ?>`;
 
                 setProfileStatus(data.message || 'Profile updated successfully', 'success');
+                setTimeout(() => hideModal('academicProfileModal'), 900);
             } catch (err) {
                 setProfileStatus(err.message || 'Failed to update profile');
             } finally {
@@ -2132,9 +2146,6 @@ try {
                 const visible = profilePopup.style.display === 'block';
                 profilePopup.style.display = visible ? 'none' : 'block';
                 notifContent.style.display = 'none';
-                if (!visible) {
-                    initProfileAcademicForm();
-                }
             });
             
             // Notifications popup
@@ -2173,10 +2184,6 @@ try {
             
             document.querySelectorAll('.card').forEach(card => {
                 observer.observe(card);
-            });
-
-            document.getElementById('profile-university')?.addEventListener('change', (e) => {
-                populateProfileDepartments(Number(e.target.value || 0), 0);
             });
 
             document.getElementById('profile-department')?.addEventListener('change', (e) => {
