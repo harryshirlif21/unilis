@@ -56,3 +56,118 @@ function ensure_student_not_in_other_team_for_unit(mysqli $conn, int $teamId, in
         throw new Exception('This student is already a member of another team in this unit. Each student can only be a member of one team per unit.');
     }
 }
+
+/**
+ * Resolve a student's course and year of study.
+ *
+ * @return array{course_id:int,year_of_study:int}
+ */
+function team_get_student_course_year(mysqli $conn, int $studentId): array
+{
+    $stmt = $conn->prepare('SELECT course_id, year_of_study FROM students WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new Exception('Failed to load student profile: ' . $conn->error);
+    }
+
+    $stmt->bind_param('i', $studentId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row) {
+        throw new Exception('Student record not found');
+    }
+
+    $courseId = (int) ($row['course_id'] ?? 0);
+    $yearOfStudy = (int) ($row['year_of_study'] ?? 0);
+
+    if ($courseId <= 0 || $yearOfStudy <= 0) {
+        throw new Exception('Could not determine your course or year');
+    }
+
+    return [
+        'course_id' => $courseId,
+        'year_of_study' => $yearOfStudy,
+    ];
+}
+
+/**
+ * Units the student is registered for (same rules as team creation).
+ *
+ * @return list<array<string, mixed>>
+ */
+function team_get_enrolled_units_for_student(mysqli $conn, int $studentId): array
+{
+    $profile = team_get_student_course_year($conn, $studentId);
+
+    $stmt = $conn->prepare("
+        SELECT id, code, name, semester
+        FROM units
+        WHERE course_id = ?
+          AND year = ?
+          AND semester IN (1, 2)
+        ORDER BY semester ASC, code ASC
+    ");
+    if (!$stmt) {
+        throw new Exception('Failed to load enrolled units: ' . $conn->error);
+    }
+
+    $stmt->bind_param('ii', $profile['course_id'], $profile['year_of_study']);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $units = [];
+    while ($row = $result->fetch_assoc()) {
+        $units[] = $row;
+    }
+    $stmt->close();
+
+    return $units;
+}
+
+/**
+ * Ensure the unit belongs to the student's registered course/year.
+ */
+function team_validate_unit_for_student(mysqli $conn, int $studentId, int $unitId): void
+{
+    if ($unitId <= 0) {
+        throw new Exception('A valid unit is required');
+    }
+
+    $profile = team_get_student_course_year($conn, $studentId);
+
+    $stmt = $conn->prepare('SELECT id FROM units WHERE id = ? AND course_id = ? AND year = ? LIMIT 1');
+    if (!$stmt) {
+        throw new Exception('Failed to validate unit: ' . $conn->error);
+    }
+
+    $stmt->bind_param('iii', $unitId, $profile['course_id'], $profile['year_of_study']);
+    $stmt->execute();
+    $hasUnit = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+
+    if (!$hasUnit) {
+        throw new Exception('Selected unit is not one of your registered units');
+    }
+}
+
+/**
+ * Ensure every current team member can belong to a team in the target unit.
+ */
+function ensure_team_members_can_use_unit(mysqli $conn, int $teamId, int $unitId): void
+{
+    $stmt = $conn->prepare('SELECT student_id FROM team_members WHERE team_id = ?');
+    if (!$stmt) {
+        throw new Exception('Failed to load team members: ' . $conn->error);
+    }
+
+    $stmt->bind_param('i', $teamId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    while ($row = $result->fetch_assoc()) {
+        ensure_student_not_in_other_team_for_unit($conn, $teamId, (int) $row['student_id'], $unitId);
+    }
+
+    $stmt->close();
+}

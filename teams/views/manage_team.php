@@ -142,6 +142,14 @@ if (empty($_SESSION['csrf_token'])) {
             width: 280px;
             accent-color: #fd7e14;
         }
+        .settings-row select {
+            min-width: 280px;
+            padding: 0.6rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background: #fff;
+            color: #212529;
+        }
         .limit-badge {
             display: inline-flex;
             min-width: 44px;
@@ -269,11 +277,20 @@ if (empty($_SESSION['csrf_token'])) {
 
 <div id="teamSettingsPanel" class="settings-panel" style="display:none;">
     <h3>Team Settings</h3>
-    <p style="margin:0 0 0.75rem 0;color:#6c757d;">Team leader can set member limit (maximum 15).</p>
+    <p style="margin:0 0 0.75rem 0;color:#6c757d;">Team leader can update the registered unit and member limit (maximum 15).</p>
+    <div class="settings-row" style="margin-bottom:0.85rem;">
+        <label for="teamUnitSelect" style="font-weight:600;">Unit</label>
+        <select id="teamUnitSelect">
+            <option value="">Loading units...</option>
+        </select>
+    </div>
     <div class="settings-row">
+        <label for="teamLimitSlider" style="font-weight:600;">Member limit</label>
         <input type="range" id="teamLimitSlider" min="2" max="15" step="1" value="15">
         <span id="teamLimitValue" class="limit-badge">15</span>
-        <button id="saveTeamSettingsBtn" style="background:#0d6efd;">Save Limit</button>
+    </div>
+    <div class="settings-row" style="margin-top:0.85rem;">
+        <button id="saveTeamSettingsBtn" style="background:#0d6efd;">Save Settings</button>
     </div>
     <small id="teamSettingsHint" style="display:block;margin-top:0.55rem;color:#6c757d;"></small>
 </div>
@@ -313,6 +330,8 @@ const csrf = "<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>";
 let maxTeamMembers = 15;
 let currentTeamSize = 0;
 let isCurrentUserLeader = false;
+let currentTeamUnitId = 0;
+let enrolledUnitsLoaded = false;
 
 const teamRoleLabels = {
     leader: 'Team Lead',
@@ -376,7 +395,52 @@ function syncTeamLimitUI() {
     slider.max = '15';
     slider.value = String(Math.min(15, Math.max(minAllowed, maxTeamMembers)));
     value.textContent = slider.value;
-    hint.textContent = `Current members: ${currentTeamSize}. Minimum allowed limit is ${minAllowed}.`;
+    hint.textContent = `Current members: ${currentTeamSize}. Minimum allowed limit is ${minAllowed}. Choose a unit from those you are registered for.`;
+}
+
+async function loadEnrolledUnits(selectedUnitId = 0, currentUnitLabel = '') {
+    const select = document.getElementById('teamUnitSelect');
+    if (!select || !isCurrentUserLeader) return;
+
+    try {
+        const res = await fetch('/teams/api/get_enrolled_units.php', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data.success) {
+            throw new Error(data.message || 'Failed to load units');
+        }
+
+        select.innerHTML = '';
+        const units = Array.isArray(data.units) ? data.units : [];
+
+        if (!units.length && !selectedUnitId) {
+            select.innerHTML = '<option value="">No registered units found</option>';
+            enrolledUnitsLoaded = true;
+            return;
+        }
+
+        units.forEach(unit => {
+            const opt = document.createElement('option');
+            opt.value = String(unit.id);
+            opt.textContent = unit.code ? `${unit.code} – ${unit.name}` : unit.name;
+            select.appendChild(opt);
+        });
+
+        if (selectedUnitId > 0 && !units.some(unit => Number(unit.id) === Number(selectedUnitId))) {
+            const opt = document.createElement('option');
+            opt.value = String(selectedUnitId);
+            opt.textContent = currentUnitLabel || `Current unit (#${selectedUnitId})`;
+            select.insertBefore(opt, select.firstChild);
+        }
+
+        if (selectedUnitId > 0) {
+            select.value = String(selectedUnitId);
+        }
+
+        enrolledUnitsLoaded = true;
+    } catch (err) {
+        select.innerHTML = '<option value="">Could not load units</option>';
+        console.error('loadEnrolledUnits:', err);
+    }
 }
 
 // Load team data
@@ -418,6 +482,7 @@ async function loadTeam() {
         `;
 
         maxTeamMembers = Math.min(15, Number(data.team.max_members) || 15);
+        currentTeamUnitId = Number(data.team.unit_id) || 0;
         document.getElementById('max-size').textContent = maxTeamMembers;
 
         const grid = document.getElementById('members-grid');
@@ -496,6 +561,9 @@ async function loadTeam() {
         const countPill = document.getElementById('memberCountPill');
         countPill.className = `count-pill ${memberCountClass(teamSize)}`;
         syncTeamLimitUI();
+        if (isCurrentUserLeader) {
+            await loadEnrolledUnits(currentTeamUnitId, unitLabel);
+        }
 
         const addMemberBtn = document.getElementById('addMemberBtn');
         if (teamSize >= maxTeamMembers) {
@@ -1109,10 +1177,16 @@ document.getElementById('saveTeamSettingsBtn').addEventListener('click', async (
     }
 
     const max_members = Number(teamLimitSlider?.value || 15);
+    const unit_id = Number(document.getElementById('teamUnitSelect')?.value || 0);
     const minAllowed = Math.max(2, currentTeamSize);
 
     if (!Number.isFinite(max_members) || max_members < minAllowed || max_members > 15) {
         showMessage(`Member limit must be between ${minAllowed} and 15`);
+        return;
+    }
+
+    if (!unit_id) {
+        showMessage('Please select a unit from your registered units');
         return;
     }
 
@@ -1129,6 +1203,7 @@ document.getElementById('saveTeamSettingsBtn').addEventListener('click', async (
             body: JSON.stringify({
                 team_id: teamId,
                 max_members,
+                unit_id,
                 csrf_token: csrf
             })
         });
@@ -1140,6 +1215,7 @@ document.getElementById('saveTeamSettingsBtn').addEventListener('click', async (
 
         showMessage(data.message || 'Team settings updated', 'success');
         maxTeamMembers = Number(data.max_members) || max_members;
+        currentTeamUnitId = Number(data.unit_id) || unit_id;
         loadTeam();
     } catch (err) {
         showMessage('Save settings error: ' + err.message);
