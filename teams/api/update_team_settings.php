@@ -19,6 +19,8 @@ try {
     $teamId = (int) ($input['team_id'] ?? 0);
     $maxMembers = isset($input['max_members']) ? (int) $input['max_members'] : null;
     $unitId = isset($input['unit_id']) ? (int) $input['unit_id'] : null;
+    $changePrimaryUnit = !empty($input['change_primary_unit']);
+    $assessmentType = trim((string) ($input['assessment_type'] ?? ''));
     $csrfToken = (string) ($input['csrf_token'] ?? '');
     $userId = (int) $_SESSION['user_id'];
 
@@ -34,7 +36,7 @@ try {
         exit;
     }
 
-    if ($maxMembers === null && ($unitId === null || $unitId <= 0)) {
+    if ($maxMembers === null && !$changePrimaryUnit && ($unitId === null || $unitId <= 0)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Nothing to update']);
         exit;
@@ -110,8 +112,29 @@ try {
         }
     }
 
-    if ($unitId !== null && $unitId > 0) {
-        $assessmentType = trim((string) ($input['assessment_type'] ?? ($teamRow['assessment_type'] ?? 'project')));
+    if ($changePrimaryUnit) {
+        if ($unitId === null || $unitId <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Select a unit to change to']);
+            exit;
+        }
+
+        if ($assessmentType === '') {
+            $assessmentType = trim((string) ($teamRow['assessment_type'] ?? 'project'));
+        }
+        if ($assessmentType === '') {
+            $assessmentType = 'project';
+        }
+
+        $changeResult = team_change_primary_unit($conn, $teamId, $unitId, $assessmentType, $userId);
+        if (!empty($changeResult['changed'])) {
+            $updatedUnitId = (int) ($changeResult['unit_id'] ?? $unitId);
+            $messages[] = 'Primary unit updated';
+        }
+    } elseif ($unitId !== null && $unitId > 0) {
+        if ($assessmentType === '') {
+            $assessmentType = trim((string) ($teamRow['assessment_type'] ?? 'project'));
+        }
         if ($assessmentType === '') {
             $assessmentType = 'project';
         }

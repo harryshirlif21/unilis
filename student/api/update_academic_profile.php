@@ -3,6 +3,7 @@ header('Content-Type: application/json');
 session_start();
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../../teams/includes/team_profile_sync.php';
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'student') {
     http_response_code(401);
@@ -91,17 +92,25 @@ try {
     $updateStmt->execute();
     $updateStmt->close();
 
+    $teamSync = team_sync_after_student_profile_update($conn, $userId, $courseId, $yearOfStudy);
+
     $_SESSION['course_id'] = $courseId;
     $_SESSION['year_of_study'] = $yearOfStudy;
 
+    $message = 'Profile updated successfully';
+    if (($teamSync['teams_updated'] ?? 0) > 0) {
+        $message .= '. Your team leadership and team records were kept in sync';
+    }
+
     echo json_encode([
         'success' => true,
-        'message' => 'Profile updated successfully',
+        'message' => $message,
         'university_id' => $universityId,
         'department_id' => $departmentId,
         'course_id' => $courseId,
         'year_of_study' => $yearOfStudy,
         'course_name' => (string) ($course['name'] ?? ''),
+        'teams_sync' => $teamSync,
     ]);
 } catch (Throwable $e) {
     http_response_code(500);

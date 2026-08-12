@@ -314,6 +314,27 @@ if (empty($_SESSION['csrf_token'])) {
     <div id="teamRegistrationsList" class="registration-list"></div>
 
     <div style="border-top:1px solid #dee2e6;padding-top:0.85rem;margin-top:0.5rem;">
+        <h4 style="margin:0 0 0.65rem 0;">Change primary unit</h4>
+        <p style="margin:0 0 0.65rem 0;color:#6c757d;font-size:0.92rem;">Update the main unit shown for this team. Choose from units you are registered in.</p>
+        <div class="settings-row" style="margin-bottom:0.85rem;">
+            <label for="changePrimaryUnitSelect" style="font-weight:600;">Unit</label>
+            <select id="changePrimaryUnitSelect">
+                <option value="">Loading units...</option>
+            </select>
+        </div>
+        <div class="settings-row" style="margin-bottom:0.85rem;">
+            <label for="changePrimaryAssessmentSelect" style="font-weight:600;">Assessment</label>
+            <select id="changePrimaryAssessmentSelect">
+                <option value="assignment">Assignment</option>
+                <option value="cat">CAT</option>
+                <option value="project" selected>Project</option>
+                <option value="practical">Practical</option>
+            </select>
+        </div>
+        <button id="changePrimaryUnitBtn" style="background:#fd7e14;color:#fff;">Change Primary Unit</button>
+    </div>
+
+    <div style="border-top:1px solid #dee2e6;padding-top:0.85rem;margin-top:0.5rem;">
         <h4 style="margin:0 0 0.65rem 0;">Register team for another unit</h4>
         <div class="settings-row" style="margin-bottom:0.85rem;">
             <label for="registerUnitSelect" style="font-weight:600;">Unit</label>
@@ -542,6 +563,57 @@ async function splitTeamRegistration(registrationId) {
     }
 }
 
+async function changePrimaryUnit() {
+    if (!isCurrentUserLeader) {
+        showMessage('Only team leaders can change the primary unit');
+        return;
+    }
+
+    const unit_id = Number(document.getElementById('changePrimaryUnitSelect')?.value || 0);
+    const assessment_type = document.getElementById('changePrimaryAssessmentSelect')?.value || '';
+
+    if (!unit_id || !assessment_type) {
+        showMessage('Select a unit and assessment type');
+        return;
+    }
+
+    if (!confirm('Change this team\'s primary unit to the selected unit and assessment?')) {
+        return;
+    }
+
+    const btn = document.getElementById('changePrimaryUnitBtn');
+    btn.disabled = true;
+    const oldLabel = btn.textContent;
+    btn.textContent = 'Updating...';
+
+    try {
+        const res = await fetch('/teams/api/update_team_settings.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                unit_id,
+                assessment_type,
+                change_primary_unit: true,
+                csrf_token: csrf
+            })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) {
+            throw new Error(data?.error || ('HTTP ' + res.status));
+        }
+
+        showMessage(data.message || 'Primary unit updated', 'success');
+        loadTeam();
+    } catch (err) {
+        showMessage('Change unit error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = oldLabel;
+    }
+}
+
 async function registerTeamForUnit() {
     if (!isCurrentUserLeader) {
         showMessage('Only team leaders can register the team for another unit');
@@ -756,6 +828,14 @@ async function loadTeam() {
         renderTeamRegistrations(currentTeamRegistrations, members);
         if (isCurrentUserLeader) {
             await loadEnrolledUnits(currentTeamUnitId, unitLabel, 'registerUnitSelect');
+            await loadEnrolledUnits(currentTeamUnitId, unitLabel, 'changePrimaryUnitSelect');
+            const primaryAssessment = (team.assessment_type || 'project').toLowerCase();
+            const primaryAssessmentSelect = document.getElementById('changePrimaryAssessmentSelect');
+            if (primaryAssessmentSelect) {
+                primaryAssessmentSelect.value = ['assignment', 'cat', 'project', 'practical'].includes(primaryAssessment)
+                    ? primaryAssessment
+                    : 'project';
+            }
         }
 
         const addMemberBtn = document.getElementById('addMemberBtn');
@@ -1411,6 +1491,7 @@ document.getElementById('saveTeamSettingsBtn').addEventListener('click', async (
 });
 
 document.getElementById('registerTeamUnitBtn')?.addEventListener('click', registerTeamForUnit);
+document.getElementById('changePrimaryUnitBtn')?.addEventListener('click', changePrimaryUnit);
 
 // Load on page ready
 loadTeam();

@@ -129,6 +129,225 @@ function team_get_registrations(mysqli $conn, int $teamId, bool $activeOnly = tr
     return $rows;
 }
 
+/**
+ * Change the team's primary unit (teams.unit_id) to another enrolled unit.
+ *
+ * @return array{changed:bool,unit_id:int,assessment_type:string}
+ */
+function team_change_primary_unit(
+    mysqli $conn,
+    int $teamId,
+    int $newUnitId,
+    string $assessmentType,
+    int $leaderId
+): array {
+    require_once __DIR__ . '/team_membership.php';
+    ensure_team_registrations_tables($conn);
+
+    $assessmentType = strtolower(trim($assessmentType));
+    $allowed = ['assignment', 'cat', 'project', 'practical'];
+    if (!in_array($assessmentType, $allowed, true)) {
+        throw new Exception('Invalid assessment type selected');
+    }
+
+    if ($newUnitId <= 0 || $teamId <= 0) {
+        throw new Exception('Team and unit are required');
+    }
+
+    team_validate_unit_for_student($conn, $leaderId, $newUnitId);
+    ensure_team_members_can_use_unit($conn, $teamId, $newUnitId);
+
+    $teamStmt = $conn->prepare('SELECT id, unit_id, assessment_type, course_id, year FROM teams WHERE id = ? LIMIT 1');
+    if (!$teamStmt) {
+        throw new Exception('Failed to load team');
+    }
+
+    $teamStmt->bind_param('i', $teamId);
+    $teamStmt->execute();
+    $teamRow = $teamStmt->get_result()->fetch_assoc();
+    $teamStmt->close();
+
+    if (!$teamRow) {
+        throw new Exception('Team not found');
+    }
+
+    $oldUnitId = (int) ($teamRow['unit_id'] ?? 0);
+    $oldAssessment = strtolower(trim((string) ($teamRow['assessment_type'] ?? 'project')));
+    if ($oldAssessment === '') {
+        $oldAssessment = 'project';
+    }
+
+    if ($oldUnitId === $newUnitId && $oldAssessment === $assessmentType) {
+        return [
+            'changed' => false,
+            'unit_id' => $newUnitId,
+            'assessment_type' => $assessmentType,
+        ];
+    }
+
+    $unitStmt = $conn->prepare('SELECT id, course_id, year FROM units WHERE id = ? LIMIT 1');
+    if (!$unitStmt) {
+        throw new Exception('Failed to load unit details');
+    }
+
+    $unitStmt->bind_param('i', $newUnitId);
+    $unitStmt->execute();
+    $unitRow = $unitStmt->get_result()->fetch_assoc();
+    $unitStmt->close();
+
+    if (!$unitRow) {
+        throw new Exception('Selected unit was not found');
+    }
+
+    $unitCourseId = (int) ($unitRow['course_id'] ?? 0);
+    $unitYear = (int) ($unitRow['year'] ?? 0);
+
+    $targetReg = null;
+    $targetStmt = $conn->prepare("
+        SELECT id, unit_id, assessment_type
+        FROM team_registrations
+        WHERE team_id = ? AND unit_id = ? AND assessment_type = ? AND status = 'active'
+        LIMIT 1
+    ");
+    if ($targetStmt) {
+        $targetStmt->bind_param('iis', $teamId, $newUnitId, $assessmentType);
+        $targetStmt->execute();
+        $targetReg = $targetStmt->get_result()->fetch_assoc() ?: null;
+        $targetStmt->close();
+    }
+
+    $primaryReg = null;
+    if ($oldUnitId > 0) {
+        $primaryStmt = $conn->prepare("
+            SELECT id, unit_id, assessment_type
+            FROM team_registrations
+            WHERE team_id = ? AND unit_id = ? AND assessment_type = ? AND status = 'active'
+            LIMIT 1
+        ");
+        if ($primaryStmt) {
+            $primaryStmt->bind_param('iis', $teamId, $oldUnitId, $oldAssessment);
+            $primaryStmt->execute();
+            $primaryReg = $primaryStmt->get_result()->fetch_assoc() ?: null;
+            $primaryStmt->close();
+        }
+    }
+
+    if (!$primaryReg) {
+        $fallbackStmt = $conn->prepare("
+            SELECT id, unit_id, assessment_type
+            FROM team_registrations
+            WHERE team_id = ? AND status = 'active'
+            ORDER BY registered_at ASC, id ASC
+            LIMIT 1
+        ");
+        if ($fallbackStmt) {
+            $fallbackStmt->bind_param('i', $teamId);
+            $fallbackStmt->execute();
+            $primaryReg = $fallbackStmt->get_result()->fetch_assoc() ?: null;
+            $fallbackStmt->close();
+        }
+    }
+
+    $conn->begin_transaction();
+
+    try {
+        if ($targetReg && (!$primaryReg || (int) $targetReg['id'] !== (int) $primaryReg['id'])) {
+            $updateTeam = $conn->prepare('
+                UPDATE teams
+                SET unit_id = ?, assessment_type = ?, course_id = ?, year = ?
+                WHERE id = ?
+                LIMIT 1
+            ');
+            if (!$updateTeam) {
+                throw new Exception('Failed to update team primary unit');
+            }
+
+            $updateTeam->bind_param('isiii', $newUnitId, $assessmentType, $unitCourseId, $unitYear, $teamId);
+            $updateTeam->execute();
+            $updateTeam->close();
+        } elseif ($primaryReg) {
+            $conflictStmt = $conn->prepare("
+                SELECT id
+                FROM team_registrations
+                WHERE team_id = ?
+                  AND unit_id = ?
+                  AND assessment_type = ?
+                  AND id != ?
+                  AND status = 'active'
+                LIMIT 1
+            ");
+            if (!$conflictStmt) {
+                throw new Exception('Failed to validate registration change');
+            }
+
+            $registrationId = (int) $primaryReg['id'];
+            $conflictStmt->bind_param('iisi', $teamId, $newUnitId, $assessmentType, $registrationId);
+            $conflictStmt->execute();
+            $hasConflict = $conflictStmt->get_result()->num_rows > 0;
+            $conflictStmt->close();
+
+            if ($hasConflict) {
+                throw new Exception('This team is already registered for the selected unit and assessment');
+            }
+
+            $updateReg = $conn->prepare('
+                UPDATE team_registrations
+                SET unit_id = ?, assessment_type = ?
+                WHERE id = ?
+                LIMIT 1
+            ');
+            if (!$updateReg) {
+                throw new Exception('Failed to update team registration');
+            }
+
+            $updateReg->bind_param('isi', $newUnitId, $assessmentType, $registrationId);
+            $updateReg->execute();
+            $updateReg->close();
+
+            $updateTeam = $conn->prepare('
+                UPDATE teams
+                SET unit_id = ?, assessment_type = ?, course_id = ?, year = ?
+                WHERE id = ?
+                LIMIT 1
+            ');
+            if (!$updateTeam) {
+                throw new Exception('Failed to update team primary unit');
+            }
+
+            $updateTeam->bind_param('isiii', $newUnitId, $assessmentType, $unitCourseId, $unitYear, $teamId);
+            $updateTeam->execute();
+            $updateTeam->close();
+        } else {
+            team_add_registration($conn, $teamId, $newUnitId, $assessmentType, $leaderId);
+
+            $updateTeam = $conn->prepare('
+                UPDATE teams
+                SET unit_id = ?, assessment_type = ?, course_id = ?, year = ?
+                WHERE id = ?
+                LIMIT 1
+            ');
+            if (!$updateTeam) {
+                throw new Exception('Failed to update team primary unit');
+            }
+
+            $updateTeam->bind_param('isiii', $newUnitId, $assessmentType, $unitCourseId, $unitYear, $teamId);
+            $updateTeam->execute();
+            $updateTeam->close();
+        }
+
+        $conn->commit();
+
+        return [
+            'changed' => true,
+            'unit_id' => $newUnitId,
+            'assessment_type' => $assessmentType,
+        ];
+    } catch (Throwable $e) {
+        $conn->rollback();
+        throw $e;
+    }
+}
+
 function team_get_registration(mysqli $conn, int $registrationId): ?array
 {
     ensure_team_registrations_tables($conn);
