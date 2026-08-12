@@ -274,6 +274,28 @@ function getMemberHeatClass(memberCount) {
     return 'members-normal';
 }
 
+function formatUnitDisplay(team) {
+    if (team.unit_display) return team.unit_display;
+    const code = (team.unit_code || '').trim();
+    const name = (team.unit_name || '').trim();
+    if (code && name) return `${code} – ${name}`;
+    return name || code || '—';
+}
+
+function formatLatestActivity(team) {
+    const activity = team.latest_activity;
+    if (!activity || !activity.created_at) {
+        const created = team.created_at ? new Date(team.created_at).toLocaleString() : '—';
+        return `<span title="No recent activity">Created ${escHtml(created)}</span>`;
+    }
+    const when = new Date(activity.created_at).toLocaleString();
+    const label = activity.action_label || activity.action_type || 'Activity';
+    const who = activity.user_name ? ` by ${activity.user_name}` : '';
+    const detail = activity.action_detail ? `: ${activity.action_detail}` : '';
+    const text = `${label}${who}${detail}`;
+    return `<span title="${escHtml(text)}">${escHtml(label)}${who ? escHtml(who) : ''}<br><small style="color:var(--gray-400);font-weight:500;">${escHtml(when)}</small></span>`;
+}
+
 /* ── Safe JSON fetch ── */
 async function safeFetch(url, options = {}) {
     const res  = await fetch(url, { credentials: 'same-origin', ...options });
@@ -327,17 +349,18 @@ async function loadTeams() {
 
         const rows = data.teams.map(team => {
             const aType   = (team.assessment_type || '').toLowerCase();
-            const label   = aType ? aType.charAt(0).toUpperCase() + aType.slice(1) : 'Unknown';
+            const label   = team.assessment_title || (aType ? aType.charAt(0).toUpperCase() + aType.slice(1) : 'Unknown');
             const members = Array.isArray(team.members) ? team.members.length : (team.member_count || 0);
             const maxMembers = Number(team.max_members) || 15;
             const memberClass = getMemberHeatClass(members);
             return `
                 <tr>
                     <td class="td-title">${escHtml(team.title)}</td>
-                    <td>${escHtml(team.unit_name || '—')}</td>
+                    <td>${escHtml(formatUnitDisplay(team))}</td>
                     <td><span class="tc-badge ${badgeClass(aType)}">${escHtml(label)}</span></td>
                     <td><span class="status-pill">${escHtml(team.status || 'Active')}</span></td>
                     <td style="text-align:center"><span class="members-pill ${memberClass}">${members}/${maxMembers}</span></td>
+                    <td>${formatLatestActivity(team)}</td>
                     <td>
                         <div class="td-actions">
                             <a href="/teams/views/manage_team.php?team_id=${team.id}" class="btn-manage">
@@ -361,6 +384,7 @@ async function loadTeams() {
                             <th>Type</th>
                             <th>Status</th>
                             <th style="text-align:center">Members</th>
+                            <th>Latest Activity</th>
                             <th style="text-align:right">Actions</th>
                         </tr>
                     </thead>

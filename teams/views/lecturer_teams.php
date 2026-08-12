@@ -5,6 +5,7 @@ session_start();
    DATABASE CONNECTION
 ========================= */
 require_once '../../config/db.php';
+require_once __DIR__ . '/../includes/team_display_helpers.php';
 
 if (!isset($conn) || !$conn) {
     die("Database connection failed.");
@@ -178,13 +179,14 @@ try {
                 u.id AS unit_id,
                 u.name AS unit_name,
                 u.code AS unit_code,
-                COUNT(tm.student_id) AS member_count
+                COUNT(tm.student_id) AS member_count,
+                (SELECT MAX(tal.created_at) FROM team_activity_log tal WHERE tal.team_id = t.id) AS latest_activity_at
             FROM teams t
             JOIN units u ON t.unit_id = u.id
             LEFT JOIN team_members tm ON t.id = tm.team_id
             WHERE t.unit_id = ?
             GROUP BY t.id
-            ORDER BY t.created_at DESC
+            ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
             ";
             $stmt = $conn->prepare($sql);
             if (!$stmt) {
@@ -205,7 +207,8 @@ try {
                     u.id AS unit_id,
                     u.name AS unit_name,
                     u.code AS unit_code,
-                    COUNT(tm.student_id) AS member_count
+                    COUNT(tm.student_id) AS member_count,
+                (SELECT MAX(tal.created_at) FROM team_activity_log tal WHERE tal.team_id = t.id) AS latest_activity_at
                 FROM teams t
                 JOIN units u ON t.unit_id = u.id
                 LEFT JOIN team_members tm ON t.id = tm.team_id
@@ -226,7 +229,7 @@ try {
                     )
                   )
                 GROUP BY t.id
-                ORDER BY t.created_at DESC
+                ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
                 ";
                 $stmt = $conn->prepare($sql);
                 if (!$stmt) {
@@ -246,14 +249,15 @@ try {
                     u.id AS unit_id,
                     u.name AS unit_name,
                     u.code AS unit_code,
-                    COUNT(tm.student_id) AS member_count
+                    COUNT(tm.student_id) AS member_count,
+                (SELECT MAX(tal.created_at) FROM team_activity_log tal WHERE tal.team_id = t.id) AS latest_activity_at
                 FROM teams t
                 JOIN units u ON t.unit_id = u.id
                 JOIN lecturer_units lu ON u.id = lu.unit_id
                 LEFT JOIN team_members tm ON t.id = tm.team_id
                 WHERE t.unit_id = ? AND lu.lecturer_id = ?
                 GROUP BY t.id
-                ORDER BY t.created_at DESC
+                ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
                 ";
                 $stmt = $conn->prepare($sql);
                 if (!$stmt) {
@@ -274,12 +278,13 @@ try {
             u.id AS unit_id,
             u.name AS unit_name,
             u.code AS unit_code,
-            COUNT(tm.student_id) AS member_count
+            COUNT(tm.student_id) AS member_count,
+            (SELECT MAX(tal.created_at) FROM team_activity_log tal WHERE tal.team_id = t.id) AS latest_activity_at
         FROM teams t
         JOIN units u ON t.unit_id = u.id
         LEFT JOIN team_members tm ON t.id = tm.team_id
         GROUP BY t.id
-        ORDER BY t.created_at DESC
+        ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
         ";
 
         $stmt = $conn->prepare($sql);
@@ -300,7 +305,8 @@ try {
                 u.id AS unit_id,
                 u.name AS unit_name,
                 u.code AS unit_code,
-                COUNT(tm.student_id) AS member_count
+                COUNT(tm.student_id) AS member_count,
+                (SELECT MAX(tal.created_at) FROM team_activity_log tal WHERE tal.team_id = t.id) AS latest_activity_at
             FROM teams t
             JOIN units u ON t.unit_id = u.id
             LEFT JOIN team_members tm ON t.id = tm.team_id
@@ -320,7 +326,7 @@ try {
                 )
             )
             GROUP BY t.id
-            ORDER BY t.created_at DESC
+            ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
             ";
 
             $stmt = $conn->prepare($sql);
@@ -341,14 +347,15 @@ try {
                 u.id AS unit_id,
                 u.name AS unit_name,
                 u.code AS unit_code,
-                COUNT(tm.student_id) AS member_count
+                COUNT(tm.student_id) AS member_count,
+                (SELECT MAX(tal.created_at) FROM team_activity_log tal WHERE tal.team_id = t.id) AS latest_activity_at
             FROM teams t
             JOIN units u ON t.unit_id = u.id
             JOIN lecturer_units lu ON u.id = lu.unit_id
             LEFT JOIN team_members tm ON t.id = tm.team_id
             WHERE lu.lecturer_id = ?
             GROUP BY t.id
-            ORDER BY t.created_at DESC
+            ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
             ";
 
             $stmt = $conn->prepare($sql);
@@ -508,6 +515,10 @@ foreach ($teams as $team) {
     }
 
     $existingMarks = $teamMarks;
+
+    $latestActivity = team_fetch_latest_activity($conn, (int) $team['team_id']);
+    $team['latest_activity'] = $latestActivity;
+    $team['unit_display'] = team_format_unit_display($team['unit_code'] ?? null, $team['unit_name'] ?? null);
 
     // Fetch team files for each member
     foreach ($teamMembers as &$member) {
@@ -2474,6 +2485,9 @@ foreach ($teams as $team) {
                                 <?= ucfirst($team['status']); ?>
                             </span>
                         </h2>
+                        <p style="margin:6px 0 0;font-size:14px;color:var(--muted);font-weight:500;">
+                            <?= htmlspecialchars($team['unit_display'] ?? team_format_unit_display($team['unit_code'] ?? null, $team['unit_name'] ?? null)); ?>
+                        </p>
                     </div>
                     <div class="team-header-actions">
                         <a href="workspace.php?team_id=<?= $team['team_id']; ?>" class="workspace-link">
@@ -2531,6 +2545,25 @@ foreach ($teams as $team) {
                     <div class="team-meta-item">
                         <span class="meta-label">Created</span>
                         <span class="meta-value"><?= date('d M Y', strtotime($team['team_created'])); ?></span>
+                    </div>
+                    <div class="team-meta-item">
+                        <span class="meta-label">Latest Activity</span>
+                        <?php if (!empty($team['latest_activity']['created_at'])): ?>
+                            <span class="meta-value">
+                                <?= htmlspecialchars($team['latest_activity']['action_label'] ?? 'Activity'); ?>
+                                <?php if (!empty($team['latest_activity']['user_name'])): ?>
+                                    by <?= htmlspecialchars($team['latest_activity']['user_name']); ?>
+                                <?php endif; ?>
+                            </span>
+                            <span class="meta-value" style="font-size:12px;color:var(--muted);">
+                                <?= date('d M Y, H:i', strtotime($team['latest_activity']['created_at'])); ?>
+                                <?php if (!empty($team['latest_activity']['action_detail'])): ?>
+                                    — <?= htmlspecialchars($team['latest_activity']['action_detail']); ?>
+                                <?php endif; ?>
+                            </span>
+                        <?php else: ?>
+                            <span class="meta-value">No activity recorded yet</span>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -2827,7 +2860,9 @@ foreach ($allTeamDetails as $td) {
         'title' => $td['team']['team_title'],
         'unit' => $td['team']['unit_name'],
         'code' => $td['team']['unit_code'],
+        'unit_display' => $td['team']['unit_display'] ?? team_format_unit_display($td['team']['unit_code'] ?? null, $td['team']['unit_name'] ?? null),
         'status' => $td['team']['status'],
+        'latest_activity' => $td['team']['latest_activity']['action_label'] ?? '',
         'members' => array_map(function($m) {
             return [
                 'id' => (int)$m['student_id'],
@@ -2864,7 +2899,7 @@ document.getElementById('globalSearchInput')?.addEventListener('input', function
         if (team.title.toLowerCase().includes(query) || 
             team.unit.toLowerCase().includes(query) || 
             team.code.toLowerCase().includes(query)) {
-            results.push({ type: 'team', name: team.title, meta: team.code + ' - ' + team.unit, id: team.id });
+            results.push({ type: 'team', name: team.title, meta: (team.unit_display || (team.code + ' - ' + team.unit)) + (team.latest_activity ? ' • ' + team.latest_activity : ''), id: team.id });
         }
         team.members.forEach(m => {
             if (m.name.toLowerCase().includes(query) || 

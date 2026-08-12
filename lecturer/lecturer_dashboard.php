@@ -7,6 +7,7 @@ ini_set('memory_limit', '256M'); // Increase memory limit
 
 session_start();
 require_once '../config/db.php';
+require_once '../teams/includes/team_display_helpers.php';
 
 // Check if lecturer is logged in
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'lecturer') {
@@ -95,10 +96,18 @@ try {
         SELECT 
             t.id as team_id,
             t.title as team_title,
+            t.assessment_type,
+            u.id as unit_id,
             u.code as unit_code,
             u.name as unit_name,
             t.status,
-            COUNT(DISTINCT tm.student_id) as member_count
+            t.created_at,
+            COUNT(DISTINCT tm.student_id) as member_count,
+            (
+                SELECT MAX(tal.created_at)
+                FROM team_activity_log tal
+                WHERE tal.team_id = t.id
+            ) AS latest_activity_at
         FROM team_supervisors tsup
         JOIN teams t ON tsup.team_id = t.id
         JOIN units u ON t.unit_id = u.id
@@ -106,13 +115,16 @@ try {
         WHERE tsup.lecturer_id = ?
           AND tsup.supervisor_type = 'lecturer'
           AND tsup.status = 'approved'
-        GROUP BY t.id, t.title, u.code, u.name, t.status
-        ORDER BY t.created_at DESC
+        GROUP BY t.id, t.title, t.assessment_type, u.id, u.code, u.name, t.status, t.created_at
+        ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
     ");
     $stmt->bind_param("i", $lecturer_id);
     $stmt->execute();
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
+        $row['unit_display'] = team_format_unit_display($row['unit_code'] ?? null, $row['unit_name'] ?? null);
+        $row['assessment_title'] = team_assessment_label($row['assessment_type'] ?? null);
+        $row['latest_activity'] = team_fetch_latest_activity($conn, (int) ($row['team_id'] ?? 0));
         $supervisedTeams[] = $row;
     }
     $stmt->close();
@@ -172,12 +184,18 @@ try {
                 <div class="supervised-list">
                     <?php foreach ($supervisedTeams as $team): ?>
                         <div class="supervised-card">
-                            <a href="../teams/views/manage_team.php?team_id=<?= (int)$team['team_id'] ?>">
+                            <a href="../teams/views/lecturer_teams.php?unit_id=<?= (int)($team['unit_id'] ?? 0) ?>#teamContent-<?= (int)$team['team_id'] ?>">
                                 <?= htmlspecialchars($team['team_title']) ?>
                             </a>
                             <div class="supervised-meta">
                                 <span class="badge <?= htmlspecialchars($team['status']) ?>"><?= ucfirst(htmlspecialchars($team['status'])) ?></span>
-                                <?= htmlspecialchars($team['unit_code']) ?> · <?= htmlspecialchars($team['unit_name']) ?> · <?= (int)$team['member_count'] ?> member<?= (int)$team['member_count'] === 1 ? '' : 's' ?>
+                                <?= htmlspecialchars($team['unit_display']) ?>
+                                · <?= htmlspecialchars($team['assessment_title']) ?>
+                                · <?= (int)$team['member_count'] ?> member<?= (int)$team['member_count'] === 1 ? '' : 's' ?>
+                                <?php if (!empty($team['latest_activity']['created_at'])): ?>
+                                    · Latest: <?= htmlspecialchars($team['latest_activity']['action_label'] ?? 'Activity') ?>
+                                    (<?= date('d M Y', strtotime($team['latest_activity']['created_at'])) ?>)
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>

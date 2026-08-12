@@ -399,11 +399,22 @@ async function loadTeam() {
             throw new Error(data.error || 'Failed to load team');
         }
 
-        // Update header
+        const team = data.team || {};
+        const unitLabel = team.unit_display
+            || ((team.unit_code && team.unit_name) ? `${team.unit_code} – ${team.unit_name}` : (team.unit_name || team.unit_code || '—'));
+        const assessmentLabel = team.assessment_title || team.assessment_type || '—';
+        const latest = team.latest_activity;
+        let latestHtml = '';
+        if (latest && latest.created_at) {
+            const latestText = `${latest.action_label || latest.action_type || 'Activity'}${latest.user_name ? ' by ' + latest.user_name : ''}${latest.action_detail ? ' — ' + latest.action_detail : ''}`;
+            latestHtml = `<p><strong>Latest activity:</strong> ${latestText} <span style="color:#6c757d;">(${new Date(latest.created_at).toLocaleString()})</span></p>`;
+        }
+
         header.innerHTML = `
-            <h2>${data.team.title || 'Untitled Team'}</h2>
-            <p>Unit: ${data.team.unit_name || '—'} | Assessment: ${data.team.assessment_title || '—'}</p>
-            <p>Status: ${data.team.status || 'active'} | Created: ${new Date(data.team.created_at).toLocaleDateString()}</p>
+            <h2>${team.title || 'Untitled Team'}</h2>
+            <p><strong>Unit:</strong> ${unitLabel} | <strong>Assessment:</strong> ${assessmentLabel}</p>
+            <p><strong>Status:</strong> ${team.status || 'active'} | <strong>Members:</strong> ${team.member_count || (data.members || []).length}/${team.max_members || 15} | <strong>Created:</strong> ${team.created_at ? new Date(team.created_at).toLocaleDateString() : '—'}</p>
+            ${latestHtml}
         `;
 
         maxTeamMembers = Math.min(15, Number(data.team.max_members) || 15);

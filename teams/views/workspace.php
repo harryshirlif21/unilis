@@ -706,10 +706,23 @@ async function loadTeamHeader() {
         const team = data.team || {};
         titleEl.textContent = team.title || 'Team';
 
+        const unitLabel = team.unit_display
+            || ((team.unit_code && team.unit_name) ? `${team.unit_code} – ${team.unit_name}` : (team.unit_name || team.unit_code || ''));
         const pieces = [];
-        if (team.unit_name) pieces.push('Unit: ' + team.unit_name);
-        if (team.assessment_title) pieces.push('Assessment: ' + team.assessment_title);
+        if (unitLabel) pieces.push('Unit: ' + unitLabel);
+        if (team.assessment_title || team.assessment_type) {
+            pieces.push('Assessment: ' + (team.assessment_title || team.assessment_type));
+        }
         if (team.status) pieces.push('Status: ' + team.status);
+        if (team.member_count != null) {
+            pieces.push(`Members: ${team.member_count}/${team.max_members || 15}`);
+        }
+
+        const latest = team.latest_activity;
+        if (latest && latest.created_at) {
+            const latestLine = `${latest.action_label || latest.action_type || 'Activity'}${latest.user_name ? ' by ' + latest.user_name : ''} (${new Date(latest.created_at).toLocaleString()})`;
+            pieces.push('Latest: ' + latestLine);
+        }
 
         metaEl.textContent = pieces.join(' • ') || 'Team details';
     } catch (err) {
