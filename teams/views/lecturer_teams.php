@@ -26,26 +26,6 @@ if (!$teamTablesExist) {
     die("<h2>Teams Module Not Available</h2><p>The teams system tables have not been created. Please ask your administrator to run the migrate_teams_system.php migration script.</p><p><a href='../../lecturer/lecturer_dashboard.php'>Return to Dashboard</a></p>");
 }
 
-function team_role_label(string $role): string
-{
-    $role = strtolower(trim($role));
-    $labels = [
-        'leader' => 'Team Lead',
-        'member' => 'Member',
-        'frontend_developer' => 'Frontend Developer',
-        'backend_developer' => 'Backend Developer',
-        'machine_learning' => 'Machine Learning',
-        'ui_ux_designer' => 'UI/UX Designer',
-        'data_analyst' => 'Data Analyst',
-        'tester' => 'Tester',
-        'researcher' => 'Researcher',
-        'presenter' => 'Presenter',
-        'other' => 'Other',
-    ];
-
-    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
-}
-
 /* =========================
    AUTH CHECK
 ========================= */
@@ -378,6 +358,11 @@ try {
     $teams = [];
 }
 
+$membersByTeam = team_fetch_members_grouped(
+    $conn,
+    array_map(static fn(array $team): int => (int) ($team['team_id'] ?? 0), $teams)
+);
+
 /* Group teams by unit for peer evaluation picker */
 $teamsByUnit = [];
 foreach ($teams as $team) {
@@ -451,32 +436,12 @@ foreach ($teams as $team) {
     $semRow = $semStmt->get_result()->fetch_assoc();
     $semStmt->close();
 
-    // Fetch team members
-    $teamDetailsSql = "
-        SELECT 
-            tm.role,
-            s.id AS student_id,
-            s.name AS student_name,
-            s.reg_no,
-            s.email,
-            s.year_of_study,
-            tm.joined_at
-        FROM team_members tm
-        JOIN students s ON tm.student_id = s.id
-        WHERE tm.team_id = ?
-        ORDER BY tm.role DESC, s.name ASC
-    ";
-    
-    $teamDetailsStmt = $conn->prepare($teamDetailsSql);
-    $teamDetailsStmt->bind_param("i", $team['team_id']);
-    $teamDetailsStmt->execute();
-    $teamMembers = $teamDetailsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $teamDetailsStmt->close();
+    $teamMembers = $membersByTeam[(int) $team['team_id']] ?? [];
 
     // Find team leader
     $teamLeader = null;
     foreach ($teamMembers as $member) {
-        if ($member['role'] === 'leader') {
+        if (strtolower((string) ($member['role'] ?? '')) === 'leader') {
             $teamLeader = $member;
             break;
         }
@@ -520,9 +485,10 @@ foreach ($teams as $team) {
     $team['latest_activity'] = $latestActivity;
     $team['unit_display'] = team_format_unit_display($team['unit_code'] ?? null, $team['unit_name'] ?? null);
 
-    // Fetch team files for each member
-    foreach ($teamMembers as &$member) {
-        // Get team files uploaded by this member
+    // Fetch team files for each member (avoid foreach-by-reference; it corrupts later teams)
+    foreach ($teamMembers as $memberIndex => $member) {
+        $studentId = (int) ($member['student_id'] ?? 0);
+
         $teamFilesSql = "
             SELECT 
                 tf.id,
@@ -538,11 +504,11 @@ foreach ($teams as $team) {
         ";
         
         $teamFilesStmt = $conn->prepare($teamFilesSql);
-        $teamFilesStmt->bind_param("ii", $team['team_id'], $member['student_id']);
+        $teamFilesStmt->bind_param("ii", $team['team_id'], $studentId);
         $teamFilesStmt->execute();
         $teamFiles = $teamFilesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $teamFilesStmt->close();
         
-        // Get submission metadata from activity log
         $metadataSql = "
             SELECT action_detail, created_at
             FROM team_activity_log
@@ -552,7 +518,7 @@ foreach ($teams as $team) {
         ";
         
         $metadataStmt = $conn->prepare($metadataSql);
-        $metadataStmt->bind_param("ii", $team['team_id'], $member['student_id']);
+        $metadataStmt->bind_param("ii", $team['team_id'], $studentId);
         $metadataStmt->execute();
         $metadataResult = $metadataStmt->get_result();
         
@@ -564,13 +530,13 @@ foreach ($teams as $team) {
                 $submissionMetadata = $metadata;
             }
         }
-        
-        // Combine team files with metadata
-        $member['team_files'] = $teamFiles;
-        $member['submission_metadata'] = $submissionMetadata;
-        $teamFilesStmt->close();
         $metadataStmt->close();
+
+        $teamMembers[$memberIndex]['team_files'] = $teamFiles;
+        $teamMembers[$memberIndex]['submission_metadata'] = $submissionMetadata;
     }
+
+    $team['member_count'] = count($teamMembers);
     
     $allTeamDetails[] = [
         'team' => $team,
@@ -2607,7 +2573,7 @@ foreach ($teams as $team) {
                                     <?= htmlspecialchars($member['student_name']); ?>
                                 </span>
                                 <span class="member-role-badge role-<?= htmlspecialchars($member['role']); ?>">
-                                    <?= htmlspecialchars(team_role_label((string)$member['role'])); ?>
+                                    <?= htmlspecialchars($member['role_label'] ?? team_role_label((string)$member['role'])); ?>
                                 </span>
                             </div>
                             <div class="member-regno"><?= htmlspecialchars($member['reg_no']); ?></div>

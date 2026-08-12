@@ -169,6 +169,7 @@ function team_fetch_members_grouped(mysqli $conn, array $teamIds): array
     $grouped = [];
     while ($row = $result->fetch_assoc()) {
         $teamId = (int) $row['team_id'];
+        $row['student_name'] = (string) ($row['name'] ?? '');
         $row['role_label'] = team_role_label((string) ($row['role'] ?? 'member'));
         $grouped[$teamId][] = $row;
     }
