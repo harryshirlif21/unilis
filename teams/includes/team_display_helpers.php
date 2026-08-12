@@ -102,6 +102,82 @@ function team_fetch_latest_activity(mysqli $conn, int $teamId): ?array
     ];
 }
 
+function team_role_label(string $role): string
+{
+    $role = strtolower(trim($role));
+    $labels = [
+        'leader'             => 'Team Lead',
+        'member'             => 'Member',
+        'frontend_developer' => 'Frontend Developer',
+        'backend_developer'  => 'Backend Developer',
+        'machine_learning'   => 'Machine Learning',
+        'ui_ux_designer'     => 'UI/UX Designer',
+        'data_analyst'       => 'Data Analyst',
+        'tester'             => 'Tester',
+        'researcher'         => 'Researcher',
+        'presenter'          => 'Presenter',
+        'other'              => 'Other',
+    ];
+
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
+}
+
+/**
+ * Fetch all members for the given team IDs, grouped by team_id.
+ *
+ * @return array<int, list<array<string, mixed>>>
+ */
+function team_fetch_members_grouped(mysqli $conn, array $teamIds): array
+{
+    $teamIds = array_values(array_filter(array_map('intval', $teamIds), static fn(int $id): bool => $id > 0));
+    if ($teamIds === []) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
+    $types = str_repeat('i', count($teamIds));
+
+    $sql = "
+        SELECT
+            tm.team_id,
+            s.id AS student_id,
+            s.name,
+            s.reg_no,
+            s.email,
+            s.year_of_study,
+            tm.role,
+            tm.joined_at,
+            c.name AS course_name
+        FROM team_members tm
+        JOIN students s ON s.id = tm.student_id
+        LEFT JOIN courses c ON c.id = s.course_id
+        WHERE tm.team_id IN ($placeholders)
+        ORDER BY tm.team_id ASC,
+                 CASE WHEN LOWER(COALESCE(tm.role, '')) = 'leader' THEN 0 ELSE 1 END,
+                 s.name ASC
+    ";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param($types, ...$teamIds);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $grouped = [];
+    while ($row = $result->fetch_assoc()) {
+        $teamId = (int) $row['team_id'];
+        $row['role_label'] = team_role_label((string) ($row['role'] ?? 'member'));
+        $grouped[$teamId][] = $row;
+    }
+
+    $stmt->close();
+
+    return $grouped;
+}
+
 function team_enrich_row(array $team, mysqli $conn): array
 {
     $team['assessment_title'] = team_assessment_label($team['assessment_type'] ?? null);
