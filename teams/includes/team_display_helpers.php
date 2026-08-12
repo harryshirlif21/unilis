@@ -190,3 +190,22 @@ function team_enrich_row(array $team, mysqli $conn): array
 
     return $team;
 }
+
+/**
+ * Format active unit/assessment registrations for display.
+ */
+function team_format_registrations_display(array $registrations, ?string $fallback = null): string
+{
+    if ($registrations === []) {
+        return $fallback ?? '—';
+    }
+
+    $parts = [];
+    foreach ($registrations as $reg) {
+        $unit = trim((string) ($reg['unit_display'] ?? team_format_unit_display($reg['unit_code'] ?? null, $reg['unit_name'] ?? null)));
+        $assessment = trim((string) ($reg['assessment_title'] ?? team_assessment_label($reg['assessment_type'] ?? null)));
+        $parts[] = $unit . ' (' . $assessment . ')';
+    }
+
+    return implode('; ', $parts);
+}

@@ -353,10 +353,13 @@ async function loadTeams() {
             const members = Array.isArray(team.members) ? team.members.length : (team.member_count || 0);
             const maxMembers = Number(team.max_members) || 15;
             const memberClass = getMemberHeatClass(members);
+            const registrationLabels = Array.isArray(team.registrations) && team.registrations.length
+                ? team.registrations.map(reg => `${reg.unit_display || reg.unit_name || 'Unit'} (${reg.assessment_title || reg.assessment_type || 'Assessment'})`).join('; ')
+                : formatUnitDisplay(team);
             return `
                 <tr>
                     <td class="td-title">${escHtml(team.title)}</td>
-                    <td>${escHtml(formatUnitDisplay(team))}</td>
+                    <td>${escHtml(registrationLabels)}</td>
                     <td><span class="tc-badge ${badgeClass(aType)}">${escHtml(label)}</span></td>
                     <td><span class="status-pill">${escHtml(team.status || 'Active')}</span></td>
                     <td style="text-align:center"><span class="members-pill ${memberClass}">${members}/${maxMembers}</span></td>

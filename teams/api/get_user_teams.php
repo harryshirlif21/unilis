@@ -12,6 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/team_display_helpers.php';
+require_once __DIR__ . '/../includes/ensure_team_registrations.php';
 
 $userId = (int) $_SESSION['user_id'];
 
@@ -81,7 +82,9 @@ try {
 
         $team['members'] = $members;
         $team['member_count'] = count($members);
-        $teams[] = team_enrich_row($team, $conn);
+        $team = team_enrich_row($team, $conn);
+        $team['registrations'] = team_get_registrations($conn, $team_id);
+        $teams[] = $team;
     }
 
     $stmt->close();

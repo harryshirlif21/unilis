@@ -17,8 +17,9 @@ register_shutdown_function(function () {
 try {
     require_once '../../config/db.php';
     require_once __DIR__ . '/../models/ActivityLog.php';
-    require_once __DIR__ . '/../includes/team_limits.php';
-    require_once __DIR__ . '/../includes/team_membership.php';
+require_once __DIR__ . '/../includes/team_limits.php';
+require_once __DIR__ . '/../includes/team_membership.php';
+require_once __DIR__ . '/../includes/ensure_team_registrations.php';
 } catch (Throwable $e) {
     ob_clean();
     header('Content-Type: application/json');
@@ -151,6 +152,8 @@ try {
         $stmt_leader->execute();
         $stmt_leader->close();
     }
+
+    team_add_registration($conn, (int) $team_id, $unit_id, $assessment_type, $user_id);
 
     // ── Auto-assign unit lecturer as primary supervisor ────────────────────────
     $lecturerStmt = $conn->prepare("

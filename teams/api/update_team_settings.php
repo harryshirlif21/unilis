@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION[
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/team_limits.php';
 require_once __DIR__ . '/../includes/team_membership.php';
+require_once __DIR__ . '/../includes/ensure_team_registrations.php';
 
 try {
     $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
@@ -109,48 +110,26 @@ try {
         }
     }
 
-    if ($unitId !== null && $unitId > 0 && $unitId !== (int) ($teamRow['unit_id'] ?? 0)) {
-        team_validate_unit_for_student($conn, $userId, $unitId);
-        ensure_team_members_can_use_unit($conn, $teamId, $unitId);
-
-        $profile = team_get_student_course_year($conn, $userId);
-
-        $updateUnitStmt = $conn->prepare('
-            UPDATE teams
-            SET unit_id = ?, course_id = ?, year = ?
-            WHERE id = ?
-            LIMIT 1
-        ');
-        if (!$updateUnitStmt) {
-            throw new RuntimeException('Failed to prepare unit update: ' . $conn->error);
+    if ($unitId !== null && $unitId > 0) {
+        $assessmentType = trim((string) ($input['assessment_type'] ?? ($teamRow['assessment_type'] ?? 'project')));
+        if ($assessmentType === '') {
+            $assessmentType = 'project';
         }
 
-        $updateUnitStmt->bind_param(
-            'iiii',
-            $unitId,
-            $profile['course_id'],
-            $profile['year_of_study'],
-            $teamId
-        );
-        $updateUnitStmt->execute();
-        $updateUnitStmt->close();
+        $existingReg = $conn->prepare("
+            SELECT id FROM team_registrations
+            WHERE team_id = ? AND unit_id = ? AND assessment_type = ? AND status = 'active'
+            LIMIT 1
+        ");
+        $existingReg->bind_param('iis', $teamId, $unitId, $assessmentType);
+        $existingReg->execute();
+        $existingRow = $existingReg->get_result()->fetch_assoc();
+        $existingReg->close();
 
-        $updatedUnitId = $unitId;
-        $messages[] = 'Team unit updated';
-
-        if (file_exists(__DIR__ . '/../models/ActivityLog.php')) {
-            require_once __DIR__ . '/../models/ActivityLog.php';
-            try {
-                $logger = new ActivityLog($conn);
-                $logger->log(
-                    $teamId,
-                    $userId,
-                    'team_update',
-                    sprintf('Team unit changed to unit_id=%d by leader user=%d', $unitId, $userId)
-                );
-            } catch (Throwable $e) {
-                error_log('ActivityLog error: ' . $e->getMessage());
-            }
+        if (!$existingRow) {
+            team_add_registration($conn, $teamId, $unitId, $assessmentType, $userId);
+            $updatedUnitId = $unitId;
+            $messages[] = 'Team registered for the selected unit and assessment';
         }
     }
 

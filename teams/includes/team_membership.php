@@ -8,30 +8,52 @@
 function team_membership_has_other_team_for_unit(mysqli $conn, int $teamId, int $studentId, ?int $unitId = null): bool
 {
     if ($unitId === null || $unitId <= 0) {
-        $teamStmt = $conn->prepare("SELECT unit_id FROM teams WHERE id = ? LIMIT 1");
+        require_once __DIR__ . '/ensure_team_registrations.php';
+        ensure_team_registrations_tables($conn);
+
+        $teamStmt = $conn->prepare('SELECT unit_id FROM teams WHERE id = ? LIMIT 1');
         if (!$teamStmt) {
             throw new Exception('Failed to resolve team unit: ' . $conn->error);
         }
 
         $teamStmt->bind_param('i', $teamId);
         $teamStmt->execute();
-        $teamResult = $teamStmt->get_result();
-        $teamRow = $teamResult->fetch_assoc();
+        $teamRow = $teamStmt->get_result()->fetch_assoc();
         $teamStmt->close();
 
-        $unitId = (int)($teamRow['unit_id'] ?? 0);
+        $unitId = (int) ($teamRow['unit_id'] ?? 0);
+
+        if ($unitId <= 0) {
+            $regStmt = $conn->prepare('
+                SELECT unit_id
+                FROM team_registrations
+                WHERE team_id = ? AND status = \'active\'
+                ORDER BY id ASC
+                LIMIT 1
+            ');
+            if ($regStmt) {
+                $regStmt->bind_param('i', $teamId);
+                $regStmt->execute();
+                $regRow = $regStmt->get_result()->fetch_assoc();
+                $regStmt->close();
+                $unitId = (int) ($regRow['unit_id'] ?? 0);
+            }
+        }
     }
 
     if ($unitId <= 0) {
         return false;
     }
 
+    require_once __DIR__ . '/ensure_team_registrations.php';
+    ensure_team_registrations_tables($conn);
+
     $stmt = $conn->prepare(
         "SELECT 1
          FROM team_members tm
-         JOIN teams t ON tm.team_id = t.id
+         JOIN team_registrations tr ON tr.team_id = tm.team_id AND tr.status = 'active'
          WHERE tm.student_id = ?
-           AND t.unit_id = ?
+           AND tr.unit_id = ?
            AND tm.team_id != ?
          LIMIT 1"
     );
@@ -170,4 +192,19 @@ function ensure_team_members_can_use_unit(mysqli $conn, int $teamId, int $unitId
     }
 
     $stmt->close();
+}
+
+function team_student_is_member_of_team(mysqli $conn, int $teamId, int $studentId): bool
+{
+    $stmt = $conn->prepare('SELECT 1 FROM team_members WHERE team_id = ? AND student_id = ? LIMIT 1');
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('ii', $teamId, $studentId);
+    $stmt->execute();
+    $isMember = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+
+    return $isMember;
 }

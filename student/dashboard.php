@@ -16,7 +16,26 @@ if (empty($_SESSION['csrf_token'])) {
 
 $student_id = $_SESSION['user_id'];
 try {
-    $student_stmt = $conn->prepare("SELECT id, name, email, reg_no, course_id, year_of_study, year_joined FROM students WHERE id = ?");
+    $student_stmt = $conn->prepare("
+        SELECT
+            s.id,
+            s.name,
+            s.email,
+            s.reg_no,
+            s.course_id,
+            s.department_id,
+            s.university_id,
+            s.year_of_study,
+            s.year_joined,
+            c.name AS course_name,
+            d.name AS department_name,
+            u.name AS university_name
+        FROM students s
+        LEFT JOIN courses c ON c.id = s.course_id
+        LEFT JOIN departments d ON d.id = s.department_id
+        LEFT JOIN universities u ON u.id = s.university_id
+        WHERE s.id = ?
+    ");
     $student_stmt->bind_param("i", $student_id);
     $student_stmt->execute();
     $student = $student_stmt->get_result()->fetch_assoc();
@@ -25,19 +44,46 @@ try {
     }
     $course_id = $student['course_id'];
     $year_of_study = $student['year_of_study'];
+    $course_name = $student['course_name'] ?: 'Unknown Course';
+    $department_name = $student['department_name'] ?: 'Not set';
+    $university_name = $student['university_name'] ?: 'Not set';
+
+    $universities = [];
+    $uniResult = $conn->query('SELECT id, name FROM universities ORDER BY name ASC');
+    if ($uniResult) {
+        while ($row = $uniResult->fetch_assoc()) {
+            $universities[] = $row;
+        }
+    }
+
+    $departments = [];
+    $deptResult = $conn->query('SELECT id, name, university_id FROM departments ORDER BY name ASC');
+    if ($deptResult) {
+        while ($row = $deptResult->fetch_assoc()) {
+            $departments[] = $row;
+        }
+    }
+
+    $coursesByDepartment = [];
+    $courseResult = $conn->query('SELECT id, name, department_id FROM courses ORDER BY name ASC');
+    if ($courseResult) {
+        while ($row = $courseResult->fetch_assoc()) {
+            $deptId = (int) $row['department_id'];
+            if (!isset($coursesByDepartment[$deptId])) {
+                $coursesByDepartment[$deptId] = [];
+            }
+            $coursesByDepartment[$deptId][] = [
+                'id' => (int) $row['id'],
+                'name' => (string) $row['name'],
+            ];
+        }
+    }
 
     // Semester filter
     $semester = intval($_GET['semester'] ?? $_SESSION['cv_semester'] ?? 1);
     if ($semester < 1 || $semester > 2) $semester = 1;
     $_SESSION['cv_semester'] = $semester;
 
-    // Fetch course name
-    $course_stmt = $conn->prepare("SELECT name FROM courses WHERE id = ?");
-    $course_stmt->bind_param("i", $course_id);
-    $course_stmt->execute();
-    $course = $course_stmt->get_result()->fetch_assoc();
-    $course_name = $course ? $course['name'] : 'Unknown Course';
-    $course_stmt->close();
     $student_stmt->close();
 } catch (Exception $e) {
     error_log("Error fetching student/course: " . $e->getMessage());
@@ -815,7 +861,7 @@ try {
             position: absolute;
             top: 80px;
             right: 20px;
-            width: 320px;
+            width: 360px;
             background: rgba(255, 255, 255, 0.98);
             backdrop-filter: blur(20px);
             border: 1px solid var(--neutral-200);
@@ -824,8 +870,59 @@ try {
             padding: 1.5rem;
             display: none;
             z-index: 1001;
-            max-height: 400px;
+            max-height: 85vh;
             overflow-y: auto;
+        }
+
+        #profile-popup {
+            width: 380px;
+        }
+
+        .profile-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .profile-field label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--neutral-600);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .profile-field select {
+            width: 100%;
+            padding: 0.65rem 0.75rem;
+            border: 1px solid var(--neutral-200);
+            border-radius: var(--radius-lg);
+            background: white;
+            color: var(--neutral-900);
+            font-size: 0.875rem;
+        }
+
+        .profile-status {
+            display: none;
+            margin-top: 0.75rem;
+            padding: 0.65rem 0.75rem;
+            border-radius: var(--radius-lg);
+            font-size: 0.8125rem;
+        }
+
+        .profile-status.success {
+            display: block;
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .profile-status.error {
+            display: block;
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
         }
         
         .popup h3 {
@@ -1157,12 +1254,60 @@ try {
             </p>
             <p style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                 <span class="material-symbols-outlined" style="font-size: 1.25rem; color: var(--neutral-400);">school</span>
-                <span><?= htmlspecialchars($course_name) ?></span>
+                <span id="profile-university-display"><?= htmlspecialchars($university_name) ?></span>
+            </p>
+            <p style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.25rem; color: var(--neutral-400);">account_balance</span>
+                <span id="profile-department-display"><?= htmlspecialchars($department_name) ?></span>
+            </p>
+            <p style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.25rem; color: var(--neutral-400);">menu_book</span>
+                <span id="profile-course-display"><?= htmlspecialchars($course_name) ?></span>
             </p>
             <p style="display: flex; align-items: center; gap: 0.5rem;">
                 <span class="material-symbols-outlined" style="font-size: 1.25rem; color: var(--neutral-400);">calendar_today</span>
-                <span>Year <?= htmlspecialchars($student['year_of_study']) ?> • Joined <?= htmlspecialchars($student['year_joined']) ?></span>
+                <span id="profile-year-display">Year <?= htmlspecialchars($student['year_of_study']) ?> • Joined <?= htmlspecialchars($student['year_joined']) ?></span>
             </p>
+        </div>
+
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--neutral-200);">
+            <div style="font-size: 0.8125rem; font-weight: 700; color: var(--neutral-700); margin-bottom: 0.75rem;">Update academic profile</div>
+            <div class="profile-field">
+                <label for="profile-university">School</label>
+                <select id="profile-university">
+                    <option value="">Select school</option>
+                    <?php foreach ($universities as $university): ?>
+                        <option value="<?= (int) $university['id'] ?>" <?= (int) ($student['university_id'] ?? 0) === (int) $university['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($university['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="profile-field">
+                <label for="profile-department">Department</label>
+                <select id="profile-department">
+                    <option value="">Select department</option>
+                </select>
+            </div>
+            <div class="profile-field">
+                <label for="profile-course">Course</label>
+                <select id="profile-course">
+                    <option value="">Select course</option>
+                </select>
+            </div>
+            <div class="profile-field">
+                <label for="profile-year">Year of study</label>
+                <select id="profile-year">
+                    <?php for ($y = 1; $y <= 6; $y++): ?>
+                        <option value="<?= $y ?>" <?= (int) ($student['year_of_study'] ?? 0) === $y ? 'selected' : '' ?>>Year <?= $y ?></option>
+                    <?php endfor; ?>
+                </select>
+            </div>
+            <button type="button" class="btn btn-primary w-full" id="update-profile-btn">
+                <span class="material-symbols-outlined">save</span>
+                Update Profile
+            </button>
+            <div id="profile-update-status" class="profile-status"></div>
         </div>
         <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--neutral-200); display: flex; gap: 0.75rem;">
             <a href="my_progress.php" class="btn btn-primary flex-1">
@@ -1780,6 +1925,149 @@ try {
     <script>
         // Global variables
         window.attendanceData = { sessions: [], currentSession: null };
+        const profileCsrf = <?= json_encode($_SESSION['csrf_token']) ?>;
+        const profileDepartments = <?= json_encode($departments ?? []) ?>;
+        const profileCoursesByDepartment = <?= json_encode($coursesByDepartment ?? []) ?>;
+        const profileCurrent = {
+            university_id: <?= (int) ($student['university_id'] ?? 0) ?>,
+            department_id: <?= (int) ($student['department_id'] ?? 0) ?>,
+            course_id: <?= (int) ($student['course_id'] ?? 0) ?>,
+            year_of_study: <?= (int) ($student['year_of_study'] ?? 0) ?>
+        };
+
+        function populateProfileDepartments(universityId, selectedDepartmentId = 0) {
+            const departmentSelect = document.getElementById('profile-department');
+            const courseSelect = document.getElementById('profile-course');
+            if (!departmentSelect || !courseSelect) return;
+
+            departmentSelect.innerHTML = '<option value="">Select department</option>';
+            courseSelect.innerHTML = '<option value="">Select course</option>';
+
+            const matching = profileDepartments.filter(dept => Number(dept.university_id) === Number(universityId));
+            const departmentsToShow = [...matching];
+
+            if (selectedDepartmentId && !departmentsToShow.some(dept => Number(dept.id) === Number(selectedDepartmentId))) {
+                const currentDept = profileDepartments.find(dept => Number(dept.id) === Number(selectedDepartmentId));
+                if (currentDept) {
+                    departmentsToShow.unshift(currentDept);
+                }
+            }
+
+            departmentsToShow.forEach(dept => {
+                const opt = document.createElement('option');
+                opt.value = String(dept.id);
+                opt.textContent = dept.name;
+                departmentSelect.appendChild(opt);
+            });
+
+            if (selectedDepartmentId) {
+                departmentSelect.value = String(selectedDepartmentId);
+                populateProfileCourses(selectedDepartmentId, profileCurrent.course_id);
+            }
+        }
+
+        function populateProfileCourses(departmentId, selectedCourseId = 0) {
+            const courseSelect = document.getElementById('profile-course');
+            if (!courseSelect) return;
+
+            courseSelect.innerHTML = '<option value="">Select course</option>';
+            const courses = profileCoursesByDepartment[String(departmentId)] || profileCoursesByDepartment[Number(departmentId)] || [];
+
+            courses.forEach(course => {
+                const opt = document.createElement('option');
+                opt.value = String(course.id);
+                opt.textContent = course.name;
+                courseSelect.appendChild(opt);
+            });
+
+            if (selectedCourseId) {
+                courseSelect.value = String(selectedCourseId);
+            }
+        }
+
+        function initProfileAcademicForm() {
+            const universitySelect = document.getElementById('profile-university');
+            if (!universitySelect) return;
+
+            if (profileCurrent.university_id) {
+                universitySelect.value = String(profileCurrent.university_id);
+            }
+
+            populateProfileDepartments(
+                universitySelect.value || profileCurrent.university_id,
+                profileCurrent.department_id
+            );
+        }
+
+        function setProfileStatus(message, type = 'error') {
+            const statusEl = document.getElementById('profile-update-status');
+            if (!statusEl) return;
+            statusEl.textContent = message;
+            statusEl.className = 'profile-status ' + type;
+        }
+
+        async function updateStudentAcademicProfile() {
+            const universityId = Number(document.getElementById('profile-university')?.value || 0);
+            const departmentId = Number(document.getElementById('profile-department')?.value || 0);
+            const courseId = Number(document.getElementById('profile-course')?.value || 0);
+            const yearOfStudy = Number(document.getElementById('profile-year')?.value || 0);
+            const btn = document.getElementById('update-profile-btn');
+
+            if (!universityId || !departmentId || !courseId || !yearOfStudy) {
+                setProfileStatus('Please select school, department, course, and year.');
+                return;
+            }
+
+            btn.disabled = true;
+            const oldLabel = btn.innerHTML;
+            btn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Saving...';
+
+            try {
+                const res = await fetch('api/update_academic_profile.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        university_id: universityId,
+                        department_id: departmentId,
+                        course_id: courseId,
+                        year_of_study: yearOfStudy,
+                        csrf_token: profileCsrf
+                    })
+                });
+
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data?.success) {
+                    throw new Error(data?.message || ('HTTP ' + res.status));
+                }
+
+                profileCurrent.university_id = universityId;
+                profileCurrent.department_id = departmentId;
+                profileCurrent.course_id = courseId;
+                profileCurrent.year_of_study = yearOfStudy;
+
+                const universityName = document.querySelector('#profile-university option:checked')?.textContent || '';
+                const departmentName = document.querySelector('#profile-department option:checked')?.textContent || '';
+                const courseName = data.course_name || document.querySelector('#profile-course option:checked')?.textContent || '';
+
+                const uniDisplay = document.getElementById('profile-university-display');
+                const deptDisplay = document.getElementById('profile-department-display');
+                const courseDisplay = document.getElementById('profile-course-display');
+                const yearDisplay = document.getElementById('profile-year-display');
+
+                if (uniDisplay) uniDisplay.textContent = universityName;
+                if (deptDisplay) deptDisplay.textContent = departmentName;
+                if (courseDisplay) courseDisplay.textContent = courseName;
+                if (yearDisplay) yearDisplay.textContent = `Year ${yearOfStudy} • Joined <?= htmlspecialchars($student['year_joined']) ?>`;
+
+                setProfileStatus(data.message || 'Profile updated successfully', 'success');
+            } catch (err) {
+                setProfileStatus(err.message || 'Failed to update profile');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = oldLabel;
+            }
+        }
         
         // Utility functions
         function logout() {
@@ -1844,6 +2132,9 @@ try {
                 const visible = profilePopup.style.display === 'block';
                 profilePopup.style.display = visible ? 'none' : 'block';
                 notifContent.style.display = 'none';
+                if (!visible) {
+                    initProfileAcademicForm();
+                }
             });
             
             // Notifications popup
@@ -1883,6 +2174,16 @@ try {
             document.querySelectorAll('.card').forEach(card => {
                 observer.observe(card);
             });
+
+            document.getElementById('profile-university')?.addEventListener('change', (e) => {
+                populateProfileDepartments(Number(e.target.value || 0), 0);
+            });
+
+            document.getElementById('profile-department')?.addEventListener('change', (e) => {
+                populateProfileCourses(Number(e.target.value || 0), 0);
+            });
+
+            document.getElementById('update-profile-btn')?.addEventListener('click', updateStudentAcademicProfile);
         });
         
         // Attendance System Functions

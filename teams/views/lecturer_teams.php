@@ -6,6 +6,9 @@ session_start();
 ========================= */
 require_once '../../config/db.php';
 require_once __DIR__ . '/../includes/team_display_helpers.php';
+require_once __DIR__ . '/../includes/ensure_team_registrations.php';
+
+ensure_team_registrations_tables($conn);
 
 if (!isset($conn) || !$conn) {
     die("Database connection failed.");
@@ -164,7 +167,12 @@ try {
             FROM teams t
             JOIN units u ON t.unit_id = u.id
             LEFT JOIN team_members tm ON t.id = tm.team_id
-            WHERE t.unit_id = ?
+            WHERE EXISTS (
+                SELECT 1 FROM team_registrations tr_filter
+                WHERE tr_filter.team_id = t.id
+                  AND tr_filter.unit_id = ?
+                  AND tr_filter.status = 'active'
+            )
             GROUP BY t.id
             ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
             ";
@@ -192,7 +200,12 @@ try {
                 FROM teams t
                 JOIN units u ON t.unit_id = u.id
                 LEFT JOIN team_members tm ON t.id = tm.team_id
-                WHERE t.unit_id = ?
+                WHERE EXISTS (
+                SELECT 1 FROM team_registrations tr_filter
+                WHERE tr_filter.team_id = t.id
+                  AND tr_filter.unit_id = ?
+                  AND tr_filter.status = 'active'
+            )
                   AND (
                     EXISTS (
                         SELECT 1
@@ -235,7 +248,12 @@ try {
                 JOIN units u ON t.unit_id = u.id
                 JOIN lecturer_units lu ON u.id = lu.unit_id
                 LEFT JOIN team_members tm ON t.id = tm.team_id
-                WHERE t.unit_id = ? AND lu.lecturer_id = ?
+                WHERE EXISTS (
+                SELECT 1 FROM team_registrations tr_filter
+                WHERE tr_filter.team_id = t.id
+                  AND tr_filter.unit_id = ?
+                  AND tr_filter.status = 'active'
+            ) AND lu.lecturer_id = ?
                 GROUP BY t.id
                 ORDER BY COALESCE(latest_activity_at, t.created_at) DESC, t.created_at DESC
                 ";
@@ -484,6 +502,11 @@ foreach ($teams as $team) {
     $latestActivity = team_fetch_latest_activity($conn, (int) $team['team_id']);
     $team['latest_activity'] = $latestActivity;
     $team['unit_display'] = team_format_unit_display($team['unit_code'] ?? null, $team['unit_name'] ?? null);
+    $team['registrations'] = team_get_registrations($conn, (int) $team['team_id']);
+    $team['registrations_display'] = team_format_registrations_display(
+        $team['registrations'],
+        $team['unit_display']
+    );
 
     // Fetch team files for each member (avoid foreach-by-reference; it corrupts later teams)
     foreach ($teamMembers as $memberIndex => $member) {
@@ -2452,7 +2475,7 @@ foreach ($teams as $team) {
                             </span>
                         </h2>
                         <p style="margin:6px 0 0;font-size:14px;color:var(--muted);font-weight:500;">
-                            <?= htmlspecialchars($team['unit_display'] ?? team_format_unit_display($team['unit_code'] ?? null, $team['unit_name'] ?? null)); ?>
+                            <?= htmlspecialchars($team['registrations_display'] ?? $team['unit_display'] ?? team_format_unit_display($team['unit_code'] ?? null, $team['unit_name'] ?? null)); ?>
                         </p>
                     </div>
                     <div class="team-header-actions">
@@ -2478,7 +2501,11 @@ foreach ($teams as $team) {
 
                 <div class="team-meta-grid">
                     <div class="team-meta-item">
-                        <span class="meta-label">Unit</span>
+                        <span class="meta-label">Units &amp; Assessments</span>
+                        <span class="meta-value"><?= htmlspecialchars($team['registrations_display'] ?? team_format_unit_display($team['unit_code'] ?? null, $team['unit_name'] ?? null)); ?></span>
+                    </div>
+                    <div class="team-meta-item">
+                        <span class="meta-label">Primary Unit</span>
                         <span class="meta-value"><?= htmlspecialchars($team['unit_name']); ?> (<?= htmlspecialchars($team['unit_code']); ?>)</span>
                     </div>
                     <div class="team-meta-item">
@@ -2826,7 +2853,13 @@ foreach ($allTeamDetails as $td) {
         'title' => $td['team']['team_title'],
         'unit' => $td['team']['unit_name'],
         'code' => $td['team']['unit_code'],
-        'unit_display' => $td['team']['unit_display'] ?? team_format_unit_display($td['team']['unit_code'] ?? null, $td['team']['unit_name'] ?? null),
+        'unit_display' => $td['team']['registrations_display'] ?? $td['team']['unit_display'] ?? team_format_unit_display($td['team']['unit_code'] ?? null, $td['team']['unit_name'] ?? null),
+        'registrations' => array_map(static function ($reg) {
+            return [
+                'unit_display' => $reg['unit_display'] ?? '',
+                'assessment_title' => $reg['assessment_title'] ?? '',
+            ];
+        }, $td['team']['registrations'] ?? []),
         'status' => $td['team']['status'],
         'latest_activity' => $td['team']['latest_activity']['action_label'] ?? '',
         'members' => array_map(function($m) {
@@ -2862,9 +2895,14 @@ document.getElementById('globalSearchInput')?.addEventListener('input', function
 
     const results = [];
     allTeamsData.forEach(team => {
-        if (team.title.toLowerCase().includes(query) || 
-            team.unit.toLowerCase().includes(query) || 
-            team.code.toLowerCase().includes(query)) {
+        const registrationText = Array.isArray(team.registrations)
+            ? team.registrations.map(r => `${r.unit_display} (${r.assessment_title})`).join(' ')
+            : '';
+        if (team.title.toLowerCase().includes(query) ||
+            team.unit.toLowerCase().includes(query) ||
+            team.code.toLowerCase().includes(query) ||
+            (team.unit_display || '').toLowerCase().includes(query) ||
+            registrationText.toLowerCase().includes(query)) {
             results.push({ type: 'team', name: team.title, meta: (team.unit_display || (team.code + ' - ' + team.unit)) + (team.latest_activity ? ' • ' + team.latest_activity : ''), id: team.id });
         }
         team.members.forEach(m => {

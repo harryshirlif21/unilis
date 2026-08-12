@@ -150,6 +150,38 @@ if (empty($_SESSION['csrf_token'])) {
             background: #fff;
             color: #212529;
         }
+        .registration-list {
+            display: grid;
+            gap: 0.75rem;
+            margin: 0.75rem 0 1rem;
+        }
+        .registration-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 0.85rem;
+            background: #fff;
+        }
+        .registration-card h4 {
+            margin: 0 0 0.35rem 0;
+            font-size: 0.95rem;
+        }
+        .registration-meta {
+            font-size: 0.82rem;
+            color: #6c757d;
+            margin-bottom: 0.65rem;
+        }
+        .split-member-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.35rem 0.75rem;
+            margin: 0.5rem 0 0.75rem;
+        }
+        .split-member-list label {
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
         .limit-badge {
             display: inline-flex;
             min-width: 44px;
@@ -277,22 +309,39 @@ if (empty($_SESSION['csrf_token'])) {
 
 <div id="teamSettingsPanel" class="settings-panel" style="display:none;">
     <h3>Team Settings</h3>
-    <p style="margin:0 0 0.75rem 0;color:#6c757d;">Team leader can update the registered unit and member limit (maximum 15).</p>
-    <div class="settings-row" style="margin-bottom:0.85rem;">
-        <label for="teamUnitSelect" style="font-weight:600;">Unit</label>
-        <select id="teamUnitSelect">
-            <option value="">Loading units...</option>
-        </select>
+    <p style="margin:0 0 0.75rem 0;color:#6c757d;">Use the same team across multiple units and assessments. Split a registration when only part of the group should work in a unit.</p>
+
+    <div id="teamRegistrationsList" class="registration-list"></div>
+
+    <div style="border-top:1px solid #dee2e6;padding-top:0.85rem;margin-top:0.5rem;">
+        <h4 style="margin:0 0 0.65rem 0;">Register team for another unit</h4>
+        <div class="settings-row" style="margin-bottom:0.85rem;">
+            <label for="registerUnitSelect" style="font-weight:600;">Unit</label>
+            <select id="registerUnitSelect">
+                <option value="">Loading units...</option>
+            </select>
+        </div>
+        <div class="settings-row" style="margin-bottom:0.85rem;">
+            <label for="registerAssessmentSelect" style="font-weight:600;">Assessment</label>
+            <select id="registerAssessmentSelect">
+                <option value="assignment">Assignment</option>
+                <option value="cat">CAT</option>
+                <option value="project" selected>Project</option>
+                <option value="practical">Practical</option>
+            </select>
+        </div>
+        <button id="registerTeamUnitBtn" style="background:#198754;color:#fff;">Register for Unit</button>
     </div>
-    <div class="settings-row">
-        <label for="teamLimitSlider" style="font-weight:600;">Member limit</label>
-        <input type="range" id="teamLimitSlider" min="2" max="15" step="1" value="15">
-        <span id="teamLimitValue" class="limit-badge">15</span>
+
+    <div style="border-top:1px solid #dee2e6;padding-top:0.85rem;margin-top:1rem;">
+        <h4 style="margin:0 0 0.65rem 0;">Member limit</h4>
+        <div class="settings-row">
+            <input type="range" id="teamLimitSlider" min="2" max="15" step="1" value="15">
+            <span id="teamLimitValue" class="limit-badge">15</span>
+            <button id="saveTeamSettingsBtn" style="background:#0d6efd;">Save Limit</button>
+        </div>
+        <small id="teamSettingsHint" style="display:block;margin-top:0.55rem;color:#6c757d;"></small>
     </div>
-    <div class="settings-row" style="margin-top:0.85rem;">
-        <button id="saveTeamSettingsBtn" style="background:#0d6efd;">Save Settings</button>
-    </div>
-    <small id="teamSettingsHint" style="display:block;margin-top:0.55rem;color:#6c757d;"></small>
 </div>
 
 <div id="teamDangerPanel" class="settings-panel" style="display:none;">
@@ -332,6 +381,8 @@ let currentTeamSize = 0;
 let isCurrentUserLeader = false;
 let currentTeamUnitId = 0;
 let enrolledUnitsLoaded = false;
+let currentTeamRegistrations = [];
+let currentTeamMembers = [];
 
 const teamRoleLabels = {
     leader: 'Team Lead',
@@ -395,11 +446,150 @@ function syncTeamLimitUI() {
     slider.max = '15';
     slider.value = String(Math.min(15, Math.max(minAllowed, maxTeamMembers)));
     value.textContent = slider.value;
-    hint.textContent = `Current members: ${currentTeamSize}. Minimum allowed limit is ${minAllowed}. Choose a unit from those you are registered for.`;
+    hint.textContent = `Current members: ${currentTeamSize}. Minimum allowed limit is ${minAllowed}. Register the same team for additional units above.`;
 }
 
-async function loadEnrolledUnits(selectedUnitId = 0, currentUnitLabel = '') {
-    const select = document.getElementById('teamUnitSelect');
+function renderTeamRegistrations(registrations, members) {
+    const list = document.getElementById('teamRegistrationsList');
+    if (!list) return;
+
+    currentTeamRegistrations = Array.isArray(registrations) ? registrations : [];
+    currentTeamMembers = Array.isArray(members) ? members : [];
+
+    if (!currentTeamRegistrations.length) {
+        list.innerHTML = '<p style="color:#6c757d;margin:0;">No unit registrations yet.</p>';
+        return;
+    }
+
+    list.innerHTML = currentTeamRegistrations.map(reg => {
+        const memberIds = Array.isArray(reg.member_ids) ? reg.member_ids : [];
+        const memberCount = memberIds.length || Number(reg.member_count || 0) || currentTeamMembers.length;
+        const splitChecks = currentTeamMembers.map(member => {
+            const checked = memberIds.length ? memberIds.includes(Number(member.student_id)) : true;
+            return `
+                <label>
+                    <input type="checkbox" class="split-member-checkbox" data-registration-id="${reg.id}" value="${member.student_id}" ${checked ? 'checked' : ''}>
+                    ${member.name || member.student_name || 'Member'}
+                </label>
+            `;
+        }).join('');
+
+        return `
+            <div class="registration-card">
+                <h4>${reg.unit_display || reg.unit_name || 'Unit'} • ${reg.assessment_title || reg.assessment_type || 'Assessment'}</h4>
+                <div class="registration-meta">
+                    ${memberCount} member(s) in this registration
+                    ${reg.is_split == 1 ? ' • split enabled' : ''}
+                    ${reg.child_team_id ? ` • child team #${reg.child_team_id}` : ''}
+                </div>
+                <div class="split-member-list">${splitChecks}</div>
+                <button type="button" class="split-group-btn" data-registration-id="${reg.id}" style="background:#6f42c1;color:#fff;">
+                    Split Group for this Unit
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    list.querySelectorAll('.split-group-btn').forEach(btn => {
+        btn.addEventListener('click', () => splitTeamRegistration(Number(btn.dataset.registrationId)));
+    });
+}
+
+async function splitTeamRegistration(registrationId) {
+    if (!isCurrentUserLeader) {
+        showMessage('Only team leaders can split a group');
+        return;
+    }
+
+    const selected = [];
+    document.querySelectorAll(`.split-member-checkbox[data-registration-id="${registrationId}"]:checked`).forEach(box => {
+        selected.push(Number(box.value));
+    });
+
+    if (!selected.length) {
+        showMessage('Select at least one member to move into the split group');
+        return;
+    }
+
+    if (!confirm('Create a new split team for the selected members in this unit registration?')) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/teams/api/split_team_group.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                registration_id: registrationId,
+                member_ids: selected,
+                csrf_token: csrf
+            })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) {
+            throw new Error(data?.error || ('HTTP ' + res.status));
+        }
+
+        showMessage((data.message || 'Split group created') + '. Opening new team...', 'success');
+        if (data.split?.child_team_id) {
+            window.location.href = `/teams/views/manage_team.php?team_id=${data.split.child_team_id}`;
+        } else {
+            loadTeam();
+        }
+    } catch (err) {
+        showMessage('Split group error: ' + err.message);
+    }
+}
+
+async function registerTeamForUnit() {
+    if (!isCurrentUserLeader) {
+        showMessage('Only team leaders can register the team for another unit');
+        return;
+    }
+
+    const unit_id = Number(document.getElementById('registerUnitSelect')?.value || 0);
+    const assessment_type = document.getElementById('registerAssessmentSelect')?.value || '';
+
+    if (!unit_id || !assessment_type) {
+        showMessage('Select a unit and assessment type');
+        return;
+    }
+
+    const btn = document.getElementById('registerTeamUnitBtn');
+    btn.disabled = true;
+    const oldLabel = btn.textContent;
+    btn.textContent = 'Registering...';
+
+    try {
+        const res = await fetch('/teams/api/register_team_unit.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                team_id: teamId,
+                unit_id,
+                assessment_type,
+                csrf_token: csrf
+            })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) {
+            throw new Error(data?.error || ('HTTP ' + res.status));
+        }
+
+        showMessage(data.message || 'Team registered for unit', 'success');
+        loadTeam();
+    } catch (err) {
+        showMessage('Register unit error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = oldLabel;
+    }
+}
+
+async function loadEnrolledUnits(selectedUnitId = 0, currentUnitLabel = '', targetSelectId = 'registerUnitSelect') {
+    const select = document.getElementById(targetSelectId);
     if (!select || !isCurrentUserLeader) return;
 
     try {
@@ -476,8 +666,9 @@ async function loadTeam() {
 
         header.innerHTML = `
             <h2>${team.title || 'Untitled Team'}</h2>
-            <p><strong>Unit:</strong> ${unitLabel} | <strong>Assessment:</strong> ${assessmentLabel}</p>
-            <p><strong>Status:</strong> ${team.status || 'active'} | <strong>Members:</strong> ${team.member_count || (data.members || []).length}/${team.max_members || 15} | <strong>Created:</strong> ${team.created_at ? new Date(team.created_at).toLocaleDateString() : '—'}</p>
+            <p><strong>Primary unit:</strong> ${unitLabel} | <strong>Assessment:</strong> ${assessmentLabel}</p>
+            <p><strong>Registrations:</strong> ${(currentTeamRegistrations.length || 0)} unit/assessment link(s)</p>
+            <p><strong>Status:</strong> ${team.status || 'active'} | <strong>Members:</strong> ${team.member_count || members.length}/${team.max_members || 15} | <strong>Created:</strong> ${team.created_at ? new Date(team.created_at).toLocaleDateString() : '—'}</p>
             ${latestHtml}
         `;
 
@@ -489,6 +680,7 @@ async function loadTeam() {
         grid.innerHTML = '';
 
         const members = data.members || [];
+        currentTeamRegistrations = data.registrations || team.registrations || [];
 
         // Mark current user and set leader role
         members.forEach(m => {
@@ -561,8 +753,9 @@ async function loadTeam() {
         const countPill = document.getElementById('memberCountPill');
         countPill.className = `count-pill ${memberCountClass(teamSize)}`;
         syncTeamLimitUI();
+        renderTeamRegistrations(currentTeamRegistrations, members);
         if (isCurrentUserLeader) {
-            await loadEnrolledUnits(currentTeamUnitId, unitLabel);
+            await loadEnrolledUnits(currentTeamUnitId, unitLabel, 'registerUnitSelect');
         }
 
         const addMemberBtn = document.getElementById('addMemberBtn');
@@ -1177,16 +1370,10 @@ document.getElementById('saveTeamSettingsBtn').addEventListener('click', async (
     }
 
     const max_members = Number(teamLimitSlider?.value || 15);
-    const unit_id = Number(document.getElementById('teamUnitSelect')?.value || 0);
     const minAllowed = Math.max(2, currentTeamSize);
 
     if (!Number.isFinite(max_members) || max_members < minAllowed || max_members > 15) {
         showMessage(`Member limit must be between ${minAllowed} and 15`);
-        return;
-    }
-
-    if (!unit_id) {
-        showMessage('Please select a unit from your registered units');
         return;
     }
 
@@ -1203,7 +1390,6 @@ document.getElementById('saveTeamSettingsBtn').addEventListener('click', async (
             body: JSON.stringify({
                 team_id: teamId,
                 max_members,
-                unit_id,
                 csrf_token: csrf
             })
         });
@@ -1215,7 +1401,6 @@ document.getElementById('saveTeamSettingsBtn').addEventListener('click', async (
 
         showMessage(data.message || 'Team settings updated', 'success');
         maxTeamMembers = Number(data.max_members) || max_members;
-        currentTeamUnitId = Number(data.unit_id) || unit_id;
         loadTeam();
     } catch (err) {
         showMessage('Save settings error: ' + err.message);
@@ -1224,6 +1409,8 @@ document.getElementById('saveTeamSettingsBtn').addEventListener('click', async (
         saveBtn.textContent = oldLabel;
     }
 });
+
+document.getElementById('registerTeamUnitBtn')?.addEventListener('click', registerTeamForUnit);
 
 // Load on page ready
 loadTeam();

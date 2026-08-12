@@ -7,26 +7,7 @@ session_start();
 
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../includes/team_display_helpers.php';
-
-function team_role_label(string $role): string
-{
-    $role = strtolower(trim($role));
-    $labels = [
-        'leader' => 'Team Lead',
-        'member' => 'Member',
-        'frontend_developer' => 'Frontend Developer',
-        'backend_developer' => 'Backend Developer',
-        'machine_learning' => 'Machine Learning',
-        'ui_ux_designer' => 'UI/UX Designer',
-        'data_analyst' => 'Data Analyst',
-        'tester' => 'Tester',
-        'researcher' => 'Researcher',
-        'presenter' => 'Presenter',
-        'other' => 'Other',
-    ];
-
-    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
-}
+require_once __DIR__ . '/../includes/ensure_team_registrations.php';
 
 $response = [];
 $team_id = null;
@@ -97,11 +78,23 @@ try {
 
     $team['creator_id'] = $team['created_by'] ?? null;
     $team['member_count'] = count($members);
+    $team['registrations'] = team_get_registrations($conn, (int) $team_id);
+
+    foreach ($team['registrations'] as &$registration) {
+        $registration['member_ids'] = team_registration_member_ids(
+            $conn,
+            (int) $registration['id'],
+            (int) $team_id
+        );
+        $registration['member_count'] = count($registration['member_ids']);
+    }
+    unset($registration);
 
     $response = [
         'success' => true,
         'team' => $team,
         'members' => $members,
+        'registrations' => $team['registrations'],
     ];
 } catch (Exception $e) {
     http_response_code(400);
