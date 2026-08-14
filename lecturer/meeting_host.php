@@ -3,13 +3,8 @@ session_start();
 require_once '../config/db.php';
 require_once __DIR__ . '/../config/meeting.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
-    header('Location: ../login.php');
-    exit;
-}
-
-$lecturer_id = (int)$_SESSION['user_id'];
 $meeting_id = (int)($_GET['meeting_id'] ?? 0);
+$host_token = trim((string)($_GET['host_token'] ?? ''));
 
 if ($meeting_id <= 0) {
     die('Meeting ID is required');
@@ -19,10 +14,10 @@ $stmt = $conn->prepare(
     'SELECT m.*, u.name AS unit_name, l.name AS lecturer_name
      FROM meetings m
      LEFT JOIN units u ON m.unit_id = u.id
-     JOIN lecturers l ON m.lecturer_id = l.id
-     WHERE m.id = ? AND m.lecturer_id = ?'
+     LEFT JOIN lecturers l ON m.lecturer_id = l.id
+     WHERE m.id = ?'
 );
-$stmt->bind_param('ii', $meeting_id, $lecturer_id);
+$stmt->bind_param('i', $meeting_id);
 $stmt->execute();
 $meeting = $stmt->get_result()->fetch_assoc();
 $stmt->close();
@@ -31,12 +26,25 @@ if (!$meeting) {
     die('Meeting not found or access denied');
 }
 
-$displayName = $meeting['lecturer_name'] ?? ($_SESSION['user_name'] ?? 'Lecturer');
-$backUrl = getMeetingAppBaseUrl() . '/lecturer/meetings.php';
+$sessionUserId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+$sessionRole = (string)($_SESSION['user_role'] ?? '');
+$tokenAccess = $host_token !== '' && !empty($meeting['host_token']) && hash_equals((string)$meeting['host_token'], $host_token);
+$staffAccess = $sessionUserId > 0
+    && (int)($meeting['host_user_id'] ?? 0) === $sessionUserId
+    && hash_equals((string)($meeting['host_role'] ?? ''), $sessionRole);
+$legacyLecturerAccess = $sessionRole === 'lecturer' && $sessionUserId > 0 && (int)($meeting['lecturer_id'] ?? 0) === $sessionUserId;
+if (!$tokenAccess && !$staffAccess && !$legacyLecturerAccess) {
+    http_response_code(403);
+    die('Meeting host access denied. Use the private host link that was created with this meeting.');
+}
+
+$displayName = $meeting['host_name'] ?: ($meeting['lecturer_name'] ?? ($_SESSION['user_name'] ?? 'Host'));
+$hostParticipantId = $sessionUserId > 0 ? $sessionUserId : (900000000 + $meeting_id);
+$backUrl = getMeetingAppBaseUrl() . '/meeting_portal.php';
 
 // Build URLs for both UIs
-$pythonUrl = buildMeetingPythonUiUrl('lecturer', $meeting, $lecturer_id, $displayName, $backUrl);
-$frontendUrl = buildMeetingFrontendUrl('lecturer', $meeting, $lecturer_id, $displayName, $backUrl);
+$pythonUrl = buildMeetingPythonUiUrl('lecturer', $meeting, $hostParticipantId, $displayName, $backUrl);
+$frontendUrl = buildMeetingFrontendUrl('lecturer', $meeting, $hostParticipantId, $displayName, $backUrl);
 ?>
 <!DOCTYPE html>
 <html lang="en">

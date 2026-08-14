@@ -143,8 +143,14 @@ function run_all_migrations() {
             if($added) { run_sql($conn, 'ALTER TABLE meetings (guest columns)', 'ALTER TABLE `meetings` ' . implode(', ', $added)); }
         } else { skip("Migration: meeting_guests columns", "meetings table not found"); }
         if(!tableExists($conn, 'meeting_guests')) {
-            run_sql($conn, 'CREATE TABLE meeting_guests', "CREATE TABLE `meeting_guests` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `meeting_id` int, `name` varchar(120), `session_key` varchar(64) UNIQUE, CONSTRAINT `fk_mg_meeting` FOREIGN KEY (`meeting_id`) REFERENCES `meetings` (`id`) ON DELETE CASCADE) ENGINE=InnoDB");
-        } else { skip('CREATE TABLE meeting_guests'); }
+            run_sql($conn, 'CREATE TABLE meeting_guests', "CREATE TABLE `meeting_guests` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `meeting_id` int NOT NULL, `learner_id` int NULL, `name` varchar(120) NOT NULL, `email` varchar(190) NULL, `session_key` varchar(64) UNIQUE, `ip_address` varchar(45) NULL, `joined_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, `last_seen_at` datetime NULL, CONSTRAINT `fk_mg_meeting` FOREIGN KEY (`meeting_id`) REFERENCES `meetings` (`id`) ON DELETE CASCADE) ENGINE=InnoDB");
+        } else {
+            $guestColumns = ['learner_id' => 'ADD COLUMN `learner_id` INT NULL', 'email' => 'ADD COLUMN `email` VARCHAR(190) NULL', 'ip_address' => 'ADD COLUMN `ip_address` VARCHAR(45) NULL', 'joined_at' => 'ADD COLUMN `joined_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP', 'last_seen_at' => 'ADD COLUMN `last_seen_at` DATETIME NULL'];
+            foreach ($guestColumns as $column => $clause) {
+                if (!columnExists($conn, 'meeting_guests', $column)) run_sql($conn, "ALTER TABLE meeting_guests ADD $column", "ALTER TABLE `meeting_guests` $clause");
+                else skip("ALTER TABLE meeting_guests ADD $column");
+            }
+        }
     }
 
     function migrate_standalone_meetings(mysqli $conn) {
@@ -158,6 +164,21 @@ function run_all_migrations() {
             run_sql($conn, 'ALTER TABLE meetings allow no unit', 'ALTER TABLE `meetings` MODIFY `unit_id` INT NULL');
         } else {
             skip('ALTER TABLE meetings allow no unit');
+        }
+        $lecturerColumn = $conn->query("SHOW COLUMNS FROM meetings LIKE 'lecturer_id'");
+        $lecturerDefinition = $lecturerColumn ? $lecturerColumn->fetch_assoc() : null;
+        if ($lecturerDefinition && strtoupper((string)$lecturerDefinition['Null']) !== 'YES') {
+            run_sql($conn, 'ALTER TABLE meetings allow external host', 'ALTER TABLE `meetings` MODIFY `lecturer_id` INT NULL');
+        }
+        $columns = [
+            'host_user_id' => 'ADD COLUMN `host_user_id` INT NULL AFTER `lecturer_id`',
+            'host_role' => "ADD COLUMN `host_role` VARCHAR(32) NOT NULL DEFAULT 'lecturer' AFTER `host_user_id`",
+            'host_name' => 'ADD COLUMN `host_name` VARCHAR(120) NULL AFTER `host_role`',
+            'host_token' => 'ADD COLUMN `host_token` VARCHAR(64) NULL UNIQUE AFTER `host_name`',
+        ];
+        foreach ($columns as $name => $clause) {
+            if (!columnExists($conn, 'meetings', $name)) run_sql($conn, "ALTER TABLE meetings ADD $name", "ALTER TABLE `meetings` $clause");
+            else skip("ALTER TABLE meetings ADD $name");
         }
     }
     
