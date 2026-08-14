@@ -177,6 +177,7 @@
               <video autoplay playsinline id="stageVideo"></video>
               <div class="stage-bar">
                 <span class="stage-label" id="stageLabel"></span>
+                <button class="stage-users" id="stageUsersBtn">People</button>
                 <button class="stage-stop" id="stageStopBtn" hidden>Stop sharing</button>
               </div>
             </div>
@@ -242,6 +243,7 @@
     document.getElementById('participantsBtn').addEventListener('click', () => UNILIS_MEETING.SidebarManager.switchTab('participants'));
     document.getElementById('roomsBtn').addEventListener('click', () => UNILIS_MEETING.SidebarManager.switchTab('rooms'));
     document.getElementById('stageStopBtn').addEventListener('click', toggleShare);
+    document.getElementById('stageUsersBtn').addEventListener('click', () => UNILIS_MEETING.SidebarManager.switchTab('participants'));
     document.getElementById('leaveBtn').addEventListener('click', leaveMeeting);
     bindMoreMenu();
 
