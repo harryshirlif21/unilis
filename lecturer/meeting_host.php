@@ -18,7 +18,7 @@ if ($meeting_id <= 0) {
 $stmt = $conn->prepare(
     'SELECT m.*, u.name AS unit_name, l.name AS lecturer_name
      FROM meetings m
-     JOIN units u ON m.unit_id = u.id
+     LEFT JOIN units u ON m.unit_id = u.id
      JOIN lecturers l ON m.lecturer_id = l.id
      WHERE m.id = ? AND m.lecturer_id = ?'
 );

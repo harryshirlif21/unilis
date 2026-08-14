@@ -85,6 +85,7 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
 });
 
 require_once __DIR__ . '/config/meeting.php';
+require_once __DIR__ . '/config/meeting_guests.php';
 //require_once 'vendor/autoload.php';
 require_once 'vendor/autoload.php';
 require_once 'includes/mailer.php';
@@ -1519,6 +1520,61 @@ if ($action === 'generate_pdf' && isset($_GET['assignment_id'])) {
 }
 
 // === SCHEDULE MEETING ===
+if ($action === 'schedule_open_meeting') {
+    if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'lecturer') {
+        $_SESSION['open_meeting_error'] = 'Sign in as a lecturer to create a meeting.';
+        header('Location: meeting_portal.php#create');
+        exit;
+    }
+
+    $title = trim($_POST['title'] ?? '');
+    $scheduled_time = trim($_POST['scheduled_time'] ?? '');
+    $duration = max(15, min(480, (int)($_POST['duration'] ?? 60)));
+    $lecturer_id = (int)$_SESSION['user_id'];
+
+    if ($title === '' || $scheduled_time === '' || strtotime($scheduled_time) === false || strtotime($scheduled_time) < time() - 60) {
+        $_SESSION['open_meeting_error'] = 'Enter a title and a future meeting time.';
+        header('Location: meeting_portal.php#create');
+        exit;
+    }
+
+    $unitColumn = $conn->query("SHOW COLUMNS FROM meetings LIKE 'unit_id'");
+    if (!$unitColumn || $unitColumn->num_rows === 0 || strtoupper((string)$unitColumn->fetch_assoc()['Null']) !== 'YES') {
+        $_SESSION['open_meeting_error'] = 'Standalone meetings need the database migration before they can be created.';
+        header('Location: meeting_portal.php#create');
+        exit;
+    }
+
+    try {
+        $emptyLink = '';
+        $stmt = $conn->prepare('INSERT INTO meetings (lecturer_id, unit_id, title, meeting_link, scheduled_time, duration) VALUES (?, NULL, ?, ?, ?, ?)');
+        $stmt->bind_param('isssi', $lecturer_id, $title, $emptyLink, $scheduled_time, $duration);
+        $stmt->execute();
+        $meeting_id = (int)$conn->insert_id;
+        $stmt->close();
+
+        if (!meeting_guests_ready($conn)) {
+            throw new RuntimeException('Guest meeting access is not available. Run the database migration first.');
+        }
+        $token = meeting_guest_enable($conn, $meeting_id, $lecturer_id, true, null);
+        $guestLink = getMeetingGuestUrl($token);
+        $stmt = $conn->prepare('UPDATE meetings SET meeting_link = ? WHERE id = ? AND lecturer_id = ?');
+        $stmt->bind_param('sii', $guestLink, $meeting_id, $lecturer_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $_SESSION['open_meeting_success'] = 'Meeting created. Share the invitation code or link with participants.';
+        $_SESSION['open_meeting_host_link'] = getMeetingHostUrl($meeting_id);
+        $_SESSION['open_meeting_guest_link'] = $guestLink;
+        $_SESSION['open_meeting_code'] = $token;
+    } catch (Throwable $e) {
+        error_log('schedule_open_meeting failed: ' . $e->getMessage());
+        $_SESSION['open_meeting_error'] = 'The meeting could not be created. ' . $e->getMessage();
+    }
+    header('Location: meeting_portal.php#create');
+    exit;
+}
+
 if ($action === 'schedule_meeting') {
     if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'lecturer') {
         $_SESSION['meeting_error'] = 'Unauthorized.';

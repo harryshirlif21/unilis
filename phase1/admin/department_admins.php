@@ -42,6 +42,7 @@ phase1_guard_role(['admin', 'department_admin', 'lecturer'], '../../login.php');
 $user_name = $_SESSION['user_name'] ?? 'Department Admin';
 $user_role = $_SESSION['user_role'] ?? '';
 $department_id = $_SESSION['department_id'] ?? 0;
+$is_department_admin = $user_role === 'department_admin';
 
 // If department_id is 0, try to get it from department_admins table
 if ($department_id == 0 && isset($_SESSION['user_id'])) {
@@ -68,7 +69,9 @@ if ($action === 'search_lecturer') {
     header('Content-Type: application/json');
     $email = trim($_POST['email'] ?? '');
     if ($email) {
-        $lec = $conn->query("SELECT id, name, email FROM lecturers WHERE email = '" . $conn->real_escape_string($email) . "' LIMIT 1");
+        $sql = "SELECT id, name, email FROM lecturers WHERE email = '" . $conn->real_escape_string($email) . "'";
+        if ($is_department_admin) $sql .= ' AND department_id = ' . (int)$department_id;
+        $lec = $conn->query($sql . ' LIMIT 1');
         if ($lec && $lec->num_rows > 0) {
             $row = $lec->fetch_assoc();
             echo json_encode(['found' => true, 'id' => (int)$row['id'], 'name' => $row['name'], 'email' => $row['email']]);
@@ -98,6 +101,13 @@ if ($action === 'add_lecturer') {
             $placeholders = ['?', '?', '?'];
             $params = [$name, $email, password_hash($password, PASSWORD_DEFAULT)];
             $types = 'sss';
+            $checkDepartment = $conn->query("SHOW COLUMNS FROM lecturers LIKE 'department_id'");
+            if ($is_department_admin && $checkDepartment && $checkDepartment->num_rows > 0) {
+                $columns[] = 'department_id';
+                $placeholders[] = '?';
+                $params[] = (int)$department_id;
+                $types .= 'i';
+            }
             
             $checkPhone = $conn->query("SHOW COLUMNS FROM lecturers LIKE 'phone'");
             if ($checkPhone && $checkPhone->num_rows > 0 && $phone) {
@@ -166,7 +176,7 @@ if ($action === 'add_course') {
     $name = trim($_POST['name'] ?? '');
     $code = trim($_POST['code'] ?? '');
     $description = trim($_POST['description'] ?? '');
-    $department_id_input = (int)($_POST['department_id'] ?? $department_id);
+    $department_id_input = $is_department_admin ? (int)$department_id : (int)($_POST['department_id'] ?? $department_id);
     
     if ($name) {
         $checkTable = $conn->query("SHOW TABLES LIKE 'courses'");
@@ -211,7 +221,7 @@ if ($action === 'add_short_course') {
     $code = trim($_POST['code'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $duration = trim($_POST['duration'] ?? '');
-    $department_id_input = (int)($_POST['department_id'] ?? 0);
+    $department_id_input = $is_department_admin ? (int)$department_id : (int)($_POST['department_id'] ?? 0);
     $banner = $_FILES['banner'] ?? null;
     $pricing = $_POST['pricing'] ?? 'free';
     $price = (float)($_POST['price'] ?? 0);
@@ -278,11 +288,20 @@ if ($action === 'edit_short_course') {
     $code = trim($_POST['code'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $duration = trim($_POST['duration'] ?? '');
-    $department_id_input = (int)($_POST['department_id'] ?? 0);
+    $department_id_input = $is_department_admin ? (int)$department_id : (int)($_POST['department_id'] ?? 0);
     $banner = $_FILES['banner'] ?? null;
     $pricing = $_POST['pricing'] ?? 'free';
     $price = (float)($_POST['price'] ?? 0);
     $payment_methods = $_POST['payment_methods'] ?? [];
+
+    if ($is_department_admin && $id) {
+        $allowed = $conn->query("SELECT id FROM public_courses WHERE id = $id AND department_id = " . (int)$department_id);
+        if (!$allowed || $allowed->num_rows === 0) {
+            $id = 0;
+            $message = 'You can only edit short courses in your department.';
+            $message_type = 'error';
+        }
+    }
 
     if ($id && $name && $code && $duration && $department_id_input) {
         $checkTable = $conn->query("SHOW TABLES LIKE 'public_courses'");
@@ -396,14 +415,46 @@ if ($action === 'delete_short_course') {
 // This functionality is now handled by the ICLM course builder
 
 // Assign Tutor to Short Course (short course dropdown + lecturer email text)
+if ($action === 'assign_self_to_short_course') {
+    $short_course_id = (int)($_POST['short_course_id'] ?? 0);
+    if (!$is_department_admin || !$short_course_id) {
+        $message = 'Select a short course to assign to yourself.';
+        $message_type = 'error';
+    } else {
+        $stmt = $conn->prepare('UPDATE public_courses SET created_by_lecturer_id = ? WHERE id = ? AND department_id = ?');
+        $admin_id = (int)$_SESSION['user_id'];
+        $stmt->bind_param('iii', $admin_id, $short_course_id, $department_id);
+        $stmt->execute();
+        if ($stmt->affected_rows > 0) {
+            $message = 'Short course assigned to you. You can now open it in the course builder.';
+            $message_type = 'success';
+        } else {
+            $message = 'That short course was not found in your department.';
+            $message_type = 'error';
+        }
+        $stmt->close();
+    }
+}
+
 if ($action === 'assign_tutor_to_short_course') {
     $short_course_id = (int)($_POST['short_course_id'] ?? 0);
     $lecturer_email = trim($_POST['lecturer_email'] ?? '');
     $assigned_by = $_SESSION['user_id'];
+
+    if ($is_department_admin && $short_course_id) {
+        $course = $conn->query("SELECT id FROM public_courses WHERE id = $short_course_id AND department_id = " . (int)$department_id);
+        if (!$course || $course->num_rows === 0) {
+            $short_course_id = 0;
+            $message = 'You can only assign tutors to short courses in your department.';
+            $message_type = 'error';
+        }
+    }
     
     if ($short_course_id && $lecturer_email) {
         // Find lecturer by email (search across all lecturers)
-        $lec = $conn->query("SELECT id FROM lecturers WHERE email = '" . $conn->real_escape_string($lecturer_email) . "' LIMIT 1");
+        $lecSql = "SELECT id FROM lecturers WHERE email = '" . $conn->real_escape_string($lecturer_email) . "'";
+        if ($is_department_admin) $lecSql .= ' AND department_id = ' . (int)$department_id;
+        $lec = $conn->query($lecSql . ' LIMIT 1');
         $lecturer_id = ($lec && $lec->num_rows > 0) ? (int)$lec->fetch_assoc()['id'] : 0;
         
         if (!$lecturer_id) {
@@ -500,7 +551,8 @@ if ($checkLecturers && $checkLecturers->num_rows > 0) {
         $lecturerColumns[] = 'staff_id';
     }
     $lecturerFields = implode(', ', $lecturerColumns);
-    $lecturers = $conn->query("SELECT $lecturerFields FROM lecturers ORDER BY name");
+    $lecturerWhere = $is_department_admin ? ' WHERE department_id = ' . (int)$department_id : '';
+    $lecturers = $conn->query("SELECT $lecturerFields FROM lecturers$lecturerWhere ORDER BY name");
 }
 
 // Check if courses table exists before querying
@@ -538,7 +590,8 @@ if ($checkPublicCourses && $checkPublicCourses->num_rows > 0) {
         }
     }
     $scFields = implode(', ', $scColumns);
-    $short_courses = $conn->query("SELECT $scFields FROM public_courses ORDER BY title");
+    $shortCourseWhere = $is_department_admin ? ' WHERE department_id = ' . (int)$department_id : '';
+    $short_courses = $conn->query("SELECT $scFields FROM public_courses$shortCourseWhere ORDER BY title");
 }
 
 // Get short course tutors
@@ -550,6 +603,7 @@ if ($checkSCTutors && $checkSCTutors->num_rows > 0) {
         FROM short_course_tutors sct
         JOIN lecturers l ON sct.lecturer_id = l.id
         JOIN public_courses pc ON sct.short_course_id = pc.id
+        " . ($is_department_admin ? 'WHERE pc.department_id = ' . (int)$department_id : '') . "
         ORDER BY pc.title, l.name
     ");
 }
@@ -1701,6 +1755,21 @@ if ($department_id) {
                                 <i class="fas fa-user-plus"></i> Confirm & Assign Tutor
                             </button>
                         </form>
+                        <?php if ($is_department_admin): ?>
+                        <form method="POST" style="margin-top:18px; padding-top:18px; border-top:1px solid var(--border);">
+                            <input type="hidden" name="action" value="assign_self_to_short_course">
+                            <div class="form-group">
+                                <label>Assign a Short Course to Yourself</label>
+                                <select name="short_course_id" required>
+                                    <option value="">-- Select Short Course --</option>
+                                    <?php if ($short_courses): $short_courses->data_seek(0); while ($sc = $short_courses->fetch_assoc()): ?>
+                                        <option value="<?= $sc['id'] ?>"><?= htmlspecialchars($sc['name']) ?></option>
+                                    <?php endwhile; endif; ?>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-secondary"><i class="fas fa-user-check"></i> Assign to Me</button>
+                        </form>
+                        <?php endif; ?>
                     </div>
                 </div>
 

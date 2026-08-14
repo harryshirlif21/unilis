@@ -146,6 +146,20 @@ function run_all_migrations() {
             run_sql($conn, 'CREATE TABLE meeting_guests', "CREATE TABLE `meeting_guests` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `meeting_id` int, `name` varchar(120), `session_key` varchar(64) UNIQUE, CONSTRAINT `fk_mg_meeting` FOREIGN KEY (`meeting_id`) REFERENCES `meetings` (`id`) ON DELETE CASCADE) ENGINE=InnoDB");
         } else { skip('CREATE TABLE meeting_guests'); }
     }
+
+    function migrate_standalone_meetings(mysqli $conn) {
+        if (!tableExists($conn, 'meetings')) {
+            skip('Migration: standalone meetings', 'meetings table not found');
+            return;
+        }
+        $column = $conn->query("SHOW COLUMNS FROM meetings LIKE 'unit_id'");
+        $definition = $column ? $column->fetch_assoc() : null;
+        if ($definition && strtoupper((string)$definition['Null']) !== 'YES') {
+            run_sql($conn, 'ALTER TABLE meetings allow no unit', 'ALTER TABLE `meetings` MODIFY `unit_id` INT NULL');
+        } else {
+            skip('ALTER TABLE meetings allow no unit');
+        }
+    }
     
     function migrate_submission_checklist(mysqli $conn) {
         $tables = [
@@ -229,6 +243,7 @@ function run_all_migrations() {
     migrate_chat_attachments($conn);
     migrate_external_learners($conn);
     migrate_meeting_guests($conn);
+    migrate_standalone_meetings($conn);
     migrate_submission_checklist($conn);
     migrate_teams_system($conn);
     migrate_rfid($conn);

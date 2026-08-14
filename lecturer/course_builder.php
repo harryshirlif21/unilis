@@ -29,9 +29,18 @@ if ($mode === 'short_course') {
     $is_admin = in_array($_SESSION['user_role'], ['admin', 'department_admin'], true);
 
     if ($is_admin) {
-        // Admins / department admins can access any short course
-        $stmt = $conn->prepare("SELECT * FROM public_courses WHERE id = ? LIMIT 1");
-        $stmt->bind_param("i", $course_id);
+        // A global admin may access every course. A department admin is limited
+        // to the department assigned in their session.
+        $sql = $_SESSION['user_role'] === 'department_admin'
+            ? "SELECT * FROM public_courses WHERE id = ? AND department_id = ? LIMIT 1"
+            : "SELECT * FROM public_courses WHERE id = ? LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        if ($_SESSION['user_role'] === 'department_admin') {
+            $departmentId = (int)($_SESSION['department_id'] ?? 0);
+            $stmt->bind_param("ii", $course_id, $departmentId);
+        } else {
+            $stmt->bind_param("i", $course_id);
+        }
         $stmt->execute();
         $course_info = $stmt->get_result()->fetch_assoc();
         $stmt->close();
