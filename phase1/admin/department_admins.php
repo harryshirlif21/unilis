@@ -260,7 +260,9 @@ if ($action === 'add_short_course') {
             $methods_str = $is_paid ? implode(',', array_map('trim', $payment_methods)) : '';
             
             $stmt = $conn->prepare("INSERT INTO public_courses (slug, title, code, summary, description, duration, department_id, cover_image, created_by_lecturer_id, is_published, is_paid, price, payment_methods) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)");
-            $stmt->bind_param('sssssssiiids', $slug, $name, $code, $description, $description, $duration, $department_id_input, $banner_path, $_SESSION['user_id'], $is_paid, $price, $methods_str);
+            // cover_image is a path string. Binding it as an integer turns every
+            // uploaded banner into 0, which the public /learn catalogue hides.
+            $stmt->bind_param('ssssssisiids', $slug, $name, $code, $description, $description, $duration, $department_id_input, $banner_path, $_SESSION['user_id'], $is_paid, $price, $methods_str);
             if ($stmt->execute()) {
                 $message = "Short course added successfully! " . ($is_paid ? "Price: KSh " . number_format($price, 2) : "Free course");
                 $message_type = 'success';
