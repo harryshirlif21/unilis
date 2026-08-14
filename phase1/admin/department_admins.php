@@ -423,18 +423,37 @@ if ($action === 'assign_self_to_short_course') {
         $message = 'Select a short course to assign to yourself.';
         $message_type = 'error';
     } else {
-        $stmt = $conn->prepare('UPDATE public_courses SET created_by_lecturer_id = ? WHERE id = ? AND department_id = ?');
         $admin_id = (int)$_SESSION['user_id'];
-        $stmt->bind_param('iii', $admin_id, $short_course_id, $department_id);
+        $stmt = $conn->prepare('SELECT created_by_lecturer_id FROM public_courses WHERE id = ? AND department_id = ? LIMIT 1');
+        $stmt->bind_param('ii', $short_course_id, $department_id);
         $stmt->execute();
-        if ($stmt->affected_rows > 0) {
-            $message = 'Short course assigned to you. You can now open it in the course builder.';
-            $message_type = 'success';
-        } else {
+        $course = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$course) {
             $message = 'That short course was not found in your department.';
             $message_type = 'error';
+        } elseif ((int)($course['created_by_lecturer_id'] ?? 0) === $admin_id) {
+            // MySQL reports zero affected rows when the selected course is
+            // already assigned to this administrator; that is not an error.
+            $message = 'That short course is already assigned to you. You can open it in the course builder.';
+            $message_type = 'success';
+        } else {
+            $stmt = $conn->prepare('UPDATE public_courses SET created_by_lecturer_id = ? WHERE id = ? AND department_id = ?');
+            $stmt->bind_param('iii', $admin_id, $short_course_id, $department_id);
+            $stmt->execute();
+            $updated = $stmt->affected_rows > 0;
+            $error = $stmt->error;
+            $stmt->close();
+
+            if ($updated) {
+                $message = 'Short course assigned to you. You can now open it in the course builder.';
+                $message_type = 'success';
+            } else {
+                $message = 'Unable to assign that short course to you' . ($error ? ': ' . $error : '.');
+                $message_type = 'error';
+            }
         }
-        $stmt->close();
     }
 }
 
@@ -580,6 +599,7 @@ if ($checkUnits && $checkUnits->num_rows > 0) {
 
 // Check if public_courses table exists before querying - load ALL short courses
 $short_courses = false;
+$my_short_courses = [];
 $checkPublicCourses = $conn->query("SHOW TABLES LIKE 'public_courses'");
 if ($checkPublicCourses && $checkPublicCourses->num_rows > 0) {
     // Build dynamic column list based on what exists in the table
@@ -594,6 +614,18 @@ if ($checkPublicCourses && $checkPublicCourses->num_rows > 0) {
     $scFields = implode(', ', $scColumns);
     $shortCourseWhere = $is_department_admin ? ' WHERE department_id = ' . (int)$department_id : '';
     $short_courses = $conn->query("SELECT $scFields FROM public_courses$shortCourseWhere ORDER BY title");
+
+    // "Assign to Me" marks the department admin as the course owner. Keep a
+    // separate list so the dashboard can expose the same short-course entry
+    // point lecturers receive, without showing courses assigned to others.
+    if ($is_department_admin) {
+        $adminId = (int)$_SESSION['user_id'];
+        $stmt = $conn->prepare('SELECT id, title FROM public_courses WHERE created_by_lecturer_id = ? AND department_id = ? ORDER BY title');
+        $stmt->bind_param('ii', $adminId, $department_id);
+        $stmt->execute();
+        $my_short_courses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+    }
 }
 
 // Get short course tutors
@@ -796,6 +828,8 @@ if ($department_id) {
             text-align: left;
             font-family: 'Inter', sans-serif;
         }
+
+        .sidebar a.nav-item { text-decoration: none; }
 
         .nav-item i {
             width: 18px;
@@ -1211,6 +1245,14 @@ if ($department_id) {
             <button class="nav-item" data-panel="tutors" onclick="switchPanel('tutors', this)">
                 <i class="fas fa-user-plus"></i> Assign Tutors
             </button>
+
+            <?php if ($is_department_admin && !empty($my_short_courses)): ?>
+            <div class="sidebar-label">My Teaching</div>
+            <a class="nav-item" href="../../lecturer/catalogue.php" title="Open your assigned short courses">
+                <i class="fas fa-graduation-cap"></i> My Short Courses
+                <span class="count"><?= count($my_short_courses) ?></span>
+            </a>
+            <?php endif; ?>
         </aside>
 
         <main class="main">

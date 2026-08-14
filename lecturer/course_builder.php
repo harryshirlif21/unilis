@@ -774,6 +774,7 @@ body {
 
 /* ── OUTLINE MODAL SPECIFICS ─────────────────────────────── */
 .char-count { font-size: 0.72rem; color: var(--text-dim); text-align: right; margin-top: 4px; }
+.outline-level-editor { margin-top: 14px; padding: 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 
 /* ── RESPONSIVE ──────────────────────────────────────────── */
 @media (max-width: 768px) {
@@ -913,7 +914,7 @@ body {
                     </div>
                     <div>
                         <button class="btn btn-ghost btn-sm" onclick="openOutlineModal()">
-                            <i class="fas fa-edit"></i> Edit Description
+                            <i class="fas fa-edit"></i> Course Outline
                         </button>
                     </div>
                 </div>
@@ -992,23 +993,44 @@ body {
 
 <!-- Course Outline Modal -->
 <div class="modal-overlay" id="outline-modal">
-    <div class="modal" style="width:560px">
-        <h3><i class="fas fa-align-left"></i> <?= $mode === 'short_course' ? 'Course Description' : 'Course Outline' ?></h3>
+    <div class="modal" style="width:680px;max-height:90vh;overflow-y:auto">
+        <h3><i class="fas fa-align-left"></i> Course Outline</h3>
         <div class="form-group">
-            <label><?= $mode === 'short_course' ? 'Course Description' : 'Course Description' ?></label>
+            <label>Course Description</label>
             <textarea class="form-textarea" id="outline-description"
                       placeholder="Brief overview of this course..."
                       oninput="updateCharCount(this,'desc-count',500)"></textarea>
             <div class="char-count"><span id="desc-count">0</span>/500</div>
         </div>
-        <?php if ($mode === 'iclm'): ?>
+        <?php if ($mode === 'short_course'): ?>
         <div class="form-group">
+            <label>Outline level</label>
+            <select class="form-input" id="outline-level" onchange="changeShortCourseOutlineLevel()">
+                <option value="course">Course level</option>
+                <option value="module">Module level</option>
+                <option value="lesson">Lesson level</option>
+            </select>
+        </div>
+        <?php endif; ?>
+        <div class="form-group" id="course-outline-group">
             <label>Course Outline / Syllabus</label>
             <textarea class="form-textarea" id="outline-content"
                       placeholder="Week 1: Introduction&#10;Week 2: Core Concepts&#10;..."
                       style="min-height:140px"
                       oninput="updateCharCount(this,'outline-count',2000)"></textarea>
             <div class="char-count"><span id="outline-count">0</span>/2000</div>
+        </div>
+        <?php if ($mode === 'short_course'): ?>
+        <div id="short-course-outline-editor" class="outline-level-editor" style="display:none">
+            <div class="form-group">
+                <label id="outline-target-label" for="outline-target">Outline target</label>
+                <select class="form-input" id="outline-target" onchange="loadShortCourseTargetOutline()"></select>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label id="outline-level-content-label" for="outline-level-content">Outline</label>
+                <textarea class="form-textarea" id="outline-level-content"
+                          placeholder="Add the topics, objectives, or key takeaways for this item..."></textarea>
+            </div>
         </div>
         <?php endif; ?>
         <div class="modal-actions">
@@ -1225,6 +1247,12 @@ function buildModuleCard(mod, idx) {
                 <button class="btn btn-ghost btn-sm btn-icon" onclick="openAddLessonInline(${mod.id})" title="Add Lesson">
                     <i class="fas fa-plus" style="color:var(--accent2)"></i>
                 </button>
+                ${MODE === 'short_course' ? `<a href="lesson_preview.php?course_id=${COURSE_ID}&module_id=${mod.id}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm btn-icon" title="Preview Module">
+                    <i class="fas fa-eye" style="color:var(--accent2)"></i>
+                </a>` : ''}
+                ${MODE === 'short_course' ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openOutlineModal()" title="Edit course, module, and lesson outlines">
+                    <i class="fas fa-align-left" style="color:var(--accent3)"></i>
+                </button>` : ''}
                 <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleModule(${mod.id})" id="toggle-${mod.id}" title="Collapse/Expand">
                     <i class="fas fa-chevron-down"></i>
                 </button>
@@ -1260,6 +1288,9 @@ function buildLessonRowHTML(lesson, moduleId) {
                 ${escHtml(lesson.title)}
             </span>
             <div class="lesson-actions">
+                ${MODE === 'short_course' ? `<a href="lesson_preview.php?course_id=${COURSE_ID}&lesson_id=${lessonId}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm btn-icon" title="Preview Lesson">
+                    <i class="fas fa-eye" style="color:var(--accent2)"></i>
+                </a>` : ''}
                 <a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
                     <i class="fas fa-pen" style="color:var(--accent)"></i>
                 </a>
@@ -1530,9 +1561,11 @@ function reloadTree() {
 // ─────────────────────────────────────────────────────────────
 function openOutlineModal() {
     document.getElementById('outline-description').value = outline ? (outline.description || '') : '';
-    if (MODE === 'iclm') {
-        document.getElementById('outline-content').value = outline ? (outline.outline || '') : '';
-        updateCharCount(document.getElementById('outline-content'), 'outline-count', 2000);
+    document.getElementById('outline-content').value = outline ? (outline.outline || '') : '';
+    updateCharCount(document.getElementById('outline-content'), 'outline-count', 2000);
+    if (MODE === 'short_course') {
+        document.getElementById('outline-level').value = 'course';
+        changeShortCourseOutlineLevel();
     }
     updateCharCount(document.getElementById('outline-description'), 'desc-count', 500);
     openModal('outline-modal');
@@ -1540,7 +1573,7 @@ function openOutlineModal() {
 
 function saveOutline() {
     const desc    = document.getElementById('outline-description').value.trim();
-    const content = MODE === 'iclm' ? document.getElementById('outline-content').value.trim() : '';
+    const content = document.getElementById('outline-content').value.trim();
     const body    = new FormData();
 
     if (MODE === 'short_course') {
@@ -1550,8 +1583,9 @@ function saveOutline() {
     }
     body.append('lecturer_id', LECTURER_ID);
     body.append('description', desc);
-    if (MODE === 'iclm') {
-        body.append('outline', content);
+    body.append('outline', content);
+    if (MODE === 'short_course') {
+        body.append('level_outlines', JSON.stringify(collectShortCourseLevelOutlines()));
     }
 
     const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_outline.php' : 'ajax/save_course_outline.php';
@@ -1560,11 +1594,12 @@ function saveOutline() {
         .then(d => {
             if (d.success) {
                 if (MODE === 'short_course') {
-                    outline = { description: desc };
+                    outline = { description: desc, outline: content };
                 } else {
                     outline = { description: desc, outline: content };
                 }
                 renderOutlineHeader();
+                if (MODE === 'short_course') reloadTree();
                 toast('Saved', 'success');
                 closeModal('outline-modal');
             } else {
@@ -1572,6 +1607,57 @@ function saveOutline() {
             }
         })
         .catch(() => toast('Network error', 'error'));
+}
+
+function changeShortCourseOutlineLevel() {
+    const level = document.getElementById('outline-level').value;
+    const editor = document.getElementById('short-course-outline-editor');
+    const descriptionGroup = document.getElementById('outline-description').closest('.form-group');
+    const courseGroup = document.getElementById('course-outline-group');
+    const target = document.getElementById('outline-target');
+
+    if (level === 'course') {
+        descriptionGroup.style.display = '';
+        courseGroup.style.display = '';
+        editor.style.display = 'none';
+        return;
+    }
+
+    descriptionGroup.style.display = 'none';
+    courseGroup.style.display = 'none';
+    editor.style.display = '';
+    const options = level === 'module'
+        ? modules.map((mod, index) => ({ id: mod.id, label: `Module ${index + 1}: ${mod.title}` }))
+        : modules.flatMap((mod, moduleIndex) => (mod.lessons || []).map((lesson, lessonIndex) => ({
+            id: lesson.id,
+            label: `Module ${moduleIndex + 1} · Lesson ${lessonIndex + 1}: ${lesson.title}`,
+        })));
+
+    target.innerHTML = options.length
+        ? options.map(option => `<option value="${option.id}">${escHtml(option.label)}</option>`).join('')
+        : '<option value="">No ' + (level === 'module' ? 'modules' : 'lessons') + ' available</option>';
+    document.getElementById('outline-target-label').textContent = level === 'module' ? 'Module' : 'Lesson';
+    document.getElementById('outline-level-content-label').textContent = level === 'module' ? 'Module outline' : 'Lesson outline';
+    loadShortCourseTargetOutline();
+}
+
+function loadShortCourseTargetOutline() {
+    const level = document.getElementById('outline-level').value;
+    const id = Number(document.getElementById('outline-target').value);
+    let item = null;
+    if (level === 'module') {
+        item = modules.find(mod => Number(mod.id) === id);
+    } else if (level === 'lesson') {
+        item = modules.flatMap(mod => mod.lessons || []).find(lesson => Number(lesson.id) === id);
+    }
+    document.getElementById('outline-level-content').value = item ? (item.outline || '') : '';
+}
+
+function collectShortCourseLevelOutlines() {
+    const level = document.getElementById('outline-level').value;
+    const id = Number(document.getElementById('outline-target').value);
+    if (level === 'course' || !id) return [];
+    return [{ type: level, id, outline: document.getElementById('outline-level-content').value.trim() }];
 }
 
 // ─────────────────────────────────────────────────────────────

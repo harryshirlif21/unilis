@@ -1,14 +1,14 @@
 <?php
 // lecturer/ajax/save_short_course_content.php
 session_start();
-require_once '../../config/db.php';
+require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/short_course_access.php';
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!shortCourseIsAuthor()) {
     echo json_encode(['success' => false, 'message' => 'Unauthorised']); exit;
 }
 
-$lecturer_id = (int)$_SESSION['user_id'];
 $lesson_id   = (int)($_POST['lesson_id'] ?? 0);
 $block_type  = trim($_POST['block_type'] ?? '');
 $content     = $_POST['content'] ?? '';
@@ -18,37 +18,21 @@ if (!$lesson_id || !$block_type) {
 }
 
 try {
-    // Verify lecturer has access to this short course lesson
+    // Resolve the parent course first, then apply the same access rule used by
+    // every short-course builder action.
     $stmt = $conn->prepare("
-        SELECT l.id, l.content_html, l.video_url, l.attachment_path
+        SELECT l.id, l.content_html, l.video_url, l.attachment_path, m.course_id
         FROM public_course_lessons l
         JOIN public_course_modules m ON l.module_id = m.id
-        JOIN short_course_tutors sct ON sct.short_course_id = m.course_id
-        WHERE l.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
+        WHERE l.id = ?
         LIMIT 1
     ");
-    $stmt->bind_param("ii", $lesson_id, $lecturer_id);
+    $stmt->bind_param("i", $lesson_id);
     $stmt->execute();
     $lesson = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if (!$lesson) {
-        // Fallback: check if lecturer owns the course
-        $stmt = $conn->prepare("
-            SELECT l.id, l.content_html, l.video_url, l.attachment_path
-            FROM public_course_lessons l
-            JOIN public_course_modules m ON l.module_id = m.id
-            JOIN public_courses pc ON pc.id = m.course_id
-            WHERE l.id = ? AND pc.created_by_lecturer_id = ?
-            LIMIT 1
-        ");
-        $stmt->bind_param("ii", $lesson_id, $lecturer_id);
-        $stmt->execute();
-        $lesson = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-    }
-
-    if (!$lesson) {
+    if (!$lesson || !shortCourseCanManage($conn, (int)$lesson['course_id'])) {
         echo json_encode(['success' => false, 'message' => 'Lesson not found or access denied']); exit;
     }
 

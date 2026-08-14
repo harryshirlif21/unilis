@@ -1,9 +1,10 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/short_course_access.php';
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!shortCourseIsAuthor()) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
@@ -16,24 +17,24 @@ if (!$course_id) {
     exit;
 }
 
-// Verify lecturer has access to this short course
-$check = $conn->prepare("
-    SELECT 1 FROM short_course_tutors 
-    WHERE lecturer_id = ? AND short_course_id = ? AND is_active = 1
-    UNION
-    SELECT 1 FROM public_courses WHERE id = ? AND created_by_lecturer_id = ?
-");
-$check->bind_param("iiii", $lecturer_id, $course_id, $course_id, $lecturer_id);
-$check->execute();
-if (!$check->get_result()->fetch_row()) {
+if (!shortCourseCanManage($conn, $course_id)) {
     echo json_encode(['success' => false, 'message' => 'Access denied']);
     exit;
 }
-$check->close();
+
+function hasOutlineColumn(mysqli $conn, string $table): bool
+{
+    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE 'outline'");
+    return $result && $result->num_rows > 0;
+}
+
+$courseHasOutline = hasOutlineColumn($conn, 'public_courses');
+$moduleHasOutline = hasOutlineColumn($conn, 'public_course_modules');
+$lessonHasOutline = hasOutlineColumn($conn, 'public_course_lessons');
 
 // Fetch course info for outline (description)
 $outline = null;
-$stmt = $conn->prepare("SELECT description FROM public_courses WHERE id = ? LIMIT 1");
+$stmt = $conn->prepare('SELECT description' . ($courseHasOutline ? ', outline' : '') . ' FROM public_courses WHERE id = ? LIMIT 1');
 $stmt->bind_param("i", $course_id);
 $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
@@ -43,7 +44,7 @@ $stmt->close();
 // Fetch modules from public_course_modules
 $modules = [];
 $stmt = $conn->prepare("
-    SELECT id, title, position
+    SELECT id, title, position" . ($moduleHasOutline ? ', outline' : '') . "
     FROM public_course_modules
     WHERE course_id = ?
     ORDER BY position ASC, id ASC
@@ -61,7 +62,7 @@ $stmt->close();
 if (!empty($modules)) {
     $moduleIds = implode(',', array_keys($modules));
     $lessonQuery = $conn->query("
-        SELECT id, module_id, title, position
+        SELECT id, module_id, title, position" . ($lessonHasOutline ? ', outline' : '') . "
         FROM public_course_lessons
         WHERE module_id IN ($moduleIds)
         ORDER BY position ASC, id ASC

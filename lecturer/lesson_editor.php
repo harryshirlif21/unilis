@@ -1,8 +1,9 @@
 <?php
 session_start();
 require_once '../config/db.php';
+require_once __DIR__ . '/ajax/short_course_access.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!shortCourseIsAuthor()) {
     header("Location: ../login.php");
     exit;
 }
@@ -18,21 +19,9 @@ $mode      = $course_id > 0 ? 'short_course' : 'iclm';
 // ── Short course mode: verify access, load course info ────────────────────
 $course_info = null;
 if ($mode === 'short_course') {
-    $stmt = $conn->prepare("
-        SELECT pc.*, sct.id AS tutor_id
-        FROM public_courses pc
-        JOIN short_course_tutors sct ON sct.short_course_id = pc.id
-        WHERE pc.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
-        LIMIT 1
-    ");
-    $stmt->bind_param("ii", $course_id, $lecturer_id);
-    $stmt->execute();
-    $course_info = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    if (!$course_info) {
-        $stmt = $conn->prepare("SELECT * FROM public_courses WHERE id = ? AND created_by_lecturer_id = ? LIMIT 1");
-        $stmt->bind_param("ii", $course_id, $lecturer_id);
+    if (shortCourseCanManage($conn, $course_id)) {
+        $stmt = $conn->prepare('SELECT * FROM public_courses WHERE id = ? LIMIT 1');
+        $stmt->bind_param('i', $course_id);
         $stmt->execute();
         $course_info = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -156,16 +145,15 @@ $content_blocks = [];
 if ($lesson_id) {
     try {
         if ($mode === 'short_course') {
-            // Short course: verify via public_course_lessons -> public_course_modules -> short_course_tutors
+            // Access to the parent course was already verified above.
             $stmt = $conn->prepare("
                 SELECT l.id, l.title, l.module_id, l.content_html, l.video_url, l.attachment_path,
                        m.title AS module_title, m.course_id
                 FROM public_course_lessons l
                 JOIN public_course_modules m ON l.module_id = m.id
-                JOIN short_course_tutors sct ON sct.short_course_id = m.course_id
-                WHERE l.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
+                WHERE l.id = ? AND m.course_id = ?
             ");
-            $stmt->bind_param("ii", $lesson_id, $lecturer_id);
+            $stmt->bind_param("ii", $lesson_id, $course_id);
             $stmt->execute();
             $current_lesson = $stmt->get_result()->fetch_assoc();
             $stmt->close();

@@ -1,9 +1,10 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/short_course_access.php';
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!shortCourseIsAuthor()) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
@@ -18,15 +19,10 @@ if (!$course_id || !$module_id) {
     exit;
 }
 
-// Verify access
-$check = $conn->prepare("SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? AND is_active = 1");
-$check->bind_param("ii", $lecturer_id, $course_id);
-$check->execute();
-if (!$check->get_result()->fetch_row()) {
+if (!shortCourseCanManage($conn, $course_id)) {
     echo json_encode(['success' => false, 'message' => 'Access denied']);
     exit;
 }
-$check->close();
 
 $ids = json_decode($order, true);
 if (!is_array($ids)) {
