@@ -1,10 +1,11 @@
 <?php
 // lecturer/ajax/upload_block_file.php
 session_start();
-require_once '../../config/db.php';
+require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/short_course_access.php';
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
+if (!shortCourseIsAuthor()) {
     echo json_encode(['success' => false, 'message' => 'Unauthorised']); exit;
 }
 
@@ -19,6 +20,7 @@ $allowed_folders = [
     'course_diagrams',
     'course_videos',
     'course_pdfs',
+    'course_presentations',
 ];
 if (!in_array($folder, $allowed_folders)) {
     echo json_encode(['success' => false, 'message' => 'Invalid folder']); exit;
@@ -28,7 +30,7 @@ if (!$lesson_id) {
     echo json_encode(['success' => false, 'message' => 'lesson_id required']); exit;
 }
 
-// Verify lecturer owns the lesson via lecturer_units (works even if cm.lecturer_id is 0)
+// Permit a lecturer's ICLM lesson or an authorized short-course lesson.
 try {
     $stmt = $conn->prepare("
         SELECT cl.id FROM course_lessons cl
@@ -37,10 +39,19 @@ try {
     ");
     $stmt->bind_param("ii", $lesson_id, $lecturer_id);
     $stmt->execute();
-    if (!$stmt->get_result()->fetch_assoc()) {
-        echo json_encode(['success' => false, 'message' => 'Access denied']); exit;
-    }
+    $iclmLesson = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+
+    if (!$iclmLesson) {
+        $stmt = $conn->prepare('SELECT m.course_id FROM public_course_lessons l JOIN public_course_modules m ON m.id = l.module_id WHERE l.id = ? LIMIT 1');
+        $stmt->bind_param('i', $lesson_id);
+        $stmt->execute();
+        $shortCourse = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$shortCourse || !shortCourseCanManage($conn, (int)$shortCourse['course_id'])) {
+            echo json_encode(['success' => false, 'message' => 'Access denied']); exit;
+        }
+    }
 } catch (mysqli_sql_exception $e) {
     error_log($e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Database error']); exit;
@@ -97,6 +108,16 @@ $rules = [
         'exts'  => ['pdf'],
         'limit' => 50 * 1024 * 1024,  // 50 MB
     ],
+    'course_presentations' => [
+        'mimes' => [
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/zip',
+            'application/octet-stream',
+        ],
+        'exts' => ['ppt', 'pptx'],
+        'limit' => 50 * 1024 * 1024,
+    ],
 ];
 
 $rule = $rules[$folder];
@@ -119,7 +140,7 @@ $real_mime = $finfo->file($tmp_path);
 // Video files frequently report unreliable MIME types depending on the server's
 // magic database. For course_videos, if the extension is whitelisted we trust it.
 // We still run the MIME check for images, audio, and PDFs where it's reliable.
-if ($folder === 'course_videos') {
+if ($folder === 'course_videos' || $folder === 'course_presentations') {
     // Extension already verified above — skip MIME check for video
     // Just ensure it's not obviously something dangerous (e.g. PHP disguised as mp4)
     $dangerous_mimes = [

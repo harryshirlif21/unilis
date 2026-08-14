@@ -159,12 +159,22 @@ if ($lesson_id) {
             $stmt->close();
 
             // For short courses, content is stored in public_course_lessons.content_html
-            // Convert it to a single text block so the editor can display it
+            // Convert it to a single block. File blocks retain their JSON so a
+            // PowerPoint upload can be reopened and edited rather than turning
+            // into raw text on the next visit.
             if ($current_lesson && !empty($current_lesson['content_html'])) {
+                $storedContent = $current_lesson['content_html'];
+                $storedType = 'text';
+                $storedData = json_decode($storedContent, true);
+                if (is_array($storedData)
+                    && !empty($storedData['src'])
+                    && preg_match('#^uploads/course_presentations/#', (string)$storedData['src'])) {
+                    $storedType = 'ppt';
+                }
                 $content_blocks[] = [
                     'id' => 0,
-                    'block_type' => 'text',
-                    'content' => $current_lesson['content_html'],
+                    'block_type' => $storedType,
+                    'content' => $storedContent,
                     'position' => 0,
                 ];
             }
@@ -237,6 +247,7 @@ if ($lesson_id) {
     --c-audio:   #f5a623;
     --c-diagram: #e879f9;
     --c-pdf:     #f97316;
+    --c-ppt:     #d24726;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -325,6 +336,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .block-btn[data-type="diagram"]:hover { background: rgba(232,121,249,0.12); color: var(--c-diagram); border-color: var(--c-diagram); }
 .block-btn[data-type="pdf"]     { border-color: rgba(249,115,22,0.4); }
 .block-btn[data-type="pdf"]:hover     { background: rgba(249,115,22,0.12); color: var(--c-pdf); border-color: var(--c-pdf); }
+.block-btn[data-type="ppt"]     { border-color: rgba(210,71,38,0.4); }
+.block-btn[data-type="ppt"]:hover     { background: rgba(210,71,38,0.12); color: var(--c-ppt); border-color: var(--c-ppt); }
 
 /* ── VIDEO BLOCK ───────────────────────────────────────────── */
 .vid-tabs { display:flex; gap:0; margin-bottom:12px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
@@ -367,6 +380,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
                      transition:var(--tr); display:inline-flex; align-items:center; gap:5px; }
 .pdf-preview-bar a:hover { border-color:var(--c-pdf); color:var(--c-pdf); }
 .pdf-preview-pane iframe { width:100%; height:520px; border:none; display:block; }
+.ppt-preview-pane { margin-top:12px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; display:none; background:var(--surface2); }
+.ppt-preview-pane iframe { width:100%; height:440px; border:none; display:block; background:#fff; }
 
 .toolbar-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
 
@@ -406,6 +421,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .dot-audio   { background: var(--c-audio); }
 .dot-diagram { background: var(--c-diagram); }
 .dot-pdf     { background: var(--c-pdf); }
+.dot-ppt     { background: var(--c-ppt); }
 
 .block-type-label {
     font-family: 'Syne', sans-serif; font-size: 0.68rem; font-weight: 700;
@@ -417,6 +433,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .label-audio   { color: var(--c-audio); }
 .label-diagram { color: var(--c-diagram); }
 .label-pdf     { color: var(--c-pdf); }
+.label-ppt     { color: var(--c-ppt); }
 
 .block-drag-handle { display: flex; gap: 3px; margin-left: auto; opacity: 0.4; }
 .block-drag-handle span { display: block; width: 3px; height: 3px; background: var(--text-muted); border-radius: 50%; }
@@ -686,6 +703,9 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
                 <button class="block-btn" data-type="pdf" onclick="addBlock('pdf')">
                     <i class="fas fa-file-pdf" style="color:var(--c-pdf)"></i> PDF
                 </button>
+                <button class="block-btn" data-type="ppt" onclick="addBlock('ppt')">
+                    <i class="fas fa-file-powerpoint" style="color:var(--c-ppt)"></i> PowerPoint
+                </button>
                 <div class="toolbar-sep"></div>
                 <button class="block-btn" onclick="saveAllBlocks()" style="border-color:rgba(62,207,142,0.4)">
                     <i class="fas fa-floppy-disk" style="color:var(--accent2)"></i> Save All
@@ -795,8 +815,8 @@ function buildBlockCard(localId, type, content, dbId) {
     card.dataset.lid = localId;
     card.draggable   = true;
 
-    const icons  = { text:'fa-align-left', image:'fa-image', video:'fa-video', audio:'fa-music', diagram:'fa-diagram-project', pdf:'fa-file-pdf' };
-    const labels = { text:'Text', image:'Image', video:'Video', audio:'Audio', diagram:'Diagram', pdf:'PDF' };
+    const icons  = { text:'fa-align-left', image:'fa-image', video:'fa-video', audio:'fa-music', diagram:'fa-diagram-project', pdf:'fa-file-pdf', ppt:'fa-file-powerpoint' };
+    const labels = { text:'Text', image:'Image', video:'Video', audio:'Audio', diagram:'Diagram', pdf:'PDF', ppt:'PowerPoint' };
 
     card.innerHTML = `
         <div class="block-header">
@@ -855,6 +875,7 @@ function buildBlockBody(localId, type, content) {
     if (type === 'audio')   return buildAudioBody(localId, content);
     if (type === 'diagram') return buildDiagramBody(localId, content);
     if (type === 'pdf')     return buildPdfBody(localId, content);
+    if (type === 'ppt')     return buildPptBody(localId, content);
     return '';
 }
 
@@ -1053,6 +1074,49 @@ function buildPdfBody(localId, content) {
     `;
 }
 
+// POWERPOINT BLOCK (.ppt / .pptx)
+function buildPptBody(localId, content) {
+    let src = '', name = '', caption = '';
+    try { const d = JSON.parse(content || '{}'); src = d.src || ''; name = d.name || ''; caption = d.caption || ''; } catch(e) {}
+    const loaded = !!src;
+    const previewUrl = loaded ? `ppt_preview.php?file=${encodeURIComponent(src)}&embed=1` : '';
+    const fullPreviewUrl = loaded ? `ppt_preview.php?file=${encodeURIComponent(src)}` : '#';
+    return `
+        <div class="pdf-upload-area" id="ppt-drop-${localId}"
+             onclick="document.getElementById('ppt-file-${localId}').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--c-ppt)'"
+             ondragleave="this.style.borderColor=''"
+             ondrop="handlePptDrop(event,${localId})"
+             style="${loaded ? 'display:none' : ''}">
+            <input type="file" id="ppt-file-${localId}" accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                   onchange="handlePptUpload(event,${localId})">
+            <i class="fas fa-file-powerpoint" style="color:var(--c-ppt)"></i>
+            <div>Click or drag to upload PowerPoint</div>
+            <small>PPT or PPTX · up to 50MB</small>
+        </div>
+
+        <div class="ppt-preview-pane" id="ppt-pane-${localId}" style="${loaded ? 'display:block' : 'display:none'}">
+            <div class="pdf-preview-bar">
+                <i class="fas fa-file-powerpoint" style="color:var(--c-ppt);flex-shrink:0"></i>
+                <span class="pdf-name" id="ppt-name-${localId}">${escHtml(name || 'presentation.pptx')}</span>
+                <a href="${fullPreviewUrl}" target="_blank" rel="noopener" id="ppt-full-${localId}">
+                    <i class="fas fa-expand"></i> Full-page preview
+                </a>
+                <a href="${loaded ? escHtml('../' + src) : '#'}" target="_blank" rel="noopener" id="ppt-download-${localId}">
+                    <i class="fas fa-download"></i> Download
+                </a>
+                <button onclick="replacePpt(${localId})" style="font-size:.78rem;padding:4px 10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius-sm);cursor:pointer;font-family:'DM Sans',sans-serif">
+                    <i class="fas fa-sync-alt"></i> Replace
+                </button>
+            </div>
+            <iframe id="ppt-frame-${localId}" src="${previewUrl}" title="PowerPoint Preview"></iframe>
+        </div>
+
+        <input type="text" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:7px 12px;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:.82rem;outline:none;margin-top:8px"
+               id="ppt-caption-${localId}" value="${escAttr(caption)}" placeholder="Presentation title / description (optional)" oninput="markUnsaved(${localId})">
+    `;
+}
+
 // ─────────────────────────────────────────────────────────
 // VIDEO TAB SWITCHER
 // ─────────────────────────────────────────────────────────
@@ -1201,6 +1265,53 @@ function _doPdfUpload(file, localId) {
         if (pane)   pane.style.display = 'block';
         markUnsaved(localId);
         toast('PDF uploaded', 'success');
+    });
+}
+
+// ─────────────────────────────────────────────────────────
+// POWERPOINT UPLOAD HANDLERS
+// ─────────────────────────────────────────────────────────
+function handlePptUpload(event, localId) {
+    const file = event.target.files[0];
+    if (file) _doPptUpload(file, localId);
+}
+function handlePptDrop(event, localId) {
+    event.preventDefault();
+    document.getElementById(`ppt-drop-${localId}`).style.borderColor = '';
+    const file = event.dataTransfer.files[0];
+    if (file && /\.(ppt|pptx)$/i.test(file.name)) _doPptUpload(file, localId);
+    else toast('Please drop a PPT or PPTX file', 'error');
+}
+function replacePpt(localId) {
+    document.getElementById(`ppt-drop-${localId}`).style.display = '';
+    document.getElementById(`ppt-pane-${localId}`).style.display = 'none';
+    document.getElementById(`ppt-file-${localId}`)?.click();
+}
+function _doPptUpload(file, localId) {
+    if (!/\.(ppt|pptx)$/i.test(file.name)) { toast('Select a PPT or PPTX file', 'error'); return; }
+    if (file.size > 50 * 1024 * 1024) { toast('PowerPoint must be under 50MB', 'error'); return; }
+
+    const drop = document.getElementById(`ppt-drop-${localId}`);
+    const pane = document.getElementById(`ppt-pane-${localId}`);
+    const frame = document.getElementById(`ppt-frame-${localId}`);
+    const nameEl = document.getElementById(`ppt-name-${localId}`);
+    const fullLink = document.getElementById(`ppt-full-${localId}`);
+    const downloadLink = document.getElementById(`ppt-download-${localId}`);
+    if (drop) drop.innerHTML = `<i class="fas fa-spinner fa-spin"></i><div>Uploading ${escHtml(file.name)}…</div>`;
+
+    uploadFile(file, 'course_presentations', localId, (path) => {
+        const b = blocks.find(b => b.localId === localId);
+        if (b) { b._uploadedPptPath = path; b._pptName = file.name; }
+        const previewUrl = `ppt_preview.php?file=${encodeURIComponent(path)}&embed=1`;
+        const fullPreviewUrl = `ppt_preview.php?file=${encodeURIComponent(path)}`;
+        if (nameEl) nameEl.textContent = file.name;
+        if (frame) frame.src = previewUrl;
+        if (fullLink) fullLink.href = fullPreviewUrl;
+        if (downloadLink) downloadLink.href = '../' + path;
+        if (drop) drop.style.display = 'none';
+        if (pane) pane.style.display = 'block';
+        markUnsaved(localId);
+        toast('PowerPoint uploaded', 'success');
     });
 }
 
@@ -1387,6 +1498,13 @@ function extractBlockContent(localId, type, block) {
         const src     = b?._uploadedPdfPath || (b?.content ? (JSON.parse(b.content || '{}').src || '') : '');
         const name    = b?._pdfName        || (b?.content ? (JSON.parse(b.content || '{}').name || '') : '');
         const caption = document.getElementById(`pdf-caption-${localId}`)?.value || '';
+        return JSON.stringify({ src, name, caption });
+    }
+    if (type === 'ppt') {
+        const b       = blocks.find(b => b.localId === localId);
+        const src     = b?._uploadedPptPath || (b?.content ? (JSON.parse(b.content || '{}').src || '') : '');
+        const name    = b?._pptName || (b?.content ? (JSON.parse(b.content || '{}').name || '') : '');
+        const caption = document.getElementById(`ppt-caption-${localId}`)?.value || '';
         return JSON.stringify({ src, name, caption });
     }
     if (type === 'audio') {

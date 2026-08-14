@@ -15,8 +15,8 @@ $block_type  = trim($_POST['block_type']   ?? '');
 $content     = $_POST['content']           ?? '';
 $position    = intval($_POST['position']   ?? 0);
 
-// FIX: added 'pdf' to allowed types
-$allowed_types = ['text', 'image', 'video', 'audio', 'diagram', 'pdf'];
+// Supported lesson content block types.
+$allowed_types = ['text', 'image', 'video', 'audio', 'diagram', 'pdf', 'ppt'];
 
 if (!$lesson_id || !in_array($block_type, $allowed_types)) {
     echo json_encode(['success' => false, 'message' => "Invalid parameters (type: $block_type)"]); exit;
