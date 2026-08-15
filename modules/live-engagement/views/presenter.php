@@ -836,6 +836,19 @@ body.le-laser-on .le-stage { cursor: none; }
             body: { presentation_id: PRESENTATION_ID, active: true },
         }).catch(() => toast('Students may not follow your slides: the deck could not be marked live.', 'error'));
     }
+
+    // Open the session for participants. The join screen and session API gate
+    // entry on live_sessions.status = 'active', but opening the presenter only
+    // marked the deck (live_presentations.is_active) as live - never the session
+    // itself - so students entering the code were told the session wasn't
+    // active. Starting it here makes the session joinable the moment the stage
+    // opens, and complements the End button (session.php?action=end).
+    if (SESSION_ID) {
+        api('session.php?action=start', {
+            method: 'POST',
+            body: { session_id: SESSION_ID },
+        }).catch(() => toast('Students may not join: the session could not be opened for them.', 'error'));
+    }
 }());
 </script>
 
