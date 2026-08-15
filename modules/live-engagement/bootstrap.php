@@ -223,15 +223,33 @@ function le_page_url(string $page = 'dashboard', array $params = []): string
 
 function le_require_auth(?string $redirectUrl = null): void
 {
-    if (!le_is_authenticated()) {
-        if ($redirectUrl === null) {
-            $returnTo = $_SERVER['REQUEST_URI'] ?? le_page_url();
-            $redirectUrl = le_base_url() . '/login.php?redirect=' . rawurlencode($returnTo);
-        }
+    if (le_is_authenticated()) {
+        return;
+    }
 
-        header('Location: ' . $redirectUrl);
+    // JSON API endpoints (all under /api/) must answer with JSON, not a browser
+    // redirect. fetch() follows a 302 into the HTML login page — which responds
+    // with HTTP 200 — so its JSON.parse() then fails with a confusing
+    // "The server returned an invalid response (HTTP 200)" instead of showing
+    // the real cause. Return a clean 401 JSON payload here instead.
+    $scriptName = '.' . '/' . ltrim((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+    if (strpos($scriptName, '/api/') !== false) {
+        http_response_code(401);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Authentication required. Please log in to the Live Engagement module and try again.',
+        ]);
         exit;
     }
+
+    if ($redirectUrl === null) {
+        $returnTo = $_SERVER['REQUEST_URI'] ?? le_page_url();
+        $redirectUrl = le_base_url() . '/login.php?redirect=' . rawurlencode($returnTo);
+    }
+
+    header('Location: ' . $redirectUrl);
+    exit;
 }
 
 /**
