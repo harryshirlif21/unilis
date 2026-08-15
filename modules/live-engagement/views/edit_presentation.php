@@ -18,7 +18,7 @@ use LE\Components\UI;
 $userId = le_current_user_id();
 $role = le_current_user_role();
 
-if (!le_has_role(['lecturer', 'admin'])) {
+if (!le_can_present()) {
     header('Location: ' . le_page_url('join'));
     exit;
 }

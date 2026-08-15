@@ -116,7 +116,7 @@ studio_head('My open courses');
             <article class="st-course">
                 <div class="st-course-cover">
                     <?php if (!empty($course['cover_image'])): ?>
-                        <img src="<?= studio_e($course['cover_image']) ?>" alt="">
+                        <img src="<?= studio_e(studio_asset_url($course['cover_image'])) ?>" alt="">
                     <?php else: ?>
                         <i class="fas fa-graduation-cap"></i>
                     <?php endif; ?>

@@ -53,7 +53,7 @@ function le_pres_user_owns(array $presentation, int $userId, ?string $role): boo
     if ($role === 'admin') {
         return true;
     }
-    if ($role !== 'lecturer') {
+    if (!in_array($role, ['lecturer', 'department_admin'], true)) {
         return false;
     }
 
@@ -91,6 +91,10 @@ try {
                         'current_slide' => (int) $presentation['current_slide'],
                         'is_active'     => (int) $presentation['is_active'],
                         'notes'         => $presentation['presenter_notes'] ?? '',
+                        'file_type'     => $presentation['file_type'] ?? null,
+                        'file_path'     => !empty($presentation['file_path'])
+                            ? le_presentation_file_url((int) $presentation['id'])
+                            : null,
                     ],
                     'slides' => $slides,
                 ]);

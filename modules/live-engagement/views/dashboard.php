@@ -29,8 +29,8 @@ $role = le_current_user_role();
 error_log("User ID: " . ($userId ?? 'null'));
 error_log("User Role: " . ($role ?? 'null'));
 
-// Only lecturers can access this dashboard
-if ($role !== 'lecturer' && $role !== 'admin') {
+// Only staff presenters can access this dashboard.
+if (!le_can_present()) {
     error_log("Access denied - role is: " . ($role ?? 'null'));
     header('Location: ' . le_page_url('join'));
     exit;
@@ -70,9 +70,10 @@ try {
     $allSessions = [];
 }
 
-// Disable automatic action loading to prevent 500 errors
-$autoCreate = false;
-$defaultSessionType = 'mixed';
+// The department-admin shortcut opens the session form only; it never creates
+// a session until the presenter submits the form.
+$autoCreate = le_get('create', '') === '1' && le_get('type', '') === 'presentation';
+$defaultSessionType = $autoCreate ? 'presentation' : 'mixed';
 $defaultUnitId = 0;
 
 // Get courses for dropdown
@@ -498,8 +499,8 @@ try {
 <!-- ============================================================ -->
 <!-- Create Session Modal (Premium) -->
 <!-- ============================================================ -->
-<div id="createSessionModal" class="le-modal-overlay" style="display: none;">
-    <div class="le-modal">
+<div id="createSessionModal" class="le-modal-overlay" style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; padding:16px;">
+    <div class="le-modal" style="position:fixed; inset:16px; width:min(560px, calc(100vw - 32px)); height:fit-content; max-height:calc(100vh - 32px); margin:auto;">
         <div class="le-modal-header">
             <div style="display: flex; align-items: center; gap: var(--le-space-2);">
                 <div style="width: 40px; height: 40px; border-radius: var(--le-radius-lg); background: var(--le-primary-lighter); display: flex; align-items: center; justify-content: center;">
@@ -607,6 +608,7 @@ try {
     // Session defaults used by showCreateSessionModal()
     const DEFAULT_SESSION_TYPE = <?= json_encode($defaultSessionType) ?>;
     const DEFAULT_UNIT_ID = <?= json_encode($defaultUnitId) ?>;
+    const OPEN_CREATE_SESSION = <?= json_encode($autoCreate) ?>;
     
     async function getCsrfToken() {
         if (csrfToken) return csrfToken;
@@ -646,7 +648,17 @@ try {
     // ============================================================
     function showCreateSessionModal() {
         const modal = document.getElementById('createSessionModal');
+        // The dashboard content has page-level layout and animation styles.
+        // Keep a viewport modal outside that tree, otherwise a browser may lay
+        // it out relative to the end of the dashboard rather than the screen.
+        if (modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
         modal.style.display = 'flex';
+        modal.style.position = 'fixed';
+        modal.style.inset = '0';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
         
         // Set defaults if provided
         if (DEFAULT_SESSION_TYPE) {
@@ -661,6 +673,10 @@ try {
         if (DEFAULT_UNIT_ID) {
             document.getElementById('unitSelect').value = String(DEFAULT_UNIT_ID);
         }
+    }
+
+    if (OPEN_CREATE_SESSION) {
+        window.addEventListener('DOMContentLoaded', showCreateSessionModal, { once: true });
     }
 
     function closeModal(id) {

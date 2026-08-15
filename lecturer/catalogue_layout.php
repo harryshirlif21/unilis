@@ -18,6 +18,26 @@ function studio_e(?string $value): string
 }
 
 /**
+ * Resolve legacy relative upload paths from the authoring area.  Covers were
+ * historically stored both as `uploads/...` and `/uploads/...`; the former
+ * would otherwise resolve below `/lecturer/` on Studio pages.
+ */
+function studio_asset_url(?string $path): string
+{
+    $path = trim((string)$path);
+    if ($path === '') {
+        return '';
+    }
+
+    if (preg_match('#^https?://#i', $path) || str_starts_with($path, '//')) {
+        return $path;
+    }
+
+    $path = preg_replace('#^(?:(?:\.\.?)/)+#', '', $path) ?? '';
+    return '/' . ltrim($path, '/');
+}
+
+/**
  * Queue a message for the next page load.
  *
  * $details is a list shown underneath, used for the publish blockers.

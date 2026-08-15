@@ -42,16 +42,25 @@ try {
     $selectedSessionId = (int)le_get('session_id', 0, true);
     $perPage = 20;
 
-    $presentations = $presentationModel->getUserPresentations($userId, $search, $courseFilter, $sort, $currentPage, $perPage);
-    $totalPresentations = $presentationModel->countUserPresentations($userId, $search, $courseFilter);
+    $presentations = $presentationModel->getUserPresentations($userId, $search, $courseFilter, $sort, $currentPage, $perPage, $selectedSessionId);
+    $totalPresentations = $presentationModel->countUserPresentations($userId, $search, $courseFilter, $selectedSessionId);
 
     // Get courses for filter
     $courses = $db->select("SELECT id, name FROM courses ORDER BY name");
+
+    // Sessions for upload modal (scoped to this lecturer)
+    $sessionModel = new \LE\Models\SessionModel();
+    $uploadSessions = array_merge(
+        $sessionModel->getLecturerActiveSessions($userId),
+        $sessionModel->getLecturerScheduledSessions($userId)
+    );
 } catch (Exception $e) {
     error_log("Presentations query error: " . $e->getMessage());
     $presentations = [];
     $totalPresentations = 0;
     $courses = [];
+    $uploadSessions = [];
+    $selectedSessionId = (int)le_get('session_id', 0, true);
 }
 
 Layout::start([
@@ -92,12 +101,24 @@ Layout::start([
         </div>
     </div>
 
+    <?php if ($selectedSessionId > 0): ?>
+        <div class="le-card-solid" style="margin-bottom: var(--le-space-3); border-left: 4px solid var(--le-primary);">
+            <p style="margin: 0; color: var(--le-gray-600); font-size: var(--le-font-size-sm);">
+                Showing presentations for session #<?= (int) $selectedSessionId ?>.
+                Uploads here will be attached to this session.
+            </p>
+        </div>
+    <?php endif; ?>
+
     <!-- ============================================================ -->
     <!-- Search & Filters -->
     <!-- ============================================================ -->
     <div class="le-card-solid" style="margin-bottom: var(--le-space-4);">
         <form method="GET" style="display: flex; gap: var(--le-space-2); flex-wrap: wrap; align-items: flex-end;">
             <input type="hidden" name="page" value="presentations">
+            <?php if ($selectedSessionId > 0): ?>
+                <input type="hidden" name="session_id" value="<?= (int) $selectedSessionId ?>">
+            <?php endif; ?>
             <div style="flex: 1; min-width: 200px;">
                 <label class="le-label">Search</label>
                 <div class="le-input-group">
@@ -203,9 +224,9 @@ Layout::start([
                     
                     <!-- Actions -->
                     <div style="padding: var(--le-space-2) var(--le-space-3); border-top: 1px solid var(--le-gray-100); display: flex; gap: 4px; flex-wrap: wrap;">
-                        <button class="le-btn le-btn-sm le-btn-primary" onclick="openPresentation(<?= $pres['id'] ?>)">
-                            <span class="material-symbols-rounded" style="font-size: 16px;">play_arrow</span>
-                            Open
+                        <button class="le-btn le-btn-sm le-btn-primary" onclick="presentPresentation(<?= $pres['id'] ?>)">
+                            <span class="material-symbols-rounded" style="font-size: 16px;">present_to_all</span>
+                            Present
                         </button>
                         <button class="le-btn le-btn-sm le-btn-secondary" onclick="sharePresentation(<?= $pres['id'] ?>, '<?= UI::escape($pres['title']) ?>')">
                             <span class="material-symbols-rounded" style="font-size: 16px;">share</span>
@@ -231,7 +252,7 @@ Layout::start([
         ?>
         <div style="display: flex; justify-content: center; gap: var(--le-space-1); margin-top: var(--le-space-4);">
             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                <a href="?page=presentations&p=<?= $i ?>&search=<?= urlencode($search) ?>&course_id=<?= $courseFilter ?>&sort=<?= $sort ?>"
+                <a href="?page=presentations&p=<?= $i ?>&search=<?= urlencode($search) ?>&course_id=<?= $courseFilter ?>&sort=<?= $sort ?><?= $selectedSessionId ? '&session_id=' . (int) $selectedSessionId : '' ?>"
                    class="le-btn le-btn-sm <?= $i === $currentPage ? 'le-btn-primary' : 'le-btn-ghost' ?>"
                    style="min-width: 36px;">
                     <?= $i ?>
@@ -267,9 +288,9 @@ Layout::start([
                     <div style="font-size: 3rem; margin-bottom: var(--le-space-2);">📄</div>
                     <h3 style="font-size: 1.1rem; margin-bottom: 4px;">Drop files here or click to upload</h3>
                     <p style="color: var(--le-gray-500); font-size: 0.9rem; margin: 0;">
-                        Supports PDF, PPTX, images, and video (max 50MB)
+                        Supports PDF and PowerPoint (.ppt / .pptx). Max 50MB.
                     </p>
-                    <input type="file" id="fileInput" name="file" style="display: none;" accept=".pdf,.pptx,.jpg,.jpeg,.png,.gif,.mp4,.webm" onchange="handleFileSelect(this)">
+                    <input type="file" id="fileInput" name="file" style="display: none;" accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" onchange="handleFileSelect(this)">
                 </div>
 
                 <div id="fileInfo" style="display: none; padding: var(--le-space-2) var(--le-space-3); background: var(--le-success-lighter); border-radius: var(--le-radius-lg); margin-bottom: var(--le-space-3);">
@@ -279,6 +300,17 @@ Layout::start([
                     </div>
                 </div>
 
+                <div class="le-form-group">
+                    <label class="le-label le-label-required">Session</label>
+                    <select class="le-select" name="session_id" required>
+                        <option value="">Select a session</option>
+                        <?php foreach ($uploadSessions as $s): ?>
+                            <option value="<?= (int) $s['id'] ?>" <?= $selectedSessionId === (int) $s['id'] ? 'selected' : '' ?>>
+                                <?= UI::escape($s['title']) ?> (<?= UI::escape($s['session_code']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <div class="le-form-group">
                     <label class="le-label le-label-required">Title</label>
                     <input type="text" class="le-input" name="title" required placeholder="Presentation title">
@@ -456,6 +488,11 @@ Layout::start([
         document.getElementById('fileName').textContent = file.name;
         document.getElementById('fileSize').textContent = formatFileSize(file.size);
         document.getElementById('fileInfo').style.display = 'block';
+
+        const titleInput = document.querySelector('#uploadForm input[name="title"]');
+        if (titleInput && !titleInput.value.trim()) {
+            titleInput.value = file.name.replace(/\.[^.]+$/, '');
+        }
     }
 
     function formatFileSize(bytes) {
@@ -474,6 +511,7 @@ Layout::start([
         btn.innerHTML = '<div class="le-spinner le-spinner-sm" style="border-color: rgba(255,255,255,0.3); border-top-color: white;"></div> Uploading...';
 
         try {
+            formData.append('action', 'upload');
             const response = await fetch('<?= le_module_url('api/upload.php') ?>', {
                 method: 'POST',
                 body: formData,
@@ -498,8 +536,26 @@ Layout::start([
         }
     }
 
-    function openPresentation(id) {
+    async function presentPresentation(id) {
+        try {
+            await fetch('<?= le_module_url('api/presentation.php') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ action: 'set_active', presentation_id: id, active: true }),
+            });
+        } catch (error) {
+            LiveEngagement.showToast('Opening presenter…', 'info');
+        }
+
         window.location.href = '?page=presenter&presentation_id=' + id;
+    }
+
+    function openPresentation(id) {
+        presentPresentation(id);
     }
 
     async function sharePresentation(id, title) {

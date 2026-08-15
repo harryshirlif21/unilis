@@ -1301,6 +1301,9 @@ if ($department_id) {
             <button class="nav-item" data-panel="tutors" onclick="switchPanel('tutors', this)">
                 <i class="fas fa-user-plus"></i> Assign Tutors
             </button>
+            <a class="nav-item" href="../../modules/live-engagement/index.php?page=dashboard&amp;create=1&amp;type=presentation">
+                <i class="fas fa-person-chalkboard"></i> Live Presentations
+            </a>
 
             <?php if ($is_department_admin && !empty($my_short_courses)): ?>
             <div class="sidebar-label">My Teaching</div>

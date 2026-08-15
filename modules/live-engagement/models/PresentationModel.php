@@ -131,11 +131,18 @@ class PresentationModel extends BaseModel
         int $courseId = 0,
         string $sort = 'newest',
         int $page = 1,
-        int $perPage = 20
+        int $perPage = 20,
+        int $sessionId = 0
     ): array {
         $where = ['s.lecturer_id = ?'];
         $params = [$userId];
         $types = 'i';
+
+        if ($sessionId > 0) {
+            $where[] = 'p.session_id = ?';
+            $params[] = $sessionId;
+            $types .= 'i';
+        }
 
         if ($search !== '') {
             $where[] = '(p.title LIKE ? OR p.description LIKE ? OR p.original_filename LIKE ?)';
@@ -184,11 +191,17 @@ class PresentationModel extends BaseModel
     /**
      * Count a lecturer's presentations using the same filters as the library.
      */
-    public function countUserPresentations(int $userId, string $search = '', int $courseId = 0): int
+    public function countUserPresentations(int $userId, string $search = '', int $courseId = 0, int $sessionId = 0): int
     {
         $where = ['s.lecturer_id = ?'];
         $params = [$userId];
         $types = 'i';
+
+        if ($sessionId > 0) {
+            $where[] = 'p.session_id = ?';
+            $params[] = $sessionId;
+            $types .= 'i';
+        }
 
         if ($search !== '') {
             $where[] = '(p.title LIKE ? OR p.description LIKE ? OR p.original_filename LIKE ?)';

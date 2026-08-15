@@ -1,82 +1,156 @@
 <?php
 /**
  * Live Engagement Module - Upload API
- * 
- * Handles file uploads for presentations and other resources.
- * 
+ *
+ * Handles presentation uploads (PDF, PPT, PPTX) and creates the associated
+ * live_presentations record plus slide rows for the presenter runtime.
+ *
  * @package UNILIS\LiveEngagement\API
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 require_once __DIR__ . '/../bootstrap.php';
 
-// Require authentication
 le_require_auth();
 
 header('Content-Type: application/json');
 
-$userId = le_current_user_id();
-$role = le_current_user_role();
+if (!le_can_present()) {
+    le_error_response('Only lecturers can upload presentations', 403);
+}
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         le_error_response('Method not allowed', 405);
     }
 
-    if (empty($_FILES)) {
-        le_error_response('No files uploaded');
+    le_require_csrf();
+
+    if (empty($_FILES['file'])) {
+        le_error_response('No file uploaded');
     }
 
-    $file = $_FILES['file'] ?? null;
-    if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
+    $file = $_FILES['file'];
+    if ($file['error'] !== UPLOAD_ERR_OK) {
         le_error_response('File upload failed');
     }
 
-    // Validate file type
-    $allowedTypes = ['application/pdf', 'application/vnd.ms-powerpoint', 
-                     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                     'image/jpeg', 'image/png', 'image/gif'];
-    
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
+    $sessionId = (int) ($_POST['session_id'] ?? 0);
+    $title = trim((string) ($_POST['title'] ?? ''));
+    $description = trim((string) ($_POST['description'] ?? ''));
 
-    if (!in_array($mimeType, $allowedTypes)) {
-        le_error_response('Invalid file type. Only PDF, PPT, PPTX, and images are allowed.');
+    if (!$sessionId) {
+        le_error_response('Session is required');
     }
 
-    // Validate file size (max 50MB)
-    $maxSize = 50 * 1024 * 1024;
+    if ($title === '') {
+        $title = pathinfo($file['name'], PATHINFO_FILENAME) ?: 'Uploaded presentation';
+    }
+
+    $sessionModel = new \LE\Models\SessionModel();
+    $session = $sessionModel->find($sessionId);
+    if (!$session) {
+        le_error_response('Session not found', 404);
+    }
+
+    $userId = le_current_user_id();
+    $role = le_current_user_role();
+    if ($role !== 'admin' && (int) $session['lecturer_id'] !== $userId) {
+        le_error_response('Unauthorized for this session', 403);
+    }
+
+    $allowedMimes = array_merge(
+        le_config('uploads.allowed_mime_types', []),
+        ['application/vnd.ms-powerpoint']
+    );
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']) ?: '';
+    finfo_close($finfo);
+
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $fileType = le_document_file_type($mimeType, $extension);
+
+    if ($fileType === null) {
+        le_error_response('Invalid file type. Upload a PDF or PowerPoint (.ppt / .pptx).');
+    }
+
+    if (!in_array($mimeType, $allowedMimes, true) && !in_array($extension, ['pdf', 'ppt', 'pptx'], true)) {
+        le_error_response('Invalid file type. Upload a PDF or PowerPoint (.ppt / .pptx).');
+    }
+
+    $maxSize = (int) le_config('uploads.max_file_size', 50 * 1024 * 1024);
     if ($file['size'] > $maxSize) {
         le_error_response('File too large. Maximum size is 50MB.');
     }
 
-    // Generate unique filename
-    $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-    $filename = uniqid('le_') . '.' . $extension;
-    
-    // Create upload directory if it doesn't exist
     $uploadDir = __DIR__ . '/../uploads/presentations/';
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0755, true);
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+        le_error_response('Upload directory is not writable', 500);
     }
 
-    // Move uploaded file
+    $filename = uniqid('le_', true) . '.' . $extension;
     $destination = $uploadDir . $filename;
+
     if (!move_uploaded_file($file['tmp_name'], $destination)) {
-        le_error_response('Failed to save uploaded file');
+        le_error_response('Failed to save uploaded file', 500);
     }
 
-    // Return file info
+    $presModel = new \LE\Models\PresentationModel();
+    $slideModel = new \LE\Models\SlideModel();
+
+    // Create the record before building slides so embedded viewers (used for
+    // legacy .ppt decks, which can't be unpacked into slides) can reference
+    // the final presentation id / served file URL.
+    $presId = $presModel->create([
+        'session_id' => $sessionId,
+        'title' => $title,
+        'description' => $description,
+        'file_path' => $filename,
+        'file_type' => $fileType,
+        'file_size' => (int) $file['size'],
+        'original_filename' => $file['name'],
+        'total_slides' => 1,
+        'current_slide' => 1,
+        'is_active' => 0,
+        'allow_download' => 1,
+        'allow_annotations' => 0,
+        'created_by' => $userId,
+    ]);
+
+    if (!$presId) {
+        @unlink($destination);
+        le_error_response('Failed to create presentation record', 500);
+    }
+
+    $slideDefinitions = le_build_uploaded_slides($destination, $fileType, (int) $presId);
+    $totalSlides = max(1, count($slideDefinitions));
+
+    if ($totalSlides > 1) {
+        $presModel->update((int) $presId, ['total_slides' => $totalSlides]);
+    }
+
+    foreach ($slideDefinitions as $slide) {
+        $slideModel->create([
+            'presentation_id' => (int) $presId,
+            'slide_number' => (int) $slide['slide_number'],
+            'content_html' => $slide['content_html'] ?? '',
+            'image_path' => $slide['image_path'] ?? null,
+            'duration_seconds' => 30,
+        ]);
+    }
+
     le_success_response([
+        'presentation_id' => (int) $presId,
         'filename' => $filename,
         'original_name' => $file['name'],
-        'size' => $file['size'],
+        'size' => (int) $file['size'],
         'mime_type' => $mimeType,
-        'url' => le_module_url('uploads/presentations/' . $filename),
-    ], 'File uploaded successfully');
-
+        'file_type' => $fileType,
+        'total_slides' => $totalSlides,
+        'url' => le_presentation_file_url((int) $presId),
+    ], 'Presentation uploaded successfully');
 } catch (Exception $e) {
-    error_log("Upload API error: " . $e->getMessage());
+    error_log('Upload API error: ' . $e->getMessage());
     le_error_response('Internal server error', 500);
 }

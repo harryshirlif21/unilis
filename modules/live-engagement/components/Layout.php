@@ -90,7 +90,7 @@ class Layout
     {
         $userName = le_current_user_name() ?? 'User';
         $role = le_current_user_role();
-        $isStaff = le_has_role(['lecturer', 'admin']);
+        $isStaff = le_can_present();
 
         $navItems = [];
         if ($isStaff) {

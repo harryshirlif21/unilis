@@ -1209,7 +1209,7 @@ function studio_move_buttons(
             <?php if (!empty($course['cover_image'])): ?>
                 <span class="st-hint">Uploading another replaces the current one.</span>
                 <div style="margin-top:10px;">
-                    <img src="<?= studio_e($course['cover_image']) ?>" alt=""
+                    <img src="<?= studio_e(studio_asset_url($course['cover_image'])) ?>" alt=""
                          style="max-width:240px; border-radius:10px; border:1px solid var(--st-line);">
                 </div>
             <?php endif; ?>

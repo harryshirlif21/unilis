@@ -51,6 +51,7 @@ require_once __DIR__ . '/config/database_helper.php';
 // Load helpers
 require_once __DIR__ . '/helpers/security_helper.php';
 require_once __DIR__ . '/helpers/session_helper.php';
+require_once __DIR__ . '/helpers/document_helper.php';
 
 // Load CSRF token (session may already be started by root app)
 if (session_status() === PHP_SESSION_NONE) {
@@ -256,6 +257,16 @@ function le_has_role($roles): bool
     }
 
     return is_string($roles) && $userRole === strtolower(trim($roles));
+}
+
+/**
+ * Staff roles permitted to create and deliver live content. Department admins
+ * use the same presenter workflow as lecturers, but retain ownership only of
+ * sessions and presentations created with their own account.
+ */
+function le_can_present(): bool
+{
+    return le_has_role(['lecturer', 'admin', 'department_admin']);
 }
 
 /**

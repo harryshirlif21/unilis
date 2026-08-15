@@ -39,7 +39,7 @@ if (!$isGuest) {
 }
 
 // Role check only applies to authenticated users
-if (!$isGuest && !le_has_role(['lecturer', 'admin'])) {
+if (!$isGuest && !le_can_present()) {
     header('Location: ' . le_page_url('dashboard'));
     exit;
 }
@@ -140,6 +140,10 @@ $slides = $presentation
     : [];
 
 $currentSlide = $presentation ? max(1, (int) $presentation['current_slide']) : 0;
+$documentFileType = $presentation['file_type'] ?? '';
+$documentFileUrl = !empty($presentation['file_path'])
+    ? le_presentation_file_url((int) $presentation['id'])
+    : '';
 
 Layout::start([
     'title'     => ($presentation['title'] ?? $session['title'] ?? 'Presenting'),
@@ -479,7 +483,11 @@ body.le-laser-on .le-stage { cursor: none; }
 
 <div class="le-laser" id="laserDot" hidden></div>
 
-<script>
+<?php if ($documentFileType === 'pdf' && $documentFileUrl): ?>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs" type="module"></script>
+<?php endif; ?>
+
+<script type="module">
 (function () {
     'use strict';
 
@@ -487,6 +495,8 @@ body.le-laser-on .le-stage { cursor: none; }
     const PRESENTATION_ID = <?= (int) ($presentation['id'] ?? 0) ?>;
     const API_BASE        = <?= json_encode(le_module_url('api') . '/') ?>;
     const CSRF            = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const FILE_TYPE       = <?= json_encode($documentFileType) ?>;
+    const FILE_URL        = <?= json_encode($documentFileUrl) ?>;
     const SLIDES          = <?= json_encode(array_map(static fn($s) => [
                                     'id'      => (int) $s['id'],
                                     'number'  => (int) $s['slide_number'],
@@ -498,6 +508,46 @@ body.le-laser-on .le-stage { cursor: none; }
     let current = <?= (int) $currentSlide ?> || (SLIDES.length ? 1 : 0);
     let laserOn = false;
     let syncing = false;
+    let pdfDoc = null;
+
+    <?php if ($documentFileType === 'pdf' && $documentFileUrl): ?>
+    import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+
+    async function ensurePdfDoc() {
+        if (pdfDoc || FILE_TYPE !== 'pdf' || !FILE_URL) {
+            return pdfDoc;
+        }
+        pdfDoc = await pdfjsLib.getDocument({ url: FILE_URL, withCredentials: true }).promise;
+        return pdfDoc;
+    }
+
+    async function renderPdfPage(pageNumber) {
+        const doc = await ensurePdfDoc();
+        if (!doc) {
+            return false;
+        }
+
+        const page = await doc.getPage(pageNumber);
+        const viewport = page.getViewport({ scale: 1 });
+        const maxWidth = Math.min(window.innerWidth * 0.82, 1280);
+        const scale = maxWidth / viewport.width;
+        const scaled = page.getViewport({ scale });
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = scaled.width;
+        canvas.height = scaled.height;
+        canvas.style.maxWidth = '100%';
+        canvas.style.maxHeight = '100%';
+
+        await page.render({ canvasContext: context, viewport: scaled }).promise;
+        el.canvas.appendChild(canvas);
+        return true;
+    }
+    <?php else: ?>
+    async function renderPdfPage() { return false; }
+    <?php endif; ?>
 
     const el = {
         shell:      document.getElementById('presenterShell'),
@@ -571,9 +621,23 @@ body.le-laser-on .le-stage { cursor: none; }
         });
     }
 
-    function renderSlide() {
+    async function renderSlide() {
         const s = slideAt(current);
         el.canvas.textContent = '';
+
+        if (FILE_TYPE === 'pdf' && FILE_URL) {
+            const rendered = await renderPdfPage(current);
+            if (rendered) {
+                el.counter.textContent = SLIDES.length ? (current + ' / ' + SLIDES.length) : '– / –';
+                el.prev.disabled = current <= 1;
+                el.next.disabled = !SLIDES.length || current >= SLIDES.length;
+                el.notesBody.textContent = (s && s.notes) ? s.notes : 'No notes for this slide.';
+                Array.prototype.forEach.call(el.rail.children, (node, i) => {
+                    node.classList.toggle('is-current', SLIDES[i] && SLIDES[i].number === current);
+                });
+                return;
+            }
+        }
 
         if (!s) {
             const empty = document.createElement('div');
@@ -621,7 +685,7 @@ body.le-laser-on .le-stage { cursor: none; }
         if (target === current || syncing) return;
 
         current = target;
-        renderSlide();          // paint first; the network call must not stall the deck
+        renderSlide().catch(() => {});          // paint first; the network call must not stall the deck
 
         if (!PRESENTATION_ID) return;
         syncing = true;
@@ -760,7 +824,7 @@ body.le-laser-on .le-stage { cursor: none; }
 
     // ── Boot ───────────────────────────────────────────────────
     renderRail();
-    renderSlide();
+    renderSlide().catch(() => {});
     pollRoom();
     setInterval(pollRoom, 5000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) pollRoom(); });

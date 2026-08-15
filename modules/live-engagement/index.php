@@ -82,11 +82,11 @@ if ($requestedPage !== '') {
 
         switch ($requestedPage) {
             case 'dashboard':
-                include __DIR__ . '/views/' . (le_has_role(['lecturer', 'admin']) ? 'dashboard.php' : 'join.php');
+                include __DIR__ . '/views/' . (le_can_present() ? 'dashboard.php' : 'join.php');
                 break;
 
             case 'presenter':
-                if (!le_has_role(['lecturer', 'admin'])) {
+                if (!le_can_present()) {
                     header('Location: ' . le_page_url('dashboard'));
                     exit;
                 }
@@ -114,7 +114,7 @@ if ($requestedPage !== '') {
                 break;
 
             case 'presentations':
-                if (!le_has_role(['lecturer', 'admin'])) {
+                if (!le_can_present()) {
                     header('Location: ' . le_page_url('join'));
                     exit;
                 }
@@ -122,7 +122,7 @@ if ($requestedPage !== '') {
                 break;
 
             case 'reports':
-                if (!le_has_role(['lecturer', 'admin'])) {
+                if (!le_can_present()) {
                     header('Location: ' . le_page_url('join'));
                     exit;
                 }
@@ -135,7 +135,7 @@ if ($requestedPage !== '') {
                 break;
 
             case 'edit_presentation':
-                if (!le_has_role(['lecturer', 'admin']) || !$sessionId) {
+                if (!le_can_present() || !$sessionId) {
                     header('Location: ' . le_page_url('presentations'));
                     exit;
                 }

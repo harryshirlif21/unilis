@@ -136,11 +136,11 @@ Layout::start([
             <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
         </div>
 
-        <a href="<?= $isAuthenticated && le_has_role(['lecturer', 'admin']) ? le_page_url('dashboard') : (le_base_url() . '/login.php?redirect=' . rawurlencode(le_page_url('join'))) ?>"
+        <a href="<?= $isAuthenticated && le_can_present() ? le_page_url('dashboard') : (le_base_url() . '/login.php?redirect=' . rawurlencode(le_page_url('join'))) ?>"
            style="display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.6); font-size: 0.9rem; transition: color 0.2s;"
            onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">
             <span class="material-symbols-rounded" style="font-size: 18px;">arrow_back</span>
-            <?= $isAuthenticated && le_has_role(['lecturer', 'admin']) ? 'Back to Dashboard' : 'Sign in to UNILIS' ?>
+            <?= $isAuthenticated && le_can_present() ? 'Back to Dashboard' : 'Sign in to UNILIS' ?>
         </a>
     </div>
 

@@ -18,3 +18,203 @@
 [24-Jul-2026 04:33:58 UTC] Starting Layout render...
 [24-Jul-2026 04:33:58 UTC] Layout render started successfully
 [24-Jul-2026 04:33:58 UTC] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:31:36 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:31:36 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:31:36 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:31:36 Africa/Nairobi] Session data: ["user_id","user_email","user_role","user_name","department_id","le_csrf_token"]
+[15-Aug-2026 18:31:36 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:31:36 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:31:36 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:31:36 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:31:36 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:31:36 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:31:36 Africa/Nairobi] Scheduled sessions count: 0
+[15-Aug-2026 18:31:36 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:31:36 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:31:36 Africa/Nairobi] Total sessions after merge: 0
+[15-Aug-2026 18:31:36 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:31:36 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:31:36 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:31:36 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:31:36 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:31:36 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:38:49 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:38:49 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:38:49 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:38:49 Africa/Nairobi] Session data: ["user_id","user_email","user_role","user_name","department_id","le_csrf_token"]
+[15-Aug-2026 18:38:49 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:38:49 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:38:49 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:38:49 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:38:49 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:38:49 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:38:49 Africa/Nairobi] Scheduled sessions count: 0
+[15-Aug-2026 18:38:49 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:38:49 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:38:49 Africa/Nairobi] Total sessions after merge: 0
+[15-Aug-2026 18:38:49 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:38:49 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:38:49 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:38:49 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:38:49 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:38:49 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:39:14 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:39:14 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:39:14 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:39:14 Africa/Nairobi] Session data: ["le_csrf_token","user_id","user_email","user_role","user_name","department_id"]
+[15-Aug-2026 18:39:14 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:39:14 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:39:14 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:39:14 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:39:14 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:39:14 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:39:14 Africa/Nairobi] Scheduled sessions count: 0
+[15-Aug-2026 18:39:14 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:39:14 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:39:14 Africa/Nairobi] Total sessions after merge: 0
+[15-Aug-2026 18:39:14 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:39:14 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:39:14 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:39:14 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:39:14 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:39:14 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:39:40 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:39:41 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:39:41 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:39:41 Africa/Nairobi] Session data: ["le_csrf_token","user_id","user_email","user_role","user_name","department_id"]
+[15-Aug-2026 18:39:41 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:39:41 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:39:41 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:39:41 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:39:41 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:39:41 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:39:41 Africa/Nairobi] Scheduled sessions count: 0
+[15-Aug-2026 18:39:41 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:39:41 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:39:41 Africa/Nairobi] Total sessions after merge: 0
+[15-Aug-2026 18:39:41 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:39:41 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:39:41 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:39:41 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:39:41 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:39:41 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:42:42 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:42:42 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:42:42 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:42:42 Africa/Nairobi] Session data: ["le_csrf_token","user_id","user_email","user_role","user_name","department_id"]
+[15-Aug-2026 18:42:42 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:42:42 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:42:42 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:42:42 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:42:42 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:42:42 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:42:42 Africa/Nairobi] Scheduled sessions count: 0
+[15-Aug-2026 18:42:42 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:42:42 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:42:42 Africa/Nairobi] Total sessions after merge: 0
+[15-Aug-2026 18:42:42 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:42:42 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:42:42 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:42:42 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:42:42 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:42:42 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:43:03 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:43:03 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:43:03 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:43:03 Africa/Nairobi] Session data: ["le_csrf_token","user_id","user_email","user_role","user_name","department_id"]
+[15-Aug-2026 18:43:03 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:43:03 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:43:03 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:43:03 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:43:03 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:43:03 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:43:03 Africa/Nairobi] Scheduled sessions count: 0
+[15-Aug-2026 18:43:03 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:43:03 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:43:03 Africa/Nairobi] Total sessions after merge: 0
+[15-Aug-2026 18:43:03 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:43:03 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:43:03 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:43:03 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:43:03 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:43:03 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:43:12 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:43:12 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:43:12 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:43:12 Africa/Nairobi] Session data: ["le_csrf_token","user_id","user_email","user_role","user_name","department_id"]
+[15-Aug-2026 18:43:12 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:43:12 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:43:12 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:43:12 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:43:12 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:43:12 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:43:12 Africa/Nairobi] Scheduled sessions count: 0
+[15-Aug-2026 18:43:12 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:43:12 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:43:12 Africa/Nairobi] Total sessions after merge: 0
+[15-Aug-2026 18:43:12 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:43:12 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:43:12 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:43:12 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:43:12 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:43:12 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:43:13 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:43:13 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:43:13 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:43:13 Africa/Nairobi] Session data: ["le_csrf_token","user_id","user_email","user_role","user_name","department_id"]
+[15-Aug-2026 18:43:13 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:43:13 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:43:13 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:43:13 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:43:13 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:43:13 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:43:13 Africa/Nairobi] Scheduled sessions count: 0
+[15-Aug-2026 18:43:13 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:43:13 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:43:13 Africa/Nairobi] Total sessions after merge: 0
+[15-Aug-2026 18:43:13 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:43:13 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:43:13 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:43:13 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:43:13 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:43:13 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:44:16 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:44:16 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:44:16 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:44:16 Africa/Nairobi] Session data: ["le_csrf_token","user_id","user_email","user_role","user_name","department_id"]
+[15-Aug-2026 18:44:16 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:44:16 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:44:16 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:44:16 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:44:16 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:44:16 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:44:16 Africa/Nairobi] Scheduled sessions count: 2
+[15-Aug-2026 18:44:16 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:44:16 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:44:16 Africa/Nairobi] Total sessions after merge: 2
+[15-Aug-2026 18:44:16 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:44:16 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:44:16 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:44:16 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:44:16 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:44:16 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[15-Aug-2026 18:44:36 Africa/Nairobi] === DASHBOARD PAGE LOAD START ===
+[15-Aug-2026 18:44:36 Africa/Nairobi] URL: /modules/live-engagement/index.php?page=dashboard&create=1&type=presentation
+[15-Aug-2026 18:44:36 Africa/Nairobi] GET params: {"page":"dashboard","create":"1","type":"presentation"}
+[15-Aug-2026 18:44:36 Africa/Nairobi] Session data: ["le_csrf_token","user_id","user_email","user_role","user_name","department_id"]
+[15-Aug-2026 18:44:36 Africa/Nairobi] User ID: 2
+[15-Aug-2026 18:44:36 Africa/Nairobi] User Role: department_admin
+[15-Aug-2026 18:44:36 Africa/Nairobi] Loading session model...
+[15-Aug-2026 18:44:36 Africa/Nairobi] Getting active sessions for user ID: 2
+[15-Aug-2026 18:44:36 Africa/Nairobi] Active sessions count: 0
+[15-Aug-2026 18:44:36 Africa/Nairobi] Getting scheduled sessions...
+[15-Aug-2026 18:44:36 Africa/Nairobi] Scheduled sessions count: 1
+[15-Aug-2026 18:44:36 Africa/Nairobi] Getting session history...
+[15-Aug-2026 18:44:36 Africa/Nairobi] History sessions count: 0
+[15-Aug-2026 18:44:36 Africa/Nairobi] Total sessions after merge: 1
+[15-Aug-2026 18:44:36 Africa/Nairobi] Getting courses for user ID: 2
+[15-Aug-2026 18:44:36 Africa/Nairobi] Courses count: 0
+[15-Aug-2026 18:44:36 Africa/Nairobi] Units count: 0
+[15-Aug-2026 18:44:36 Africa/Nairobi] Starting Layout render...
+[15-Aug-2026 18:44:36 Africa/Nairobi] Layout render started successfully
+[15-Aug-2026 18:44:36 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
