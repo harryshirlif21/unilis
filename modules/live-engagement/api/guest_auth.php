@@ -86,20 +86,22 @@ switch ($action) {
         $db = le_db();
 
         // Check duplicate
-        $stmt = $db->prepare("SELECT id FROM le_guest_users WHERE email = ? LIMIT 1");
-        $stmt->execute([$email]);
-        if ($stmt->fetch()) {
+        if ($db->fetchOne("SELECT id FROM le_guest_users WHERE email = ? LIMIT 1", [$email])) {
             echo json_encode(['success' => false, 'errors' => ['An account with that email already exists.']]);
             exit;
         }
 
         $hash = password_hash($password, PASSWORD_BCRYPT);
-        $stmt = $db->prepare("
-            INSERT INTO le_guest_users (name, email, organisation, role, password_hash)
-            VALUES (?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$name, $email, $organisation, $role, $hash]);
-        $userId = $db->lastInsertId();
+        $userId = $db->insert(
+            "INSERT INTO le_guest_users (name, email, organisation, role, password_hash)
+             VALUES (?, ?, ?, ?, ?)",
+            [$name, $email, $organisation, $role, $hash],
+            'sssss'
+        );
+        if (!$userId) {
+            echo json_encode(['success' => false, 'errors' => ['Could not create the account. Please try again.']]);
+            exit;
+        }
 
         // Start LE guest session
         $_SESSION['le_guest_id']   = $userId;
@@ -120,9 +122,7 @@ switch ($action) {
         }
 
         $db   = le_db();
-        $stmt = $db->prepare("SELECT * FROM le_guest_users WHERE email = ? AND is_active = 1 LIMIT 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $user = $db->fetchOne("SELECT * FROM le_guest_users WHERE email = ? AND is_active = 1 LIMIT 1", [$email]);
 
         if (!$user || !password_verify($password, $user['password_hash'])) {
             echo json_encode(['success' => false, 'errors' => ['Invalid email or password.']]);
@@ -130,8 +130,7 @@ switch ($action) {
         }
 
         // Update last login
-        $db->prepare("UPDATE le_guest_users SET last_login_at = NOW() WHERE id = ?")
-           ->execute([$user['id']]);
+        $db->update("UPDATE le_guest_users SET last_login_at = NOW() WHERE id = ?", [(int) $user['id']], 'i');
 
         $_SESSION['le_guest_id']   = $user['id'];
         $_SESSION['le_guest_name'] = $user['name'];

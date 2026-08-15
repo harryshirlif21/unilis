@@ -106,8 +106,19 @@ spl_autoload_register(function (string $class) {
 function le_is_authenticated(): bool
 {
     // Check for UNILIS authentication or Live Engagement authentication
-    return (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) ||
-           (isset($_SESSION['le_authenticated']) && $_SESSION['le_authenticated'] === true);
+    if ((isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) ||
+        (isset($_SESSION['le_authenticated']) && $_SESSION['le_authenticated'] === true)) {
+        return true;
+    }
+
+    // Guest/participant accounts created or logged into through the module's
+    // own login screen (custom details) count as authenticated participants,
+    // even though they have no UNILIS user record.
+    if (!empty($_SESSION['le_guest_id']) || !empty($_SESSION['le_guest_access'])) {
+        return true;
+    }
+
+    return false;
 }
 
 /**

@@ -75,7 +75,14 @@ if ($leToken) {
 $requestedPage = le_get('page', '');
 if ($requestedPage !== '') {
     try {
-        le_require_auth();
+        // The join page must be reachable by participants who only carry a
+        // code — they authenticate (UNILIS or custom details) *after* entering
+        // it, on the join view itself. All other pages still require an
+        // existing session; the presenter/dashboard are further gated by
+        // le_can_present() inside the switch below.
+        if (!in_array($requestedPage, ['join'], true)) {
+            le_require_auth();
+        }
 
         $sessionId = (int) le_get('id', 0, true);
         $code = le_get('code', '');
