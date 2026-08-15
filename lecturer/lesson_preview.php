@@ -64,6 +64,33 @@ if ($moduleId) {
 }
 
 $preview = $module ?: $lesson;
+
+/**
+ * Lesson-editor short courses store a PowerPoint block as JSON in content_html.
+ * Render it through the vetted presentation preview rather than displaying the
+ * JSON text as lesson content.
+ */
+function renderLessonPreviewContent(string $content): string
+{
+    $block = json_decode($content, true);
+    $source = is_array($block) ? (string)($block['src'] ?? '') : '';
+    if (!preg_match('#^uploads/course_presentations/[A-Za-z0-9._-]+\.(ppt|pptx)$#i', $source)) {
+        return $content;
+    }
+
+    $name = trim((string)($block['name'] ?? basename($source)));
+    $caption = trim((string)($block['caption'] ?? ''));
+    $viewerUrl = 'ppt_preview.php?file=' . rawurlencode($source) . '&embed=1';
+    $downloadUrl = '../' . $source;
+
+    return '<section class="presentation">'
+        . '<div class="presentation-bar"><strong>PowerPoint: ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</strong>'
+        . '<span><a href="ppt_preview.php?file=' . rawurlencode($source) . '" target="_blank" rel="noopener">Open preview</a>'
+        . ' <a href="' . htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Download</a></span></div>'
+        . '<iframe src="' . htmlspecialchars($viewerUrl, ENT_QUOTES, 'UTF-8') . '" title="' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '"></iframe>'
+        . ($caption !== '' ? '<p class="presentation-caption">' . htmlspecialchars($caption, ENT_QUOTES, 'UTF-8') . '</p>' : '')
+        . '</section>';
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -86,6 +113,12 @@ $preview = $module ?: $lesson;
         .empty { padding: 28px; text-align: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; }
         img, video, iframe { max-width: 100%; }
         pre { overflow: auto; padding: 14px; background: #f1f5f9; border-radius: 6px; }
+        .presentation { overflow: hidden; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+        .presentation-bar { display:flex; justify-content:space-between; gap:14px; align-items:center; padding:10px 14px; background:#f8fafc; font-size:.88rem; }
+        .presentation-bar span { display:flex; gap:12px; }
+        .presentation-bar a { color:#2563eb; text-decoration:none; }
+        .presentation iframe { display:block; width:100%; height:520px; border:0; }
+        .presentation-caption { margin:0; padding:10px 14px; color:#64748b; font-size:.88rem; }
     </style>
 </head>
 <body>
@@ -114,7 +147,7 @@ $preview = $module ?: $lesson;
                     <?php if (trim((string)$moduleLesson['content_html']) === ''): ?>
                         <div class="empty">This lesson does not have content yet.</div>
                     <?php else: ?>
-                        <?= $moduleLesson['content_html'] ?>
+                        <?= renderLessonPreviewContent((string)$moduleLesson['content_html']) ?>
                     <?php endif; ?>
                 </section>
             <?php endforeach; ?>
@@ -127,7 +160,7 @@ $preview = $module ?: $lesson;
             <?php if (!empty($lesson['lesson_outline'])): ?>
                 <section class="outline"><h2>Lesson outline</h2><p><?= htmlspecialchars($lesson['lesson_outline']) ?></p></section>
             <?php endif; ?>
-            <?= $lesson['content_html'] ?>
+            <?= renderLessonPreviewContent((string)$lesson['content_html']) ?>
         <?php endif; ?>
     </main>
 </body>
