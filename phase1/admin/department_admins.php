@@ -226,8 +226,12 @@ if ($action === 'add_short_course') {
     $pricing = $_POST['pricing'] ?? 'free';
     $price = (float)($_POST['price'] ?? 0);
     $payment_methods = $_POST['payment_methods'] ?? [];
+    $is_sponsored = ($_POST['sponsorship'] ?? 'not_sponsored') === 'sponsored' ? 1 : 0;
+    $sponsor_name = trim($_POST['sponsor_name'] ?? '');
+    $sponsor_details = trim($_POST['sponsor_details'] ?? '');
+    $sponsor_logo = $_FILES['sponsor_logo'] ?? null;
     
-    if ($name && $code && $duration && $department_id_input) {
+    if ($name && $code && $duration && $department_id_input && (!$is_sponsored || ($sponsor_name && $sponsor_details && $sponsor_logo && $sponsor_logo['error'] === UPLOAD_ERR_OK))) {
         $checkTable = $conn->query("SHOW TABLES LIKE 'public_courses'");
         if ($checkTable && $checkTable->num_rows > 0) {
             $banner_path = '';
@@ -238,6 +242,18 @@ if ($action === 'add_short_course') {
                 }
                 $banner_path = 'uploads/short_courses/' . time() . '_' . basename($banner['name']);
                 move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $banner_path);
+            }
+
+            $sponsor_logo_path = '';
+            if ($is_sponsored) {
+                $upload_dir = __DIR__ . '/../../uploads/short_courses/sponsors/';
+                if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+                $sponsor_logo_path = 'uploads/short_courses/sponsors/' . time() . '_' . basename($sponsor_logo['name']);
+                if (!move_uploaded_file($sponsor_logo['tmp_name'], __DIR__ . '/../../' . $sponsor_logo_path)) {
+                    $message = 'Failed to upload the sponsor logo.';
+                    $message_type = 'error';
+                    $sponsor_logo_path = '';
+                }
             }
             
             // Generate slug from name
@@ -259,10 +275,10 @@ if ($action === 'add_short_course') {
             $is_paid = $pricing === 'paid' ? 1 : 0;
             $methods_str = $is_paid ? implode(',', array_map('trim', $payment_methods)) : '';
             
-            $stmt = $conn->prepare("INSERT INTO public_courses (slug, title, code, summary, description, duration, department_id, cover_image, created_by_lecturer_id, is_published, is_paid, price, payment_methods) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO public_courses (slug, title, code, summary, description, duration, department_id, cover_image, created_by_lecturer_id, is_published, is_paid, price, payment_methods, is_sponsored, sponsor_name, sponsor_details, sponsor_logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)");
             // cover_image is a path string. Binding it as an integer turns every
             // uploaded banner into 0, which the public /learn catalogue hides.
-            $stmt->bind_param('ssssssisiids', $slug, $name, $code, $description, $description, $duration, $department_id_input, $banner_path, $_SESSION['user_id'], $is_paid, $price, $methods_str);
+            $stmt->bind_param('ssssssisiidsisss', $slug, $name, $code, $description, $description, $duration, $department_id_input, $banner_path, $_SESSION['user_id'], $is_paid, $price, $methods_str, $is_sponsored, $sponsor_name, $sponsor_details, $sponsor_logo_path);
             if ($stmt->execute()) {
                 $message = "Short course added successfully! " . ($is_paid ? "Price: KSh " . number_format($price, 2) : "Free course");
                 $message_type = 'success';
@@ -278,7 +294,9 @@ if ($action === 'add_short_course') {
             $message_type = 'error';
         }
     } else {
-        $message = "Course Name, Code, Duration, and Department are required.";
+        $message = $is_sponsored
+            ? 'Sponsored courses require the sponsor name, details, and logo.'
+            : 'Course Name, Code, Duration, and Department are required.';
         $message_type = 'error';
     }
 }
@@ -604,7 +622,7 @@ $checkPublicCourses = $conn->query("SHOW TABLES LIKE 'public_courses'");
 if ($checkPublicCourses && $checkPublicCourses->num_rows > 0) {
     // Build dynamic column list based on what exists in the table
     $scColumns = ['id', 'title as name', 'summary as description', 'cover_image as banner'];
-    $scOptional = ['code', 'duration', 'department_id', 'is_paid', 'price', 'payment_methods'];
+    $scOptional = ['code', 'duration', 'department_id', 'is_paid', 'price', 'payment_methods', 'is_sponsored', 'sponsor_name', 'sponsor_details', 'sponsor_logo'];
     foreach ($scOptional as $col) {
         $colCheck = $conn->query("SHOW COLUMNS FROM public_courses LIKE '$col'");
         if ($colCheck && $colCheck->num_rows > 0) {
@@ -1612,6 +1630,18 @@ if ($department_id) {
                                 <input type="file" name="banner" accept="image/*">
                             </div>
                             <div class="form-group">
+                                <label for="sponsorship">Course Sponsorship</label>
+                                <select name="sponsorship" id="sponsorship" onchange="toggleSponsorship()">
+                                    <option value="not_sponsored" selected>Not sponsored</option>
+                                    <option value="sponsored">Sponsored</option>
+                                </select>
+                            </div>
+                            <div id="sponsor_fields" style="display:none;">
+                                <div class="form-group"><label>Sponsor Name *</label><input type="text" name="sponsor_name" id="sponsor_name"></div>
+                                <div class="form-group"><label>Sponsor Details *</label><textarea name="sponsor_details" id="sponsor_details" rows="2" placeholder="Describe the sponsor or sponsorship arrangement"></textarea></div>
+                                <div class="form-group"><label>Sponsor Logo *</label><input type="file" name="sponsor_logo" id="sponsor_logo" accept="image/*"></div>
+                            </div>
+                            <div class="form-group">
                                 <label>Course Pricing</label>
                                 <div class="pricing-options">
                                     <label><input type="radio" name="pricing" value="free" checked id="pricing_free" onchange="togglePricing()"> Free</label>
@@ -1990,6 +2020,12 @@ if ($department_id) {
         } else {
             document.querySelector('#price_group input[name="price"]').required = false;
         }
+    }
+
+    function toggleSponsorship() {
+        const sponsored = document.getElementById('sponsorship').value === 'sponsored';
+        document.getElementById('sponsor_fields').style.display = sponsored ? '' : 'none';
+        ['sponsor_name', 'sponsor_details', 'sponsor_logo'].forEach(id => document.getElementById(id).required = sponsored);
     }
 
     async function searchLecturer() {

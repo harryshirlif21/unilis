@@ -146,7 +146,14 @@ if ($openLessonId > 0 && $enrolled) {
 
 learn_head(['title' => $course['title'], 'learner' => $learner]);
 ?>
-<section class="ln-hero">
+<?php if (!empty($course['cover_image']) && $course['cover_image'] !== '0'): ?>
+    <?php
+    $bannerPath = (string)$course['cover_image'];
+    if (strpos($bannerPath, 'http') !== 0 && strpos($bannerPath, '/') !== 0) $bannerPath = '/' . ltrim($bannerPath, '/');
+    ?>
+    <div class="ln-course-banner"><img src="<?= learn_e($bannerPath) ?>" alt=""></div>
+<?php endif; ?>
+<section class="ln-hero ln-course-intro">
     <h1><?= learn_e($course['title']) ?></h1>
     <p><?= learn_e($course['summary'] ?? '') ?></p>
     <div class="ln-meta" style="margin-top:14px;">
@@ -168,6 +175,18 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
         <?php endif; ?>
     </div>
 </section>
+
+<?php if ((int)($course['is_sponsored'] ?? 0) === 1 && !empty($course['sponsor_name'])): ?>
+    <aside class="ln-sponsor" aria-label="Course sponsor">
+        <?php if (!empty($course['sponsor_logo'])):
+            $sponsorLogoPath = (string)$course['sponsor_logo'];
+            if (strpos($sponsorLogoPath, 'http') !== 0 && strpos($sponsorLogoPath, '/') !== 0) $sponsorLogoPath = '/' . ltrim($sponsorLogoPath, '/');
+        ?>
+            <img src="<?= learn_e($sponsorLogoPath) ?>" alt="<?= learn_e($course['sponsor_name']) ?> logo">
+        <?php endif; ?>
+        <div><strong>Sponsored by <?= learn_e($course['sponsor_name']) ?></strong><?php if (!empty($course['sponsor_details'])): ?><p><?= learn_e($course['sponsor_details']) ?></p><?php endif; ?></div>
+    </aside>
+<?php endif; ?>
 
 <?php if ($notice !== null) { learn_notice($notice, $noticeKind); } ?>
 

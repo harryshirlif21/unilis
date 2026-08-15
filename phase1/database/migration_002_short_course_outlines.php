@@ -43,6 +43,33 @@ function phase1_migration_002_run(mysqli $conn): array
         }
     }
 
+    // Sponsorship belongs to the course itself. Keep every field nullable so
+    // existing and non-sponsored courses remain valid without backfilling.
+    $sponsorColumns = [
+        'is_sponsored' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'sponsor_name' => 'VARCHAR(255) NULL',
+        'sponsor_details' => 'TEXT NULL',
+        'sponsor_logo' => 'VARCHAR(500) NULL',
+    ];
+
+    $courseTable = $conn->query("SHOW TABLES LIKE 'public_courses'");
+    if (!$courseTable || $courseTable->num_rows === 0) {
+        $errors[] = 'Required table public_courses does not exist.';
+    } else {
+        foreach ($sponsorColumns as $columnName => $definition) {
+            $column = $conn->query("SHOW COLUMNS FROM `public_courses` LIKE '{$columnName}'");
+            if ($column && $column->num_rows > 0) {
+                $results[] = "OK: public_courses.{$columnName} already exists";
+                continue;
+            }
+            if ($conn->query("ALTER TABLE `public_courses` ADD COLUMN `{$columnName}` {$definition}")) {
+                $results[] = "ADDED: public_courses.{$columnName}";
+            } else {
+                $errors[] = "Failed to add public_courses.{$columnName}: " . $conn->error;
+            }
+        }
+    }
+
     $migrationTable = $conn->query("SHOW TABLES LIKE 'system_migrations'");
     if ($migrationTable && $migrationTable->num_rows > 0 && empty($errors)) {
         $name = '002_short_course_outlines';

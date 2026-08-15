@@ -18,7 +18,8 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
     $stmt = $conn->prepare("
         SELECT
             c.id, c.slug, c.title, c.summary, c.level, c.estimated_hours,
-            c.certificate_enabled, c.cover_image,
+            c.certificate_enabled, c.cover_image, c.is_sponsored,
+            c.sponsor_name, c.sponsor_details, c.sponsor_logo,
             (SELECT COUNT(*) FROM public_course_lessons l
                JOIN public_course_modules m ON m.id = l.module_id
               WHERE m.course_id = c.id) AS lesson_count,
@@ -44,6 +45,10 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
         $cover = (string)($row['cover_image'] ?? '');
         if ($cover !== '' && strpos($cover, '/') !== 0) {
             $row['cover_image'] = '/' . ltrim($cover, '/');
+        }
+        $sponsorLogo = (string)($row['sponsor_logo'] ?? '');
+        if ($sponsorLogo !== '' && strpos($sponsorLogo, '/') !== 0) {
+            $row['sponsor_logo'] = '/' . ltrim($sponsorLogo, '/');
         }
     }
     unset($row);
