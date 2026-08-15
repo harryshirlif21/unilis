@@ -313,6 +313,10 @@ if ($action === 'edit_short_course') {
     $pricing = $_POST['pricing'] ?? 'free';
     $price = (float)($_POST['price'] ?? 0);
     $payment_methods = $_POST['payment_methods'] ?? [];
+    $is_sponsored = ($_POST['sponsorship'] ?? 'not_sponsored') === 'sponsored' ? 1 : 0;
+    $sponsor_name = trim($_POST['sponsor_name'] ?? '');
+    $sponsor_details = trim($_POST['sponsor_details'] ?? '');
+    $sponsor_logo = $_FILES['sponsor_logo'] ?? null;
 
     if ($is_department_admin && $id) {
         $allowed = $conn->query("SELECT id FROM public_courses WHERE id = $id AND department_id = " . (int)$department_id);
@@ -337,6 +341,26 @@ if ($action === 'edit_short_course') {
                 move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $banner_path);
             }
 
+            // Keep an existing logo unless the editor uploads a replacement.
+            $existing_sponsor_logo = '';
+            $existingSponsor = $conn->query("SELECT sponsor_logo FROM public_courses WHERE id = " . (int)$id . ' LIMIT 1');
+            if ($existingSponsor && ($existingSponsorRow = $existingSponsor->fetch_assoc())) {
+                $existing_sponsor_logo = (string)($existingSponsorRow['sponsor_logo'] ?? '');
+            }
+            $sponsor_logo_path = $existing_sponsor_logo;
+            if ($sponsor_logo && $sponsor_logo['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = __DIR__ . '/../../uploads/short_courses/sponsors/';
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0755, true);
+                }
+                $sponsor_logo_path = 'uploads/short_courses/sponsors/' . time() . '_' . basename($sponsor_logo['name']);
+                if (!move_uploaded_file($sponsor_logo['tmp_name'], __DIR__ . '/../../' . $sponsor_logo_path)) {
+                    $message = 'Failed to upload the sponsor logo.';
+                    $message_type = 'error';
+                    $sponsor_logo_path = $existing_sponsor_logo;
+                }
+            }
+
             // Generate slug from name
             $slug = strtolower(preg_replace('/[^a-z0-9]+/', '-', $name));
 
@@ -356,12 +380,17 @@ if ($action === 'edit_short_course') {
             $is_paid = $pricing === 'paid' ? 1 : 0;
             $methods_str = $is_paid ? implode(',', array_map('trim', $payment_methods)) : '';
 
+            if ($is_sponsored && (!$sponsor_name || !$sponsor_details || !$sponsor_logo_path)) {
+                $message = 'Sponsored courses require the sponsor name, details, and logo.';
+                $message_type = 'error';
+            } elseif ($message_type !== 'error') {
+
             // Build dynamic update query based on which columns exist
             $updates = ['slug = ?', 'title = ?', 'summary = ?', 'description = ?'];
             $params = [$slug, $name, $description, $description];
             $types = 'ssss';
 
-            $editOptional = ['code', 'duration', 'department_id', 'is_paid', 'price', 'payment_methods'];
+            $editOptional = ['code', 'duration', 'department_id', 'is_paid', 'price', 'payment_methods', 'is_sponsored', 'sponsor_name', 'sponsor_details', 'sponsor_logo'];
             $editValues = [
                 'code' => $code,
                 'duration' => $duration,
@@ -369,6 +398,10 @@ if ($action === 'edit_short_course') {
                 'is_paid' => $is_paid,
                 'price' => $price,
                 'payment_methods' => $methods_str,
+                'is_sponsored' => $is_sponsored,
+                'sponsor_name' => $is_sponsored ? $sponsor_name : null,
+                'sponsor_details' => $is_sponsored ? $sponsor_details : null,
+                'sponsor_logo' => $is_sponsored ? $sponsor_logo_path : null,
             ];
             $editTypes = [
                 'code' => 's',
@@ -377,6 +410,10 @@ if ($action === 'edit_short_course') {
                 'is_paid' => 'i',
                 'price' => 'd',
                 'payment_methods' => 's',
+                'is_sponsored' => 'i',
+                'sponsor_name' => 's',
+                'sponsor_details' => 's',
+                'sponsor_logo' => 's',
             ];
 
             foreach ($editOptional as $editCol) {
@@ -407,6 +444,7 @@ if ($action === 'edit_short_course') {
                 $message_type = 'error';
             }
             $stmt->close();
+            }
         } else {
             $message = "Public courses table does not exist.";
             $message_type = 'error';
@@ -1924,6 +1962,22 @@ if ($department_id) {
                     <p style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Leave empty to keep the current banner.</p>
                 </div>
                 <div class="form-group">
+                    <label for="edit_sponsorship">Course Sponsorship</label>
+                    <select name="sponsorship" id="edit_sponsorship" onchange="toggleEditSponsorship()">
+                        <option value="not_sponsored">Not sponsored</option>
+                        <option value="sponsored">Sponsored</option>
+                    </select>
+                </div>
+                <div id="edit_sponsor_fields" style="display:none;">
+                    <div class="form-group"><label>Sponsor Name *</label><input type="text" name="sponsor_name" id="edit_sponsor_name"></div>
+                    <div class="form-group"><label>Sponsor Details *</label><textarea name="sponsor_details" id="edit_sponsor_details" rows="2"></textarea></div>
+                    <div class="form-group">
+                        <label>Sponsor Logo</label>
+                        <input type="file" name="sponsor_logo" accept="image/*">
+                        <p style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Leave empty to keep the current logo.</p>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label>Course Pricing</label>
                     <div class="pricing-options">
                         <label><input type="radio" name="pricing" value="free" id="edit_pricing_free" onchange="toggleEditPricing()"> Free</label>
@@ -1975,6 +2029,10 @@ if ($department_id) {
         document.getElementById('edit_description').value = sc.description || '';
         document.getElementById('edit_department_id').value = sc.department_id || '';
         document.getElementById('edit_price').value = sc.price || '';
+        document.getElementById('edit_sponsorship').value = parseInt(sc.is_sponsored) === 1 ? 'sponsored' : 'not_sponsored';
+        document.getElementById('edit_sponsor_name').value = sc.sponsor_name || '';
+        document.getElementById('edit_sponsor_details').value = sc.sponsor_details || '';
+        toggleEditSponsorship();
 
         // Payment methods
         const methods = sc.payment_methods ? String(sc.payment_methods).split(',') : [];
@@ -2020,6 +2078,13 @@ if ($department_id) {
         } else {
             document.querySelector('#price_group input[name="price"]').required = false;
         }
+    }
+
+    function toggleEditSponsorship() {
+        const sponsored = document.getElementById('edit_sponsorship').value === 'sponsored';
+        document.getElementById('edit_sponsor_fields').style.display = sponsored ? '' : 'none';
+        document.getElementById('edit_sponsor_name').required = sponsored;
+        document.getElementById('edit_sponsor_details').required = sponsored;
     }
 
     function toggleSponsorship() {

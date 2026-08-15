@@ -85,13 +85,26 @@ function phase1_migration_002_run(mysqli $conn): array
     return ['success' => empty($errors), 'results' => $results, 'errors' => $errors];
 }
 
-if (PHP_SAPI === 'cli' || defined('STDIN')) {
+// Run when launched directly from the Admin Dashboard as well as from the CLI.
+// When this file is included by another migration runner it only exposes the
+// function, avoiding a duplicate run.
+$isDirectExecution = (
+    PHP_SAPI === 'cli' || defined('STDIN') ||
+    (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__)
+);
+
+if ($isDirectExecution) {
     $result = phase1_migration_002_run($conn);
+    if (PHP_SAPI !== 'cli' && !defined('STDIN')) {
+        header('Content-Type: text/plain; charset=utf-8');
+    }
     foreach ($result['results'] as $message) {
-        echo "OK: {$message}\n";
+        echo "{$message}\n";
     }
     foreach ($result['errors'] as $message) {
         echo "ERROR: {$message}\n";
     }
-    exit($result['success'] ? 0 : 1);
+    if (PHP_SAPI === 'cli' || defined('STDIN')) {
+        exit($result['success'] ? 0 : 1);
+    }
 }

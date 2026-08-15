@@ -15,11 +15,27 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
 {
     $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%';
 
+    // The catalogue must remain usable while an administrator is applying the
+    // sponsorship migration. Missing fields are represented as empty values
+    // rather than causing the whole public page to return HTTP 500.
+    $sponsorSelect = [];
+    foreach (['is_sponsored', 'sponsor_name', 'sponsor_details', 'sponsor_logo'] as $column) {
+        $exists = $conn->query("SHOW COLUMNS FROM public_courses LIKE '{$column}'");
+        $hasColumn = $exists && $exists->num_rows > 0;
+        if ($exists) {
+            $exists->free();
+        }
+        $sponsorSelect[] = $hasColumn
+            ? "c.{$column}"
+            : ($column === 'is_sponsored' ? "0 AS {$column}" : "NULL AS {$column}");
+    }
+    $sponsorFields = implode(",\n            ", $sponsorSelect);
+
     $stmt = $conn->prepare("
         SELECT
             c.id, c.slug, c.title, c.summary, c.level, c.estimated_hours,
-            c.certificate_enabled, c.cover_image, c.is_sponsored,
-            c.sponsor_name, c.sponsor_details, c.sponsor_logo,
+            c.certificate_enabled, c.cover_image,
+            {$sponsorFields},
             (SELECT COUNT(*) FROM public_course_lessons l
                JOIN public_course_modules m ON m.id = l.module_id
               WHERE m.course_id = c.id) AS lesson_count,
