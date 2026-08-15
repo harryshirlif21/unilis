@@ -66,30 +66,67 @@ if ($moduleId) {
 $preview = $module ?: $lesson;
 
 /**
- * Lesson-editor short courses store a PowerPoint block as JSON in content_html.
- * Render it through the vetted presentation preview rather than displaying the
- * JSON text as lesson content.
+ * Short-course file blocks are stored as JSON in content_html.  The database
+ * does not retain the block type, so determine it from the vetted upload path
+ * before rendering it.  This prevents a file block from appearing as raw JSON
+ * in the lesson preview.
  */
 function renderLessonPreviewContent(string $content): string
 {
     $block = json_decode($content, true);
-    $source = is_array($block) ? (string)($block['src'] ?? '') : '';
-    if (!preg_match('#^uploads/course_presentations/[A-Za-z0-9._-]+\.(ppt|pptx)$#i', $source)) {
+    if (!is_array($block)) {
         return $content;
     }
 
+    // Older blocks saved paths with "../" while newer file blocks do not.
+    $source = preg_replace('#^(?:\.\./)+#', '', trim((string)($block['src'] ?? '')));
+    if (!is_string($source) || !preg_match('#^uploads/(course_images|course_audio|course_diagrams|course_videos|course_pdfs|course_presentations)/[A-Za-z0-9._-]+\.(jpg|jpeg|png|gif|webp|svg|mp3|wav|ogg|m4a|mp4|webm|ogv|mov|avi|mkv|3gp|flv|wmv|mpeg|mpg|m4v|pdf|ppt|pptx)$#i', $source, $matches)) {
+        return $content;
+    }
+
+    $folder = strtolower($matches[1]);
+    $extension = strtolower($matches[2]);
     $name = trim((string)($block['name'] ?? basename($source)));
     $caption = trim((string)($block['caption'] ?? ''));
-    $viewerUrl = 'ppt_preview.php?file=' . rawurlencode($source) . '&embed=1';
     $downloadUrl = '../' . $source;
+    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeDownloadUrl = htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8');
+    $safeCaption = htmlspecialchars($caption, ENT_QUOTES, 'UTF-8');
 
-    return '<section class="presentation">'
-        . '<div class="presentation-bar"><strong>PowerPoint: ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</strong>'
-        . '<span><a href="ppt_preview.php?file=' . rawurlencode($source) . '" target="_blank" rel="noopener">Open preview</a>'
-        . ' <a href="' . htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">Download</a></span></div>'
-        . '<iframe src="' . htmlspecialchars($viewerUrl, ENT_QUOTES, 'UTF-8') . '" title="' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '"></iframe>'
-        . ($caption !== '' ? '<p class="presentation-caption">' . htmlspecialchars($caption, ENT_QUOTES, 'UTF-8') . '</p>' : '')
-        . '</section>';
+    if ($folder === 'course_presentations') {
+        $viewerUrl = 'ppt_preview.php?file=' . rawurlencode($source) . '&embed=1';
+        return '<section class="presentation">'
+            . '<div class="presentation-bar"><strong>PowerPoint: ' . $safeName . '</strong>'
+            . '<span><a href="ppt_preview.php?file=' . rawurlencode($source) . '" target="_blank" rel="noopener">Open preview</a>'
+            . ' <a href="' . $safeDownloadUrl . '" target="_blank" rel="noopener">Download</a></span></div>'
+            . '<iframe src="' . htmlspecialchars($viewerUrl, ENT_QUOTES, 'UTF-8') . '" title="' . $safeName . '"></iframe>'
+            . ($caption !== '' ? '<p class="presentation-caption">' . $safeCaption . '</p>' : '')
+            . '</section>';
+    }
+
+    if ($folder === 'course_pdfs' || ($folder === 'course_diagrams' && $extension === 'pdf')) {
+        return '<section class="document-preview">'
+            . '<div class="presentation-bar"><strong>PDF: ' . $safeName . '</strong>'
+            . '<a href="' . $safeDownloadUrl . '" target="_blank" rel="noopener">Open / Download</a></div>'
+            . '<iframe src="' . $safeDownloadUrl . '#toolbar=1&navpanes=1" title="' . $safeName . '"></iframe>'
+            . ($caption !== '' ? '<p class="presentation-caption">' . $safeCaption . '</p>' : '')
+            . '</section>';
+    }
+
+    if ($folder === 'course_images' || $folder === 'course_diagrams') {
+        return '<figure class="media-preview"><img src="' . $safeDownloadUrl . '" alt="' . $safeName . '">'
+            . ($caption !== '' ? '<figcaption>' . $safeCaption . '</figcaption>' : '') . '</figure>';
+    }
+
+    if ($folder === 'course_audio') {
+        return '<section class="media-preview"><strong>Audio: ' . $safeName . '</strong><audio controls src="' . $safeDownloadUrl . '"></audio></section>';
+    }
+
+    if ($folder === 'course_videos') {
+        return '<section class="media-preview"><strong>Video: ' . $safeName . '</strong><video controls preload="metadata" src="' . $safeDownloadUrl . '"></video></section>';
+    }
+
+    return $content;
 }
 ?>
 <!doctype html>
@@ -113,12 +150,17 @@ function renderLessonPreviewContent(string $content): string
         .empty { padding: 28px; text-align: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; }
         img, video, iframe { max-width: 100%; }
         pre { overflow: auto; padding: 14px; background: #f1f5f9; border-radius: 6px; }
-        .presentation { overflow: hidden; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+        .presentation, .document-preview { overflow: hidden; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
         .presentation-bar { display:flex; justify-content:space-between; gap:14px; align-items:center; padding:10px 14px; background:#f8fafc; font-size:.88rem; }
         .presentation-bar span { display:flex; gap:12px; }
         .presentation-bar a { color:#2563eb; text-decoration:none; }
-        .presentation iframe { display:block; width:100%; height:520px; border:0; }
+        .presentation iframe, .document-preview iframe { display:block; width:100%; height:520px; border:0; }
         .presentation-caption { margin:0; padding:10px 14px; color:#64748b; font-size:.88rem; }
+        .media-preview { margin:0; padding:14px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; }
+        .media-preview strong { display:block; margin-bottom:10px; }
+        .media-preview img, .media-preview video { display:block; max-width:100%; max-height:560px; margin:auto; }
+        .media-preview audio { display:block; width:100%; }
+        .media-preview figcaption { margin-top:10px; color:#64748b; font-size:.88rem; }
     </style>
 </head>
 <body>

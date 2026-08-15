@@ -166,10 +166,21 @@ if ($lesson_id) {
                 $storedContent = $current_lesson['content_html'];
                 $storedType = 'text';
                 $storedData = json_decode($storedContent, true);
-                if (is_array($storedData)
-                    && !empty($storedData['src'])
-                    && preg_match('#^uploads/course_presentations/#', (string)$storedData['src'])) {
-                    $storedType = 'ppt';
+                if (is_array($storedData) && !empty($storedData['src'])) {
+                    $storedPath = preg_replace('#^(?:\.\./)+#', '', (string)$storedData['src']);
+                    if (preg_match('#^uploads/course_presentations/#', $storedPath)) {
+                        $storedType = 'ppt';
+                    } elseif (preg_match('#^uploads/course_pdfs/#', $storedPath)) {
+                        $storedType = 'pdf';
+                    } elseif (preg_match('#^uploads/course_images/#', $storedPath)) {
+                        $storedType = 'image';
+                    } elseif (preg_match('#^uploads/course_audio/#', $storedPath)) {
+                        $storedType = 'audio';
+                    } elseif (preg_match('#^uploads/course_diagrams/#', $storedPath)) {
+                        $storedType = 'diagram';
+                    } elseif (preg_match('#^uploads/course_videos/#', $storedPath)) {
+                        $storedType = 'video';
+                    }
                 }
                 $content_blocks[] = [
                     'id' => 0,
