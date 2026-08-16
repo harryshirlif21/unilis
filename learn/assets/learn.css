@@ -335,23 +335,19 @@ a { color: var(--ln-green-mid); }
 .ln-sponsor-modal #sponsorModalDetails { margin: 0; color: var(--ln-muted); line-height: 1.6; white-space: pre-line; }
 
 .ln-course-cover {
-    height: 152px;
     position: relative;
     display: grid;
     place-items: center;
+    min-height: 152px;
     overflow: hidden;
     background: linear-gradient(135deg, var(--ln-green) 0%, var(--ln-green-light) 100%);
     color: rgba(255, 255, 255, .82);
 }
 .ln-course-cover .material-symbols-rounded { font-size: 46px; }
 .ln-course-cover img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
     display: block;
-    object-fit: cover;
-    object-position: center;
+    width: 100%;
+    height: auto;
 }
 
 .ln-course-body { flex: 1; display: flex; flex-direction: column; padding: 18px; }
