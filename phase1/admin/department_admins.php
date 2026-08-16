@@ -231,7 +231,7 @@ if ($action === 'add_short_course') {
     $sponsor_details = trim($_POST['sponsor_details'] ?? '');
     $sponsor_logo = $_FILES['sponsor_logo'] ?? null;
     
-    if ($name && $code && $duration && $department_id_input && (!$is_sponsored || ($sponsor_name && $sponsor_details && $sponsor_logo && $sponsor_logo['error'] === UPLOAD_ERR_OK))) {
+    if ($name && $code && $duration && $department_id_input && (!$is_sponsored || ($sponsor_name && $sponsor_logo && $sponsor_logo['error'] === UPLOAD_ERR_OK))) {
         $checkTable = $conn->query("SHOW TABLES LIKE 'public_courses'");
         if ($checkTable && $checkTable->num_rows > 0) {
             $banner_path = '';
@@ -295,7 +295,7 @@ if ($action === 'add_short_course') {
         }
     } else {
         $message = $is_sponsored
-            ? 'Sponsored courses require the sponsor name, details, and logo.'
+            ? 'Sponsored courses require the sponsor name and logo.'
             : 'Course Name, Code, Duration, and Department are required.';
         $message_type = 'error';
     }
@@ -380,8 +380,8 @@ if ($action === 'edit_short_course') {
             $is_paid = $pricing === 'paid' ? 1 : 0;
             $methods_str = $is_paid ? implode(',', array_map('trim', $payment_methods)) : '';
 
-            if ($is_sponsored && (!$sponsor_name || !$sponsor_details || !$sponsor_logo_path)) {
-                $message = 'Sponsored courses require the sponsor name, details, and logo.';
+            if ($is_sponsored && (!$sponsor_name || !$sponsor_logo_path)) {
+                $message = 'Sponsored courses require the sponsor name and logo.';
                 $message_type = 'error';
             } elseif ($message_type !== 'error') {
 
@@ -1679,7 +1679,7 @@ if ($department_id) {
                             </div>
                             <div id="sponsor_fields" style="display:none;">
                                 <div class="form-group"><label>Sponsor Name *</label><input type="text" name="sponsor_name" id="sponsor_name"></div>
-                                <div class="form-group"><label>Sponsor Details *</label><textarea name="sponsor_details" id="sponsor_details" rows="2" placeholder="Describe the sponsor or sponsorship arrangement"></textarea></div>
+                                <div class="form-group"><label>Sponsor Details</label><textarea name="sponsor_details" id="sponsor_details" rows="2" placeholder="Optional — describe the sponsor or sponsorship arrangement"></textarea></div>
                                 <div class="form-group"><label>Sponsor Logo *</label><input type="file" name="sponsor_logo" id="sponsor_logo" accept="image/*"></div>
                             </div>
                             <div class="form-group">
@@ -1973,7 +1973,7 @@ if ($department_id) {
                 </div>
                 <div id="edit_sponsor_fields" style="display:none;">
                     <div class="form-group"><label>Sponsor Name *</label><input type="text" name="sponsor_name" id="edit_sponsor_name"></div>
-                    <div class="form-group"><label>Sponsor Details *</label><textarea name="sponsor_details" id="edit_sponsor_details" rows="2"></textarea></div>
+                    <div class="form-group"><label>Sponsor Details</label><textarea name="sponsor_details" id="edit_sponsor_details" rows="2" placeholder="Optional"></textarea></div>
                     <div class="form-group">
                         <label>Sponsor Logo</label>
                         <input type="file" name="sponsor_logo" accept="image/*">
@@ -2087,13 +2087,13 @@ if ($department_id) {
         const sponsored = document.getElementById('edit_sponsorship').value === 'sponsored';
         document.getElementById('edit_sponsor_fields').style.display = sponsored ? '' : 'none';
         document.getElementById('edit_sponsor_name').required = sponsored;
-        document.getElementById('edit_sponsor_details').required = sponsored;
+        // Sponsor details are optional.
     }
 
     function toggleSponsorship() {
         const sponsored = document.getElementById('sponsorship').value === 'sponsored';
         document.getElementById('sponsor_fields').style.display = sponsored ? '' : 'none';
-        ['sponsor_name', 'sponsor_details', 'sponsor_logo'].forEach(id => document.getElementById(id).required = sponsored);
+        ['sponsor_name', 'sponsor_logo'].forEach(id => document.getElementById(id).required = sponsored);
     }
 
     async function searchLecturer() {
