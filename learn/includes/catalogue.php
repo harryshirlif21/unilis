@@ -19,7 +19,7 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
     // sponsorship migration. Missing fields are represented as empty values
     // rather than causing the whole public page to return HTTP 500.
     $sponsorSelect = [];
-    foreach (['is_sponsored', 'sponsor_name', 'sponsor_details', 'sponsor_logo', 'is_paid', 'price'] as $column) {
+    foreach (['is_sponsored', 'is_paid', 'price'] as $column) {
         $exists = $conn->query("SHOW COLUMNS FROM public_courses LIKE '{$column}'");
         $hasColumn = $exists && $exists->num_rows > 0;
         if ($exists) {
@@ -58,6 +58,47 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
+    // Check if course_sponsors table exists for multi-sponsor support
+    $hasCourseSponsorsTable = false;
+    $checkSponsorsTable = $conn->query("SHOW TABLES LIKE 'course_sponsors'");
+    if ($checkSponsorsTable && $checkSponsorsTable->num_rows > 0) {
+        $hasCourseSponsorsTable = true;
+    }
+
+    // Fetch sponsors for each course if the table exists
+    if ($hasCourseSponsorsTable && !empty($rows)) {
+        $courseIds = array_column($rows, 'id');
+        if (!empty($courseIds)) {
+            $placeholders = str_repeat('?,', count($courseIds) - 1) . '?';
+            $sponsorStmt = $conn->prepare("
+                SELECT course_id, sponsor_name, sponsor_details, sponsor_logo 
+                FROM course_sponsors 
+                WHERE course_id IN ($placeholders)
+                ORDER BY course_id, id
+            ");
+            $sponsorStmt->bind_param(str_repeat('i', count($courseIds)), ...$courseIds);
+            $sponsorStmt->execute();
+            $sponsorResults = $sponsorStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $sponsorStmt->close();
+
+            // Group sponsors by course_id
+            $sponsorsByCourse = [];
+            foreach ($sponsorResults as $sponsor) {
+                $courseId = $sponsor['course_id'];
+                if (!isset($sponsorsByCourse[$courseId])) {
+                    $sponsorsByCourse[$courseId] = [];
+                }
+                $sponsorsByCourse[$courseId][] = $sponsor;
+            }
+
+            // Add sponsors to each course row
+            foreach ($rows as &$row) {
+                $row['sponsors'] = $sponsorsByCourse[$row['id']] ?? [];
+            }
+            unset($row);
+        }
+    }
+
     // Normalise cover_image so it always resolves from the web root.
     // Department admins store relative paths like "uploads/short_courses/x.jpg",
     // while the authoring UI stores root-absolute "/uploads/...". A relative
@@ -67,6 +108,19 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
         if ($cover !== '' && strpos($cover, '/') !== 0) {
             $row['cover_image'] = '/' . ltrim($cover, '/');
         }
+        
+        // Normalise sponsor logos if present
+        if (isset($row['sponsors']) && !empty($row['sponsors'])) {
+            foreach ($row['sponsors'] as &$sponsor) {
+                $sponsorLogo = (string)($sponsor['sponsor_logo'] ?? '');
+                if ($sponsorLogo !== '' && strpos($sponsorLogo, '/') !== 0) {
+                    $sponsor['sponsor_logo'] = '/' . ltrim($sponsorLogo, '/');
+                }
+            }
+            unset($sponsor);
+        }
+        
+        // Legacy single sponsor logo normalization (for backward compatibility)
         $sponsorLogo = (string)($row['sponsor_logo'] ?? '');
         if ($sponsorLogo !== '' && strpos($sponsorLogo, '/') !== 0) {
             $row['sponsor_logo'] = '/' . ltrim($sponsorLogo, '/');

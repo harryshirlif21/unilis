@@ -34,6 +34,20 @@ $outline = learn_course_outline($conn, $courseId);
 $modules = $outline['modules'] ?? [];
 $finals = $outline['final_assessments'] ?? [];
 
+// Fetch course sponsors from course_sponsors table
+$course_sponsors = [];
+$checkSponsorsTable = $conn->query("SHOW TABLES LIKE 'course_sponsors'");
+if ($checkSponsorsTable && $checkSponsorsTable->num_rows > 0) {
+    $stmt = $conn->prepare("SELECT sponsor_name, sponsor_details, sponsor_logo FROM course_sponsors WHERE course_id = ? ORDER BY id");
+    $stmt->bind_param('i', $courseId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $course_sponsors[] = $row;
+    }
+    $stmt->close();
+}
+
 $notice = null;
 $noticeKind = 'success';
 
@@ -176,7 +190,20 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
     </div>
 </section>
 
-<?php if ((int)($course['is_sponsored'] ?? 0) === 1 && !empty($course['sponsor_name'])): ?>
+<?php if (!empty($course_sponsors)): ?>
+    <?php foreach ($course_sponsors as $sponsor): ?>
+    <aside class="ln-sponsor" aria-label="Course sponsor">
+        <?php if (!empty($sponsor['sponsor_logo'])):
+            $sponsorLogoPath = (string)$sponsor['sponsor_logo'];
+            if (strpos($sponsorLogoPath, 'http') !== 0 && strpos($sponsorLogoPath, '/') !== 0) $sponsorLogoPath = '/' . ltrim($sponsorLogoPath, '/');
+        ?>
+            <img src="<?= learn_e($sponsorLogoPath) ?>" alt="<?= learn_e($sponsor['sponsor_name']) ?> logo">
+        <?php endif; ?>
+        <div><strong>Sponsored by <?= learn_e($sponsor['sponsor_name']) ?></strong><?php if (!empty($sponsor['sponsor_details'])): ?><p><?= learn_e($sponsor['sponsor_details']) ?></p><?php endif; ?></div>
+    </aside>
+    <?php endforeach; ?>
+<?php elseif ((int)($course['is_sponsored'] ?? 0) === 1 && !empty($course['sponsor_name'])): ?>
+    <!-- Fallback for legacy single sponsor data -->
     <aside class="ln-sponsor" aria-label="Course sponsor">
         <?php if (!empty($course['sponsor_logo'])):
             $sponsorLogoPath = (string)$course['sponsor_logo'];

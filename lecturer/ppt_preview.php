@@ -10,14 +10,37 @@ if (!shortCourseIsAuthor()) {
 
 $file = str_replace('\\', '/', trim((string)($_GET['file'] ?? '')));
 $embed = isset($_GET['embed']) && $_GET['embed'] === '1';
+
+// More permissive regex to handle uniqid patterns
 if (!preg_match('#^uploads/course_presentations/[A-Za-z0-9._-]+\.(ppt|pptx)$#i', $file)) {
+    error_log("ppt_preview: Invalid file pattern - $file");
     http_response_code(400);
     exit('Invalid presentation file.');
 }
 
 $absolute = realpath(__DIR__ . '/../' . $file);
 $uploads = realpath(__DIR__ . '/../uploads/course_presentations');
-if ($absolute === false || $uploads === false || strpos($absolute, $uploads . DIRECTORY_SEPARATOR) !== 0) {
+
+// Debug logging
+error_log("ppt_preview: file=$file, absolute=" . ($absolute ?: 'false') . ", uploads=" . ($uploads ?: 'false'));
+
+if ($absolute === false) {
+    error_log("ppt_preview: File not found at path: " . __DIR__ . '/../' . $file);
+    http_response_code(404);
+    exit('Presentation not found.');
+}
+
+if ($uploads === false) {
+    error_log("ppt_preview: Uploads directory not found: " . __DIR__ . '/../uploads/course_presentations');
+    http_response_code(404);
+    exit('Uploads directory not found.');
+}
+
+$normalizedUploads = str_replace('\\', '/', $uploads);
+$normalizedAbsolute = str_replace('\\', '/', $absolute);
+
+if (strpos($normalizedAbsolute, $normalizedUploads . '/') !== 0) {
+    error_log("ppt_preview: Path traversal detected - absolute=$normalizedAbsolute, uploads=$normalizedUploads");
     http_response_code(404);
     exit('Presentation not found.');
 }

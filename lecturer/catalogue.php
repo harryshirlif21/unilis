@@ -83,7 +83,7 @@ studio_head('My open courses');
     <div>
         <h1>Open Courses Studio</h1>
         <p class="st-sub">
-            Self-paced courses for learners outside the university.
+            Learning opportunities for everyone.
             <?= count($all_courses) ?> course<?= count($all_courses) === 1 ? '' : 's' ?>,
             <?= $published ?> published.
             <?php if ($actor['role'] === 'admin'): ?>
@@ -112,8 +112,9 @@ studio_head('My open courses');
             $courseId = (int)$course['id'];
             $isPublished = (int)$course['is_published'] === 1;
             $isAssigned = ($course['tutor_id'] ?? null) !== null;
+            $courseSlug = $course['slug'] ?? '';
             ?>
-            <article class="st-course">
+            <article class="st-course" data-course-id="<?= $courseId ?>" data-course-slug="<?= htmlspecialchars($courseSlug) ?>">
                 <div class="st-course-cover">
                     <?php if (!empty($course['cover_image'])): ?>
                         <img src="<?= studio_e(studio_asset_url($course['cover_image'])) ?>" alt="">
@@ -154,6 +155,22 @@ studio_head('My open courses');
                         <a class="st-btn st-btn-small" href="course_builder.php?course_id=<?= $courseId ?>">
                             <i class="fas fa-pen"></i> Edit Course
                         </a>
+                        <div class="st-dropdown" style="position:relative;">
+                            <button class="st-btn st-btn-small st-btn-primary" onclick="toggleTeachDropdown(<?= $courseId ?>)">
+                                <i class="fas fa-chalkboard-teacher"></i> Teach
+                            </button>
+                            <div class="st-dropdown-menu" id="teach-dropdown-<?= $courseId ?>" style="display:none; position:absolute; top:100%; left:0; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); min-width:180px; z-index:10; margin-top:4px; box-shadow:var(--shadow);">
+                                <a class="st-dropdown-item" href="#" onclick="openCoursePreview(<?= $courseId ?>); return false;">
+                                    <i class="fas fa-book"></i> Course Preview
+                                </a>
+                                <a class="st-dropdown-item" href="catalogue_builder.php?course_id=<?= $courseId ?>">
+                                    <i class="fas fa-layer-group"></i> Module Preview
+                                </a>
+                                <a class="st-dropdown-item" href="#" onclick="openLessonPreview(<?= $courseId ?>); return false;">
+                                    <i class="fas fa-file-alt"></i> Lesson Preview
+                                </a>
+                            </div>
+                        </div>
                         <?php if ($isPublished): ?>
                             <a class="st-btn st-btn-small st-btn-ghost" target="_blank" rel="noopener"
                                href="/learn/course.php?c=<?= urlencode((string)$course['slug']) ?>">
@@ -169,3 +186,84 @@ studio_head('My open courses');
 
 <?php
 studio_foot();
+?>
+<script>
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.st-dropdown')) {
+        document.querySelectorAll('.st-dropdown-menu').forEach(menu => {
+            menu.style.display = 'none';
+        });
+    }
+});
+
+function toggleTeachDropdown(courseId) {
+    const dropdown = document.getElementById('teach-dropdown-' + courseId);
+    if (!dropdown) return;
+    
+    // Close all other dropdowns
+    document.querySelectorAll('.st-dropdown-menu').forEach(menu => {
+        if (menu.id !== 'teach-dropdown-' + courseId) {
+            menu.style.display = 'none';
+        }
+    });
+    
+    // Toggle current dropdown
+    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+}
+
+function openCoursePreview(courseId) {
+    // Get course slug from data attribute
+    const courseElement = document.querySelector(`[data-course-id="${courseId}"]`);
+    const slug = courseElement ? courseElement.dataset.courseSlug : '';
+    
+    if (slug) {
+        // Open course-level preview - shows the full course structure as learners see it
+        window.open('/learn/course.php?c=' + encodeURIComponent(slug), '_blank');
+    } else {
+        alert('Course not published yet. Publish the course to enable preview.');
+    }
+}
+
+function openLessonPreview(courseId) {
+    // Open lesson-level preview - this would show the lesson editor in preview mode
+    // First, get the first lesson of the course
+    fetch('ajax/get_first_lesson.php?course_id=' + courseId)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.lesson_id) {
+                window.open('lesson_editor.php?course_id=' + courseId + '&lesson_id=' + data.lesson_id + '&preview=1', '_blank');
+            } else {
+                alert('No lessons found in this course. Add lessons first.');
+            }
+        })
+        .catch(() => alert('Failed to load lesson preview'));
+}
+</script>
+<style>
+.st-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: var(--tr);
+    border-bottom: 1px solid var(--border);
+}
+
+.st-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.st-dropdown-item:hover {
+    background: var(--surface2);
+    color: var(--text);
+}
+
+.st-dropdown-item i {
+    width: 16px;
+    text-align: center;
+}
+</style>

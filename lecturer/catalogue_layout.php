@@ -33,7 +33,10 @@ function studio_asset_url(?string $path): string
         return $path;
     }
 
+    // Remove any relative path components (./, ../, etc.)
     $path = preg_replace('#^(?:(?:\.\.?)/)+#', '', $path) ?? '';
+    
+    // Ensure path starts with / for web root resolution
     return '/' . ltrim($path, '/');
 }
 

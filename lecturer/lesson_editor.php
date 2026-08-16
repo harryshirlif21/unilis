@@ -1039,6 +1039,7 @@ function buildPdfBody(localId, content) {
     let src = '', name = '', caption = '';
     try { const d = JSON.parse(content || '{}'); src = d.src || ''; name = d.name || ''; caption = d.caption || ''; } catch(e) {}
     const loaded = !!src;
+    const previewUrl = loaded ? `pdf_preview.php?file=${encodeURIComponent(src)}&embed=1` : '';
     return `
         <div class="pdf-upload-area" id="pdf-drop-${localId}"
              onclick="document.getElementById('pdf-file-${localId}').click()"
@@ -1059,7 +1060,7 @@ function buildPdfBody(localId, content) {
                 <i class="fas fa-file-pdf" style="color:var(--c-pdf);flex-shrink:0"></i>
                 <span class="pdf-name" id="pdf-name-${localId}">${escHtml(name || 'document.pdf')}</span>
                 <a href="${loaded ? escHtml('../' + src) : '#'}" target="_blank" id="pdf-open-${localId}">
-                    <i class="fas fa-external-link-alt"></i> Open / Edit
+                    <i class="fas fa-external-link-alt"></i> Download
                 </a>
                 <button onclick="replacePdf(${localId})"
                         style="font-size:.78rem;padding:4px 10px;background:transparent;border:1px solid var(--border);
@@ -1071,7 +1072,7 @@ function buildPdfBody(localId, content) {
                 </button>
             </div>
             <iframe id="pdf-frame-${localId}"
-                    src="${loaded ? escHtml('../' + src) + '#toolbar=1&navpanes=1' : ''}"
+                    src="${previewUrl}"
                     title="PDF Preview"></iframe>
         </div>
 
@@ -1271,7 +1272,8 @@ function _doPdfUpload(file, localId) {
         if (b) { b._uploadedPdfPath = path; b._pdfName = file.name; }
         if (nameEl) nameEl.textContent = file.name;
         if (link)   { link.href = '../' + path; }
-        if (frame)  frame.src  = '../' + path + '#toolbar=1&navpanes=1';
+        const previewUrl = `pdf_preview.php?file=${encodeURIComponent(path)}&embed=1`;
+        if (frame)  frame.src  = previewUrl;
         if (drop)   drop.style.display = 'none';
         if (pane)   pane.style.display = 'block';
         markUnsaved(localId);
