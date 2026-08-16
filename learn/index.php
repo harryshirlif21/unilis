@@ -71,7 +71,7 @@ learn_head(['title' => 'Open courses', 'learner' => $learner]);
                                     $coverPath = '/' . $coverPath;
                                 }
                                 ?>
-                                <img src="<?= learn_e($coverPath) ?>" alt="">
+                                <img src="<?= learn_e($coverPath) ?>" alt="" loading="lazy" onerror="this.remove()">
                             <?php else: ?>
                                 <span class="material-symbols-rounded">school</span>
                             <?php endif; ?>
