@@ -1236,8 +1236,22 @@ function catalogue_store_upload(array $file, string $kind): array
         return ['ok' => false, 'error' => 'Allowed file types: ' . implode(', ', $rule['exts']) . '.'];
     }
 
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime = $finfo->file((string)$file['tmp_name']);
+    $mime = null;
+    if (class_exists('finfo')) {
+        try {
+            $mime = (new finfo(FILEINFO_MIME_TYPE))->file((string)$file['tmp_name']);
+        } catch (Throwable $e) {
+            error_log('catalogue_store_upload: finfo failed: ' . $e->getMessage());
+            $mime = null;
+        }
+    }
+
+    if ($mime === null || $mime === false || $mime === '') {
+        // fileinfo unavailable — stop with a clear, actionable message instead
+        // of a raw server 500.
+        return ['ok' => false, 'error' => 'The server could not verify the file type because the fileinfo (finfo) extension is disabled. Enable fileinfo in php.ini and try again.'];
+    }
+
     if (!in_array($mime, $rule['mimes'], true)) {
         return ['ok' => false, 'error' => 'That file is not really a ' . $ext . ' (it looks like ' . $mime . ').'];
     }

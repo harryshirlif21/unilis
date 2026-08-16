@@ -153,23 +153,22 @@ Layout::start([
                     onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
                 <span class="material-symbols-rounded" style="font-size: 24px;">badge</span>
                 <span>
-                    <strong style="display: block; font-size: 0.95rem;">Login with custom details</strong>
-                    <span style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">Guest participant account</span>
+                    <strong style="display: block; font-size: 0.95rem;">Join as guest</strong>
+                    <span style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">Just your name — no account needed</span>
                 </span>
             </button>
 
             <!-- Custom (guest) login form -->
             <div id="customLoginForm" style="display: none; flex-direction: column; gap: var(--le-space-2);">
-                <input type="email" id="guestEmail" placeholder="Email address" autocomplete="email"
-                       style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: #fff; font-size: 0.95rem; outline: none;">
-                <input type="password" id="guestPassword" placeholder="Password" autocomplete="current-password"
+                <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0;">Join instantly — no email or password required.</p>
+                <input type="text" id="guestName" placeholder="Your display name" autocomplete="name"
                        style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: #fff; font-size: 0.95rem; outline: none;">
                 <button type="button" onclick="loginWithCustom()"
                         class="le-btn le-btn-primary le-btn-lg"
-                        style="width: 100%; justify-content: center; padding: 14px; border-radius: var(--le-radius-xl);">Log In</button>
+                        style="width: 100%; justify-content: center; padding: 14px; border-radius: var(--le-radius-xl);">Join as Guest</button>
                 <div id="guestError" style="display: none; padding: 10px 12px; background: rgba(220,38,38,0.2); border: 1px solid rgba(220,38,38,0.3); border-radius: var(--le-radius-lg); color: #FCA5A5; font-size: 0.85rem;"></div>
                 <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0; text-align: center;">
-                    No guest account? Use <button type="button" onclick="loginWithUnilis()" style="background:none;border:none;color:#F9A825;cursor:pointer;font-size:0.8rem;padding:0;text-decoration:underline;">Login with UNILIS</button>.
+                    Prefer an account? Use <button type="button" onclick="loginWithUnilis()" style="background:none;border:none;color:#F9A825;cursor:pointer;font-size:0.8rem;padding:0;text-decoration:underline;">Login with UNILIS</button>.
                 </p>
             </div>
 
@@ -272,7 +271,18 @@ Layout::start([
     }
     function toggleCustomLogin() {
         const el = document.getElementById('customLoginForm');
-        el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+        const show = el.style.display !== 'flex';
+        el.style.display = show ? 'flex' : 'none';
+
+        // Prefill the guest name with whatever the user already typed above.
+        if (show) {
+            const nameInput = document.getElementById('guestName');
+            const pending  = pendingName || currentName();
+            if (pending && !nameInput.value.trim()) {
+                nameInput.value = pending;
+                nameInput.focus();
+            }
+        }
     }
 
     // ── Authenticated join ────────────────────────────────────────
@@ -344,25 +354,27 @@ Layout::start([
         window.location.href = LE_LOGIN_BASE + '?redirect=' + encodeURIComponent(target);
     }
 
-    // ── Sign in with custom (guest) details ───────────────────────
+    // ── Join as guest (custom details) — name only, no email or password ──
     async function loginWithCustom() {
-        const email    = document.getElementById('guestEmail').value.trim().toLowerCase();
-        const password = document.getElementById('guestPassword').value;
-        const errEl    = document.getElementById('guestError');
+        const name = document.getElementById('guestName').value.trim()
+            || pendingName || currentName();
+        const errEl = document.getElementById('guestError');
         errEl.style.display = 'none';
 
-        if (!email || !password) { errEl.textContent = 'Enter your email and password.'; errEl.style.display = 'block'; return; }
+        if (name.length < 2) { errEl.textContent = 'Please enter your display name.'; errEl.style.display = 'block'; return; }
 
+        // Mark this browser session as an authenticated guest participant so the
+        // session join API (which requires auth) will accept the join.
         try {
             const resp = await fetch('<?= le_module_url('api/guest_auth.php') ?>', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ action: 'login', email: email, password: password }),
+                body: new URLSearchParams({ action: 'join_as_guest', name: name }),
             });
             let data = {};
             try { data = await resp.json(); } catch (e) {}
             if (!data.success) {
-                errEl.textContent = (data.errors && data.errors[0]) || 'Login failed. Please try again.';
+                errEl.textContent = (data.errors && data.errors[0]) || 'Unable to join as a guest. Please try again.';
                 errEl.style.display = 'block';
                 return;
             }
@@ -372,10 +384,9 @@ Layout::start([
             return;
         }
 
-        // Now signed in as a guest — proceed with the pending join.
+        // Now authenticated as a guest — proceed with the pending join.
         hideAuthStep();
         const code = pendingCode || currentNode();
-        const name = pendingName || 'Guest';
         await performJoin(code, name);
     }
 
@@ -394,7 +405,7 @@ Layout::start([
         }
     });
 
-    document.getElementById('guestPassword').addEventListener('keydown', function(e) {
+    document.getElementById('guestName').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
             loginWithCustom();

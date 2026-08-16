@@ -1,0 +1,18 @@
+[2026-08-16 17:31:37] Routing join | Table 'unilis.student_unit_enrollments' doesn't exist in /var/www/html/modules/live-engagement/config/database_helper.php on line 204
+Request: /modules/live-engagement/index.php?page=join&code=M6J3BA95
+Trace:
+#0 /var/www/html/modules/live-engagement/config/database_helper.php(204): mysqli->prepare('SELECT unit_id ...')
+#1 /var/www/html/modules/live-engagement/config/database_helper.php(95): DatabaseHelper->prepareAndExecute('SELECT unit_id ...', Array, 'i')
+#2 /var/www/html/modules/live-engagement/models/SessionModel.php(111): DatabaseHelper->select('SELECT unit_id ...', Array, 'i')
+#3 /var/www/html/modules/live-engagement/views/join.php(199): LE\Models\SessionModel->getStudentAvailableSessions(2)
+#4 /var/www/html/modules/live-engagement/index.php(112): include('/var/www/html/m...')
+#5 {main}
+[2026-08-16 19:49:49] Routing join | Table 'unilis.student_unit_enrollments' doesn't exist in /var/www/html/modules/live-engagement/config/database_helper.php on line 204
+Request: /modules/live-engagement/index.php?page=join&code=M6J3BA95
+Trace:
+#0 /var/www/html/modules/live-engagement/config/database_helper.php(204): mysqli->prepare('SELECT unit_id ...')
+#1 /var/www/html/modules/live-engagement/config/database_helper.php(95): DatabaseHelper->prepareAndExecute('SELECT unit_id ...', Array, 'i')
+#2 /var/www/html/modules/live-engagement/models/SessionModel.php(111): DatabaseHelper->select('SELECT unit_id ...', Array, 'i')
+#3 /var/www/html/modules/live-engagement/views/join.php(199): LE\Models\SessionModel->getStudentAvailableSessions(2)
+#4 /var/www/html/modules/live-engagement/index.php(112): include('/var/www/html/m...')
+#5 {main}

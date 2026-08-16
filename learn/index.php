@@ -59,53 +59,64 @@ learn_head(['title' => 'Open courses', 'learner' => $learner]);
         <div class="ln-grid">
             <?php foreach ($courses as $course): ?>
                 <div class="ln-course-shell">
-                <a class="ln-course" href="/learn/course.php?c=<?= learn_e($course['slug']) ?>">
-                    <div class="ln-course-cover">
-                        <?php if (!empty($course['cover_image']) && $course['cover_image'] !== '0'): ?>
-                            <?php
-                            // Normalize the image path: stored as relative "uploads/..." but
-                            // the learn pages live under /learn/, so prefix with / to resolve
-                            // from the site root.
-                            $coverPath = $course['cover_image'];
-                            if (strpos($coverPath, 'http') !== 0 && strpos($coverPath, '/') !== 0) {
-                                $coverPath = '/' . $coverPath;
-                            }
-                            ?>
-                            <img src="<?= learn_e($coverPath) ?>" alt="">
-                        <?php else: ?>
-                            <span class="material-symbols-rounded">school</span>
-                        <?php endif; ?>
-                    </div>
-                    <div class="ln-course-body">
-                        <h3><?= learn_e($course['title']) ?></h3>
-                        <p><?= learn_e($course['summary'] ?? '') ?></p>
-                        <div class="ln-meta">
-                            <span class="ln-chip">
-                                <span class="material-symbols-rounded">signal_cellular_alt</span>
-                                <?= learn_e(ucfirst((string)$course['level'])) ?>
-                            </span>
-                            <span class="ln-chip">
-                                <span class="material-symbols-rounded">play_lesson</span>
-                                <?= (int)$course['lesson_count'] ?> lesson<?= (int)$course['lesson_count'] === 1 ? '' : 's' ?>
-                            </span>
-                            <?php if ((int)$course['certificate_enabled'] === 1): ?>
-                                <span class="ln-chip ln-chip-amber">
-                                    <span class="material-symbols-rounded">workspace_premium</span>
-                                    Certificate
-                                </span>
+                    <a class="ln-course" href="/learn/course.php?c=<?= learn_e($course['slug']) ?>">
+                        <div class="ln-course-cover">
+                            <?php if (!empty($course['cover_image']) && $course['cover_image'] !== '0'): ?>
+                                <?php
+                                // Normalize the image path: stored as relative "uploads/..." but
+                                // the learn pages live under /learn/, so prefix with / to resolve
+                                // from the site root.
+                                $coverPath = $course['cover_image'];
+                                if (strpos($coverPath, 'http') !== 0 && strpos($coverPath, '/') !== 0) {
+                                    $coverPath = '/' . $coverPath;
+                                }
+                                ?>
+                                <img src="<?= learn_e($coverPath) ?>" alt="">
+                            <?php else: ?>
+                                <span class="material-symbols-rounded">school</span>
                             <?php endif; ?>
                         </div>
-                    </div>
-                </a>
-                <?php if ((int)($course['is_sponsored'] ?? 0) === 1 && !empty($course['sponsor_name'])): ?>
-                    <button class="ln-sponsored-btn" type="button"
-                            data-sponsor-name="<?= learn_e($course['sponsor_name']) ?>"
-                            data-sponsor-details="<?= learn_e($course['sponsor_details'] ?? '') ?>"
-                            data-sponsor-logo="<?= learn_e($course['sponsor_logo'] ?? '') ?>"
-                            aria-haspopup="dialog">
-                        <span class="material-symbols-rounded">volunteer_activism</span> Sponsored
-                    </button>
-                <?php endif; ?>
+                        <div class="ln-course-space"></div>
+                        <div class="ln-course-body">
+                            <h3><?= learn_e($course['title']) ?></h3>
+                            <p><?= learn_e($course['summary'] ?? '') ?></p>
+                            <div class="ln-meta">
+                                <span class="ln-chip">
+                                    <span class="material-symbols-rounded">signal_cellular_alt</span>
+                                    <?= learn_e(ucfirst((string)$course['level'])) ?>
+                                </span>
+                                <span class="ln-chip">
+                                    <span class="material-symbols-rounded">play_lesson</span>
+                                    <?= (int)$course['lesson_count'] ?> lesson<?= (int)$course['lesson_count'] === 1 ? '' : 's' ?>
+                                </span>
+                                <?php if ((int)$course['certificate_enabled'] === 1): ?>
+                                    <span class="ln-chip ln-chip-amber">
+                                        <span class="material-symbols-rounded">workspace_premium</span>
+                                        Certificate
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </a>
+                    <?php if ((int)($course['is_sponsored'] ?? 0) === 1 && !empty($course['sponsor_name'])): ?>
+                        <button class="ln-sponsored-btn" type="button"
+                                data-sponsor-name="<?= learn_e($course['sponsor_name']) ?>"
+                                data-sponsor-details="<?= learn_e($course['sponsor_details'] ?? '') ?>"
+                                data-sponsor-logo="<?= learn_e($course['sponsor_logo'] ?? '') ?>"
+                                aria-haspopup="dialog">
+                            <span class="material-symbols-rounded">volunteer_activism</span> Sponsored
+                        </button>
+                    <?php elseif ((int)($course['is_paid'] ?? 0) === 1): ?>
+                        <div class="ln-course-bar ln-course-bar-paid">
+                            <span class="material-symbols-rounded">payments</span>
+                            Paid<?php if (isset($course['price']) && (float)$course['price'] > 0): ?> · <?= learn_e(number_format((float)$course['price'], 2)) ?><?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="ln-course-bar ln-course-bar-free">
+                            <span class="material-symbols-rounded">check_circle</span>
+                            Free
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
         </div>

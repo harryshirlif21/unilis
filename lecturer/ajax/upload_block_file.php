@@ -9,6 +9,8 @@ if (!shortCourseIsAuthor()) {
     echo json_encode(['success' => false, 'message' => 'Unauthorised']); exit;
 }
 
+try {
+
 $lecturer_id = $_SESSION['user_id'];
 $lesson_id   = intval($_POST['lesson_id'] ?? 0);
 $folder      = trim($_POST['folder']      ?? '');
@@ -134,8 +136,43 @@ if (!in_array($orig_ext, $rule['exts'])) {
 }
 
 // ── Real MIME check via finfo ─────────────────────────────────────────────
-$finfo     = new finfo(FILEINFO_MIME_TYPE);
-$real_mime = $finfo->file($tmp_path);
+$real_mime = null;
+if (class_exists('finfo')) {
+    try {
+        $real_mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp_path);
+    } catch (Throwable $e) {
+        error_log('upload_block_file: finfo failed: ' . $e->getMessage());
+        $real_mime = null;
+    }
+}
+$lenient = ($folder === 'course_videos' || $folder === 'course_presentations');
+// If fileinfo could not determine a real MIME type (extension missing or it
+// failed), fall back to the browser-reported type + the already-whitelisted
+// extension. Never accept anything that looks dangerous.
+if ($real_mime === null || $real_mime === false || $real_mime === '') {
+    $uploaded_mime = strtolower((string)($file['type'] ?? ''));
+    $extLower      = strtolower($orig_ext);
+    $dangerous = [
+        'application/x-php', 'text/x-php', 'application/x-httpd-php',
+        'text/html', 'application/javascript', 'text/x-shellscript',
+        'application/x-sh', 'text/x-perl',
+    ];
+
+    if (in_array($extLower, ['php', 'phar', 'phtml', 'php3', 'php4', 'php5', 'php7', 'pht'], true)
+        || in_array($uploaded_mime, $dangerous, true)) {
+        echo json_encode(['success' => false, 'message' => 'File rejected: dangerous content type detected.']); exit;
+    }
+
+    if (!$lenient) {
+        // Images, audio, and PDFs rely on a strict MIME check. Without fileinfo
+        // we stop with a clear, actionable message instead of a server 500.
+        echo json_encode([
+            'success' => false,
+            'message' => 'Could not verify this file because the server does not have the `fileinfo` (finfo) extension enabled. Enable fileinfo in php.ini (or ask your host to), then retry the upload.',
+        ]);
+        exit;
+    }
+}
 
 // Video files frequently report unreliable MIME types depending on the server's
 // magic database. For course_videos, if the extension is whitelisted we trust it.
@@ -186,3 +223,9 @@ echo json_encode([
     'mime'    => $real_mime,
     'message' => 'File uploaded successfully',
 ]);
+
+} catch (Throwable $e) {
+    error_log('upload_block_file: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Upload failed: ' . $e->getMessage()]);
+    exit;
+}

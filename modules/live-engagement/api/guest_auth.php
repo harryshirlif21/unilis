@@ -112,6 +112,32 @@ switch ($action) {
         break;
 
     // ----------------------------------------------------------
+    // Quick guest join — no email/password account required. The visitor
+    // only supplies a display name and is marked as an authenticated guest
+    // participant so the session join API accepts them.
+    case 'join_as_guest':
+        $name = trim(le_post('name', ''));
+
+        if (strlen($name) < 2) {
+            echo json_encode(['success' => false, 'errors' => ['Please enter your display name.']]);
+            exit;
+        }
+
+        // Mark this browser session as an authenticated guest participant.
+        // No le_guest_users account is created; joining just records a row in
+        // live_participants via the session join endpoint.
+        $_SESSION['le_guest_access']   = true;
+        $_SESSION['le_guest_name']     = $name;
+        $_SESSION['le_guest_role']     = 'guest_participant';
+        $_SESSION['le_guest_joined_at'] = date('Y-m-d H:i:s');
+
+        echo json_encode([
+            'success' => true,
+            'name'    => $name,
+        ]);
+        break;
+
+    // ----------------------------------------------------------
     case 'login':
         $email    = trim(strtolower(le_post('email', '')));
         $password = le_post('password', '');

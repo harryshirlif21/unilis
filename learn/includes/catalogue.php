@@ -19,15 +19,20 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
     // sponsorship migration. Missing fields are represented as empty values
     // rather than causing the whole public page to return HTTP 500.
     $sponsorSelect = [];
-    foreach (['is_sponsored', 'sponsor_name', 'sponsor_details', 'sponsor_logo'] as $column) {
+    foreach (['is_sponsored', 'sponsor_name', 'sponsor_details', 'sponsor_logo', 'is_paid', 'price'] as $column) {
         $exists = $conn->query("SHOW COLUMNS FROM public_courses LIKE '{$column}'");
         $hasColumn = $exists && $exists->num_rows > 0;
         if ($exists) {
             $exists->free();
         }
+        // Boolean flags default to 0, everything else to NULL, when the column
+        // has not been added by the department-admin migration yet.
+        $fallback = in_array($column, ['is_sponsored', 'is_paid'], true)
+            ? "0 AS {$column}"
+            : "NULL AS {$column}";
         $sponsorSelect[] = $hasColumn
             ? "c.{$column}"
-            : ($column === 'is_sponsored' ? "0 AS {$column}" : "NULL AS {$column}");
+            : $fallback;
     }
     $sponsorFields = implode(",\n            ", $sponsorSelect);
 
