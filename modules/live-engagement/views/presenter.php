@@ -234,6 +234,19 @@ Layout::start([
 }
 @keyframes leSlideIn { from { opacity: 0; transform: translateY(8px) scale(.995); } to { opacity: 1; transform: none; } }
 .le-slide img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.le-uploaded-slide {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    container-type: inline-size;
+    overflow: hidden;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, .18);
+}
+.le-uploaded-slide, .le-uploaded-slide * { box-sizing: border-box; }
+.le-uploaded-slide > * { margin: 0; padding: 0; }
+.le-uploaded-slide img { pointer-events: none; }
 .le-slide-empty { text-align: center; color: rgba(255, 255, 255, .8); }
 .le-slide-empty .material-symbols-rounded { font-size: 64px; opacity: .5; }
 

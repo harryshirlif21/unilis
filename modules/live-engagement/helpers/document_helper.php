@@ -146,12 +146,14 @@ function le_extract_pptx_slides(string $path, string $mediaBaseUrl = ''): array
         ]];
     }
 
+    $slideSize = le_pptx_slide_size_emu($zip);
+
     $slides = [];
     foreach ($slideFiles as $number => $xmlPath) {
         $xml = $zip->getFromName($xmlPath);
         $slides[] = [
             'slide_number' => $number,
-            'content_html' => le_pptx_xml_to_html($xml ?: '', $zip, $xmlPath, $mediaBaseUrl),
+            'content_html' => le_pptx_xml_to_html($xml ?: '', $zip, $xmlPath, $mediaBaseUrl, $slideSize),
         ];
     }
 
@@ -160,43 +162,180 @@ function le_extract_pptx_slides(string $path, string $mediaBaseUrl = ''): array
     return $slides;
 }
 
-function le_pptx_xml_to_html(string $xml, ZipArchive $zip, string $xmlPath, string $mediaBaseUrl): string
+/**
+ * Read the deck's slide size (EMU) from ppt/presentation.xml.
+ *
+ * @return array{w:int,h:int}
+ */
+function le_pptx_slide_size_emu(ZipArchive $zip): array
 {
-    $parts = [];
+    $w = 12192000;
+    $h = 6858000;
+    $xml = (string) $zip->getFromName('ppt/presentation.xml');
+    if ($xml !== '' && preg_match('/<p:sldSz\b[^>]*cx="(\d+)"[^>]*cy="(\d+)"/s', $xml, $m)) {
+        $w = (int) $m[1];
+        $h = (int) $m[2];
+    }
+    return ['w' => max(1, $w), 'h' => max(1, $h)];
+}
 
-    if (preg_match_all('/<a:t[^>]*>(.*?)<\/a:t>/s', $xml, $textMatches)) {
-        foreach ($textMatches[1] as $chunk) {
-            $text = trim(html_entity_decode(strip_tags($chunk), ENT_QUOTES | ENT_XML1, 'UTF-8'));
-            if ($text !== '') {
-                $parts[] = '<p style="margin:0 0 12px;font-size:1.25rem;line-height:1.5;">'
-                    . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</p>';
-            }
+/**
+ * Convert a single PPTX slide's XML into positioned HTML that retains the
+ * original layout as closely as DrawingML allows. Each text box and picture is
+ * placed at its on-slide position/size with its own fonts, colours, weight and
+ * alignment, then scaled to fit the presenting stage using container units.
+ */
+function le_pptx_xml_to_html(string $xml, ZipArchive $zip, string $xmlPath, string $mediaBaseUrl = '', ?array $slideSize = null): string
+{
+    $size = $slideSize ?: le_pptx_slide_size_emu($zip);
+    $sw   = max(1, (int) $size['w']);
+    $sh   = max(1, (int) $size['h']);
+    $slideWpx = $sw / 914400 * 96;   // rendered slide width in px at 96 dpi
+
+    // Slide -> media relationship map (for pictures).
+    $relsPath = preg_replace('#^ppt/slides/(slide\d+\.xml)$#', 'ppt/slides/_rels/$1.rels', $xmlPath);
+    $relsXml  = (string) $zip->getFromName($relsPath ?: '');
+    $ridMedia = [];
+    if (preg_match_all('/Id="(rId\d+)"[^>]*Target="\.\.\/media\/([^"]+)"/', $relsXml, $rm)) {
+        foreach ($rm[1] as $i => $rid) {
+            $ridMedia[$rid] = 'ppt/media/' . $rm[2][$i];
         }
     }
 
-    $relsPath = preg_replace('#^ppt/slides/(slide\d+\.xml)$#', 'ppt/slides/_rels/$1.rels', $xmlPath);
-    $relsXml = $relsPath ? $zip->getFromName($relsPath) : false;
+    $dataUriFor = function (string $rid) use ($zip, $ridMedia): string {
+        $path = $ridMedia[$rid] ?? '';
+        if ($path === '') {
+            return '';
+        }
+        $binary = $zip->getFromName($path);
+        if ($binary === false || $binary === '') {
+            return '';
+        }
+        return 'data:' . le_guess_image_mime(basename($path), $binary) . ';base64,' . base64_encode($binary);
+    };
 
-    if ($relsXml && preg_match_all('/Target="\.\.\/media\/([^"]+)"/', $relsXml, $mediaMatches)) {
-        foreach ($mediaMatches[1] as $mediaFile) {
-            $mediaPath = 'ppt/media/' . $mediaFile;
-            $binary = $zip->getFromName($mediaPath);
-            if ($binary === false) {
+    // A shape's offset (off) and size (ext) in EMU.
+    $box = function (string $block): array {
+        $b = ['x' => 0, 'y' => 0, 'w' => 0, 'h' => 0];
+        if (preg_match('/<a:xfrm\b[^>]*>(.*?)<\/a:xfrm>/s', $block, $f)) {
+            if (preg_match('/<a:off\b[^>]*x="(-?\d+)"[^>]*y="(-?\d+)"/', $f[1], $o)) {
+                $b['x'] = max(0, (float) $o[1]);
+                $b['y'] = max(0, (float) $o[2]);
+            }
+            if (preg_match('/<a:ext\b[^>]*cx="(-?\d+)"[^>]*cy="(-?\d+)"/', $f[1], $e)) {
+                $b['w'] = max(0, (float) $e[1]);
+                $b['h'] = max(0, (float) $e[2]);
+            }
+        }
+        return $b;
+    };
+
+    // Point size -> cqw, so fonts scale with the presenting stage.
+    $fontCqw = function (float $szHundredths) use ($slideWpx): string {
+        $pt  = max(1000, $szHundredths) / 100;
+        $cqw = $slideWpx > 0 ? $pt * 1.3333 / $slideWpx * 100 : 1.6;
+        return number_format($cqw, 3) . 'cqw';
+    };
+
+    // One styled <a:r> run -> <span>.
+    $runHtml = function (string $run) use ($fontCqw): string {
+        $sz = 1800;
+        $b = $i = $u = false;
+        $color = '#0f172a';
+        $family = '';
+        if (preg_match('/<a:rPr\b([^>]*)>/s', $run, $rp)) {
+            if (preg_match('/\bsz="(-?\d+)"/', $rp[1], $m)) {
+                $sz = (int) $m[1];
+            }
+            $b = (bool) preg_match('/\bb="1"/', $rp[1]);
+            $i = (bool) preg_match('/\bi="1"/', $rp[1]);
+            $u = (bool) preg_match('/\bu="(sng|single)"/', $rp[1]);
+        }
+        if (preg_match('/<a:srgbClr\b[^>]*val="([0-9a-fA-F]{6})"/', $run, $cm)) {
+            $color = '#' . strtolower($cm[1]);
+        }
+        if (preg_match('/<a:latin\b[^>]*typeface="([^"]+)"/', $run, $fm)) {
+            $family = $fm[1];
+        }
+        if (!preg_match('/<a:t\b[^>]*>(.*?)<\/a:t>/s', $run, $tm)) {
+            return '';
+        }
+        $text = htmlspecialchars(html_entity_decode($tm[1], ENT_QUOTES | ENT_XML1, 'UTF-8'), ENT_QUOTES, 'UTF-8');
+        if ($text === '') {
+            return '';
+        }
+
+        $style = 'font-size:' . $fontCqw($sz) . ';line-height:1.25;';
+        $style .= $b ? 'font-weight:700;' : 'font-weight:400;';
+        if ($i) { $style .= 'font-style:italic;'; }
+        if ($u) { $style .= 'text-decoration:underline;'; }
+        $style .= 'color:' . $color . ';';
+        if ($family !== '') { $style .= 'font-family:' . htmlspecialchars($family, ENT_QUOTES, 'UTF-8') . ',sans-serif;'; }
+
+        return '<span style="' . $style . '">' . $text . '</span>';
+    };
+
+    $items = '';
+
+    // ── Text boxes & graphic frames (positioned on the slide) ─────────────
+    if (preg_match_all('~<(p:sp|p:graphicFrame)\b[^>]*>.*?</\1>~s', $xml, $shapes)) {
+        foreach ($shapes[0] as $block) {
+            $b = $box($block);
+            if ($b['w'] < 1 || $b['h'] < 1) {
                 continue;
             }
 
-            $mime = le_guess_image_mime($mediaFile, $binary);
-            $dataUri = 'data:' . $mime . ';base64,' . base64_encode($binary);
-            $parts[] = '<img src="' . htmlspecialchars($dataUri, ENT_QUOTES, 'UTF-8') . '" alt="" '
-                . 'style="max-width:100%;max-height:55vh;object-fit:contain;margin:12px auto;display:block;">';
+            $align = 'left';
+            if (preg_match('/<a:pPr\b[^>]*algn="(l|c|r|just|ctr|dist)"/', $block, $am)) {
+                $al = $am[1];
+                $align = $al === 'ctr' ? 'center' : ($al === 'r' ? 'right' : ($al === 'l' ? 'left' : 'justify'));
+            }
+
+            $inner = '';
+            if (preg_match_all('/<a:r\b[^>]*>.*?<\/a:r>/s', $block, $runs)) {
+                foreach ($runs[0] as $run) {
+                    $inner .= $runHtml($run);
+                }
+            }
+            if ($inner === '') {
+                continue;
+            }
+
+            $items .= '<div style="position:absolute;left:' . number_format($b['x'] / $sw * 100, 3) . '%;'
+                . 'top:' . number_format($b['y'] / $sh * 100, 3) . '%;'
+                . 'width:' . number_format($b['w'] / $sw * 100, 3) . '%;'
+                . 'height:' . number_format($b['h'] / $sh * 100, 2) . '%;'
+                . 'box-sizing:border-box;overflow:visible;text-align:' . $align . ';">' . $inner . '</div>';
         }
     }
 
-    if ($parts === []) {
-        return '<p style="color:#64748b;">Slide content could not be extracted. Download the original file to view it.</p>';
+    // ── Pictures (positioned, keep their shape box) ───────────────────────
+    if (preg_match_all('/<p:pic\b[^>]*>.*?<\/p:pic>/s', $xml, $pics)) {
+        foreach ($pics[0] as $block) {
+            $b = $box($block);
+            if ($b['w'] < 1 || $b['h'] < 1) {
+                continue;
+            }
+            if (!preg_match('/<a:blip\b[^>]*r:embed="(rId\d+)"/', $block, $bm)) {
+                continue;
+            }
+            $uri = $dataUriFor($bm[1]);
+            if ($uri === '') {
+                continue;
+            }
+            $items .= '<img src="' . $uri . '" alt="" style="position:absolute;left:'
+                . number_format($b['x'] / $sw * 100, 2) . '%;'
+                . 'top:' . number_format($b['y'] / $sh * 100, 2) . '%;'
+                . 'width:' . number_format($b['w'] / $sw * 100, 3) . '%;'
+                . 'height:' . number_format($b['h'] / $sh * 100, 3) . '%;">';
+        }
     }
 
-    return '<div class="le-uploaded-slide">' . implode('', $parts) . '</div>';
+    if ($items === '') {
+        return '<p style="color:#64748b;padding:20px;">Slide content could not be extracted. Download the original file to view it.</p>';
+    }
+
+    return '<div class="le-uploaded-slide" style="aspect-ratio:' . number_format($sw / $sh, 5) . ';">' . $items . '</div>';
 }
 
 function le_guess_image_mime(string $filename, string $binary): string
