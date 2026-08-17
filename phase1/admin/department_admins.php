@@ -99,13 +99,130 @@ if ($action === 'get_course_sponsors') {
             while ($row = $result->fetch_assoc()) {
                 $sponsors[] = $row;
             }
-            $stmt->close();
-            echo json_encode(['sponsors' => $sponsors]);
+            echo json_encode(['success' => true, 'sponsors' => $sponsors]);
         } else {
-            echo json_encode(['sponsors' => []]);
+            echo json_encode(['success' => true, 'sponsors' => []]);
         }
     } else {
-        echo json_encode(['sponsors' => []]);
+        echo json_encode(['success' => false, 'message' => 'Course ID required']);
+    }
+    exit;
+}
+
+// AJAX: Get course modules for tutor permissions
+if ($action === 'get_course_modules') {
+    header('Content-Type: application/json');
+    $course_id = (int)($_POST['course_id'] ?? 0);
+    if ($course_id) {
+        $stmt = $conn->prepare("
+            SELECT id, title, summary, start_date, end_date
+            FROM public_course_modules
+            WHERE course_id = ?
+            ORDER BY position ASC, id ASC
+        ");
+        $stmt->bind_param('i', $course_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $modules = [];
+        while ($row = $result->fetch_assoc()) {
+            $modules[] = $row;
+        }
+        echo json_encode(['success' => true, 'modules' => $modules]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Course ID required']);
+    }
+    exit;
+}
+
+// AJAX: Get tutor module permissions
+if ($action === 'get_tutor_module_permissions') {
+    header('Content-Type: application/json');
+    $tutor_id = (int)($_POST['tutor_id'] ?? 0);
+    $course_id = (int)($_POST['course_id'] ?? 0);
+    if ($tutor_id && $course_id) {
+        $checkTable = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
+        if ($checkTable && $checkTable->num_rows > 0) {
+            $stmt = $conn->prepare("
+                SELECT tmp.module_id, tmp.can_edit, tmp.can_teach, m.title
+                FROM tutor_module_permissions tmp
+                JOIN public_course_modules m ON m.id = tmp.module_id
+                WHERE tmp.tutor_id = ? AND m.course_id = ?
+            ");
+            $stmt->bind_param('ii', $tutor_id, $course_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $permissions = [];
+            while ($row = $result->fetch_assoc()) {
+                $permissions[$row['module_id']] = [
+                    'can_edit' => (bool)$row['can_edit'],
+                    'can_teach' => (bool)$row['can_teach'],
+                    'title' => $row['title']
+                ];
+            }
+            echo json_encode(['success' => true, 'permissions' => $permissions]);
+        } else {
+            echo json_encode(['success' => true, 'permissions' => []]);
+        }
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Tutor ID and Course ID required']);
+    }
+    exit;
+}
+
+// AJAX: Save tutor module permissions
+if ($action === 'save_tutor_module_permissions') {
+    header('Content-Type: application/json');
+    $tutor_id = (int)($_POST['tutor_id'] ?? 0);
+    $course_id = (int)($_POST['course_id'] ?? 0);
+    $permissions = $_POST['permissions'] ?? [];
+    
+    if (!$tutor_id || !$course_id) {
+        echo json_encode(['success' => false, 'message' => 'Tutor ID and Course ID required']);
+        exit;
+    }
+    
+    $checkTable = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
+    if (!$checkTable || $checkTable->num_rows === 0) {
+        echo json_encode(['success' => false, 'message' => 'Permissions table not found']);
+        exit;
+    }
+    
+    try {
+        $conn->begin_transaction();
+        
+        // Delete existing permissions for this tutor in this course
+        $stmt = $conn->prepare("
+            DELETE tmp FROM tutor_module_permissions tmp
+            JOIN public_course_modules m ON m.id = tmp.module_id
+            WHERE tmp.tutor_id = ? AND m.course_id = ?
+        ");
+        $stmt->bind_param('ii', $tutor_id, $course_id);
+        $stmt->execute();
+        $stmt->close();
+        
+        // Insert new permissions
+        $assigned_by = $_SESSION['user_id'] ?? 0;
+        $stmt = $conn->prepare("
+            INSERT INTO tutor_module_permissions (tutor_id, module_id, can_edit, can_teach, assigned_by)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        
+        foreach ($permissions as $module_id => $perm) {
+            $can_edit = isset($perm['can_edit']) && $perm['can_edit'] ? 1 : 0;
+            $can_teach = isset($perm['can_teach']) && $perm['can_teach'] ? 1 : 0;
+            
+            if ($can_edit || $can_teach) {
+                $stmt->bind_param('iiiii', $tutor_id, $module_id, $can_edit, $can_teach, $assigned_by);
+                $stmt->execute();
+            }
+        }
+        $stmt->close();
+        
+        $conn->commit();
+        echo json_encode(['success' => true, 'message' => 'Permissions saved successfully']);
+    } catch (Exception $e) {
+        $conn->rollback();
+        echo json_encode(['success' => false, 'message' => 'Failed to save permissions: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -1405,6 +1522,9 @@ if ($department_id) {
             <button class="nav-item" data-panel="tutors" onclick="switchPanel('tutors', this)">
                 <i class="fas fa-user-plus"></i> Assign Tutors
             </button>
+            <button class="nav-item" data-panel="migrations" onclick="switchPanel('migrations', this)">
+                <i class="fas fa-database"></i> Migrations
+            </button>
             <a class="nav-item" href="../../modules/live-engagement/index.php?page=dashboard&amp;create=1&amp;type=presentation">
                 <i class="fas fa-person-chalkboard"></i> Live Presentations
             </a>
@@ -2006,6 +2126,9 @@ if ($department_id) {
                                             <td><?= htmlspecialchars($t['course_name']) ?></td>
                                             <td><?= htmlspecialchars($t['lecturer_name']) ?></td>
                                             <td>
+                                                <button type="button" class="btn btn-primary btn-sm" onclick="openTutorPermissionsModal(<?= $t['id'] ?>, <?= $t['short_course_id'] ?>, '<?= htmlspecialchars($t['lecturer_name']) ?>')">
+                                                    <i class="fas fa-key"></i> Permissions
+                                                </button>
                                                 <form method="POST" onsubmit="return confirm('Remove this tutor?')" style="display:inline;">
                                                     <input type="hidden" name="action" value="remove_tutor_from_short_course">
                                                     <input type="hidden" name="id" value="<?= $t['id'] ?>">
@@ -2020,6 +2143,34 @@ if ($department_id) {
                     </div>
                 </div>
                 <?php endif; ?>
+
+                <!-- Migrations Panel -->
+                <div id="panel-migrations" class="panel">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon"><i class="fas fa-database"></i></div>
+                            <h3>Database Migrations</h3>
+                        </div>
+                        <div class="card-body">
+                            <div style="margin-bottom:20px;">
+                                <button type="button" class="btn btn-primary" onclick="loadMigrations()">
+                                    <i class="fas fa-sync"></i> Refresh Status
+                                </button>
+                                <button type="button" class="btn btn-success" onclick="runPendingMigrations()" id="runMigrationsBtn" style="display:none;">
+                                    <i class="fas fa-play"></i> Run Pending Migrations
+                                </button>
+                            </div>
+                            
+                            <div id="migrationStatus" style="margin-bottom:20px;">
+                                <div style="text-align:center; padding:20px; color:var(--text-muted);">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading migration status...
+                                </div>
+                            </div>
+                            
+                            <div id="migrationResults" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -2372,6 +2523,311 @@ if ($department_id) {
             assignBtn.disabled = true;
         }
     }
+
+    // Tutor Permissions Modal
+    function openTutorPermissionsModal(tutorId, courseId, tutorName) {
+        const modal = document.getElementById('tutorPermissionsModal');
+        if (!modal) return;
+        
+        document.getElementById('perm_tutor_id').value = tutorId;
+        document.getElementById('perm_course_id').value = courseId;
+        document.getElementById('perm_tutor_name').textContent = tutorName;
+        
+        // Load course modules
+        fetch('', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=get_course_modules&course_id=' + courseId
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                renderModulePermissions(data.modules);
+                // Load existing permissions
+                loadTutorPermissions(tutorId, courseId);
+            } else {
+                alert('Failed to load modules: ' + data.message);
+            }
+        })
+        .catch(e => alert('Error loading modules: ' + e));
+        
+        modal.style.display = 'block';
+    }
+
+    function closeTutorPermissionsModal() {
+        document.getElementById('tutorPermissionsModal').style.display = 'none';
+    }
+
+    function renderModulePermissions(modules) {
+        const container = document.getElementById('module_permissions_container');
+        if (!container) return;
+        
+        if (modules.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);">No modules found in this course.</p>';
+            return;
+        }
+        
+        container.innerHTML = modules.map(m => `
+            <div class="module-permission-item" style="background:var(--surface2); padding:16px; border-radius:8px; margin-bottom:12px; border:1px solid var(--border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <strong style="font-size:14px;">${m.title}</strong>
+                    ${m.start_date || m.end_date ? `<small style="color:var(--text-muted);">${m.start_date || '—'} to ${m.end_date || '—'}</small>` : ''}
+                </div>
+                <div style="display:flex; gap:20px; align-items:center;">
+                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+                        <input type="checkbox" name="perm_can_edit_${m.id}" value="1" onchange="updatePermission(${m.id}, 'can_edit', this.checked)">
+                        Can Edit
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+                        <input type="checkbox" name="perm_can_teach_${m.id}" value="1" onchange="updatePermission(${m.id}, 'can_teach', this.checked)">
+                        Can Teach
+                    </label>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function loadTutorPermissions(tutorId, courseId) {
+        fetch('', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=get_tutor_module_permissions&tutor_id=' + tutorId + '&course_id=' + courseId
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                Object.keys(data.permissions).forEach(moduleId => {
+                    const perm = data.permissions[moduleId];
+                    const editCheckbox = document.querySelector(`input[name="perm_can_edit_${moduleId}"]`);
+                    const teachCheckbox = document.querySelector(`input[name="perm_can_teach_${moduleId}"]`);
+                    
+                    if (editCheckbox) editCheckbox.checked = perm.can_edit;
+                    if (teachCheckbox) teachCheckbox.checked = perm.can_teach;
+                });
+            }
+        })
+        .catch(e => console.error('Error loading permissions:', e));
+    }
+
+    function updatePermission(moduleId, type, value) {
+        // Store in a data attribute for saving later
+        const container = document.getElementById('module_permissions_container');
+        if (!container.dataset.permissions) {
+            container.dataset.permissions = '{}';
+        }
+        
+        const permissions = JSON.parse(container.dataset.permissions);
+        if (!permissions[moduleId]) {
+            permissions[moduleId] = { can_edit: false, can_teach: false };
+        }
+        permissions[moduleId][type] = value;
+        container.dataset.permissions = JSON.stringify(permissions);
+    }
+
+    function saveTutorPermissions() {
+        const container = document.getElementById('module_permissions_container');
+        const permissions = container.dataset.permissions ? JSON.parse(container.dataset.permissions) : {};
+        const tutorId = document.getElementById('perm_tutor_id').value;
+        const courseId = document.getElementById('perm_course_id').value;
+        
+        const formData = new URLSearchParams();
+        formData.append('action', 'save_tutor_module_permissions');
+        formData.append('tutor_id', tutorId);
+        formData.append('course_id', courseId);
+        formData.append('permissions', JSON.stringify(permissions));
+        
+        fetch('', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Permissions saved successfully!');
+                closeTutorPermissionsModal();
+            } else {
+                alert('Failed to save permissions: ' + data.message);
+            }
+        })
+        .catch(e => alert('Error saving permissions: ' + e));
+    }
+
+    // Migration functions
+    function loadMigrations() {
+        const statusDiv = document.getElementById('migrationStatus');
+        const runBtn = document.getElementById('runMigrationsBtn');
+        
+        statusDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading migration status...</div>';
+        
+        fetch('../../migrations/run_migrations.php', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                renderMigrationStatus(data);
+                if (data.pending_count > 0) {
+                    runBtn.style.display = 'inline-flex';
+                } else {
+                    runBtn.style.display = 'none';
+                }
+            } else {
+                statusDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Failed to load: ' + data.message + '</div>';
+            }
+        })
+        .catch(e => {
+            statusDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Error: ' + e + '</div>';
+        });
+    }
+
+    function renderMigrationStatus(data) {
+        const statusDiv = document.getElementById('migrationStatus');
+        
+        let html = '<div style="display:flex; gap:20px; margin-bottom:20px;">';
+        html += '<div style="flex:1; background:var(--surface2); padding:16px; border-radius:8px; text-align:center;">';
+        html += '<div style="font-size:24px; font-weight:700; color:var(--success);">' + data.executed_count + '</div>';
+        html += '<div style="font-size:12px; color:var(--text-muted);">Executed</div>';
+        html += '</div>';
+        html += '<div style="flex:1; background:var(--surface2); padding:16px; border-radius:8px; text-align:center;">';
+        html += '<div style="font-size:24px; font-weight:700; color:var(--warning);">' + data.pending_count + '</div>';
+        html += '<div style="font-size:12px; color:var(--text-muted);">Pending</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        if (data.executed_migrations && data.executed_migrations.length > 0) {
+            html += '<h4 style="font-size:14px; margin-bottom:12px; color:var(--text);">Executed Migrations</h4>';
+            html += '<div style="max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:20px;">';
+            html += '<table style="width:100%; border-collapse:collapse;">';
+            html += '<thead><tr style="background:var(--surface2);"><th style="padding:10px; text-align:left; font-size:12px;">Migration</th><th style="padding:10px; text-align:left; font-size:12px;">Executed At</th></tr></thead>';
+            html += '<tbody>';
+            data.executed_migrations.forEach(m => {
+                html += '<tr style="border-bottom:1px solid var(--border);">';
+                html += '<td style="padding:10px; font-size:13px;">' + m.migration_name + '</td>';
+                html += '<td style="padding:10px; font-size:13px; color:var(--text-muted);">' + m.executed_at + '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+        
+        if (data.pending_migrations && data.pending_migrations.length > 0) {
+            html += '<h4 style="font-size:14px; margin-bottom:12px; color:var(--text);">Pending Migrations</h4>';
+            html += '<ul style="list-style:none; padding:0; margin:0;">';
+            data.pending_migrations.forEach(m => {
+                html += '<li style="padding:10px; background:var(--surface2); border-radius:6px; margin-bottom:8px; font-size:13px;">';
+                html += '<i class="fas fa-clock" style="color:var(--warning); margin-right:8px;"></i>';
+                html += m.name;
+                html += '</li>';
+            });
+            html += '</ul>';
+        } else {
+            html += '<div style="text-align:center; padding:20px; color:var(--success);"><i class="fas fa-check-circle"></i> All migrations are up to date!</div>';
+        }
+        
+        statusDiv.innerHTML = html;
+    }
+
+    function runPendingMigrations() {
+        if (!confirm('Are you sure you want to run pending migrations? This will modify your database.')) {
+            return;
+        }
+        
+        const resultsDiv = document.getElementById('migrationResults');
+        const runBtn = document.getElementById('runMigrationsBtn');
+        
+        runBtn.disabled = true;
+        runBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+        resultsDiv.style.display = 'block';
+        resultsDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Running migrations...</div>';
+        
+        const formData = new URLSearchParams();
+        formData.append('action', 'run_migrations');
+        
+        fetch('../../migrations/run_migrations.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                let html = '<div style="margin-bottom:16px;">';
+                html += '<div style="color:var(--success); font-weight:600; margin-bottom:8px;"><i class="fas fa-check-circle"></i> ' + data.executed_count + ' migration(s) executed</div>';
+                html += '</div>';
+                
+                if (data.results && data.results.length > 0) {
+                    html += '<div style="max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">';
+                    html += '<table style="width:100%; border-collapse:collapse;">';
+                    html += '<thead><tr style="background:var(--surface2);"><th style="padding:10px; text-align:left; font-size:12px;">Migration</th><th style="padding:10px; text-align:left; font-size:12px;">Status</th></tr></thead>';
+                    html += '<tbody>';
+                    data.results.forEach(r => {
+                        const statusColor = r.status === 'success' ? 'var(--success)' : 'var(--danger)';
+                        html += '<tr style="border-bottom:1px solid var(--border);">';
+                        html += '<td style="padding:10px; font-size:13px;">' + r.name + '</td>';
+                        html += '<td style="padding:10px; font-size:13px; color:' + statusColor + ';"><i class="fas fa-' + (r.status === 'success' ? 'check-circle' : 'exclamation-circle') + '"></i> ' + r.status + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                }
+                
+                resultsDiv.innerHTML = html;
+                loadMigrations(); // Refresh status
+            } else {
+                resultsDiv.innerHTML = '<div style="color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Failed: ' + data.message + '</div>';
+            }
+        })
+        .catch(e => {
+            resultsDiv.innerHTML = '<div style="color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Error: ' + e + '</div>';
+        })
+        .finally(() => {
+            runBtn.disabled = false;
+            runBtn.innerHTML = '<i class="fas fa-play"></i> Run Pending Migrations';
+        });
+    }
+
+    // Load migrations when panel is opened
+    document.addEventListener('DOMContentLoaded', function() {
+        const migrationsPanel = document.getElementById('panel-migrations');
+        if (migrationsPanel) {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.target.classList.contains('active')) {
+                        loadMigrations();
+                    }
+                });
+            });
+            observer.observe(migrationsPanel, { attributes: true, attributeFilter: ['class'] });
+        }
+    });
     </script>
+
+<!-- Tutor Permissions Modal -->
+<div id="tutorPermissionsModal" class="modal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); overflow-y:auto;">
+    <div style="background:var(--surface); max-width:700px; margin:5% auto; padding:28px 32px; border-radius:var(--radius); box-shadow:var(--shadow-lg); position:relative;">
+        <button type="button" onclick="closeTutorPermissionsModal()" style="position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:14px;">&times;</button>
+        <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:20px; color:var(--text); display:flex; align-items:center; gap:10px;">
+            <i class="fas fa-key"></i> Module Permissions
+        </h3>
+        <p style="margin-bottom:20px; color:var(--text-muted); font-size:0.9rem;">
+            Manage which modules <strong id="perm_tutor_name"></strong> can edit and teach.
+        </p>
+        <input type="hidden" id="perm_tutor_id" value="">
+        <input type="hidden" id="perm_course_id" value="">
+        
+        <div id="module_permissions_container" style="margin-bottom:20px;">
+            <div style="text-align:center; padding:20px; color:var(--text-muted);">
+                <i class="fas fa-spinner fa-spin"></i> Loading modules...
+            </div>
+        </div>
+        
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+            <button type="button" onclick="closeTutorPermissionsModal()" class="btn btn-secondary">Cancel</button>
+            <button type="button" onclick="saveTutorPermissions()" class="btn btn-primary">
+                <i class="fas fa-save"></i> Save Permissions
+            </button>
+        </div>
+    </div>
+</div>
 </body>
 </html>

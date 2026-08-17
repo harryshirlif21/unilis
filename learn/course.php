@@ -13,6 +13,7 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/catalogue.php';
 require_once __DIR__ . '/includes/layout.php';
+require_once __DIR__ . '/includes/content_renderer.php';
 
 learn_require_schema($conn);
 
@@ -163,7 +164,11 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
 <?php if (!empty($course['cover_image']) && $course['cover_image'] !== '0'): ?>
     <?php
     $bannerPath = (string)$course['cover_image'];
-    if (strpos($bannerPath, 'http') !== 0 && strpos($bannerPath, '/') !== 0) $bannerPath = '/' . ltrim($bannerPath, '/');
+    // Remove any relative path components and ensure leading slash
+    $bannerPath = preg_replace('#^(?:\.\./)+#', '', $bannerPath);
+    if (strpos($bannerPath, 'http') !== 0 && strpos($bannerPath, '/') !== 0) {
+        $bannerPath = '/' . ltrim($bannerPath, '/');
+    }
     ?>
     <div class="ln-course-banner"><img src="<?= learn_e($bannerPath) ?>" alt=""></div>
 <?php endif; ?>
@@ -285,7 +290,7 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
 
         <?php // Lesson bodies are lecturer-authored rich text from the editor, so
               // they are rendered as markup here by design. ?>
-        <div class="ln-lesson-body"><?= $openLesson['content_html'] ?? '' ?></div>
+        <div class="ln-lesson-body"><?= render_lesson_content($openLesson['content_html'] ?? '') ?></div>
 
         <?php if (!in_array((int)$openLesson['id'], $doneLessons, true)): ?>
             <form method="post" style="margin-top:22px;">

@@ -145,17 +145,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 studio_flash('That module is not part of this course.', 'error');
                 studio_redirect(studio_back($courseId));
             }
+            
+            // Check tutor permissions for editing this module
+            if ($actor['role'] === 'lecturer' && !tutor_can_edit_module($conn, $actor['id'], (int)$module['id'])) {
+                studio_flash('You do not have permission to edit this module.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
+            
             $title = trim((string)($_POST['title'] ?? ''));
             if ($title === '') {
                 studio_flash('A module needs a title.', 'error');
                 studio_redirect(studio_back($courseId));
             }
             $summary = trim((string)($_POST['summary'] ?? ''));
+            $start_date = trim((string)($_POST['start_date'] ?? ''));
+            $end_date = trim((string)($_POST['end_date'] ?? ''));
+            
             catalogue_update_module(
                 $conn,
                 (int)$module['id'],
                 mb_substr($title, 0, 200),
-                $summary !== '' ? mb_substr($summary, 0, 400) : null
+                $summary !== '' ? mb_substr($summary, 0, 400) : null,
+                $start_date !== '' ? $start_date : null,
+                $end_date !== '' ? $end_date : null
             );
             studio_flash('Module saved.');
             studio_redirect(studio_back($courseId));
@@ -210,12 +222,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 studio_flash('That lesson is not part of this course.', 'error');
                 studio_redirect(studio_back($courseId));
             }
+            
+            // Check tutor permissions for editing this lesson's module
+            if ($actor['role'] === 'lecturer' && !tutor_can_edit_module($conn, $actor['id'], (int)$lesson['module_id'])) {
+                studio_flash('You do not have permission to edit lessons in this module.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
+            
             $check = catalogue_validate_lesson($_POST);
             if ($check['errors']) {
                 studio_flash('The lesson was not saved.', 'error', $check['errors']);
                 studio_redirect(studio_back($courseId, ['lesson' => (int)$lesson['id']]));
             }
-            catalogue_update_lesson($conn, (int)$lesson['id'], $check['values']);
+            
+            $start_date = trim((string)($_POST['start_date'] ?? ''));
+            $end_date = trim((string)($_POST['end_date'] ?? ''));
+            
+            catalogue_update_lesson($conn, (int)$lesson['id'], $check['values'], $start_date !== '' ? $start_date : null, $end_date !== '' ? $end_date : null);
 
             $message = 'Lesson saved.';
             if (!empty($_FILES['attachment']['name'])) {
@@ -268,6 +291,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ($_POST['direction'] ?? '') === 'up' ? 'up' : 'down'
                 );
             }
+            studio_redirect(studio_back($courseId));
+        }
+
+        case 'move_lesson_to_module': {
+            $lesson = catalogue_lesson_in_course($conn, (int)($_POST['lesson_id'] ?? 0), $courseId);
+            $targetModule = catalogue_module_in_course($conn, (int)($_POST['target_module_id'] ?? 0), $courseId);
+            
+            if ($lesson === null) {
+                studio_flash('That lesson is not part of this course.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
+            
+            if ($targetModule === null) {
+                studio_flash('That module is not part of this course.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
+            
+            if ((int)$lesson['module_id'] === (int)$targetModule['id']) {
+                studio_flash('Lesson is already in that module.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
+            
+            // Move lesson to new module
+            $stmt = $conn->prepare("UPDATE public_course_lessons SET module_id = ? WHERE id = ?");
+            $stmt->bind_param('ii', $targetModule['id'], $lesson['id']);
+            $stmt->execute();
+            $stmt->close();
+            
+            // Reposition lessons in both modules
+            catalogue_reposition_lessons($conn, (int)$lesson['module_id']);
+            catalogue_reposition_lessons($conn, (int)$targetModule['id']);
+            
+            studio_flash('Lesson moved to ' . $targetModule['title'] . '.');
             studio_redirect(studio_back($courseId));
         }
 

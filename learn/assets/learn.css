@@ -414,3 +414,63 @@ a { color: var(--ln-green-mid); }
 @media (prefers-reduced-motion: reduce) {
     .ln-course, .ln-btn, .ln-bar-fill { transition: none; }
 }
+
+/* ── Content Block Styles ─────────────────────────────────────────────────── */
+
+.ln-content-text {
+    margin-bottom: 20px;
+}
+
+.ln-content-image,
+.ln-content-diagram {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.ln-content-image img,
+.ln-content-diagram img {
+    border-radius: var(--ln-r-sm);
+    box-shadow: var(--ln-shadow);
+    max-width: 100%;
+    height: auto;
+}
+
+.ln-caption {
+    font-size: 0.85rem;
+    color: var(--ln-muted);
+    margin: 8px 0 0 0;
+    font-style: italic;
+}
+
+.ln-content-video {
+    margin: 24px 0;
+}
+
+.ln-content-audio {
+    margin: 20px 0;
+}
+
+.ln-content-pdf,
+.ln-content-ppt {
+    margin: 24px 0;
+    border: 1px solid var(--ln-line);
+    border-radius: var(--ln-r);
+    padding: 20px;
+    background: var(--ln-surface);
+}
+
+.ln-pdf-header,
+.ln-ppt-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    font-size: 1.1rem;
+    color: var(--ln-ink);
+}
+
+.ln-pdf-header .material-symbols-rounded,
+.ln-ppt-header .material-symbols-rounded {
+    color: var(--ln-accent);
+    font-size: 24px;
+}

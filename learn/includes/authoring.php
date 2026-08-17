@@ -640,10 +640,10 @@ function catalogue_module_in_course(mysqli $conn, int $moduleId, int $courseId):
     return $row ?: null;
 }
 
-function catalogue_update_module(mysqli $conn, int $moduleId, string $title, ?string $summary): void
+function catalogue_update_module(mysqli $conn, int $moduleId, string $title, ?string $summary, ?string $start_date = null, ?string $end_date = null): void
 {
-    $stmt = $conn->prepare("UPDATE public_course_modules SET title = ?, summary = ? WHERE id = ?");
-    $stmt->bind_param('ssi', $title, $summary, $moduleId);
+    $stmt = $conn->prepare("UPDATE public_course_modules SET title = ?, summary = ?, start_date = ?, end_date = ? WHERE id = ?");
+    $stmt->bind_param('ssssi', $title, $summary, $start_date, $end_date, $moduleId);
     $stmt->execute();
     $stmt->close();
 }
@@ -830,19 +830,21 @@ function catalogue_lesson_in_course(mysqli $conn, int $lessonId, int $courseId):
     return $row ?: null;
 }
 
-function catalogue_update_lesson(mysqli $conn, int $lessonId, array $values): void
+function catalogue_update_lesson(mysqli $conn, int $lessonId, array $values, ?string $start_date = null, ?string $end_date = null): void
 {
     $stmt = $conn->prepare("
         UPDATE public_course_lessons
-        SET title = ?, content_html = ?, video_url = ?, duration_minutes = ?
+        SET title = ?, content_html = ?, video_url = ?, duration_minutes = ?, start_date = ?, end_date = ?
         WHERE id = ?
     ");
     $stmt->bind_param(
-        'sssii',
+        'ssssisi',
         $values['title'],
         $values['content_html'],
         $values['video_url'],
         $values['duration_minutes'],
+        $start_date,
+        $end_date,
         $lessonId
     );
     $stmt->execute();
@@ -855,6 +857,78 @@ function catalogue_set_lesson_attachment(mysqli $conn, int $lessonId, ?string $p
     $stmt->bind_param('si', $path, $lessonId);
     $stmt->execute();
     $stmt->close();
+}
+
+function catalogue_reposition_lessons(mysqli $conn, int $moduleId): void
+{
+    $stmt = $conn->prepare("
+        SELECT id FROM public_course_lessons 
+        WHERE module_id = ? 
+        ORDER BY position ASC, id ASC
+    ");
+    $stmt->bind_param('i', $moduleId);
+    $stmt->execute();
+    $lessons = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    foreach ($lessons as $index => $lesson) {
+        $update = $conn->prepare("UPDATE public_course_lessons SET position = ? WHERE id = ?");
+        $update->bind_param('ii', $index, $lesson['id']);
+        $update->execute();
+        $update->close();
+    }
+}
+
+function tutor_can_edit_module(mysqli $conn, int $tutorId, int $moduleId): bool
+{
+    // Check if tutor has explicit permission to edit this module
+    $checkTable = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
+    if ($checkTable && $checkTable->num_rows > 0) {
+        $stmt = $conn->prepare("
+            SELECT can_edit FROM tutor_module_permissions
+            WHERE tutor_id = ? AND module_id = ? AND can_edit = 1
+            LIMIT 1
+        ");
+        $stmt->bind_param('ii', $tutorId, $moduleId);
+        $stmt->execute();
+        $hasPermission = $stmt->get_result()->num_rows > 0;
+        $stmt->close();
+        
+        if ($hasPermission) {
+            return true;
+        }
+    }
+    
+    // Fallback: Check if tutor is assigned to the course containing this module
+    $stmt = $conn->prepare("
+        SELECT sct.id FROM short_course_tutors sct
+        JOIN public_course_modules m ON m.course_id = sct.short_course_id
+        WHERE sct.lecturer_id = ? AND m.id = ? AND sct.is_active = 1
+        LIMIT 1
+    ");
+    $stmt->bind_param('ii', $tutorId, $moduleId);
+    $stmt->execute();
+    $isAssigned = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+    
+    return $isAssigned;
+}
+
+function tutor_can_view_module(mysqli $conn, int $tutorId, int $moduleId): bool
+{
+    // Tutors can always view modules in courses they're assigned to
+    $stmt = $conn->prepare("
+        SELECT sct.id FROM short_course_tutors sct
+        JOIN public_course_modules m ON m.course_id = sct.short_course_id
+        WHERE sct.lecturer_id = ? AND m.id = ? AND sct.is_active = 1
+        LIMIT 1
+    ");
+    $stmt->bind_param('ii', $tutorId, $moduleId);
+    $stmt->execute();
+    $canView = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+    
+    return $canView;
 }
 
 function catalogue_delete_lesson(mysqli $conn, int $lessonId): void

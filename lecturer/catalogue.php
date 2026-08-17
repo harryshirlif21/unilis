@@ -163,7 +163,7 @@ studio_head('My open courses');
                                 <a class="st-dropdown-item" href="#" onclick="openCoursePreview(<?= $courseId ?>); return false;">
                                     <i class="fas fa-book"></i> Course Preview
                                 </a>
-                                <a class="st-dropdown-item" href="catalogue_builder.php?course_id=<?= $courseId ?>">
+                                <a class="st-dropdown-item" href="#" onclick="openModulePreview(<?= $courseId ?>); return false;">
                                     <i class="fas fa-layer-group"></i> Module Preview
                                 </a>
                                 <a class="st-dropdown-item" href="#" onclick="openLessonPreview(<?= $courseId ?>); return false;">
@@ -223,6 +223,11 @@ function openCoursePreview(courseId) {
     } else {
         alert('Course not published yet. Publish the course to enable preview.');
     }
+}
+
+function openModulePreview(courseId) {
+    // Open module-level preview - shows the module and lesson structure
+    window.open('catalogue_builder.php?course_id=' + courseId, '_blank');
 }
 
 function openLessonPreview(courseId) {
