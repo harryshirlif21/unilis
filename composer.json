@@ -13,9 +13,6 @@
         "psr-4": {
             "Unilis\\": "src/"
         },
-        "files": [
-            "vendor/autoload.php"
-        ]
     },
     "config": {
         "allow-plugins": {
@@ -23,3 +20,4 @@
         }
     }
 }
+
