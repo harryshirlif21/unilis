@@ -611,6 +611,8 @@ if ($teamTablesExist) {
     $migrationScripts = glob(dirname(__DIR__) . '/migrate_*.php') ?: [];
     // Also include Phase 1 migration scripts - preserve relative path
     $phase1Migrations = glob(dirname(__DIR__) . '/phase1/database/*.php') ?: [];
+    // Include migrations directory scripts
+    $migrationsDirScripts = glob(dirname(__DIR__) . '/migrations/*.php') ?: [];
     
     // Convert root-level migrations to relative paths (just filename)
     $migrationScripts = array_map(function($path) {
@@ -622,7 +624,12 @@ if ($teamTablesExist) {
         return 'phase1/database/' . basename($path);
     }, $phase1Migrations);
     
-    $migrationScripts = array_merge($migrationScripts, $phase1Migrations);
+    // Migrations directory scripts need their subdirectory path preserved
+    $migrationsDirScripts = array_map(function($path) {
+        return 'migrations/' . basename($path);
+    }, $migrationsDirScripts);
+    
+    $migrationScripts = array_merge($migrationScripts, $phase1Migrations, $migrationsDirScripts);
     sort($migrationScripts);
     ?>
     <div class="registration-stats-section">
@@ -652,6 +659,8 @@ if ($teamTablesExist) {
                     $scriptName = $path; // Use full relative path, not just basename
                     // Build absolute path for filemtime
                     if (strpos($path, 'phase1/') === 0) {
+                        $absolutePath = dirname(__DIR__) . '/' . $path;
+                    } elseif (strpos($path, 'migrations/') === 0) {
                         $absolutePath = dirname(__DIR__) . '/' . $path;
                     } else {
                         $absolutePath = dirname(__DIR__) . '/' . $path;

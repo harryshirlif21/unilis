@@ -13,6 +13,9 @@ $lecturer_id = (int)$_SESSION['user_id'];
 $course_id   = (int)($_POST['course_id'] ?? 0);
 $module_id   = (int)($_POST['module_id'] ?? 0);
 $title       = trim($_POST['title'] ?? '');
+$summary     = trim($_POST['summary'] ?? '');
+$start_date  = trim($_POST['start_date'] ?? '');
+$end_date    = trim($_POST['end_date'] ?? '');
 
 if (!$course_id || !$title) {
     echo json_encode(['success' => false, 'message' => 'Missing required fields']);
@@ -26,13 +29,13 @@ if (!shortCourseCanManage($conn, $course_id)) {
 
 if ($module_id > 0) {
     // Update existing module
-    $stmt = $conn->prepare("UPDATE public_course_modules SET title = ? WHERE id = ? AND course_id = ?");
-    $stmt->bind_param("sii", $title, $module_id, $course_id);
+    $stmt = $conn->prepare("UPDATE public_course_modules SET title = ?, summary = ?, start_date = ?, end_date = ? WHERE id = ? AND course_id = ?");
+    $stmt->bind_param("ssssii", $title, $summary, $start_date, $end_date, $module_id, $course_id);
     $stmt->execute();
     $affected = $stmt->affected_rows;
     $stmt->close();
     if ($affected > 0) {
-        echo json_encode(['success' => true, 'message' => 'Module renamed']);
+        echo json_encode(['success' => true, 'message' => 'Module updated']);
     } else {
         echo json_encode(['success' => false, 'message' => 'Module not found']);
     }
@@ -44,8 +47,8 @@ if ($module_id > 0) {
     $position = (int)$posRow['next'];
     $posResult->free();
 
-    $stmt = $conn->prepare("INSERT INTO public_course_modules (course_id, title, position) VALUES (?, ?, ?)");
-    $stmt->bind_param("isi", $course_id, $title, $position);
+    $stmt = $conn->prepare("INSERT INTO public_course_modules (course_id, title, summary, start_date, end_date, position) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("issssi", $course_id, $title, $summary, $start_date, $end_date, $position);
     $stmt->execute();
     $newId = $conn->insert_id;
     $stmt->close();

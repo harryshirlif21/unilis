@@ -982,10 +982,49 @@ body {
             <input type="text" class="form-input" id="module-title-input"
                    placeholder="e.g. Introduction to Networking">
         </div>
+        <div class="form-group">
+            <label>Summary</label>
+            <textarea class="form-textarea" id="module-summary-input"
+                      placeholder="Brief description of this module..."
+                      style="min-height:80px"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Start Date</label>
+            <input type="date" class="form-input" id="module-start-date-input">
+        </div>
+        <div class="form-group">
+            <label>End Date</label>
+            <input type="date" class="form-input" id="module-end-date-input">
+        </div>
         <div class="modal-actions">
             <button class="btn btn-ghost" onclick="closeModal('module-modal')">Cancel</button>
             <button class="btn btn-primary" id="module-save-btn" onclick="saveModule()">
                 <i class="fas fa-save"></i> Save Module
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Lesson Details Modal -->
+<div class="modal-overlay" id="lesson-details-modal">
+    <div class="modal">
+        <h3><i class="fas fa-cog"></i> Edit Lesson Details</h3>
+        <div class="form-group">
+            <label>Lesson Title</label>
+            <input type="text" class="form-input" id="lesson-title-input" readonly>
+        </div>
+        <div class="form-group">
+            <label>YouTube Recording URL</label>
+            <input type="url" class="form-input" id="lesson-video-url-input"
+                   placeholder="https://www.youtube.com/watch?v=...">
+            <small style="color:var(--text-muted);font-size:0.75rem;margin-top:4px;display:block">
+                Add YouTube link for recorded lessons after the lesson date has passed
+            </small>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('lesson-details-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveLessonDetails()">
+                <i class="fas fa-save"></i> Save Details
             </button>
         </div>
     </div>
@@ -1087,6 +1126,7 @@ let selectedUnitName = '';
 let modules          = [];
 let outline          = null;
 let editingModuleId  = null;
+let editingLessonId   = null;
 
 // All units from PHP (for import modal)
 const ALL_UNITS = <?= json_encode($units) ?>;
@@ -1247,6 +1287,9 @@ function buildModuleCard(mod, idx) {
                 <button class="btn btn-ghost btn-sm btn-icon" onclick="openAddLessonInline(${mod.id})" title="Add Lesson">
                     <i class="fas fa-plus" style="color:var(--accent2)"></i>
                 </button>
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="openEditModuleModal(${mod.id}, '${escAttr(mod.title)}', '${escAttr(mod.summary || '')}', '${escAttr(mod.start_date || '')}', '${escAttr(mod.end_date || '')}')" title="Edit Module">
+                    <i class="fas fa-pen" style="color:var(--accent)"></i>
+                </button>
                 ${MODE === 'short_course' ? `<a href="lesson_preview.php?course_id=${COURSE_ID}&module_id=${mod.id}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm btn-icon" title="Preview Module">
                     <i class="fas fa-eye" style="color:var(--accent2)"></i>
                 </a>` : ''}
@@ -1280,17 +1323,22 @@ function buildLessonRowHTML(lesson, moduleId) {
     } else {
         editLink = `lesson_editor.php?lesson_id=${lessonId}&unit_id=${selectedUnitId}`;
     }
+    const hasVideo = lesson.video_url && lesson.video_url.trim() !== '';
     return `
         <div class="lesson-row" draggable="true" data-id="${lesson.id}" data-module="${moduleId}">
             <i class="fas fa-grip-vertical lesson-drag" style="color:var(--text-dim);font-size:0.75rem"></i>
-            <span class="lesson-num">L${lesson.lesson_number || (lesson.position !== undefined ? lesson.position + 1 : '')}</span>
+            <span class="lesson-num" onclick="inlineEditLessonNumber(${lesson.id}, ${moduleId})" id="ln-${lesson.id}" title="Click to edit number" style="cursor:pointer">L${lesson.lesson_number || (lesson.position !== undefined ? lesson.position + 1 : '')}</span>
             <span class="lesson-title" ondblclick="inlineEditLesson(${lesson.id}, ${moduleId})" id="lt-${lesson.id}" title="Double-click to rename">
                 ${escHtml(lesson.title)}
             </span>
+            ${hasVideo ? `<i class="fab fa-youtube" style="color:var(--accent3);font-size:0.75rem;margin-left:8px" title="Has video recording"></i>` : ''}
             <div class="lesson-actions">
                 ${MODE === 'short_course' ? `<a href="lesson_preview.php?course_id=${COURSE_ID}&lesson_id=${lessonId}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm btn-icon" title="Preview Lesson">
                     <i class="fas fa-eye" style="color:var(--accent2)"></i>
                 </a>` : ''}
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="openEditLessonModal(${lesson.id}, '${escAttr(lesson.title)}', '${escAttr(lesson.video_url || '')}')" title="Edit Lesson Details">
+                    <i class="fas fa-cog" style="color:var(--text-muted)"></i>
+                </button>
                 <a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
                     <i class="fas fa-pen" style="color:var(--accent)"></i>
                 </a>
@@ -1377,6 +1425,103 @@ function inlineEditLesson(lessonId, moduleId) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// INLINE EDIT LESSON NUMBER
+// ─────────────────────────────────────────────────────────────
+function inlineEditLessonNumber(lessonId, moduleId) {
+    const numEl = document.getElementById(`ln-${lessonId}`);
+    const current = numEl.textContent.trim();
+    const mod     = modules.find(m => m.id === moduleId);
+    const lesson  = mod.lessons.find(l => l.id === lessonId);
+    const currentNum = current.replace('L', '');
+    numEl.style.display = 'none';
+    const input = document.createElement('input');
+    input.type      = 'number';
+    input.className = 'lesson-num-input';
+    input.value     = currentNum;
+    input.style.width = '50px';
+    input.style.padding = '2px 6px';
+    input.style.fontSize = '0.68rem';
+    input.style.borderRadius = '999px';
+    input.style.border = '1px solid var(--accent)';
+    input.style.background = 'var(--surface3)';
+    input.style.color = 'var(--text)';
+    numEl.parentNode.insertBefore(input, numEl.nextSibling);
+    input.focus(); input.select();
+    const commit = () => {
+        const newNum = input.value.trim();
+        input.remove(); numEl.style.display = '';
+        if (!newNum || newNum === currentNum) return;
+        numEl.textContent = 'L' + newNum;
+        lesson.lesson_number = newNum;
+        ajaxSaveLessonNumber(lessonId, moduleId, newNum);
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') { input.remove(); numEl.style.display = ''; }
+    });
+}
+
+function ajaxSaveLessonNumber(lessonId, moduleId, lessonNumber) {
+    const body = new FormData();
+    body.append('lesson_id', lessonId);
+    body.append('module_id', moduleId);
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('lesson_number', lessonNumber);
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_lesson.php' : 'ajax/save_lesson.php';
+    fetch(endpoint, { method: 'POST', body })
+        .then(r => r.json())
+        .then(d => toast(d.success ? 'Lesson number updated' : d.message, d.success ? 'success' : 'error'))
+        .catch(() => toast('Update failed', 'error'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// LESSON DETAILS MODAL
+// ─────────────────────────────────────────────────────────────
+function openEditLessonModal(lessonId, title, videoUrl) {
+    editingLessonId = lessonId;
+    document.getElementById('lesson-title-input').value = title || '';
+    document.getElementById('lesson-video-url-input').value = videoUrl || '';
+    openModal('lesson-details-modal');
+    setTimeout(() => document.getElementById('lesson-video-url-input').focus(), 150);
+}
+
+function saveLessonDetails() {
+    const videoUrl = document.getElementById('lesson-video-url-input').value.trim();
+    const btn = document.querySelector('#lesson-details-modal .btn-primary');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving...';
+    
+    const body = new FormData();
+    body.append('lesson_id', editingLessonId);
+    body.append('video_url', videoUrl);
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_lesson.php' : 'ajax/save_lesson.php';
+    fetch(endpoint, { method: 'POST', body })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) { 
+                toast('Lesson details saved', 'success'); 
+                closeModal('lesson-details-modal'); 
+                reloadTree(); 
+            }
+            else toast(data.message, 'error');
+        })
+        .catch(() => toast('Network error', 'error'))
+        .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Details'; });
+}
+
+// ─────────────────────────────────────────────────────────────
 // ADD LESSON INLINE
 // ─────────────────────────────────────────────────────────────
 function openAddLessonInline(moduleId) {
@@ -1415,6 +1560,20 @@ function openAddModuleModal() {
     editingModuleId = null;
     document.getElementById('module-modal-title').innerHTML = '<i class="fas fa-cubes"></i> Add Module';
     document.getElementById('module-title-input').value = '';
+    document.getElementById('module-summary-input').value = '';
+    document.getElementById('module-start-date-input').value = '';
+    document.getElementById('module-end-date-input').value = '';
+    openModal('module-modal');
+    setTimeout(() => document.getElementById('module-title-input').focus(), 150);
+}
+
+function openEditModuleModal(moduleId, title, summary, startDate, endDate) {
+    editingModuleId = moduleId;
+    document.getElementById('module-modal-title').innerHTML = '<i class="fas fa-cubes"></i> Edit Module';
+    document.getElementById('module-title-input').value = title || '';
+    document.getElementById('module-summary-input').value = summary || '';
+    document.getElementById('module-start-date-input').value = startDate || '';
+    document.getElementById('module-end-date-input').value = endDate || '';
     openModal('module-modal');
     setTimeout(() => document.getElementById('module-title-input').focus(), 150);
 }
@@ -1433,6 +1592,9 @@ function saveModule() {
     }
     body.append('lecturer_id', LECTURER_ID);
     body.append('title', title);
+    body.append('summary', document.getElementById('module-summary-input').value.trim());
+    body.append('start_date', document.getElementById('module-start-date-input').value);
+    body.append('end_date', document.getElementById('module-end-date-input').value);
     if (editingModuleId) body.append('module_id', editingModuleId);
 
     const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_module.php' : 'ajax/save_module.php';

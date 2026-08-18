@@ -114,8 +114,31 @@ if ($action === 'get_course_modules') {
     header('Content-Type: application/json');
     $course_id = (int)($_POST['course_id'] ?? 0);
     if ($course_id) {
+        // Check if table exists first
+        $checkTable = $conn->query("SHOW TABLES LIKE 'public_course_modules'");
+        if (!$checkTable || $checkTable->num_rows === 0) {
+            echo json_encode(['success' => false, 'message' => 'Modules table does not exist. Please run database migrations.']);
+            exit;
+        }
+        
+        // Check which columns exist to handle different schema versions
+        $columns = ['id', 'title'];
+        $columnCheck = $conn->query("SHOW COLUMNS FROM public_course_modules LIKE 'summary'");
+        if ($columnCheck && $columnCheck->num_rows > 0) {
+            $columns[] = 'summary';
+        }
+        $columnCheck = $conn->query("SHOW COLUMNS FROM public_course_modules LIKE 'start_date'");
+        if ($columnCheck && $columnCheck->num_rows > 0) {
+            $columns[] = 'start_date';
+        }
+        $columnCheck = $conn->query("SHOW COLUMNS FROM public_course_modules LIKE 'end_date'");
+        if ($columnCheck && $columnCheck->num_rows > 0) {
+            $columns[] = 'end_date';
+        }
+        
+        $columnList = implode(', ', $columns);
         $stmt = $conn->prepare("
-            SELECT id, title, summary, start_date, end_date
+            SELECT $columnList
             FROM public_course_modules
             WHERE course_id = ?
             ORDER BY position ASC, id ASC
@@ -125,6 +148,10 @@ if ($action === 'get_course_modules') {
         $result = $stmt->get_result();
         $modules = [];
         while ($row = $result->fetch_assoc()) {
+            // Ensure all expected keys exist even if column doesn't
+            if (!isset($row['summary'])) $row['summary'] = '';
+            if (!isset($row['start_date'])) $row['start_date'] = '';
+            if (!isset($row['end_date'])) $row['end_date'] = '';
             $modules[] = $row;
         }
         echo json_encode(['success' => true, 'modules' => $modules]);
@@ -1741,9 +1768,6 @@ if ($department_id) {
             <button class="nav-item" data-panel="tutors" onclick="switchPanel('tutors', this)">
                 <i class="fas fa-user-plus"></i> Assign Tutors
             </button>
-            <button class="nav-item" onclick="window.open('../../migrations/add_course_sponsors.php', '_blank')">
-                <i class="fas fa-database"></i> Run Migrations
-            </button>
             <a class="nav-item" href="../../modules/live-engagement/index.php?page=dashboard&amp;create=1&amp;type=presentation">
                 <i class="fas fa-person-chalkboard"></i> Live Presentations
             </a>
@@ -1807,19 +1831,17 @@ if ($department_id) {
                     <div class="card-body">
                         <div class="table-wrap">
                             <table>
-                                <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Staff ID</th></tr></thead>
+                                <thead><tr><th>Name</th><th>Email</th></tr></thead>
                                 <tbody>
                                     <?php if ($lecturers && $lecturers->num_rows > 0): ?>
                                         <?php while ($l = $lecturers->fetch_assoc()): ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($l['name']) ?></td>
                                                 <td><?= htmlspecialchars($l['email']) ?></td>
-                                                <td><?= htmlspecialchars($l['phone'] ?? 'Ã¢â‚¬â€') ?></td>
-                                                <td><?= htmlspecialchars($l['staff_id'] ?? 'Ã¢â‚¬â€') ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     <?php else: ?>
-                                        <tr><td colspan="4" class="empty-state"><i class="fas fa-chalkboard-teacher"></i><p>No lecturers added yet</p></td></tr>
+                                        <tr><td colspan="2" class="empty-state"><i class="fas fa-chalkboard-teacher"></i><p>No lecturers added yet</p></td></tr>
                                     <?php endif; ?>
                                 </tbody>
                             </table>
@@ -2486,34 +2508,6 @@ if ($department_id) {
                     </div>
                 </div>
                 <?php endif; ?>
-
-                <!-- Migrations Panel -->
-                <div id="panel-migrations" class="panel">
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-icon"><i class="fas fa-database"></i></div>
-                            <h3>Database Migrations</h3>
-                        </div>
-                        <div class="card-body">
-                            <div style="margin-bottom:20px;">
-                                <button type="button" class="btn btn-primary" onclick="loadMigrations()">
-                                    <i class="fas fa-sync"></i> Refresh Status
-                                </button>
-                                <button type="button" onclick="runPendingMigrations()" id="runMigrationsBtn" style="display:inline-block; background:var(--success); color:#fff; padding:10px 16px; border:none; border-radius:var(--radius-sm,6px); cursor:pointer; font-size:14px; margin-left:10px;">
-                                    <i class="fas fa-play"></i> Run Migrations
-                                </button>
-                            </div>
-                            
-                            <div id="migrationStatus" style="margin-bottom:20px;">
-                                <div style="text-align:center; padding:20px; color:var(--text-muted);">
-                                    <i class="fas fa-spinner fa-spin"></i> Loading migration status...
-                                </div>
-                            </div>
-                            
-                            <div id="migrationResults" style="display:none;"></div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </main>
     </div>
@@ -3104,161 +3098,6 @@ if ($department_id) {
             }
         })
         .catch(e => alert('Error saving permissions: ' + e));
-    }
-
-    // Migration functions
-    function loadMigrations() {
-        const statusDiv = document.getElementById('migrationStatus');
-        const runBtn = document.getElementById('runMigrationsBtn');
-        
-        statusDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading migration status...</div>';
-        
-        fetch('../../migrations/run_migrations.php', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                renderMigrationStatus(data);
-                // Always show the run button - let user decide to run migrations
-                runBtn.style.display = 'inline-flex';
-            } else {
-                statusDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Failed to load: ' + data.message + '</div>';
-            }
-        })
-        .catch(e => {
-            statusDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Error: ' + e + '</div>';
-        });
-    }
-
-    function renderMigrationStatus(data) {
-        const statusDiv = document.getElementById('migrationStatus');
-        
-        let html = '<div style="display:flex; gap:20px; margin-bottom:20px;">';
-        html += '<div style="flex:1; background:var(--surface2); padding:16px; border-radius:8px; text-align:center;">';
-        html += '<div style="font-size:24px; font-weight:700; color:var(--success);">' + data.executed_count + '</div>';
-        html += '<div style="font-size:12px; color:var(--text-muted);">Executed</div>';
-        html += '</div>';
-        html += '<div style="flex:1; background:var(--surface2); padding:16px; border-radius:8px; text-align:center;">';
-        html += '<div style="font-size:24px; font-weight:700; color:var(--warning);">' + data.pending_count + '</div>';
-        html += '<div style="font-size:12px; color:var(--text-muted);">Pending</div>';
-        html += '</div>';
-        html += '</div>';
-        
-        if (data.executed_migrations && data.executed_migrations.length > 0) {
-            html += '<h4 style="font-size:14px; margin-bottom:12px; color:var(--text);">Executed Migrations</h4>';
-            html += '<div style="max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:20px;">';
-            html += '<table style="width:100%; border-collapse:collapse;">';
-            html += '<thead><tr style="background:var(--surface2);"><th style="padding:10px; text-align:left; font-size:12px;">Migration</th><th style="padding:10px; text-align:left; font-size:12px;">Executed At</th></tr></thead>';
-            html += '<tbody>';
-            data.executed_migrations.forEach(m => {
-                html += '<tr style="border-bottom:1px solid var(--border);">';
-                html += '<td style="padding:10px; font-size:13px;">' + m.migration_name + '</td>';
-                html += '<td style="padding:10px; font-size:13px; color:var(--text-muted);">' + m.executed_at + '</td>';
-                html += '</tr>';
-            });
-            html += '</tbody></table></div>';
-        }
-        
-        if (data.pending_migrations && data.pending_migrations.length > 0) {
-            html += '<h4 style="font-size:14px; margin-bottom:12px; color:var(--text);">Pending Migrations</h4>';
-            html += '<ul style="list-style:none; padding:0; margin:0;">';
-            data.pending_migrations.forEach(m => {
-                html += '<li style="padding:10px; background:var(--surface2); border-radius:6px; margin-bottom:8px; font-size:13px;">';
-                html += '<i class="fas fa-clock" style="color:var(--warning); margin-right:8px;"></i>';
-                html += m.name;
-                html += '</li>';
-            });
-            html += '</ul>';
-        } else {
-            html += '<div style="text-align:center; padding:20px; color:var(--success);"><i class="fas fa-check-circle"></i> All migrations are up to date!</div>';
-        }
-        
-        statusDiv.innerHTML = html;
-    }
-
-    function runPendingMigrations() {
-        if (!confirm('Are you sure you want to run pending migrations? This will modify your database.')) {
-            return;
-        }
-        
-        const resultsDiv = document.getElementById('migrationResults');
-        const runBtn = document.getElementById('runMigrationsBtn');
-        
-        runBtn.disabled = true;
-        runBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
-        resultsDiv.style.display = 'block';
-        resultsDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Running migrations...</div>';
-        
-        const formData = new URLSearchParams();
-        formData.append('action', 'run_migrations');
-        
-        fetch('../../migrations/run_migrations.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData.toString()
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                let html = '<div style="margin-bottom:16px;">';
-                html += '<div style="color:var(--success); font-weight:600; margin-bottom:8px;"><i class="fas fa-check-circle"></i> ' + data.executed_count + ' migration(s) executed</div>';
-                html += '</div>';
-                
-                if (data.results && data.results.length > 0) {
-                    html += '<div style="max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">';
-                    html += '<table style="width:100%; border-collapse:collapse;">';
-                    html += '<thead><tr style="background:var(--surface2);"><th style="padding:10px; text-align:left; font-size:12px;">Migration</th><th style="padding:10px; text-align:left; font-size:12px;">Status</th></tr></thead>';
-                    html += '<tbody>';
-                    data.results.forEach(r => {
-                        const statusColor = r.status === 'success' ? 'var(--success)' : 'var(--danger)';
-                        html += '<tr style="border-bottom:1px solid var(--border);">';
-                        html += '<td style="padding:10px; font-size:13px;">' + r.name + '</td>';
-                        html += '<td style="padding:10px; font-size:13px; color:' + statusColor + ';"><i class="fas fa-' + (r.status === 'success' ? 'check-circle' : 'exclamation-circle') + '"></i> ' + r.status + '</td>';
-                        html += '</tr>';
-                    });
-                    html += '</tbody></table></div>';
-                }
-                
-                resultsDiv.innerHTML = html;
-                loadMigrations(); // Refresh status
-            } else {
-                resultsDiv.innerHTML = '<div style="color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Failed: ' + data.message + '</div>';
-            }
-        })
-        .catch(e => {
-            resultsDiv.innerHTML = '<div style="color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Error: ' + e + '</div>';
-        })
-        .finally(() => {
-            runBtn.disabled = false;
-            runBtn.innerHTML = '<i class="fas fa-play"></i> Run Pending Migrations';
-        });
-    }
-
-    // Load migrations when panel is opened
-    document.addEventListener('DOMContentLoaded', function() {
-        const migrationsPanel = document.getElementById('panel-migrations');
-        if (migrationsPanel) {
-            const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    if (mutation.target.classList.contains('active')) {
-                        loadMigrations();
-                    }
-                });
-            });
-            observer.observe(migrationsPanel, { attributes: true, attributeFilter: ['class'] });
-        }
-    });
-
-    function runMigrationsFromSidebar(el) {
-        // Switch to the migrations panel first
-        switchPanel('migrations', el);
-        
-        // Wait a moment for the panel to be visible, then run migrations
-        setTimeout(function() {
-            runPendingMigrations();
-        }, 500);
     }
     </script>
 
