@@ -32,6 +32,10 @@ $courseHasOutline = hasOutlineColumn($conn, 'public_courses');
 $moduleHasOutline = hasOutlineColumn($conn, 'public_course_modules');
 $lessonHasOutline = hasOutlineColumn($conn, 'public_course_lessons');
 
+// Check if summary, start_date, end_date columns exist in modules
+$moduleHasSummary = hasOutlineColumn($conn, 'public_course_modules') && $conn->query("SHOW COLUMNS FROM public_course_modules LIKE 'summary'")->num_rows > 0;
+$moduleHasDates = $conn->query("SHOW COLUMNS FROM public_course_modules LIKE 'start_date'")->num_rows > 0;
+
 // Fetch course info for outline (description)
 $outline = null;
 $stmt = $conn->prepare('SELECT description' . ($courseHasOutline ? ', outline' : '') . ' FROM public_courses WHERE id = ? LIMIT 1');
@@ -41,10 +45,37 @@ $row = $stmt->get_result()->fetch_assoc();
 if ($row) $outline = $row;
 $stmt->close();
 
+// Fetch tutor's module permissions
+$editableModuleIds = [];
+$viewOnlyModuleIds = [];
+$permCheck = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
+if ($permCheck && $permCheck->num_rows > 0) {
+    $stmt = $conn->prepare("SELECT module_id, can_edit FROM tutor_module_permissions WHERE tutor_id = ?");
+    $stmt->bind_param("i", $lecturer_id);
+    $stmt->execute();
+    $permResult = $stmt->get_result();
+    while ($perm = $permResult->fetch_assoc()) {
+        if ($perm['can_edit']) {
+            $editableModuleIds[] = $perm['module_id'];
+        } else {
+            $viewOnlyModuleIds[] = $perm['module_id'];
+        }
+    }
+    $stmt->close();
+}
+
+// If course author, they can edit all modules
+$isAuthor = shortCourseIsAuthor();
+
 // Fetch modules from public_course_modules
 $modules = [];
+$selectFields = "id, title, position";
+if ($moduleHasOutline) $selectFields .= ", outline";
+if ($moduleHasSummary) $selectFields .= ", summary";
+if ($moduleHasDates) $selectFields .= ", start_date, end_date";
+
 $stmt = $conn->prepare("
-    SELECT id, title, position" . ($moduleHasOutline ? ', outline' : '') . "
+    SELECT $selectFields
     FROM public_course_modules
     WHERE course_id = ?
     ORDER BY position ASC, id ASC
@@ -54,6 +85,17 @@ $stmt->execute();
 $result = $stmt->get_result();
 while ($mod = $result->fetch_assoc()) {
     $mod['lessons'] = [];
+    // Determine edit permission
+    if ($isAuthor) {
+        $mod['can_edit'] = true;
+    } elseif (in_array($mod['id'], $editableModuleIds)) {
+        $mod['can_edit'] = true;
+    } elseif (in_array($mod['id'], $viewOnlyModuleIds)) {
+        $mod['can_edit'] = false;
+    } else {
+        // No permission assigned - default to view only if not author
+        $mod['can_edit'] = false;
+    }
     $modules[$mod['id']] = $mod;
 }
 $stmt->close();

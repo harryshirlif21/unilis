@@ -214,16 +214,16 @@ studio_head('My open courses');
                             <button class="st-btn st-btn-small st-btn-primary" onclick="toggleTeachDropdown(<?= $courseId ?>)">
                                 <i class="fas fa-chalkboard-teacher"></i> Teach
                             </button>
-                            <div class="st-dropdown-menu" id="teach-dropdown-<?= $courseId ?>" style="display:none; position:absolute; top:100%; left:0; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); min-width:180px; z-index:10; margin-top:4px; box-shadow:var(--shadow);">
+                            <div class="st-dropdown-menu" id="teach-dropdown-<?= $courseId ?>" style="display:none; position:absolute; top:100%; left:0; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); min-width:220px; max-height:300px; overflow-y:auto; z-index:10; margin-top:4px; box-shadow:var(--shadow);">
                                 <a class="st-dropdown-item" href="#" onclick="openCoursePreview(<?= $courseId ?>); return false;">
                                     <i class="fas fa-book"></i> Course Preview
                                 </a>
-                                <a class="st-dropdown-item" href="#" onclick="openModulePreview(<?= $courseId ?>); return false;">
-                                    <i class="fas fa-layer-group"></i> Module Preview
-                                </a>
-                                <a class="st-dropdown-item" href="#" onclick="openLessonPreview(<?= $courseId ?>); return false;">
-                                    <i class="fas fa-file-alt"></i> Lesson Preview
-                                </a>
+                                <div id="module-list-<?= $courseId ?>" style="display:none; border-top:1px solid var(--border);">
+                                    <!-- Modules will be loaded here -->
+                                </div>
+                                <div id="lesson-list-<?= $courseId ?>" style="display:none; border-top:1px solid var(--border);">
+                                    <!-- Lessons will be loaded here -->
+                                </div>
                             </div>
                         </div>
                         <?php if ($isPublished): ?>
@@ -264,42 +264,104 @@ function toggleTeachDropdown(courseId) {
     });
     
     // Toggle current dropdown
-    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    const isOpening = dropdown.style.display === 'none';
+    dropdown.style.display = isOpening ? 'block' : 'none';
+    
+    // Load modules and lessons when opening
+    if (isOpening) {
+        loadTeachContent(courseId);
+    }
+}
+
+function loadTeachContent(courseId) {
+    const moduleList = document.getElementById('module-list-' + courseId);
+    const lessonList = document.getElementById('lesson-list-' + courseId);
+    
+    // Show loading state
+    moduleList.innerHTML = '<div style="padding:10px 14px;color:var(--text-muted);font-size:0.85rem;">Loading modules...</div>';
+    lessonList.innerHTML = '';
+    moduleList.style.display = 'block';
+    
+    // Fetch course structure
+    fetch('ajax/get_course_structure_for_teach.php?course_id=' + courseId)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                renderModules(courseId, data.modules);
+                renderLessons(courseId, data.lessons);
+            } else {
+                moduleList.innerHTML = '<div style="padding:10px 14px;color:var(--danger);font-size:0.85rem;">' + (data.message || 'Failed to load') + '</div>';
+            }
+        })
+        .catch(() => {
+            moduleList.innerHTML = '<div style="padding:10px 14px;color:var(--danger);font-size:0.85rem;">Failed to load modules</div>';
+        });
+}
+
+function renderModules(courseId, modules) {
+    const moduleList = document.getElementById('module-list-' + courseId);
+    if (!modules || modules.length === 0) {
+        moduleList.innerHTML = '<div style="padding:10px 14px;color:var(--text-muted);font-size:0.85rem;">No modules available</div>';
+        return;
+    }
+    
+    let html = '<div style="padding:8px 14px;background:var(--surface2);font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Modules</div>';
+    modules.forEach(mod => {
+        html += `
+            <a class="st-dropdown-item" href="#" onclick="openModuleTeach(${courseId}, ${mod.id}, '${encodeURIComponent(mod.title)}'); return false;">
+                <i class="fas fa-layer-group"></i>
+                <span>${escapeHtml(mod.title)}</span>
+                ${!mod.can_edit ? '<span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto;">(View only)</span>' : ''}
+            </a>
+        `;
+    });
+    moduleList.innerHTML = html;
+}
+
+function renderLessons(courseId, lessons) {
+    const lessonList = document.getElementById('lesson-list-' + courseId);
+    if (!lessons || lessons.length === 0) {
+        lessonList.innerHTML = '';
+        return;
+    }
+    
+    let html = '<div style="padding:8px 14px;background:var(--surface2);font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Lessons</div>';
+    lessons.forEach(lesson => {
+        html += `
+            <a class="st-dropdown-item" href="#" onclick="openLessonTeach(${courseId}, ${lesson.id}, '${encodeURIComponent(lesson.title)}'); return false;">
+                <i class="fas fa-file-alt"></i>
+                <span>${escapeHtml(lesson.title)}</span>
+                ${!lesson.can_edit ? '<span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto;">(View only)</span>' : ''}
+            </a>
+        `;
+    });
+    lessonList.innerHTML = html;
+}
+
+function openModuleTeach(courseId, moduleId, title) {
+    window.open('course_builder.php?course_id=' + courseId + '#module-' + moduleId, '_blank');
+}
+
+function openLessonTeach(courseId, lessonId, title) {
+    updateLessonNumbering(courseId);
+    window.open('lesson_editor.php?course_id=' + courseId + '&lesson_id=' + lessonId, '_blank');
 }
 
 function openCoursePreview(courseId) {
-    // Get course slug from data attribute
     const courseElement = document.querySelector(`[data-course-id="${courseId}"]`);
     const slug = courseElement ? courseElement.dataset.courseSlug : '';
     
     if (slug) {
-        // Open course-level preview - shows the full course structure as learners see it
         window.open('/learn/course.php?c=' + encodeURIComponent(slug), '_blank');
     } else {
         alert('Course not published yet. Publish the course to enable preview.');
     }
 }
 
-function openModulePreview(courseId) {
-    // Open module-level preview - shows the module and lesson structure
-    window.open('catalogue_builder.php?course_id=' + courseId, '_blank');
-}
-
-function openLessonPreview(courseId) {
-    // Open lesson-level preview - this would show the lesson editor in preview mode
-    // First, get the first lesson of the course
-    fetch('ajax/get_first_lesson.php?course_id=' + courseId)
-        .then(r => r.json())
-        .then(data => {
-            if (data.success && data.lesson_id) {
-                // Update lesson numbering when teach button is clicked
-                updateLessonNumbering(courseId);
-                window.open('lesson_editor.php?course_id=' + courseId + '&lesson_id=' + data.lesson_id + '&preview=1', '_blank');
-            } else {
-                alert('No lessons found in this course. Add lessons first.');
-            }
-        })
-        .catch(() => alert('Failed to load lesson preview'));
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = decodeURIComponent(text);
+    return div.innerHTML;
 }
 
 function updateLessonNumbering(courseId) {

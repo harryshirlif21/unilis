@@ -18,8 +18,76 @@ $mode      = $course_id > 0 ? 'short_course' : 'iclm';
 
 // ── Short course mode: verify access, load course info ────────────────────
 $course_info = null;
+$can_edit = false;
 if ($mode === 'short_course') {
-    if (shortCourseCanManage($conn, $course_id)) {
+    // Check if course author
+    $isAuthor = false;
+    $checkAuthor = $conn->prepare("SELECT id FROM public_courses WHERE id = ? AND author_id = ?");
+    $checkAuthor->bind_param("ii", $course_id, $lecturer_id);
+    $checkAuthor->execute();
+    if ($checkAuthor->get_result()->fetch_row()) {
+        $isAuthor = true;
+        $can_edit = true;
+    }
+    $checkAuthor->close();
+
+    // If not author, check module/lesson permissions
+    if (!$isAuthor) {
+        // Check if assigned as course tutor
+        $checkTutor = $conn->prepare("SELECT id FROM short_course_tutors WHERE short_course_id = ? AND lecturer_id = ? AND is_active = 1");
+        $checkTutor->bind_param("ii", $course_id, $lecturer_id);
+        $checkTutor->execute();
+        if ($checkTutor->get_result()->fetch_row()) {
+            // Course-level tutor - can edit everything
+            $can_edit = true;
+        }
+        $checkTutor->close();
+
+        // If not course-level tutor, check module permissions
+        if (!$can_edit && $lesson_id > 0) {
+            // Get lesson's module
+            $getModule = $conn->prepare("SELECT module_id FROM public_course_lessons WHERE id = ?");
+            $getModule->bind_param("i", $lesson_id);
+            $getModule->execute();
+            $modRow = $getModule->get_result()->fetch_assoc();
+            $getModule->close();
+
+            if ($modRow) {
+                $moduleId = $modRow['module_id'];
+                
+                // Check module permission
+                $checkModPerm = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
+                if ($checkModPerm && $checkModPerm->num_rows > 0) {
+                    $modPerm = $conn->prepare("SELECT can_edit FROM tutor_module_permissions WHERE tutor_id = ? AND module_id = ?");
+                    $modPerm->bind_param("ii", $lecturer_id, $moduleId);
+                    $modPerm->execute();
+                    $permRow = $modPerm->get_result()->fetch_assoc();
+                    $modPerm->close();
+                    
+                    if ($permRow && $permRow['can_edit']) {
+                        $can_edit = true;
+                    }
+                }
+
+                // Check lesson permission
+                $checkLessonPerm = $conn->query("SHOW TABLES LIKE 'tutor_lesson_permissions'");
+                if ($checkLessonPerm && $checkLessonPerm->num_rows > 0) {
+                    $lessonPerm = $conn->prepare("SELECT can_edit FROM tutor_lesson_permissions WHERE tutor_id = ? AND lesson_id = ?");
+                    $lessonPerm->bind_param("ii", $lecturer_id, $lesson_id);
+                    $lessonPerm->execute();
+                    $permRow = $lessonPerm->get_result()->fetch_assoc();
+                    $lessonPerm->close();
+                    
+                    if ($permRow && $permRow['can_edit']) {
+                        $can_edit = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Load course info if has any access (view or edit)
+    if ($isAuthor || $can_edit) {
         $stmt = $conn->prepare('SELECT * FROM public_courses WHERE id = ? LIMIT 1');
         $stmt->bind_param('i', $course_id);
         $stmt->execute();
@@ -694,33 +762,39 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
             </div>
 
             <!-- Add block toolbar -->
-            <div class="editor-toolbar">
+            <div class="editor-toolbar" id="editor-toolbar">
                 <span class="toolbar-label">Add Block</span>
-                <button class="block-btn" data-type="text"    onclick="addBlock('text')">
+                <button class="block-btn" data-type="text"    onclick="addBlock('text')" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-align-left" style="color:var(--c-text)"></i> Text
                 </button>
-                <button class="block-btn" data-type="image"   onclick="addBlock('image')">
+                <button class="block-btn" data-type="image"   onclick="addBlock('image')" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-image"      style="color:var(--c-image)"></i> Image
                 </button>
-                <button class="block-btn" data-type="video"   onclick="addBlock('video')">
+                <button class="block-btn" data-type="video"   onclick="addBlock('video')" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-video"      style="color:var(--c-video)"></i> Video
                 </button>
-                <button class="block-btn" data-type="audio"   onclick="addBlock('audio')">
+                <button class="block-btn" data-type="audio"   onclick="addBlock('audio')" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-music"      style="color:var(--c-audio)"></i> Audio
                 </button>
-                <button class="block-btn" data-type="diagram" onclick="addBlock('diagram')">
+                <button class="block-btn" data-type="diagram" onclick="addBlock('diagram')" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-diagram-project" style="color:var(--c-diagram)"></i> Diagram
                 </button>
-                <button class="block-btn" data-type="pdf" onclick="addBlock('pdf')">
+                <button class="block-btn" data-type="pdf" onclick="addBlock('pdf')" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-file-pdf" style="color:var(--c-pdf)"></i> PDF
                 </button>
-                <button class="block-btn" data-type="ppt" onclick="addBlock('ppt')">
+                <button class="block-btn" data-type="ppt" onclick="addBlock('ppt')" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-file-powerpoint" style="color:var(--c-ppt)"></i> PowerPoint
                 </button>
                 <div class="toolbar-sep"></div>
-                <button class="block-btn" onclick="saveAllBlocks()" style="border-color:rgba(62,207,142,0.4)">
+                <button class="block-btn" onclick="saveAllBlocks()" style="border-color:rgba(62,207,142,0.4)" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-floppy-disk" style="color:var(--accent2)"></i> Save All
                 </button>
+                <?php if (!$can_edit): ?>
+                    <div class="toolbar-sep"></div>
+                    <span style="font-size:0.75rem;color:var(--danger);font-weight:600;padding:0 8px;">
+                        <i class="fas fa-lock"></i> View Only
+                    </span>
+                <?php endif; ?>
             </div>
 
             <!-- Blocks canvas -->

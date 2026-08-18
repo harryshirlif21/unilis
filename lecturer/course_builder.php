@@ -1269,53 +1269,57 @@ function buildModuleCard(mod, idx) {
     const card = document.createElement('div');
     card.className  = 'module-card';
     card.dataset.id = mod.id;
-    card.draggable  = true;
+    card.draggable  = mod.can_edit !== false; // Only draggable if can edit
 
     const lessons = mod.lessons || [];
+    const canEdit = mod.can_edit !== false;
+    
     card.innerHTML = `
         <div class="module-header" id="mh-${mod.id}">
-            <div class="drag-handle"><span></span><span></span><span></span></div>
+            <div class="drag-handle" style="${canEdit ? '' : 'display:none'}"><span></span><span></span><span></span></div>
             <span class="module-number">M${idx + 1}</span>
             <div class="module-title-wrap">
                 <span class="module-title" id="mt-${mod.id}"
-                      ondblclick="inlineEditModule(${mod.id})"
-                      title="Double-click to rename">
+                      ${canEdit ? `ondblclick="inlineEditModule(${mod.id})"` : ''}
+                      title="${canEdit ? 'Double-click to rename' : 'View only - cannot edit'}"
+                      style="${canEdit ? '' : 'cursor:default'}">
                     ${escHtml(mod.title)}
                 </span>
+                ${!canEdit ? '<span style="font-size:0.65rem;color:var(--text-muted);margin-left:8px">(View only)</span>' : ''}
             </div>
             <div class="module-actions">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="openAddLessonInline(${mod.id})" title="Add Lesson">
+                ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openAddLessonInline(${mod.id})" title="Add Lesson">
                     <i class="fas fa-plus" style="color:var(--accent2)"></i>
-                </button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="openEditModuleModal(${mod.id}, '${escAttr(mod.title)}', '${escAttr(mod.summary || '')}', '${escAttr(mod.start_date || '')}', '${escAttr(mod.end_date || '')}')" title="Edit Module">
+                </button>` : ''}
+                ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openEditModuleModal(${mod.id}, '${escAttr(mod.title)}', '${escAttr(mod.summary || '')}', '${escAttr(mod.start_date || '')}', '${escAttr(mod.end_date || '')}')" title="Edit Module">
                     <i class="fas fa-pen" style="color:var(--accent)"></i>
-                </button>
+                </button>` : ''}
                 ${MODE === 'short_course' ? `<a href="lesson_preview.php?course_id=${COURSE_ID}&module_id=${mod.id}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm btn-icon" title="Preview Module">
                     <i class="fas fa-eye" style="color:var(--accent2)"></i>
                 </a>` : ''}
-                ${MODE === 'short_course' ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openOutlineModal()" title="Edit course, module, and lesson outlines">
+                ${MODE === 'short_course' && canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openOutlineModal()" title="Edit course, module, and lesson outlines">
                     <i class="fas fa-align-left" style="color:var(--accent3)"></i>
                 </button>` : ''}
                 <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleModule(${mod.id})" id="toggle-${mod.id}" title="Collapse/Expand">
                     <i class="fas fa-chevron-down"></i>
                 </button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteModule(${mod.id}, '${escAttr(mod.title)}')" title="Delete Module">
+                ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteModule(${mod.id}, '${escAttr(mod.title)}')" title="Delete Module">
                     <i class="fas fa-trash" style="color:var(--danger)"></i>
-                </button>
+                </button>` : ''}
             </div>
         </div>
         <div class="lessons-container" id="lc-${mod.id}">
             <div class="lessons-list" id="ll-${mod.id}" data-module-id="${mod.id}">
-                ${lessons.map(l => buildLessonRowHTML(l, mod.id)).join('')}
+                ${lessons.map(l => buildLessonRowHTML(l, mod.id, canEdit)).join('')}
             </div>
-            <div class="add-lesson-row" onclick="openAddLessonInline(${mod.id})">
+            ${canEdit ? `<div class="add-lesson-row" onclick="openAddLessonInline(${mod.id})">
                 <i class="fas fa-plus-circle"></i><span>Add Lesson</span>
-            </div>
+            </div>` : ''}
         </div>`;
     return card;
 }
 
-function buildLessonRowHTML(lesson, moduleId) {
+function buildLessonRowHTML(lesson, moduleId, canEdit = true) {
     const lessonId = lesson.id;
     let editLink;
     if (MODE === 'short_course') {
@@ -1325,10 +1329,10 @@ function buildLessonRowHTML(lesson, moduleId) {
     }
     const hasVideo = lesson.video_url && lesson.video_url.trim() !== '';
     return `
-        <div class="lesson-row" draggable="true" data-id="${lesson.id}" data-module="${moduleId}">
-            <i class="fas fa-grip-vertical lesson-drag" style="color:var(--text-dim);font-size:0.75rem"></i>
-            <span class="lesson-num" onclick="inlineEditLessonNumber(${lesson.id}, ${moduleId})" id="ln-${lesson.id}" title="Click to edit number" style="cursor:pointer">L${lesson.lesson_number || (lesson.position !== undefined ? lesson.position + 1 : '')}</span>
-            <span class="lesson-title" ondblclick="inlineEditLesson(${lesson.id}, ${moduleId})" id="lt-${lesson.id}" title="Double-click to rename">
+        <div class="lesson-row" draggable="${canEdit}" data-id="${lesson.id}" data-module="${moduleId}">
+            <i class="fas fa-grip-vertical lesson-drag" style="${canEdit ? '' : 'display:none'};color:var(--text-dim);font-size:0.75rem"></i>
+            <span class="lesson-num" ${canEdit ? `onclick="inlineEditLessonNumber(${lesson.id}, ${moduleId})"` : ''} id="ln-${lesson.id}" title="${canEdit ? 'Click to edit number' : 'View only'}" style="${canEdit ? 'cursor:pointer' : 'cursor:default'}">L${lesson.lesson_number || (lesson.position !== undefined ? lesson.position + 1 : '')}</span>
+            <span class="lesson-title" ${canEdit ? `ondblclick="inlineEditLesson(${lesson.id}, ${moduleId})"` : ''} id="lt-${lesson.id}" title="${canEdit ? 'Double-click to rename' : 'View only'}" style="${canEdit ? '' : 'cursor:default'}">
                 ${escHtml(lesson.title)}
             </span>
             ${hasVideo ? `<i class="fab fa-youtube" style="color:var(--accent3);font-size:0.75rem;margin-left:8px" title="Has video recording"></i>` : ''}
@@ -1336,15 +1340,15 @@ function buildLessonRowHTML(lesson, moduleId) {
                 ${MODE === 'short_course' ? `<a href="lesson_preview.php?course_id=${COURSE_ID}&lesson_id=${lessonId}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm btn-icon" title="Preview Lesson">
                     <i class="fas fa-eye" style="color:var(--accent2)"></i>
                 </a>` : ''}
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="openEditLessonModal(${lesson.id}, '${escAttr(lesson.title)}', '${escAttr(lesson.video_url || '')}')" title="Edit Lesson Details">
+                ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openEditLessonModal(${lesson.id}, '${escAttr(lesson.title)}', '${escAttr(lesson.video_url || '')}')" title="Edit Lesson Details">
                     <i class="fas fa-cog" style="color:var(--text-muted)"></i>
-                </button>
-                <a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
+                </button>` : ''}
+                ${canEdit ? `<a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
                     <i class="fas fa-pen" style="color:var(--accent)"></i>
-                </a>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteLesson(${lesson.id}, '${escAttr(lesson.title)}', ${moduleId})" title="Delete">
+                </a>` : ''}
+                ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteLesson(${lesson.id}, '${escAttr(lesson.title)}', ${moduleId})" title="Delete">
                     <i class="fas fa-trash" style="color:var(--danger)"></i>
-                </button>
+                </button>` : ''}
             </div>
         </div>`;
 }
