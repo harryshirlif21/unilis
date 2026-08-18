@@ -12,7 +12,7 @@
     "autoload": {
         "psr-4": {
             "Unilis\\": "src/"
-        },
+        }
     },
     "config": {
         "allow-plugins": {
