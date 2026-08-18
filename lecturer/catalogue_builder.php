@@ -26,7 +26,7 @@ $actor = catalogue_require_author();
 studio_require_schema($conn);
 
 $courseId = (int)($_GET['course_id'] ?? $_POST['course_id'] ?? 0);
-$course = catalogue_require_course($conn, $actor, $courseId);
+$course = catalogue_require_editable_course($conn, $actor, $courseId);
 
 /** Where to send the browser after a mutation. */
 function studio_back(int $courseId, array $extra = []): string
@@ -128,6 +128,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // ── Modules ───────────────────────────────────────────────────────
         case 'add_module': {
+            // Adding a new module changes the whole course, so only the course
+            // owner/admin (or the single course-level tutor) may do it. A tutor
+            // with module/lesson-only permissions adds lessons within their
+            // assigned modules, not new top-level modules.
+            if ($actor['role'] === 'lecturer' && !catalogue_tutor_assignment($conn, $actor['id'], $courseId)['course']) {
+                studio_flash('Only the course tutor can add modules.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
+
             $title = trim((string)($_POST['title'] ?? ''));
             if ($title === '') {
                 studio_flash('A module needs a title.', 'error');
@@ -179,6 +188,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 studio_flash('That module is not part of this course.', 'error');
                 studio_redirect(studio_back($courseId));
             }
+            if ($actor['role'] === 'lecturer' && !tutor_can_edit_module($conn, $actor['id'], (int)$module['id'])) {
+                studio_flash('You do not have permission to delete this module.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
             catalogue_delete_module($conn, (int)$module['id']);
             studio_flash('Module and its lessons deleted. Any assessment it held is now a course-level assessment.');
             studio_redirect(studio_back($courseId));
@@ -186,6 +199,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         case 'move_module': {
             $module = catalogue_module_in_course($conn, (int)($_POST['module_id'] ?? 0), $courseId);
+            if ($actor['role'] === 'lecturer' && $module !== null && !tutor_can_edit_module($conn, $actor['id'], (int)$module['id'])) {
+                studio_flash('You do not have permission to reorder this module.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
             if ($module !== null) {
                 catalogue_move(
                     $conn,
@@ -206,6 +223,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 studio_flash('That module is not part of this course.', 'error');
                 studio_redirect(studio_back($courseId));
             }
+            // A tutor can only add lessons to a module they are allowed to edit.
+            if ($actor['role'] === 'lecturer' && !tutor_can_edit_module($conn, $actor['id'], (int)$module['id'])) {
+                studio_flash('You do not have permission to add lessons to this module.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
             $check = catalogue_validate_lesson($_POST);
             if ($check['errors']) {
                 studio_flash('The lesson was not added.', 'error', $check['errors']);
@@ -223,9 +245,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 studio_redirect(studio_back($courseId));
             }
             
-            // Check tutor permissions for editing this lesson's module
-            if ($actor['role'] === 'lecturer' && !tutor_can_edit_module($conn, $actor['id'], (int)$lesson['module_id'])) {
-                studio_flash('You do not have permission to edit lessons in this module.', 'error');
+            // Check tutor permissions for editing this lesson (course-level,
+            // module-level, or lesson-level assignment).
+            if ($actor['role'] === 'lecturer' && !tutor_can_edit_lesson($conn, $actor['id'], (int)$lesson['id'])) {
+                studio_flash('You do not have permission to edit this lesson.', 'error');
                 studio_redirect(studio_back($courseId));
             }
             
@@ -273,6 +296,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 studio_flash('That lesson is not part of this course.', 'error');
                 studio_redirect(studio_back($courseId));
             }
+            if ($actor['role'] === 'lecturer' && !tutor_can_edit_module($conn, $actor['id'], (int)$lesson['module_id'])) {
+                studio_flash('You do not have permission to delete lessons in this module.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
             catalogue_discard_upload($lesson['attachment_path']);
             catalogue_delete_lesson($conn, (int)$lesson['id']);
             studio_flash('Lesson deleted. It no longer counts towards completion for anyone.');
@@ -281,6 +308,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         case 'move_lesson': {
             $lesson = catalogue_lesson_in_course($conn, (int)($_POST['lesson_id'] ?? 0), $courseId);
+            if ($actor['role'] === 'lecturer' && $lesson !== null && !tutor_can_edit_module($conn, $actor['id'], (int)$lesson['module_id'])) {
+                studio_flash('You do not have permission to reorder lessons in this module.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
             if ($lesson !== null) {
                 catalogue_move(
                     $conn,
@@ -300,6 +331,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if ($lesson === null) {
                 studio_flash('That lesson is not part of this course.', 'error');
+                studio_redirect(studio_back($courseId));
+            }
+            
+            // Moving a lesson out of its module requires edit rights on both the
+            // source module and the destination module.
+            if ($actor['role'] === 'lecturer'
+                && (!tutor_can_edit_module($conn, $actor['id'], (int)$lesson['module_id'])
+                    || ($targetModule !== null && !tutor_can_edit_module($conn, $actor['id'], (int)$targetModule['id'])))) {
+                studio_flash('You do not have permission to move this lesson between modules.', 'error');
                 studio_redirect(studio_back($courseId));
             }
             
@@ -579,6 +619,21 @@ function studio_move_buttons(
                 <label for="duration_minutes">Length (minutes)</label>
                 <input id="duration_minutes" name="duration_minutes" type="number" min="1"
                        value="<?= $openLesson['duration_minutes'] !== null ? (int)$openLesson['duration_minutes'] : '' ?>">
+            </div>
+        </div>
+
+        <div class="st-row">
+            <div class="st-field">
+                <label for="lesson_start_date">Start Date</label>
+                <input id="lesson_start_date" name="start_date" type="date"
+                       value="<?= studio_e($openLesson['start_date'] ?? '') ?>">
+                <span class="st-hint">When this lesson becomes available</span>
+            </div>
+            <div class="st-field">
+                <label for="lesson_end_date">End Date</label>
+                <input id="lesson_end_date" name="end_date" type="date"
+                       value="<?= studio_e($openLesson['end_date'] ?? '') ?>">
+                <span class="st-hint">When this lesson ends</span>
             </div>
         </div>
 
@@ -993,6 +1048,9 @@ function studio_move_buttons(
                         $moduleIndex === 0,
                         $moduleIndex === count($modules) - 1
                     ); ?>
+                    <button type="button" class="st-btn st-btn-ghost st-btn-small" onclick="openEditModuleModal(<?= (int)$module['id'] ?>, '<?= studio_e($module['title']) ?>', '<?= studio_e($module['summary'] ?? '') ?>', '<?= studio_e($module['start_date'] ?? '') ?>', '<?= studio_e($module['end_date'] ?? '') ?>')">
+                        <i class="fas fa-pen"></i> Edit
+                    </button>
                     <form method="post"
                           onsubmit="return confirm('Delete this module and its <?= count($lessons) ?> lesson(s)? Learner progress on those lessons is deleted too.');">
                         <?php studio_form_fields($csrf, $courseId, 'delete_module'); ?>
@@ -1042,6 +1100,9 @@ function studio_move_buttons(
                                     $lessonIndex === 0,
                                     $lessonIndex === count($lessons) - 1
                                 ); ?>
+                                <button type="button" class="st-btn st-btn-ghost st-btn-small" onclick="openMoveLessonModal(<?= (int)$lesson['id'] ?>, '<?= studio_e($lesson['title']) ?>')">
+                                    <i class="fas fa-arrows-alt"></i> Move
+                                </button>
                                 <a class="st-btn st-btn-ghost st-btn-small"
                                    href="<?= studio_e(studio_back($courseId, ['lesson' => (int)$lesson['id']])) ?>">
                                     <i class="fas fa-pen"></i> Edit
@@ -1135,6 +1196,18 @@ function studio_move_buttons(
                 <div class="st-field">
                     <label>Summary</label>
                     <input name="summary" type="text" maxlength="400">
+                </div>
+            </div>
+            <div class="st-row">
+                <div class="st-field">
+                    <label>Start Date</label>
+                    <input name="start_date" type="date">
+                    <span class="st-hint">When this module becomes available</span>
+                </div>
+                <div class="st-field">
+                    <label>End Date</label>
+                    <input name="end_date" type="date">
+                    <span class="st-hint">When this module ends</span>
                 </div>
             </div>
             <button class="st-btn" type="submit"><i class="fas fa-plus"></i> Add module</button>
@@ -1304,5 +1377,93 @@ function studio_move_buttons(
         <?php endif; ?>
     </div>
 <?php endif; ?>
+
+<!-- Move Lesson Modal -->
+<div id="moveLessonModal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); overflow-y:auto;">
+    <div style="background:#fff; max-width:500px; margin:5% auto; padding:28px 32px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.1); position:relative;">
+        <button type="button" onclick="closeMoveLessonModal()" style="position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%; background:#f1f5f9; border:1px solid #e2e8f0; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:14px;">&times;</button>
+        <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:20px; color:#0f172a; display:flex; align-items:center; gap:10px;">
+            <i class="fas fa-arrows-alt"></i> Move Lesson
+        </h3>
+        <p style="margin-bottom:20px; color:#64748b; font-size:0.9rem;">
+            Move <strong id="moveLessonTitle"></strong> to a different module.
+        </p>
+        <form method="post" id="moveLessonForm">
+            <?php studio_form_fields($csrf, $courseId, 'move_lesson_to_module'); ?>
+            <input type="hidden" name="lesson_id" id="moveLessonId">
+            <div class="st-field">
+                <label>Target Module *</label>
+                <select name="target_module_id" id="targetModuleId" required>
+                    <option value="">-- Select Module --</option>
+                    <?php foreach ($modules as $mod): ?>
+                        <option value="<?= (int)$mod['id'] ?>"><?= studio_e($mod['title']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button class="st-btn" type="submit"><i class="fas fa-arrows-alt"></i> Move Lesson</button>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Module Modal -->
+<div id="editModuleModal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); overflow-y:auto;">
+    <div style="background:#fff; max-width:500px; margin:5% auto; padding:28px 32px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.1); position:relative;">
+        <button type="button" onclick="closeEditModuleModal()" style="position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%; background:#f1f5f9; border:1px solid #e2e8f0; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:14px;">&times;</button>
+        <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:20px; color:#0f172a; display:flex; align-items:center; gap:10px;">
+            <i class="fas fa-pen"></i> Edit Module
+        </h3>
+        <form method="post" id="editModuleForm">
+            <?php studio_form_fields($csrf, $courseId, 'save_module'); ?>
+            <input type="hidden" name="module_id" id="editModuleId">
+            <div class="st-field">
+                <label>Title *</label>
+                <input name="title" type="text" required maxlength="200" id="editModuleTitle">
+            </div>
+            <div class="st-field">
+                <label>Summary</label>
+                <input name="summary" type="text" maxlength="400" id="editModuleSummary">
+            </div>
+            <div class="st-row">
+                <div class="st-field">
+                    <label>Start Date</label>
+                    <input name="start_date" type="date" id="editModuleStartDate">
+                    <span class="st-hint">When this module becomes available</span>
+                </div>
+                <div class="st-field">
+                    <label>End Date</label>
+                    <input name="end_date" type="date" id="editModuleEndDate">
+                    <span class="st-hint">When this module ends</span>
+                </div>
+            </div>
+            <button class="st-btn" type="submit"><i class="fas fa-floppy-disk"></i> Save Module</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function openMoveLessonModal(lessonId, lessonTitle) {
+    document.getElementById('moveLessonId').value = lessonId;
+    document.getElementById('moveLessonTitle').textContent = lessonTitle;
+    document.getElementById('moveLessonModal').style.display = 'block';
+}
+
+function closeMoveLessonModal() {
+    document.getElementById('moveLessonModal').style.display = 'none';
+}
+
+function openEditModuleModal(moduleId, title, summary, startDate, endDate) {
+    document.getElementById('editModuleId').value = moduleId;
+    document.getElementById('editModuleTitle').value = title;
+    document.getElementById('editModuleSummary').value = summary;
+    document.getElementById('editModuleStartDate').value = startDate;
+    document.getElementById('editModuleEndDate').value = endDate;
+    document.getElementById('editModuleModal').style.display = 'block';
+}
+
+function closeEditModuleModal() {
+    document.getElementById('editModuleModal').style.display = 'none';
+}
+</script>
+
 <?php
 studio_foot();

@@ -1741,8 +1741,8 @@ if ($department_id) {
             <button class="nav-item" data-panel="tutors" onclick="switchPanel('tutors', this)">
                 <i class="fas fa-user-plus"></i> Assign Tutors
             </button>
-            <button class="nav-item" onclick="window.open('../../migrations/add_course_sponsors.php', '_blank')">
-                <i class="fas fa-database"></i> Run Migrations
+            <button class="nav-item" data-panel="migrations" onclick="switchPanel('migrations', this)">
+                <i class="fas fa-database"></i> Migrations
             </button>
             <a class="nav-item" href="../../modules/live-engagement/index.php?page=dashboard&amp;create=1&amp;type=presentation">
                 <i class="fas fa-person-chalkboard"></i> Live Presentations
@@ -2499,8 +2499,8 @@ if ($department_id) {
                                 <button type="button" class="btn btn-primary" onclick="loadMigrations()">
                                     <i class="fas fa-sync"></i> Refresh Status
                                 </button>
-                                <button type="button" onclick="runPendingMigrations()" id="runMigrationsBtn" style="display:inline-block; background:var(--success); color:#fff; padding:10px 16px; border:none; border-radius:var(--radius-sm,6px); cursor:pointer; font-size:14px; margin-left:10px;">
-                                    <i class="fas fa-play"></i> Run Migrations
+                                <button type="button" class="btn btn-success" onclick="runPendingMigrations()" id="runMigrationsBtn" style="display:none;">
+                                    <i class="fas fa-play"></i> Run Pending Migrations
                                 </button>
                             </div>
                             
@@ -3121,8 +3121,11 @@ if ($department_id) {
         .then(data => {
             if (data.success) {
                 renderMigrationStatus(data);
-                // Always show the run button - let user decide to run migrations
-                runBtn.style.display = 'inline-flex';
+                if (data.pending_count > 0) {
+                    runBtn.style.display = 'inline-flex';
+                } else {
+                    runBtn.style.display = 'none';
+                }
             } else {
                 statusDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Failed to load: ' + data.message + '</div>';
             }
@@ -3250,16 +3253,6 @@ if ($department_id) {
             observer.observe(migrationsPanel, { attributes: true, attributeFilter: ['class'] });
         }
     });
-
-    function runMigrationsFromSidebar(el) {
-        // Switch to the migrations panel first
-        switchPanel('migrations', el);
-        
-        // Wait a moment for the panel to be visible, then run migrations
-        setTimeout(function() {
-            runPendingMigrations();
-        }, 500);
-    }
     </script>
 
 <!-- Tutor Permissions Modal -->

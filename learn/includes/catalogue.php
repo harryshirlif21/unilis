@@ -153,7 +153,7 @@ function learn_course_by_slug(mysqli $conn, string $slug): ?array
 function learn_course_outline(mysqli $conn, int $courseId): array
 {
     $stmt = $conn->prepare("
-        SELECT id, title, summary, position
+        SELECT id, title, summary, position, start_date, end_date
         FROM public_course_modules WHERE course_id = ? ORDER BY position, id
     ");
     $stmt->bind_param('i', $courseId);
@@ -170,7 +170,7 @@ function learn_course_outline(mysqli $conn, int $courseId): array
     $types = str_repeat('i', count($moduleIds));
 
     $stmt = $conn->prepare("
-        SELECT id, module_id, title, duration_minutes, position
+        SELECT id, module_id, title, duration_minutes, position, start_date, end_date
         FROM public_course_lessons
         WHERE module_id IN ($placeholders)
         ORDER BY position, id
@@ -198,9 +198,72 @@ function learn_course_outline(mysqli $conn, int $courseId): array
 
     return [
         'modules' => $modules,
-        // module_id NULL means course-level, e.g. a final exam.
-        'final_assessments' => array_values(array_filter($assessments, static fn($a) => $a['module_id'] === null)),
+        'final_assessments' => array_values(array_filter($assessments, static fn($a) => (int)$a['module_id'] === 0))
     ];
+}
+
+/**
+ * Get ongoing modules (modules that are currently active based on start/end dates)
+ */
+function learn_ongoing_modules(mysqli $conn, int $courseId): array
+{
+    $today = date('Y-m-d');
+    $stmt = $conn->prepare("
+        SELECT id, title, summary, position, start_date, end_date
+        FROM public_course_modules 
+        WHERE course_id = ? 
+        AND (start_date <= ? OR (start_date IS NULL AND end_date IS NULL))
+        AND (end_date >= ? OR end_date IS NULL)
+        ORDER BY position, id
+    ");
+    $stmt->bind_param('iss', $courseId, $today, $today);
+    $stmt->execute();
+    $modules = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    return $modules;
+}
+
+/**
+ * Get upcoming modules (modules that haven't started yet)
+ */
+function learn_upcoming_modules(mysqli $conn, int $courseId): array
+{
+    $today = date('Y-m-d');
+    $stmt = $conn->prepare("
+        SELECT id, title, summary, position, start_date, end_date
+        FROM public_course_modules 
+        WHERE course_id = ? 
+        AND start_date > ?
+        ORDER BY start_date ASC, position, id
+    ");
+    $stmt->bind_param('is', $courseId, $today);
+    $stmt->execute();
+    $modules = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    return $modules;
+}
+
+/**
+ * Get completed modules (modules that have ended)
+ */
+function learn_completed_modules(mysqli $conn, int $courseId): array
+{
+    $today = date('Y-m-d');
+    $stmt = $conn->prepare("
+        SELECT id, title, summary, position, start_date, end_date
+        FROM public_course_modules 
+        WHERE course_id = ? 
+        AND end_date < ?
+        ORDER BY end_date DESC, position, id
+    ");
+    $stmt->bind_param('is', $courseId, $today);
+    $stmt->execute();
+    $modules = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    return $modules;
 }
 
 function learn_is_enrolled(mysqli $conn, int $learnerId, int $courseId): bool

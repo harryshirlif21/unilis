@@ -6,6 +6,7 @@
  */
 
 define('PHASE1_ACCESS', true);
+error_reporting(E_ALL); ini_set('display_errors', '1');
 session_start();
 require_once __DIR__ . '/../../config/db.php';
 
@@ -1189,7 +1190,7 @@ if ($department_id) {
             color: var(--text);
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ TOP NAV Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ TOP NAV ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .topbar {
             background: var(--surface);
             border-bottom: 1px solid var(--border);
@@ -1280,13 +1281,13 @@ if ($department_id) {
             border-color: #fecaca;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ LAYOUT Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ LAYOUT ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .layout {
             display: flex;
             min-height: calc(100vh - 64px);
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ SIDEBAR Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ SIDEBAR ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .sidebar {
             width: 240px;
             min-width: 240px;
@@ -1359,7 +1360,7 @@ if ($department_id) {
             color: var(--accent);
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ MAIN Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ MAIN ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .main {
             flex: 1;
             padding: 28px 32px;
@@ -1383,7 +1384,7 @@ if ($department_id) {
             margin-top: 4px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ MESSAGE Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ MESSAGE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .message {
             padding: 12px 16px;
             border-radius: var(--radius-sm);
@@ -1405,7 +1406,7 @@ if ($department_id) {
         .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
         .message.warning { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ STATS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ STATS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .stats-row {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1457,7 +1458,7 @@ if ($department_id) {
             margin-top: 2px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ PANELS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ PANELS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .panel {
             display: none;
         }
@@ -1472,7 +1473,7 @@ if ($department_id) {
             to { opacity: 1; }
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ CARDS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ CARDS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -1512,7 +1513,7 @@ if ($department_id) {
             padding: 20px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ FORMS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ FORMS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1562,7 +1563,7 @@ if ($department_id) {
             padding-right: 32px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ BUTTONS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ BUTTONS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .btn {
             padding: 10px 20px;
             border: none;
@@ -1603,7 +1604,7 @@ if ($department_id) {
             font-size: 12px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ TABLE Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ TABLE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .table-wrap {
             overflow-x: auto;
         }
@@ -1652,7 +1653,7 @@ if ($department_id) {
             opacity: 0.4;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ PRICING TOGGLE Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ PRICING TOGGLE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .pricing-options {
             display: flex;
             gap: 16px;
@@ -1686,7 +1687,7 @@ if ($department_id) {
             color: var(--text);
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ RESPONSIVE Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ RESPONSIVE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         @media (max-width: 768px) {
             .layout { flex-direction: column; }
             .sidebar { width: 100%; min-width: unset; flex-direction: row; flex-wrap: wrap; padding: 12px; }
@@ -1741,8 +1742,8 @@ if ($department_id) {
             <button class="nav-item" data-panel="tutors" onclick="switchPanel('tutors', this)">
                 <i class="fas fa-user-plus"></i> Assign Tutors
             </button>
-            <button class="nav-item" onclick="window.open('../../migrations/add_course_sponsors.php', '_blank')">
-                <i class="fas fa-database"></i> Run Migrations
+            <button class="nav-item" data-panel="migrations" onclick="switchPanel('migrations', this)">
+                <i class="fas fa-database"></i> Migrations
             </button>
             <a class="nav-item" href="../../modules/live-engagement/index.php?page=dashboard&amp;create=1&amp;type=presentation">
                 <i class="fas fa-person-chalkboard"></i> Live Presentations
@@ -1814,8 +1815,8 @@ if ($department_id) {
                                             <tr>
                                                 <td><?= htmlspecialchars($l['name']) ?></td>
                                                 <td><?= htmlspecialchars($l['email']) ?></td>
-                                                <td><?= htmlspecialchars($l['phone'] ?? 'Ã¢â‚¬â€') ?></td>
-                                                <td><?= htmlspecialchars($l['staff_id'] ?? 'Ã¢â‚¬â€') ?></td>
+                                                <td><?= htmlspecialchars($l['phone'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
+                                                <td><?= htmlspecialchars($l['staff_id'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     <?php else: ?>
@@ -1851,8 +1852,8 @@ if ($department_id) {
                                         ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($sc['name']) ?></td>
-                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : 'Ã¢â‚¬â€' ?></td>
-                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : 'Ã¢â‚¬â€' ?></td>
+                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
+                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
                                                 <td>
                                                     <button type="button" class="btn btn-primary btn-sm" style="margin-right:4px;" data-edit-sc='<?= htmlspecialchars(json_encode($sc), ENT_QUOTES, 'UTF-8') ?>' onclick="openEditModalFromBtn(this)">
                                                         <i class="fas fa-pen"></i> Edit
@@ -1930,8 +1931,8 @@ if ($department_id) {
                                             <tr>
                                                 <td><?= htmlspecialchars($l['name']) ?></td>
                                                 <td><?= htmlspecialchars($l['email']) ?></td>
-                                                <td><?= htmlspecialchars($l['phone'] ?? 'Ã¢â‚¬â€') ?></td>
-                                                <td><?= htmlspecialchars($l['staff_id'] ?? 'Ã¢â‚¬â€') ?></td>
+                                                <td><?= htmlspecialchars($l['phone'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
+                                                <td><?= htmlspecialchars($l['staff_id'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     <?php else: ?>
@@ -1990,7 +1991,7 @@ if ($department_id) {
                                         <?php while ($c = $courses->fetch_assoc()): ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($c['name']) ?></td>
-                                                <td><?= htmlspecialchars($c['code'] ?? 'Ã¢â‚¬â€') ?></td>
+                                                <td><?= htmlspecialchars($c['code'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     <?php else: ?>
@@ -2170,8 +2171,8 @@ if ($department_id) {
                                         ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($sc['name']) ?></td>
-                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : 'Ã¢â‚¬â€' ?></td>
-                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : 'Ã¢â‚¬â€' ?></td>
+                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
+                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
                                                 <td>
                                                     <button type="button" class="btn btn-primary btn-sm" style="margin-right:4px;" data-edit-sc='<?= htmlspecialchars(json_encode($sc), ENT_QUOTES, 'UTF-8') ?>' onclick="openEditModalFromBtn(this)">
                                                         <i class="fas fa-pen"></i> Edit
@@ -2249,7 +2250,7 @@ if ($department_id) {
                                             <tr>
                                                 <td><?= htmlspecialchars($t['name']) ?></td>
                                                 <td><?= htmlspecialchars($t['email']) ?></td>
-                                                <td><?= htmlspecialchars($t['phone'] ?? 'Ã¢â‚¬â€') ?></td>
+                                                <td><?= htmlspecialchars($t['phone'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
                                                 <td><?= htmlspecialchars($t['staff_id']) ?></td>
                                             </tr>
                                         <?php endwhile; ?>
@@ -2451,8 +2452,8 @@ if ($department_id) {
                                                 <td><?= htmlspecialchars($ma['course_name']) ?></td>
                                                 <td><?= htmlspecialchars($ma['module_title']) ?></td>
                                                 <td><?= htmlspecialchars($ma['tutor_name']) ?></td>
-                                                <td><?= $ma['can_edit'] ? 'Ã¢Å“â€' : 'Ã¢â‚¬â€' ?></td>
-                                                <td><?= $ma['can_teach'] ? 'Ã¢Å“â€' : 'Ã¢â‚¬â€' ?></td>
+                                                <td><?= $ma['can_edit'] ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
+                                                <td><?= $ma['can_teach'] ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     </tbody>
@@ -2474,8 +2475,8 @@ if ($department_id) {
                                                 <td><?= htmlspecialchars($la['module_title']) ?></td>
                                                 <td><?= htmlspecialchars($la['lesson_title']) ?></td>
                                                 <td><?= htmlspecialchars($la['tutor_name']) ?></td>
-                                                <td><?= $la['can_edit'] ? 'Ã¢Å“â€' : 'Ã¢â‚¬â€' ?></td>
-                                                <td><?= $la['can_teach'] ? 'Ã¢Å“â€' : 'Ã¢â‚¬â€' ?></td>
+                                                <td><?= $la['can_edit'] ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
+                                                <td><?= $la['can_teach'] ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     </tbody>
@@ -2499,8 +2500,8 @@ if ($department_id) {
                                 <button type="button" class="btn btn-primary" onclick="loadMigrations()">
                                     <i class="fas fa-sync"></i> Refresh Status
                                 </button>
-                                <button type="button" onclick="runPendingMigrations()" id="runMigrationsBtn" style="display:inline-block; background:var(--success); color:#fff; padding:10px 16px; border:none; border-radius:var(--radius-sm,6px); cursor:pointer; font-size:14px; margin-left:10px;">
-                                    <i class="fas fa-play"></i> Run Migrations
+                                <button type="button" class="btn btn-success" onclick="runPendingMigrations()" id="runMigrationsBtn" style="display:none;">
+                                    <i class="fas fa-play"></i> Run Pending Migrations
                                 </button>
                             </div>
                             
@@ -3024,7 +3025,7 @@ if ($department_id) {
             <div class="module-permission-item" style="background:var(--surface2); padding:16px; border-radius:8px; margin-bottom:12px; border:1px solid var(--border);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                     <strong style="font-size:14px;">${m.title}</strong>
-                    ${m.start_date || m.end_date ? `<small style="color:var(--text-muted);">${m.start_date || 'Ã¢â‚¬â€'} to ${m.end_date || 'Ã¢â‚¬â€'}</small>` : ''}
+                    ${m.start_date || m.end_date ? `<small style="color:var(--text-muted);">${m.start_date || 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'} to ${m.end_date || 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'}</small>` : ''}
                 </div>
                 <div style="display:flex; gap:20px; align-items:center;">
                     <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
@@ -3121,8 +3122,11 @@ if ($department_id) {
         .then(data => {
             if (data.success) {
                 renderMigrationStatus(data);
-                // Always show the run button - let user decide to run migrations
-                runBtn.style.display = 'inline-flex';
+                if (data.pending_count > 0) {
+                    runBtn.style.display = 'inline-flex';
+                } else {
+                    runBtn.style.display = 'none';
+                }
             } else {
                 statusDiv.innerHTML = '<div style="text-align:center; padding:20px; color:var(--danger);"><i class="fas fa-exclamation-circle"></i> Failed to load: ' + data.message + '</div>';
             }
@@ -3250,16 +3254,6 @@ if ($department_id) {
             observer.observe(migrationsPanel, { attributes: true, attributeFilter: ['class'] });
         }
     });
-
-    function runMigrationsFromSidebar(el) {
-        // Switch to the migrations panel first
-        switchPanel('migrations', el);
-        
-        // Wait a moment for the panel to be visible, then run migrations
-        setTimeout(function() {
-            runPendingMigrations();
-        }, 500);
-    }
     </script>
 
 <!-- Tutor Permissions Modal -->

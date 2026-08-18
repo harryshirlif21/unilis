@@ -35,6 +35,11 @@ $outline = learn_course_outline($conn, $courseId);
 $modules = $outline['modules'] ?? [];
 $finals = $outline['final_assessments'] ?? [];
 
+// Get ongoing and upcoming modules for display
+$ongoingModules = learn_ongoing_modules($conn, $courseId);
+$upcomingModules = learn_upcoming_modules($conn, $courseId);
+$completedModules = learn_completed_modules($conn, $courseId);
+
 // Fetch course sponsors from course_sponsors table
 $course_sponsors = [];
 $checkSponsorsTable = $conn->query("SHOW TABLES LIKE 'course_sponsors'");
@@ -322,26 +327,62 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
     </div>
 <?php else: ?>
     <div class="ln-card" style="padding:0; overflow:hidden;">
-        <?php foreach ($modules as $module): ?>
-            <div style="padding:18px 22px; border-bottom:1px solid var(--ln-line);">
-                <h3 style="margin:0 0 4px; font-size:1rem; color:var(--ln-ink);">
-                    <?= learn_e($module['title']) ?>
+        <?php if (!empty($ongoingModules)): ?>
+            <div style="padding:16px 22px; background:var(--ln-success-bg); border-bottom:1px solid var(--ln-line);">
+                <h3 style="margin:0 0 8px; font-size:0.95rem; color:var(--ln-success); display:flex; align-items:center; gap:8px;">
+                    <span class="material-symbols-rounded">play_circle</span>
+                    Ongoing Modules
                 </h3>
-                <?php if (!empty($module['summary'])): ?>
-                    <p style="margin:0 0 10px; font-size:0.85rem; color:var(--ln-muted);">
-                        <?= learn_e($module['summary']) ?>
-                    </p>
-                <?php endif; ?>
+            </div>
+            <?php foreach ($ongoingModules as $module): ?>
+                <?php 
+                // Fetch lessons for this module
+                $moduleLessons = [];
+                $stmt = $conn->prepare("
+                    SELECT id, title, duration_minutes 
+                    FROM public_course_lessons 
+                    WHERE module_id = ? 
+                    ORDER BY position, id
+                ");
+                $stmt->bind_param('i', $module['id']);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $moduleLessons[] = $row;
+                }
+                $stmt->close();
+                ?>
+                <div style="padding:18px 22px; border-bottom:1px solid var(--ln-line);">
+                    <h3 style="margin:0 0 4px; font-size:1rem; color:var(--ln-ink);">
+                        <?= learn_e($module['title']) ?>
+                    </h3>
+                    <?php if (!empty($module['summary'])): ?>
+                        <p style="margin:0 0 10px; font-size:0.85rem; color:var(--ln-muted);">
+                            <?= learn_e($module['summary']) ?>
+                        </p>
+                    <?php endif; ?>
+                    <?php if (!empty($module['start_date']) || !empty($module['end_date'])): ?>
+                        <p style="margin:0 0 10px; font-size:0.8rem; color:var(--ln-muted);">
+                            <?php if (!empty($module['start_date'])): ?>
+                                <span class="material-symbols-rounded" style="font-size:14px; vertical-align:middle;">event</span>
+                                <?= learn_e(date('M j, Y', strtotime($module['start_date']))) ?>
+                            <?php endif; ?>
+                            <?php if (!empty($module['end_date'])): ?>
+                                <?php if (!empty($module['start_date'])): ?> → <?php endif; ?>
+                                <?= learn_e(date('M j, Y', strtotime($module['end_date']))) ?>
+                            <?php endif; ?>
+                        </p>
+                    <?php endif; ?>
 
-                <ul style="list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:6px;">
-                    <?php foreach ($module['lessons'] as $lesson):
-                        $done = in_array((int)$lesson['id'], $doneLessons, true);
-                        ?>
-                        <li style="display:flex; align-items:center; gap:9px; font-size:0.9rem;">
-                            <span class="material-symbols-rounded"
-                                  style="font-size:19px; color:<?= $done ? 'var(--ln-success)' : 'var(--ln-line)' ?>;">
-                                <?= $done ? 'check_circle' : 'radio_button_unchecked' ?>
-                            </span>
+                    <ul style="list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:6px;">
+                        <?php foreach ($moduleLessons as $lesson):
+                            $done = in_array((int)$lesson['id'], $doneLessons, true);
+                            ?>
+                            <li style="display:flex; align-items:center; gap:9px; font-size:0.9rem;">
+                                <span class="material-symbols-rounded"
+                                      style="font-size:19px; color:<?= $done ? 'var(--ln-success)' : 'var(--ln-line)' ?>;">
+                                    <?= $done ? 'check_circle' : 'radio_button_unchecked' ?>
+                                </span>
                             <?php if ($enrolled): ?>
                                 <a href="/learn/course.php?c=<?= learn_e($slug) ?>&lesson=<?= (int)$lesson['id'] ?>">
                                     <?= learn_e($lesson['title']) ?>
@@ -372,6 +413,54 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
                 </ul>
             </div>
         <?php endforeach; ?>
+        <?php endif; ?>
+
+        <?php if (!empty($upcomingModules)): ?>
+            <div style="padding:16px 22px; background:var(--ln-amber-bg); border-bottom:1px solid var(--ln-line);">
+                <h3 style="margin:0 0 8px; font-size:0.95rem; color:var(--ln-amber); display:flex; align-items:center; gap:8px;">
+                    <span class="material-symbols-rounded">schedule</span>
+                    Upcoming Modules
+                </h3>
+            </div>
+            <?php foreach ($upcomingModules as $module): ?>
+                <?php 
+                // Fetch lessons for this module
+                $moduleLessons = [];
+                $stmt = $conn->prepare("
+                    SELECT id, title, duration_minutes 
+                    FROM public_course_lessons 
+                    WHERE module_id = ? 
+                    ORDER BY position, id
+                ");
+                $stmt->bind_param('i', $module['id']);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $moduleLessons[] = $row;
+                }
+                $stmt->close();
+                ?>
+                <div style="padding:18px 22px; border-bottom:1px solid var(--ln-line);">
+                    <h3 style="margin:0 0 4px; font-size:1rem; color:var(--ln-ink);">
+                        <?= learn_e($module['title']) ?>
+                    </h3>
+                    <?php if (!empty($module['summary'])): ?>
+                        <p style="margin:0 0 10px; font-size:0.85rem; color:var(--ln-muted);">
+                            <?= learn_e($module['summary']) ?>
+                        </p>
+                    <?php endif; ?>
+                    <?php if (!empty($module['start_date'])): ?>
+                        <p style="margin:0 0 10px; font-size:0.8rem; color:var(--ln-muted);">
+                            <span class="material-symbols-rounded" style="font-size:14px; vertical-align:middle;">event</span>
+                            Starts <?= learn_e(date('M j, Y', strtotime($module['start_date']))) ?>
+                        </p>
+                    <?php endif; ?>
+                    <p style="margin:0; font-size:0.85rem; color:var(--ln-muted);">
+                        <?= count($moduleLessons) ?> lesson<?= count($moduleLessons) !== 1 ? 's' : '' ?>
+                    </p>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
 
         <?php if ($finals): ?>
             <div style="padding:18px 22px;">

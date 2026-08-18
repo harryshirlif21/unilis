@@ -64,6 +64,61 @@ if ($actor['role'] === 'lecturer') {
     $stmt->close();
 }
 
+// Also list courses where this lecturer holds module/lesson-level assignment
+// (they can open them in the builder but only edit what they are assigned).
+$checkTmp = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
+if ($checkTmp && $checkTmp->num_rows > 0) {
+    $stmt = $conn->prepare("
+        SELECT DISTINCT pc.*,
+               (SELECT COUNT(*) FROM public_course_modules m WHERE m.course_id = pc.id) AS module_count,
+               (SELECT COUNT(*) FROM public_course_lessons l
+                  JOIN public_course_modules m ON m.id = l.module_id
+                 WHERE m.course_id = pc.id) AS lesson_count,
+               (SELECT COUNT(*) FROM public_course_assessments a WHERE a.course_id = pc.id) AS assessment_count,
+               (SELECT COUNT(*) FROM external_enrollments e WHERE e.course_id = pc.id) AS learner_count,
+               (SELECT COUNT(*) FROM certificates t WHERE t.course_id = pc.id AND t.revoked_at IS NULL) AS certificate_count,
+               (SELECT COALESCE(sct.id, 0) FROM short_course_tutors sct
+                 WHERE sct.short_course_id = pc.id AND sct.lecturer_id = ? AND sct.is_active = 1 LIMIT 1) AS tutor_id
+        FROM public_course_modules m
+        JOIN public_courses pc ON pc.id = m.course_id
+        JOIN tutor_module_permissions tmp ON tmp.module_id = m.id
+        WHERE tmp.tutor_id = ? AND tmp.can_edit = 1
+        ORDER BY pc.updated_at DESC
+    ");
+    $stmt->bind_param('ii', $actor['id'], $actor['id']);
+    $stmt->execute();
+    $extra = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    $assigned_courses = array_merge($assigned_courses, $extra);
+}
+
+$checkTlp = $conn->query("SHOW TABLES LIKE 'tutor_lesson_permissions'");
+if ($checkTlp && $checkTlp->num_rows > 0) {
+    $stmt = $conn->prepare("
+        SELECT DISTINCT pc.*,
+               (SELECT COUNT(*) FROM public_course_modules m WHERE m.course_id = pc.id) AS module_count,
+               (SELECT COUNT(*) FROM public_course_lessons l
+                  JOIN public_course_modules m ON m.id = l.module_id
+                 WHERE m.course_id = pc.id) AS lesson_count,
+               (SELECT COUNT(*) FROM public_course_assessments a WHERE a.course_id = pc.id) AS assessment_count,
+               (SELECT COUNT(*) FROM external_enrollments e WHERE e.course_id = pc.id) AS learner_count,
+               (SELECT COUNT(*) FROM certificates t WHERE t.course_id = pc.id AND t.revoked_at IS NULL) AS certificate_count,
+               (SELECT COALESCE(sct.id, 0) FROM short_course_tutors sct
+                 WHERE sct.short_course_id = pc.id AND sct.lecturer_id = ? AND sct.is_active = 1 LIMIT 1) AS tutor_id
+        FROM public_course_lessons ls
+        JOIN public_course_modules m ON m.id = ls.module_id
+        JOIN public_courses pc ON pc.id = m.course_id
+        JOIN tutor_lesson_permissions tlp ON tlp.lesson_id = ls.id
+        WHERE tlp.tutor_id = ? AND tlp.can_edit = 1
+        ORDER BY pc.updated_at DESC
+    ");
+    $stmt->bind_param('ii', $actor['id'], $actor['id']);
+    $stmt->execute();
+    $extra = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    $assigned_courses = array_merge($assigned_courses, $extra);
+}
+
 // Merge: owned courses + assigned courses (deduplicate by id)
 $seen = [];
 $all_courses = [];
@@ -237,12 +292,30 @@ function openLessonPreview(courseId) {
         .then(r => r.json())
         .then(data => {
             if (data.success && data.lesson_id) {
+                // Update lesson numbering when teach button is clicked
+                updateLessonNumbering(courseId);
                 window.open('lesson_editor.php?course_id=' + courseId + '&lesson_id=' + data.lesson_id + '&preview=1', '_blank');
             } else {
                 alert('No lessons found in this course. Add lessons first.');
             }
         })
         .catch(() => alert('Failed to load lesson preview'));
+}
+
+function updateLessonNumbering(courseId) {
+    // Call backend to update lesson numbering
+    fetch('ajax/update_lesson_numbering.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'course_id=' + courseId
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Lesson numbering updated successfully');
+        }
+    })
+    .catch(() => console.log('Failed to update lesson numbering'));
 }
 </script>
 <style>

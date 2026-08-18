@@ -242,6 +242,35 @@ function catalogue_require_course(mysqli $conn, array $actor, int $courseId): ar
 }
 
 /**
+ * Course a tutor may open in the builder, or a 404.
+ *
+ * The online course builder is used by course owners and by admins. A tutor who
+ * has been assigned to the course (as the single course-level tutor, or to a
+ * specific module/lesson) can open the course too, but this does not grant them
+ * edit rights beyond the modules/lessons they are assigned — the mutation
+ * handlers check tutor_can_edit_module()/tutor_can_edit_lesson() per row.
+ */
+function catalogue_require_editable_course(mysqli $conn, array $actor, int $courseId): array
+{
+    $course = catalogue_course($conn, $courseId);
+
+    $allowed = $course !== null
+        && (
+            $actor['role'] === 'admin'
+            || (int)($course['created_by_lecturer_id'] ?? 0) === $actor['id']
+            || ($actor['role'] === 'lecturer' && catalogue_tutor_assignment($conn, $actor['id'], $courseId)['assigned'])
+        );
+
+    if (!$allowed) {
+        http_response_code(404);
+        echo 'Course not found.';
+        exit;
+    }
+
+    return $course;
+}
+
+/**
  * Validate the course detail fields shared by create and update.
  *
  * Returns ['errors' => string[], 'values' => array].
@@ -929,6 +958,114 @@ function tutor_can_view_module(mysqli $conn, int $tutorId, int $moduleId): bool
     $stmt->close();
     
     return $canView;
+}
+
+/**
+ * Whether a tutor may edit a specific lesson.
+ *
+ * A lesson is editable by a tutor when any of these hold:
+ *   - the tutor may edit the lesson's module (course-level primary tutor, or an
+ *     explicit tutor_module_permissions row), or
+ *   - there is an explicit tutor_lesson_permissions row for this exact lesson.
+ */
+function tutor_can_edit_lesson(mysqli $conn, int $tutorId, int $lessonId): bool
+{
+    $stmt = $conn->prepare("SELECT module_id FROM public_course_lessons WHERE id = ? LIMIT 1");
+    $stmt->bind_param('i', $lessonId);
+    $stmt->execute();
+    $lesson = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$lesson) {
+        return false;
+    }
+
+    // Module-level (and course-level) permission takes precedence.
+    if (tutor_can_edit_module($conn, $tutorId, (int)$lesson['module_id'])) {
+        return true;
+    }
+
+    // Explicit lesson-level permission.
+    $checkTable = $conn->query("SHOW TABLES LIKE 'tutor_lesson_permissions'");
+    if ($checkTable && $checkTable->num_rows > 0) {
+        $stmt = $conn->prepare("
+            SELECT can_edit FROM tutor_lesson_permissions
+            WHERE tutor_id = ? AND lesson_id = ? AND can_edit = 1
+            LIMIT 1
+        ");
+        $stmt->bind_param('ii', $tutorId, $lessonId);
+        $stmt->execute();
+        $hasLessonPermission = $stmt->get_result()->num_rows > 0;
+        $stmt->close();
+
+        if ($hasLessonPermission) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Whether a non-owner tutor has been given some role in this course.
+ *
+ * Used by the builder to let assigned tutors open a course, and to decide the
+ * strength of the "cannot edit a module not assigned to him" rule. A lecturer
+ * who is the course-level tutor (one per course) may edit the whole course; a
+ * lecturer who only holds module/lesson permissions may open the course but can
+ * only edit the modules/lessons they are assigned.
+ */
+function catalogue_tutor_assignment(mysqli $conn, int $tutorId, int $courseId): array
+{
+    // Course-level assignment (is_active marks the single primary tutor).
+    $primary = false;
+    $stmt = $conn->prepare("
+        SELECT id FROM short_course_tutors
+        WHERE short_course_id = ? AND lecturer_id = ? AND is_active = 1
+        LIMIT 1
+    ");
+    $stmt->bind_param('ii', $courseId, $tutorId);
+    $stmt->execute();
+    $primary = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+
+    // Module or lesson level assignment anywhere in the course.
+    $assigned = $primary;
+    if (!$assigned) {
+        $checkTmp = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
+        if ($checkTmp && $checkTmp->num_rows > 0) {
+            $stmt = $conn->prepare("
+                SELECT 1
+                FROM tutor_module_permissions tmp
+                JOIN public_course_modules m ON m.id = tmp.module_id
+                WHERE tmp.tutor_id = ? AND m.course_id = ? AND tmp.can_edit = 1
+                LIMIT 1
+            ");
+            $stmt->bind_param('ii', $tutorId, $courseId);
+            $stmt->execute();
+            $assigned = $stmt->get_result()->num_rows > 0;
+            $stmt->close();
+        }
+    }
+    if (!$assigned) {
+        $checkTable = $conn->query("SHOW TABLES LIKE 'tutor_lesson_permissions'");
+        if ($checkTable && $checkTable->num_rows > 0) {
+            $stmt = $conn->prepare("
+                SELECT 1
+                FROM tutor_lesson_permissions tlp
+                JOIN public_course_lessons l ON l.id = tlp.lesson_id
+                JOIN public_course_modules m ON m.id = l.module_id
+                WHERE tlp.tutor_id = ? AND m.course_id = ? AND tlp.can_edit = 1
+                LIMIT 1
+            ");
+            $stmt->bind_param('ii', $tutorId, $courseId);
+            $stmt->execute();
+            $assigned = $stmt->get_result()->num_rows > 0;
+            $stmt->close();
+        }
+    }
+
+    return ['course' => $primary, 'assigned' => $assigned];
 }
 
 function catalogue_delete_lesson(mysqli $conn, int $lessonId): void
