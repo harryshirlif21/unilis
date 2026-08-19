@@ -5,39 +5,23 @@
  * Consolidated view for course management, student analytics, revenue, tutors, and sponsors
  */
 
-define('PHASE1_ACCESS', true);
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 require_once __DIR__ . '/../../config/db.php';
 
-// Load Phase 1 configuration and auth
-if (file_exists(__DIR__ . '/../config/phase1_config.php')) {
-    require_once __DIR__ . '/../config/phase1_config.php';
-}
-if (file_exists(__DIR__ . '/../includes/auth_extended.php')) {
-    require_once __DIR__ . '/../includes/auth_extended.php';
+// Simple auth check - only allow admin and department_admin
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role'])) {
+    header("Location: ../../login.php");
+    exit;
 }
 
-// Simple auth check if extended auth not available
-if (!function_exists('phase1_guard_role')) {
-    function phase1_guard_role($allowed_roles, $redirect_url = '../../login.php') {
-        if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role'])) {
-            header("Location: $redirect_url");
-            exit;
-        }
-        
-        if (is_string($allowed_roles)) {
-            $allowed_roles = [$allowed_roles];
-        }
-        
-        if (!in_array($_SESSION['user_role'], $allowed_roles)) {
-            header("Location: $redirect_url");
-            exit;
-        }
-    }
+$user_role = $_SESSION['user_role'] ?? '';
+if (!in_array($user_role, ['admin', 'department_admin'])) {
+    header("Location: ../../login.php");
+    exit;
 }
-
-// Only Global Admin or Department Admin can access
-phase1_guard_role(['admin', 'department_admin'], '../../login.php');
 
 $user_name = $_SESSION['user_name'] ?? 'Admin';
 $user_role = $_SESSION['user_role'] ?? '';
@@ -132,6 +116,57 @@ if ($action === 'delete_course') {
     }
 }
 
+// AJAX: Update course field
+if ($action === 'update_course_field') {
+    header('Content-Type: application/json');
+    $course_id = (int)($_POST['course_id'] ?? 0);
+    $field = $_POST['field'] ?? '';
+    $value = $_POST['value'] ?? '';
+
+    if (!$course_id || !$field) {
+        echo json_encode(['success' => false, 'message' => 'Invalid request']);
+        exit;
+    }
+
+    // Validate field name - expanded to include all editable fields
+    $allowed_fields = ['title', 'code', 'summary', 'duration', 'price', 'pass_mark', 'estimated_hours', 'level', 'payment_methods', 'outline'];
+    if (!in_array($field, $allowed_fields)) {
+        echo json_encode(['success' => false, 'message' => 'Invalid field']);
+        exit;
+    }
+
+    // Verify department access for department_admin
+    if ($is_department_admin) {
+        $check = $conn->prepare("SELECT id FROM public_courses WHERE id = ? AND department_id = ?");
+        $check->bind_param('ii', $course_id, $department_id);
+        $check->execute();
+        if (!$check->get_result()->fetch_row()) {
+            echo json_encode(['success' => false, 'message' => 'Access denied']);
+            $check->close();
+            exit;
+        }
+        $check->close();
+    }
+
+    // Build update query based on field type
+    $sql = "UPDATE public_courses SET $field = ?, updated_at = NOW() WHERE id = ?";
+    $stmt = $conn->prepare($sql);
+    
+    if ($field === 'price' || $field === 'pass_mark' || $field === 'estimated_hours') {
+        $stmt->bind_param('di', $value, $course_id);
+    } else {
+        $stmt->bind_param('si', $value, $course_id);
+    }
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true, 'message' => 'Field updated']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Update failed: ' . $stmt->error]);
+    }
+    $stmt->close();
+    exit;
+}
+
 // Build query with filters
 $where_conditions = ["1=1"];
 $params = [];
@@ -204,14 +239,23 @@ if (!in_array($sort, $allowed_sort)) {
 }
 $order = strtoupper($order) === 'ASC' ? 'ASC' : 'DESC';
 
-// Fetch courses with analytics
+// Fetch courses with analytics - build dynamic column list based on what exists
+$courseColumns = ['c.id', 'c.slug', 'c.title', 'c.code', 'c.summary', 'c.duration', 'c.department_id', 'c.cover_image', 'c.is_published', 'c.created_at', 'c.updated_at', 'c.certificate_enabled', 'c.pass_mark'];
+$courseOptional = ['c.is_paid', 'c.price', 'c.payment_methods', 'c.is_sponsored', 'c.estimated_hours'];
+
+foreach ($courseOptional as $col) {
+    $colCheck = $conn->query("SHOW COLUMNS FROM public_courses LIKE '" . str_replace('c.', '', $col) . "'");
+    if ($colCheck && $colCheck->num_rows > 0) {
+        $courseColumns[] = $col;
+    }
+}
+
+$courseFields = implode(', ', $courseColumns);
+
 $where_clause = implode(' AND ', $where_conditions);
 $sql = "
     SELECT 
-        c.id, c.slug, c.title, c.code, c.summary, c.duration, c.department_id,
-        c.cover_image, c.is_published, c.created_at, c.updated_at,
-        c.certificate_enabled, c.pass_mark,
-        c.is_paid, c.price, c.payment_methods, c.is_sponsored,
+        $courseFields,
         d.name as department_name,
         (SELECT COUNT(*) FROM public_course_lessons l
          JOIN public_course_modules m ON m.id = l.module_id
@@ -589,6 +633,78 @@ foreach ($courses as $course) {
             margin-bottom: 16px;
             opacity: 0.5;
         }
+
+        .editable {
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            position: relative;
+        }
+
+        .editable:hover {
+            background: var(--surface2);
+        }
+
+        .editable:hover::after {
+            content: '\f303';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        .editable input {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            font-size: inherit;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .editable.saving {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .editable.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success {
+            background: var(--accent2);
+            color: white;
+        }
+
+        .toast.error {
+            background: var(--danger);
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -686,7 +802,9 @@ foreach ($courses as $course) {
                             <th>Status</th>
                             <th>Enrollments</th>
                             <th>Certificates</th>
-                            <th>Revenue</th>
+                            <th>Duration</th>
+                            <th>Price</th>
+                            <th>Pass Mark</th>
                             <th>Tutors</th>
                             <th>Sponsors</th>
                             <th>Created</th>
@@ -706,12 +824,17 @@ foreach ($courses as $course) {
                                             </div>
                                         <?php endif; ?>
                                         <div>
-                                            <div style="font-weight: 600;"><?= htmlspecialchars($course['title']) ?></div>
+                                            <div class="editable" data-field="title" data-course-id="<?= $course['id'] ?>" style="font-weight: 600;"><?= htmlspecialchars($course['title']) ?></div>
                                             <div style="font-size: 0.75rem; color: var(--text-muted);">
-                                                <?= htmlspecialchars($course['code'] ?? 'N/A') ?> · 
+                                                <span class="editable" data-field="code" data-course-id="<?= $course['id'] ?>"><?= htmlspecialchars($course['code'] ?? 'N/A') ?></span> · 
                                                 <?= $course['lesson_count'] ?> lessons · 
                                                 <?= $course['assessment_count'] ?> assessments
                                             </div>
+                                            <?php if ($course['summary']): ?>
+                                            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">
+                                                <span class="editable" data-field="summary" data-course-id="<?= $course['id'] ?>"><?= htmlspecialchars(substr($course['summary'], 0, 60)) ?><?= strlen($course['summary']) > 60 ? '...' : '' ?></span>
+                                            </div>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </td>
@@ -724,10 +847,24 @@ foreach ($courses as $course) {
                                 <td><?= $course['learner_count'] ?></td>
                                 <td><?= $course['certificate_count'] ?></td>
                                 <td>
+                                    <?php if (isset($course['duration'])): ?>
+                                        <span class="editable" data-field="duration" data-course-id="<?= $course['id'] ?>"><?= htmlspecialchars($course['duration']) ?></span>
+                                    <?php else: ?>
+                                        <span style="color: var(--text-muted);">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
                                     <?php if (isset($course['is_paid']) && $course['is_paid'] == 1): ?>
-                                        KSh <?= number_format($course['price'], 2) ?>
+                                        <span class="editable" data-field="price" data-course-id="<?= $course['id'] ?>" data-type="number" data-step="0.01">KSh <?= number_format($course['price'], 2) ?></span>
                                     <?php else: ?>
                                         <span style="color: var(--text-muted);">Free</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (isset($course['pass_mark'])): ?>
+                                        <span class="editable" data-field="pass_mark" data-course-id="<?= $course['id'] ?>" data-type="number" data-step="1"><?= $course['pass_mark'] ?>%</span>
+                                    <?php else: ?>
+                                        <span style="color: var(--text-muted);">-</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -764,9 +901,6 @@ foreach ($courses as $course) {
                                             <i class="fas fa-<?= $course['is_published'] ? 'eye-slash' : 'eye' ?>"></i>
                                         </button>
                                     </form>
-                                    <a href="department_admins.php#edit-course-<?= $course['id'] ?>" class="action-btn" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
                                     <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this course? This cannot be undone.');">
                                         <input type="hidden" name="action" value="delete_course">
                                         <input type="hidden" name="course_id" value="<?= $course['id'] ?>">
@@ -782,5 +916,118 @@ foreach ($courses as $course) {
             <?php endif; ?>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const editableFields = document.querySelectorAll('.editable');
+            
+            editableFields.forEach(field => {
+                field.addEventListener('click', function(e) {
+                    if (this.querySelector('input')) return; // Already editing
+                    
+                    const currentValue = this.textContent.trim();
+                    const courseId = this.dataset.courseId;
+                    const fieldName = this.dataset.field;
+                    const fieldType = this.dataset.type || (fieldName === 'price' || fieldName === 'pass_mark' || fieldName === 'estimated_hours' ? 'number' : 'text');
+                    const fieldStep = this.dataset.step || (fieldName === 'price' || fieldName === 'estimated_hours' ? '0.01' : '1');
+                    
+                    // Strip currency prefix for price fields
+                    let cleanValue = currentValue;
+                    if (fieldName === 'price' && currentValue.startsWith('KSh ')) {
+                        cleanValue = currentValue.replace('KSh ', '').replace(/,/g, '');
+                    }
+                    
+                    // Create input element
+                    const input = document.createElement('input');
+                    input.type = fieldType;
+                    input.value = cleanValue;
+                    input.step = fieldStep;
+                    
+                    // Replace content with input
+                    this.innerHTML = '';
+                    this.appendChild(input);
+                    input.focus();
+                    input.select();
+                    
+                    this.classList.add('editing');
+                    
+                    // Save on blur or Enter
+                    const saveEdit = () => {
+                        const newValue = input.value.trim();
+                        
+                        if (newValue !== currentValue) {
+                            this.classList.add('saving');
+                            
+                            const formData = new FormData();
+                            formData.append('action', 'update_course_field');
+                            formData.append('course_id', courseId);
+                            formData.append('field', fieldName);
+                            formData.append('value', newValue);
+                            
+                            fetch('short_courses_analytics.php', {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    // Reformat price with currency prefix
+                                    let displayValue = newValue;
+                                    if (fieldName === 'price') {
+                                        const numValue = parseFloat(newValue);
+                                        if (!isNaN(numValue)) {
+                                            displayValue = 'KSh ' + numValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                        }
+                                    }
+                                    this.textContent = displayValue;
+                                    this.classList.remove('saving', 'error');
+                                    showToast('Updated successfully', 'success');
+                                } else {
+                                    this.textContent = currentValue;
+                                    this.classList.remove('saving');
+                                    this.classList.add('error');
+                                    showToast(data.message || 'Update failed', 'error');
+                                }
+                            })
+                            .catch(error => {
+                                this.textContent = currentValue;
+                                this.classList.remove('saving');
+                                this.classList.add('error');
+                                showToast('Network error', 'error');
+                            });
+                        } else {
+                            this.textContent = currentValue;
+                            this.classList.remove('editing');
+                        }
+                    };
+                    
+                    input.addEventListener('blur', saveEdit);
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            input.blur();
+                        } else if (e.key === 'Escape') {
+                            this.textContent = currentValue;
+                            this.classList.remove('editing');
+                        }
+                    });
+                });
+            });
+            
+            function showToast(message, type) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.textContent = message;
+                document.body.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }
+        });
+    </script>
 </body>
 </html>

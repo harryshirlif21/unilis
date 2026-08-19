@@ -548,12 +548,17 @@ if ($action === 'edit_short_course') {
     $description = trim($_POST['description'] ?? '');
     $duration = trim($_POST['duration'] ?? '');
     $department_id_input = $is_department_admin ? (int)$department_id : (int)($_POST['department_id'] ?? 0);
+    
+    // Debug logging
+    error_log("Edit short course POST data: ID=$id, name=$name, code=$code, duration=$duration, dept_input=$department_id_input, is_dept_admin=$is_department_admin, session_dept=$department_id");
+    
     $banner = $_FILES['banner'] ?? null;
     $pricing = $_POST['pricing'] ?? 'free';
     $price = (float)($_POST['price'] ?? 0);
     $payment_methods = $_POST['payment_methods'] ?? [];
     
     // Handle multiple sponsors
+    $sponsor_ids = $_POST['sponsor_id'] ?? [];
     $sponsor_names = $_POST['sponsor_name'] ?? [];
     $sponsor_details = $_POST['sponsor_details'] ?? [];
     $sponsor_logos = $_FILES['sponsor_logo'] ?? [];
@@ -564,16 +569,13 @@ if ($action === 'edit_short_course') {
     // Check if any sponsor data is provided
     if (is_array($sponsor_names) && !empty(array_filter($sponsor_names))) {
         $has_sponsors = true;
-        // Validate each sponsor has required fields
+        // For editing, sponsor logos are optional - they can keep existing logos
+        // Only validate sponsor names are provided
         foreach ($sponsor_names as $index => $sname) {
             $sname = trim($sname);
             if (!empty($sname)) {
-                if (!isset($sponsor_logos['name'][$index]) || $sponsor_logos['error'][$index] !== UPLOAD_ERR_OK) {
-                    $sponsors_valid = false;
-                    $message = "Sponsor at position " . ($index + 1) . " requires a logo.";
-                    $message_type = 'error';
-                    break;
-                }
+                // Sponsor name is provided, that's enough for editing
+                // Logo upload is optional since existing sponsors can keep their logos
             }
         }
     }
@@ -588,6 +590,8 @@ if ($action === 'edit_short_course') {
     }
 
     if ($id && $name && $code && $duration && $department_id_input && (!$has_sponsors || $sponsors_valid)) {
+        // Log for debugging
+        error_log("Edit short course validation passed: ID=$id, name=$name, code=$code, duration=$duration, dept=$department_id_input");
         $checkTable = $conn->query("SHOW TABLES LIKE 'public_courses'");
         if ($checkTable && $checkTable->num_rows > 0) {
             // Handle banner upload if provided
@@ -675,51 +679,77 @@ if ($action === 'edit_short_course') {
             if ($stmt->execute()) {
                 $stmt->close();
                 
-                // Handle sponsors: delete existing and insert new ones
-                // First, get existing sponsors to preserve logos if not updated
+                // Handle sponsors: use UPDATE for existing, INSERT for new
+                // First, get existing sponsors to track which ones are updated
                 $existing_sponsors = [];
-                $checkSponsors = $conn->query("SELECT id, sponsor_logo FROM course_sponsors WHERE course_id = $id");
+                $checkSponsors = $conn->query("SELECT id, sponsor_name, sponsor_details, sponsor_logo FROM course_sponsors WHERE course_id = $id");
                 if ($checkSponsors) {
                     while ($row = $checkSponsors->fetch_assoc()) {
-                        $existing_sponsors[$row['id']] = $row['sponsor_logo'];
+                        $existing_sponsors[] = $row;
                     }
                 }
                 
-                $conn->query("DELETE FROM course_sponsors WHERE course_id = $id");
+                $sponsor_upload_dir = __DIR__ . '/../../uploads/short_courses/sponsors/';
+                if (!is_dir($sponsor_upload_dir)) mkdir($sponsor_upload_dir, 0755, true);
                 
                 $sponsor_count = 0;
+                $matched_existing_ids = [];
+                
                 if ($has_sponsors) {
-                    $sponsor_upload_dir = __DIR__ . '/../../uploads/short_courses/sponsors/';
-                    if (!is_dir($sponsor_upload_dir)) mkdir($sponsor_upload_dir, 0755, true);
-                    
                     foreach ($sponsor_names as $index => $sname) {
                         $sname = trim($sname);
                         if (!empty($sname)) {
                             $sdetails = trim($sponsor_details[$index] ?? '');
+                            $sponsor_id = !empty($sponsor_ids[$index]) ? (int)$sponsor_ids[$index] : null;
                             
                             // Handle sponsor logo upload
-                            $slogo_path = '';
+                            $slogo_path = null;
                             if (isset($sponsor_logos['tmp_name'][$index]) && $sponsor_logos['error'][$index] === UPLOAD_ERR_OK) {
                                 $slogo_path = '/uploads/short_courses/sponsors/' . time() . '_' . $index . '_' . basename($sponsor_logos['name'][$index]);
-                                if (move_uploaded_file($sponsor_logos['tmp_name'][$index], __DIR__ . '/../../' . $slogo_path)) {
-                                    $sponsor_stmt = $conn->prepare("INSERT INTO course_sponsors (course_id, sponsor_name, sponsor_details, sponsor_logo) VALUES (?, ?, ?, ?)");
-                                    $sponsor_stmt->bind_param('isss', $id, $sname, $sdetails, $slogo_path);
-                                    $sponsor_stmt->execute();
-                                    $sponsor_stmt->close();
-                                    $sponsor_count++;
+                                if (!move_uploaded_file($sponsor_logos['tmp_name'][$index], __DIR__ . '/../../' . $slogo_path)) {
+                                    $slogo_path = null;
                                 }
+                            }
+                            
+                            if ($sponsor_id) {
+                                // UPDATE existing sponsor by ID
+                                // Get existing logo if no new logo uploaded
+                                $existing_logo = '';
+                                foreach ($existing_sponsors as $existing) {
+                                    if ($existing['id'] == $sponsor_id) {
+                                        $existing_logo = $existing['sponsor_logo'];
+                                        break;
+                                    }
+                                }
+                                
+                                $logo_to_use = $slogo_path ? $slogo_path : $existing_logo;
+                                $sponsor_stmt = $conn->prepare("UPDATE course_sponsors SET sponsor_name = ?, sponsor_details = ?, sponsor_logo = ? WHERE id = ?");
+                                $sponsor_stmt->bind_param('sssi', $sname, $sdetails, $logo_to_use, $sponsor_id);
+                                $sponsor_stmt->execute();
+                                $sponsor_stmt->close();
+                                $matched_existing_ids[] = $sponsor_id;
+                                $sponsor_count++;
                             } else {
-                                // No new logo uploaded, but we need to insert the sponsor anyway
-                                // Since we can't match which existing sponsor this corresponds to,
-                                // we'll insert without a logo for now (user should upload new logo)
+                                // INSERT new sponsor
+                                $logo_to_use = $slogo_path ? $slogo_path : '';
                                 $sponsor_stmt = $conn->prepare("INSERT INTO course_sponsors (course_id, sponsor_name, sponsor_details, sponsor_logo) VALUES (?, ?, ?, ?)");
-                                $sponsor_stmt->bind_param('isss', $id, $sname, $sdetails, '');
+                                $sponsor_stmt->bind_param('isss', $id, $sname, $sdetails, $logo_to_use);
                                 $sponsor_stmt->execute();
                                 $sponsor_stmt->close();
                                 $sponsor_count++;
                             }
                         }
                     }
+                    
+                    // Delete sponsors that were not matched (removed by user)
+                    foreach ($existing_sponsors as $existing) {
+                        if (!in_array($existing['id'], $matched_existing_ids)) {
+                            $conn->query("DELETE FROM course_sponsors WHERE id = " . (int)$existing['id']);
+                        }
+                    }
+                } else {
+                    // No sponsors in form, delete all existing sponsors
+                    $conn->query("DELETE FROM course_sponsors WHERE course_id = $id");
                 }
                 
                 $message = "Short course updated successfully!" . ($sponsor_count > 0 ? " Updated with $sponsor_count sponsor(s)." : "");
@@ -734,8 +764,20 @@ if ($action === 'edit_short_course') {
             $message_type = 'error';
         }
     } else {
-        $message = "Course Name, Code, Duration, and Department are required.";
+        // Detailed error message for debugging
+        $missing_fields = [];
+        if (!$id) $missing_fields[] = "ID";
+        if (!$name) $missing_fields[] = "Course Name";
+        if (!$code) $missing_fields[] = "Course Code";
+        if (!$duration) $missing_fields[] = "Duration";
+        if (!$department_id_input) $missing_fields[] = "Department";
+        if ($has_sponsors && !$sponsors_valid) $missing_fields[] = "Valid sponsor logos";
+        
+        $message = "Missing required fields: " . implode(', ', $missing_fields);
         $message_type = 'error';
+        
+        // Log for debugging
+        error_log("Edit validation failed: ID=$id, name=$name, code=$code, duration=$duration, dept=$department_id_input, has_sponsors=$has_sponsors, sponsors_valid=$sponsors_valid");
     }
 }
 
@@ -2540,12 +2582,17 @@ if ($department_id) {
                     </div>
                     <div class="form-group">
                         <label>Department *</label>
+                        <?php if ($is_department_admin): ?>
+                        <input type="hidden" name="department_id" id="edit_department_id" value="<?= $department_id ?>">
+                        <input type="text" value="<?= htmlspecialchars($dept_name) ?>" disabled style="background:var(--surface2); width:100%; padding:8px; border:1px solid var(--border); border-radius:4px;">
+                        <?php else: ?>
                         <select name="department_id" id="edit_department_id" required>
                             <option value="">-- Select --</option>
                             <?php if ($all_departments): $all_departments->data_seek(0); while ($dept = $all_departments->fetch_assoc()): ?>
                                 <option value="<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></option>
                             <?php endwhile; endif; ?>
                         </select>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="form-group">
@@ -2612,12 +2659,20 @@ if ($department_id) {
     }
 
     function openEditModal(sc) {
+        console.log('Opening edit modal with data:', sc);
+        
         document.getElementById('edit_id').value = sc.id || '';
-        document.getElementById('edit_name').value = sc.name || '';
+        document.getElementById('edit_name').value = sc.name || sc.title || '';
         document.getElementById('edit_code').value = sc.code || '';
         document.getElementById('edit_duration').value = sc.duration || '';
-        document.getElementById('edit_description').value = sc.description || '';
-        document.getElementById('edit_department_id').value = sc.department_id || '';
+        document.getElementById('edit_description').value = sc.description || sc.summary || '';
+        
+        // Handle department_id - it might be a select or hidden input
+        const deptField = document.getElementById('edit_department_id');
+        if (deptField) {
+            deptField.value = sc.department_id || '';
+        }
+        
         document.getElementById('edit_price').value = sc.price || '';
 
         // Clear existing sponsor fields
@@ -2626,7 +2681,9 @@ if ($department_id) {
         editSponsorIndex = 0;
 
         // Load sponsors for this course
-        loadCourseSponsors(sc.id);
+        if (sc.id) {
+            loadCourseSponsors(sc.id);
+        }
 
         // Payment methods
         const methods = sc.payment_methods ? String(sc.payment_methods).split(',') : [];
@@ -2657,7 +2714,7 @@ if ($department_id) {
                 const data = JSON.parse(jsonMatch[0]);
                 if (data.sponsors && Array.isArray(data.sponsors)) {
                     data.sponsors.forEach(sponsor => {
-                        addEditSponsorFieldWithValue(sponsor.sponsor_name, sponsor.sponsor_details, sponsor.sponsor_logo);
+                        addEditSponsorFieldWithValue(sponsor.sponsor_name, sponsor.sponsor_details, sponsor.sponsor_logo, sponsor.id);
                     });
                 }
             }
@@ -2666,7 +2723,7 @@ if ($department_id) {
         }
     }
 
-    function addEditSponsorFieldWithValue(name, details, logoPath) {
+    function addEditSponsorFieldWithValue(name, details, logoPath, sponsorId = null) {
         const container = document.getElementById('edit_sponsors_container');
         const sponsorDiv = document.createElement('div');
         sponsorDiv.className = 'edit-sponsor-item';
@@ -2678,6 +2735,7 @@ if ($department_id) {
                     <i class="fas fa-times"></i>
                 </button>
             </div>
+            <input type="hidden" name="sponsor_id[]" value="${sponsorId || ''}">
             <div class="form-group" style="margin-bottom:8px;">
                 <label style="font-size:12px;">Sponsor Name *</label>
                 <input type="text" name="sponsor_name[]" value="${name || ''}" style="padding:8px; font-size:13px;">
@@ -2777,6 +2835,7 @@ if ($department_id) {
                     <i class="fas fa-times"></i>
                 </button>
             </div>
+            <input type="hidden" name="sponsor_id[]" value="">
             <div class="form-group" style="margin-bottom:8px;">
                 <label style="font-size:12px;">Sponsor Name *</label>
                 <input type="text" name="sponsor_name[]" style="padding:8px; font-size:13px;">
