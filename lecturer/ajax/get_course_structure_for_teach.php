@@ -57,8 +57,21 @@ if (!$hasAccess) {
     }
 }
 
+// If still no access, check if course exists and grant view access for course authors
 if (!$hasAccess) {
-    echo json_encode(['success' => false, 'message' => 'Access denied']);
+    $checkCourse = $conn->prepare("SELECT author_id FROM public_courses WHERE id = ?");
+    $checkCourse->bind_param("i", $course_id);
+    $checkCourse->execute();
+    $courseRow = $checkCourse->get_result()->fetch_assoc();
+    $checkCourse->close();
+    
+    if ($courseRow && $courseRow['author_id'] == $lecturer_id) {
+        $hasAccess = true;
+    }
+}
+
+if (!$hasAccess) {
+    echo json_encode(['success' => false, 'message' => 'Access denied - You do not have permission to view this course']);
     exit;
 }
 
@@ -112,60 +125,70 @@ $checkAuthor->close();
 
 // Fetch modules
 $modules = [];
-$stmt = $conn->prepare("
-    SELECT id, title, position
-    FROM public_course_modules
-    WHERE course_id = ?
-    ORDER BY position ASC, id ASC
-");
-$stmt->bind_param("i", $course_id);
-$stmt->execute();
-$result = $stmt->get_result();
-while ($mod = $result->fetch_assoc()) {
-    // Determine edit permission
-    if ($isAuthor) {
-        $mod['can_edit'] = true;
-    } elseif (in_array($mod['id'], $editableModuleIds)) {
-        $mod['can_edit'] = true;
-    } elseif (in_array($mod['id'], $viewOnlyModuleIds)) {
-        $mod['can_edit'] = false;
-    } else {
-        // No specific permission - check if assigned to course
-        $mod['can_edit'] = false;
+try {
+    $stmt = $conn->prepare("
+        SELECT id, title, position
+        FROM public_course_modules
+        WHERE course_id = ?
+        ORDER BY position ASC, id ASC
+    ");
+    $stmt->bind_param("i", $course_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($mod = $result->fetch_assoc()) {
+        // Determine edit permission
+        if ($isAuthor) {
+            $mod['can_edit'] = true;
+        } elseif (in_array($mod['id'], $editableModuleIds)) {
+            $mod['can_edit'] = true;
+        } elseif (in_array($mod['id'], $viewOnlyModuleIds)) {
+            $mod['can_edit'] = false;
+        } else {
+            // No specific permission - check if assigned to course
+            $mod['can_edit'] = false;
+        }
+        $modules[] = $mod;
     }
-    $modules[] = $mod;
+    $stmt->close();
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'message' => 'Error fetching modules: ' . $e->getMessage()]);
+    exit;
 }
-$stmt->close();
 
 // Fetch lessons
 $lessons = [];
 if (!empty($modules)) {
-    $moduleIds = array_column($modules, 'id');
-    $moduleIdsStr = implode(',', array_map('intval', $moduleIds));
-    
-    $lessonQuery = $conn->query("
-        SELECT id, module_id, title, position
-        FROM public_course_lessons
-        WHERE module_id IN ($moduleIdsStr)
-        ORDER BY position ASC, id ASC
-    ");
-    while ($lesson = $lessonQuery->fetch_assoc()) {
-        // Determine edit permission
-        if ($isAuthor) {
-            $lesson['can_edit'] = true;
-        } elseif (in_array($lesson['id'], $editableLessonIds)) {
-            $lesson['can_edit'] = true;
-        } elseif (in_array($lesson['id'], $viewOnlyLessonIds)) {
-            $lesson['can_edit'] = false;
-        } elseif (in_array($lesson['module_id'], $editableModuleIds)) {
-            // If module is editable, lessons are too
-            $lesson['can_edit'] = true;
-        } elseif (in_array($lesson['module_id'], $viewOnlyModuleIds)) {
-            $lesson['can_edit'] = false;
-        } else {
-            $lesson['can_edit'] = false;
+    try {
+        $moduleIds = array_column($modules, 'id');
+        $moduleIdsStr = implode(',', array_map('intval', $moduleIds));
+        
+        $lessonQuery = $conn->query("
+            SELECT id, module_id, title, position
+            FROM public_course_lessons
+            WHERE module_id IN ($moduleIdsStr)
+            ORDER BY position ASC, id ASC
+        ");
+        while ($lesson = $lessonQuery->fetch_assoc()) {
+            // Determine edit permission
+            if ($isAuthor) {
+                $lesson['can_edit'] = true;
+            } elseif (in_array($lesson['id'], $editableLessonIds)) {
+                $lesson['can_edit'] = true;
+            } elseif (in_array($lesson['id'], $viewOnlyLessonIds)) {
+                $lesson['can_edit'] = false;
+            } elseif (in_array($lesson['module_id'], $editableModuleIds)) {
+                // If module is editable, lessons are too
+                $lesson['can_edit'] = true;
+            } elseif (in_array($lesson['module_id'], $viewOnlyModuleIds)) {
+                $lesson['can_edit'] = false;
+            } else {
+                $lesson['can_edit'] = false;
+            }
+            $lessons[] = $lesson;
         }
-        $lessons[] = $lesson;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Error fetching lessons: ' . $e->getMessage()]);
+        exit;
     }
 }
 

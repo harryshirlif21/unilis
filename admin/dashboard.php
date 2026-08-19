@@ -497,6 +497,7 @@ if ($teamTablesExist) {
     <button class="menu-item" onclick="openAddTechnicianModal()"><i class="fas fa-tools"></i> Technicians</button>
     <div class="menu-section-title">Public Learning</div>
     <button class="menu-item" onclick="window.location.href='../learn/'"><i class="fas fa-graduation-cap"></i> Public Courses</button>
+    <button class="menu-item" onclick="window.location.href='../phase1/admin/short_courses_analytics.php'"><i class="fas fa-chart-line"></i> Short Courses Analytics</button>
     <div class="menu-section-title">System</div>
     <button class="menu-item" onclick="alert('System Settings not implemented yet!')"><i class="fas fa-cogs"></i> System Settings</button>
     <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>

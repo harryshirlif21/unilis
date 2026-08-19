@@ -19,80 +19,114 @@ $mode      = $course_id > 0 ? 'short_course' : 'iclm';
 // ── Short course mode: verify access, load course info ────────────────────
 $course_info = null;
 $can_edit = false;
+$has_access = false;
+
 if ($mode === 'short_course') {
     // Check if course author
     $isAuthor = false;
-    $checkAuthor = $conn->prepare("SELECT id FROM public_courses WHERE id = ? AND author_id = ?");
-    $checkAuthor->bind_param("ii", $course_id, $lecturer_id);
-    $checkAuthor->execute();
-    if ($checkAuthor->get_result()->fetch_row()) {
-        $isAuthor = true;
-        $can_edit = true;
+    try {
+        $checkAuthor = $conn->prepare("SELECT id FROM public_courses WHERE id = ? AND author_id = ?");
+        $checkAuthor->bind_param("ii", $course_id, $lecturer_id);
+        $checkAuthor->execute();
+        if ($checkAuthor->get_result()->fetch_row()) {
+            $isAuthor = true;
+            $can_edit = true;
+            $has_access = true;
+        }
+        $checkAuthor->close();
+    } catch (Exception $e) {
+        error_log("Error checking author: " . $e->getMessage());
     }
-    $checkAuthor->close();
 
     // If not author, check module/lesson permissions
     if (!$isAuthor) {
         // Check if assigned as course tutor
-        $checkTutor = $conn->prepare("SELECT id FROM short_course_tutors WHERE short_course_id = ? AND lecturer_id = ? AND is_active = 1");
-        $checkTutor->bind_param("ii", $course_id, $lecturer_id);
-        $checkTutor->execute();
-        if ($checkTutor->get_result()->fetch_row()) {
-            // Course-level tutor - can edit everything
-            $can_edit = true;
+        try {
+            $checkTutor = $conn->prepare("SELECT id FROM short_course_tutors WHERE short_course_id = ? AND lecturer_id = ? AND is_active = 1");
+            $checkTutor->bind_param("ii", $course_id, $lecturer_id);
+            $checkTutor->execute();
+            if ($checkTutor->get_result()->fetch_row()) {
+                // Course-level tutor - can edit everything
+                $can_edit = true;
+                $has_access = true;
+            }
+            $checkTutor->close();
+        } catch (Exception $e) {
+            error_log("Error checking tutor assignment: " . $e->getMessage());
         }
-        $checkTutor->close();
 
         // If not course-level tutor, check module permissions
         if (!$can_edit && $lesson_id > 0) {
             // Get lesson's module
-            $getModule = $conn->prepare("SELECT module_id FROM public_course_lessons WHERE id = ?");
-            $getModule->bind_param("i", $lesson_id);
-            $getModule->execute();
-            $modRow = $getModule->get_result()->fetch_assoc();
-            $getModule->close();
+            try {
+                $getModule = $conn->prepare("SELECT module_id FROM public_course_lessons WHERE id = ?");
+                $getModule->bind_param("i", $lesson_id);
+                $getModule->execute();
+                $modRow = $getModule->get_result()->fetch_assoc();
+                $getModule->close();
 
-            if ($modRow) {
-                $moduleId = $modRow['module_id'];
-                
-                // Check module permission
-                $checkModPerm = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
-                if ($checkModPerm && $checkModPerm->num_rows > 0) {
-                    $modPerm = $conn->prepare("SELECT can_edit FROM tutor_module_permissions WHERE tutor_id = ? AND module_id = ?");
-                    $modPerm->bind_param("ii", $lecturer_id, $moduleId);
-                    $modPerm->execute();
-                    $permRow = $modPerm->get_result()->fetch_assoc();
-                    $modPerm->close();
+                if ($modRow) {
+                    $moduleId = $modRow['module_id'];
                     
-                    if ($permRow && $permRow['can_edit']) {
-                        $can_edit = true;
+                    // Check module permission
+                    try {
+                        $checkModPerm = $conn->query("SHOW TABLES LIKE 'tutor_module_permissions'");
+                        if ($checkModPerm && $checkModPerm->num_rows > 0) {
+                            $modPerm = $conn->prepare("SELECT can_edit FROM tutor_module_permissions WHERE tutor_id = ? AND module_id = ?");
+                            $modPerm->bind_param("ii", $lecturer_id, $moduleId);
+                            $modPerm->execute();
+                            $permRow = $modPerm->get_result()->fetch_assoc();
+                            $modPerm->close();
+                            
+                            if ($permRow) {
+                                $has_access = true;
+                                if ($permRow['can_edit']) {
+                                    $can_edit = true;
+                                }
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log("Error checking module permission: " . $e->getMessage());
+                    }
+
+                    // Check lesson permission
+                    try {
+                        $checkLessonPerm = $conn->query("SHOW TABLES LIKE 'tutor_lesson_permissions'");
+                        if ($checkLessonPerm && $checkLessonPerm->num_rows > 0) {
+                            $lessonPerm = $conn->prepare("SELECT can_edit FROM tutor_lesson_permissions WHERE tutor_id = ? AND lesson_id = ?");
+                            $lessonPerm->bind_param("ii", $lecturer_id, $lesson_id);
+                            $lessonPerm->execute();
+                            $permRow = $lessonPerm->get_result()->fetch_assoc();
+                            $lessonPerm->close();
+                            
+                            if ($permRow) {
+                                $has_access = true;
+                                if ($permRow['can_edit']) {
+                                    $can_edit = true;
+                                }
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log("Error checking lesson permission: " . $e->getMessage());
                     }
                 }
-
-                // Check lesson permission
-                $checkLessonPerm = $conn->query("SHOW TABLES LIKE 'tutor_lesson_permissions'");
-                if ($checkLessonPerm && $checkLessonPerm->num_rows > 0) {
-                    $lessonPerm = $conn->prepare("SELECT can_edit FROM tutor_lesson_permissions WHERE tutor_id = ? AND lesson_id = ?");
-                    $lessonPerm->bind_param("ii", $lecturer_id, $lesson_id);
-                    $lessonPerm->execute();
-                    $permRow = $lessonPerm->get_result()->fetch_assoc();
-                    $lessonPerm->close();
-                    
-                    if ($permRow && $permRow['can_edit']) {
-                        $can_edit = true;
-                    }
-                }
+            } catch (Exception $e) {
+                error_log("Error getting lesson module: " . $e->getMessage());
             }
         }
     }
 
     // Load course info if has any access (view or edit)
-    if ($isAuthor || $can_edit) {
-        $stmt = $conn->prepare('SELECT * FROM public_courses WHERE id = ? LIMIT 1');
-        $stmt->bind_param('i', $course_id);
-        $stmt->execute();
-        $course_info = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
+    if ($isAuthor || $has_access) {
+        try {
+            $stmt = $conn->prepare('SELECT * FROM public_courses WHERE id = ? LIMIT 1');
+            $stmt->bind_param('i', $course_id);
+            $stmt->execute();
+            $course_info = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log("Error loading course info: " . $e->getMessage());
+        }
     }
 
     if (!$course_info) {
@@ -756,9 +790,26 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
             <!-- Lesson title bar -->
             <div class="lesson-titlebar">
                 <span class="lesson-num-pill">Lesson <?= $current_lesson['lesson_number'] ?></span>
-                <span class="lesson-title-text"><?= htmlspecialchars($current_lesson['title']) ?></span>
+                <span class="lesson-title-text" id="lesson-title-display" ondblclick="enableTitleEdit()" style="cursor:pointer;"><?= htmlspecialchars($current_lesson['title']) ?></span>
                 <span class="lesson-module-tag"><?= htmlspecialchars($current_lesson['module_title']) ?></span>
                 <span class="block-count-tag" id="block-count"><?= count($content_blocks) ?> block<?= count($content_blocks) !== 1 ? 's' : '' ?></span>
+                <?php if ($can_edit): ?>
+                    <button onclick="enableTitleEdit()" style="margin-left:auto; background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px 8px; font-size:0.8rem;">
+                        <i class="fas fa-pen"></i> Edit Title
+                    </button>
+                <?php endif; ?>
+            </div>
+            
+            <!-- Title edit form (hidden by default) -->
+            <div id="title-edit-form" style="display:none; padding:12px 24px; background:var(--surface2); border-bottom:1px solid var(--border);">
+                <input type="text" id="lesson-title-input" value="<?= htmlspecialchars($current_lesson['title']) ?>" 
+                       style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:0.9rem; background:var(--surface); color:var(--text); outline:none;">
+                <button onclick="saveLessonTitle()" style="padding:8px 16px; background:var(--accent); color:#fff; border:none; border-radius:var(--radius-sm); cursor:pointer; font-size:0.85rem; margin-left:8px;">
+                    <i class="fas fa-save"></i> Save
+                </button>
+                <button onclick="cancelTitleEdit()" style="padding:8px 16px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; font-size:0.85rem; margin-left:8px;">
+                    Cancel
+                </button>
             </div>
 
             <!-- Add block toolbar -->
@@ -830,6 +881,7 @@ const LESSON_ID = <?= $lesson_id ?: 'null' ?>;
 const UNIT_ID   = <?= $unit_id   ?: 'null' ?>;
 const MODE      = '<?= $mode ?>';
 const COURSE_ID = <?= $course_id ?: 'null' ?>;
+const MODULE_ID = <?= $current_lesson ? (int)$current_lesson['module_id'] : 'null' ?>;
 
 // Existing blocks from PHP (to populate on load)
 const EXISTING_BLOCKS = <?= json_encode($content_blocks) ?>;
@@ -864,6 +916,78 @@ document.addEventListener('DOMContentLoaded', () => {
 // ─────────────────────────────────────────────────────────
 function switchUnit(uid) {
     if (uid) window.location.href = `lesson_editor.php?unit_id=${uid}`;
+}
+
+// ─────────────────────────────────────────────────────────
+// LESSON TITLE EDIT
+// ─────────────────────────────────────────────────────────
+function enableTitleEdit() {
+    const titleDisplay = document.getElementById('lesson-title-display');
+    const titleForm = document.getElementById('title-edit-form');
+    const titleInput = document.getElementById('lesson-title-input');
+    
+    if (titleDisplay && titleForm && titleInput) {
+        titleDisplay.style.display = 'none';
+        titleForm.style.display = 'flex';
+        titleInput.focus();
+    }
+}
+
+function cancelTitleEdit() {
+    const titleDisplay = document.getElementById('lesson-title-display');
+    const titleForm = document.getElementById('title-edit-form');
+    const titleInput = document.getElementById('lesson-title-input');
+    
+    if (titleDisplay && titleForm && titleInput) {
+        titleForm.style.display = 'none';
+        titleDisplay.style.display = 'inline';
+        // Reset to original value
+        titleInput.value = titleDisplay.textContent;
+    }
+}
+
+function saveLessonTitle() {
+    const titleInput = document.getElementById('lesson-title-input');
+    const newTitle = titleInput.value.trim();
+    
+    if (!newTitle) {
+        showToast('Title cannot be empty', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('lesson_id', LESSON_ID);
+    formData.append('title', newTitle);
+    formData.append('module_id', MODULE_ID);
+    
+    if (MODE === 'short_course') {
+        formData.append('course_id', COURSE_ID);
+    } else {
+        formData.append('unit_id', UNIT_ID);
+    }
+    
+    fetch('ajax/short_course_save_lesson.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const titleDisplay = document.getElementById('lesson-title-display');
+            const titleForm = document.getElementById('title-edit-form');
+            
+            titleDisplay.textContent = newTitle;
+            titleForm.style.display = 'none';
+            titleDisplay.style.display = 'inline';
+            
+            showToast('Title saved successfully', 'success');
+        } else {
+            showToast('Failed to save title: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(err => {
+        showToast('Error saving title: ' + err.message, 'error');
+    });
 }
 
 function toggleModuleGroup(el) {

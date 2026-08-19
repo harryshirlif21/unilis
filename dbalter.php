@@ -174,7 +174,14 @@ function fetchUnits(mysqli $conn, int $courseId): array
     return $rows;
 }
 
-// ── New: DB Schema helpers ──────────────────────────────────────────────────
+// ── DB Schema helpers ────────────────────────────────────────────────────────
+
+function getDbName(mysqli $conn): string
+{
+    $res = $conn->query('SELECT DATABASE() AS db');
+    $row = $res->fetch_assoc();
+    return $row['db'] ?? '';
+}
 
 function getAllTables(mysqli $conn): array
 {
@@ -211,6 +218,84 @@ function getTableRowCount(mysqli $conn, string $table): int
     $res = $conn->query("SELECT COUNT(*) AS cnt FROM `{$table}`");
     $row = $res->fetch_assoc();
     return (int)$row['cnt'];
+}
+
+/**
+ * Every foreign key in the database, both outgoing (this table's column
+ * references another table) and — derived from the same result set —
+ * incoming (which other tables point at this one). Reading this straight
+ * out of information_schema means it's always accurate to the live schema,
+ * never hand-maintained.
+ *
+ * Returns:
+ * [
+ *   'outgoing' => [ table_name => [ [column, constraint, ref_table, ref_column, on_update, on_delete], ... ] ],
+ *   'incoming' => [ ref_table_name => [ [table, column, constraint, ref_column, on_update, on_delete], ... ] ],
+ *   'flat'     => [ [table, column, constraint, ref_table, ref_column, on_update, on_delete], ... ]  // for a DB-wide list
+ * ]
+ */
+function getAllForeignKeys(mysqli $conn, string $dbName): array
+{
+    $outgoing = [];
+    $incoming = [];
+    $flat     = [];
+
+    $stmt = $conn->prepare(
+        "SELECT
+            kcu.TABLE_NAME        AS table_name,
+            kcu.COLUMN_NAME       AS column_name,
+            kcu.CONSTRAINT_NAME   AS constraint_name,
+            kcu.REFERENCED_TABLE_NAME  AS ref_table,
+            kcu.REFERENCED_COLUMN_NAME AS ref_column,
+            rc.UPDATE_RULE        AS on_update,
+            rc.DELETE_RULE        AS on_delete
+         FROM information_schema.KEY_COLUMN_USAGE kcu
+         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
+           ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+          AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
+         WHERE kcu.TABLE_SCHEMA = ?
+           AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+         ORDER BY kcu.TABLE_NAME, kcu.COLUMN_NAME"
+    );
+    $stmt->bind_param('s', $dbName);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    while ($r = $res->fetch_assoc()) {
+        $table  = $r['table_name'];
+        $refTbl = $r['ref_table'];
+
+        $outgoing[$table][] = [
+            'column'     => $r['column_name'],
+            'constraint' => $r['constraint_name'],
+            'ref_table'  => $refTbl,
+            'ref_column' => $r['ref_column'],
+            'on_update'  => $r['on_update'],
+            'on_delete'  => $r['on_delete'],
+        ];
+
+        $incoming[$refTbl][] = [
+            'table'      => $table,
+            'column'     => $r['column_name'],
+            'constraint' => $r['constraint_name'],
+            'ref_column' => $r['ref_column'],
+            'on_update'  => $r['on_update'],
+            'on_delete'  => $r['on_delete'],
+        ];
+
+        $flat[] = [
+            'table'      => $table,
+            'column'     => $r['column_name'],
+            'constraint' => $r['constraint_name'],
+            'ref_table'  => $refTbl,
+            'ref_column' => $r['ref_column'],
+            'on_update'  => $r['on_update'],
+            'on_delete'  => $r['on_delete'],
+        ];
+    }
+    $stmt->close();
+
+    return ['outgoing' => $outgoing, 'incoming' => $incoming, 'flat' => $flat];
 }
 
 function formatBytes(?string $bytes): string
@@ -287,10 +372,21 @@ function page(string $body, string $activeTab = 'schema'): void
             .null{color:#9ca3af;font-size:11px;}
             .key-icon{font-size:13px;}
             .index-badge{display:inline-block;background:#e0e7ff;color:#3730a3;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px;}
+            .fk-badge{display:inline-block;background:#dbeafe;color:#1d4ed8;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px;}
             .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
             .summary-card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px 16px;text-align:center;}
             .summary-card .num{font-size:24px;font-weight:700;color:#1e3a5f;}
             .summary-card .lbl{font-size:12px;color:#6b7280;margin-top:2px;}
+            /* FK section styles */
+            .fk-section{padding:10px 16px 16px;}
+            .fk-section h4{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#6b7280;margin-bottom:6px;}
+            .fk-list{list-style:none;font-size:12.5px;}
+            .fk-list li{padding:5px 0;border-bottom:1px dashed #eee;}
+            .fk-list li:last-child{border-bottom:none;}
+            .fk-arrow{color:#9ca3af;margin:0 4px;}
+            .rule-badge{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:5px;background:#f3f4f6;color:#4b5563;}
+            .rule-cascade{background:#fee2e2;color:#b91c1c;}
+            .empty-note{color:#9ca3af;font-size:12px;font-style:italic;padding:4px 0;}
         </style>
     </head><body>
     <div class="container">
@@ -301,14 +397,57 @@ function page(string $body, string $activeTab = 'schema'): void
     </div></body></html>';
 }
 
+function ruleBadge(string $rule): string
+{
+    $cls = in_array(strtoupper($rule), ['CASCADE', 'SET NULL']) ? ' rule-cascade' : '';
+    return '<span class="rule-badge' . $cls . '">' . escape($rule) . '</span>';
+}
+
+/**
+ * A DB-wide table of every foreign key relationship, for a fast top-level
+ * scan before drilling into individual table cards.
+ */
+function fkOverviewTable(array $flatFks): string
+{
+    if (empty($flatFks)) {
+        return '<div class="box"><h2>Foreign Keys</h2><p class="empty-note">No foreign key constraints found in this database.</p></div>';
+    }
+
+    $rows = '';
+    foreach ($flatFks as $fk) {
+        $rows .= '<tr>'
+            . '<td><strong>' . escape($fk['table']) . '</strong></td>'
+            . '<td>' . escape($fk['column']) . '</td>'
+            . '<td class="fk-arrow">→</td>'
+            . '<td><strong>' . escape($fk['ref_table']) . '</strong></td>'
+            . '<td>' . escape($fk['ref_column']) . '</td>'
+            . '<td>' . ruleBadge($fk['on_update']) . ' upd</td>'
+            . '<td>' . ruleBadge($fk['on_delete']) . ' del</td>'
+            . '<td class="null">' . escape($fk['constraint']) . '</td>'
+            . '</tr>';
+    }
+
+    return '<div class="box">
+        <h2>Foreign Keys (' . count($flatFks) . ' across the database)</h2>
+        <table>
+            <thead><tr>
+                <th>Table</th><th>Column</th><th></th><th>References Table</th><th>References Column</th>
+                <th>On Update</th><th>On Delete</th><th>Constraint</th>
+            </tr></thead>
+            <tbody>' . $rows . '</tbody>
+        </table>
+    </div>';
+}
+
 function schemaPage(mysqli $conn): string
 {
+    $dbName = getDbName($conn);
     $tables = getAllTables($conn);
+    $fks    = getAllForeignKeys($conn, $dbName);
+
     $totalRows = 0;
     $totalSize = 0;
 
-    // Summary stats
-    $summaryRows = '';
     $tableCards = '';
     foreach ($tables as $t) {
         $tableName = $t['Name'];
@@ -324,8 +463,15 @@ function schemaPage(mysqli $conn): string
         $totalRows += $rowCount;
         $totalSize += $dataLen + $indexLen;
 
-        // Get columns
         $cols = getTableColumns($conn, $tableName);
+        $outgoingForTable = $fks['outgoing'][$tableName] ?? [];
+        $incomingForTable = $fks['incoming'][$tableName] ?? [];
+
+        // Index outgoing FKs by column name so the column list can flag them inline.
+        $fkByColumn = [];
+        foreach ($outgoingForTable as $fk) {
+            $fkByColumn[$fk['column']] = $fk;
+        }
 
         $rows = '';
         foreach ($cols as $c) {
@@ -354,13 +500,51 @@ function schemaPage(mysqli $conn): string
                 $extraBadge = ' <span class="index-badge">' . escape($extra) . '</span>';
             }
 
+            // If this column is a real foreign key (from information_schema,
+            // not just a MUL-indexed column), show exactly what it points to.
+            $fkBadge = '';
+            if (isset($fkByColumn[$c['Field']])) {
+                $target = $fkByColumn[$c['Field']];
+                $fkBadge = ' <span class="fk-badge">FK → ' . escape($target['ref_table']) . '.' . escape($target['ref_column']) . '</span>';
+            }
+
             $rows .= '<tr>
-                <td class="' . $cls . '">' . $field . $icon . $extraBadge . '</td>
+                <td class="' . $cls . '">' . $field . $icon . $extraBadge . $fkBadge . '</td>
                 <td>' . $type . '</td>
                 <td class="null">' . $null . '</td>
                 <td>' . ($key ?: '—') . '</td>
                 <td class="null">' . ($default === null ? 'NULL' : ($default === '' ? "''" : escape($default))) . '</td>
             </tr>';
+        }
+
+        // Outgoing FKs section: what this table's columns reference.
+        $outgoingHtml = '';
+        if (!empty($outgoingForTable)) {
+            $items = '';
+            foreach ($outgoingForTable as $fk) {
+                $items .= '<li><strong>' . escape($fk['column']) . '</strong>'
+                    . '<span class="fk-arrow">→</span>'
+                    . escape($fk['ref_table']) . '.' . escape($fk['ref_column'])
+                    . ruleBadge($fk['on_update']) . ' upd'
+                    . ruleBadge($fk['on_delete']) . ' del'
+                    . '</li>';
+            }
+            $outgoingHtml = '<div class="fk-section"><h4>References (outgoing foreign keys)</h4><ul class="fk-list">' . $items . '</ul></div>';
+        }
+
+        // Incoming FKs section: which other tables point at this one.
+        $incomingHtml = '';
+        if (!empty($incomingForTable)) {
+            $items = '';
+            foreach ($incomingForTable as $fk) {
+                $items .= '<li>' . escape($fk['table']) . '.' . escape($fk['column'])
+                    . '<span class="fk-arrow">→</span>'
+                    . '<strong>' . escape($tableName) . '.' . escape($fk['ref_column']) . '</strong>'
+                    . ruleBadge($fk['on_update']) . ' upd'
+                    . ruleBadge($fk['on_delete']) . ' del'
+                    . '</li>';
+            }
+            $incomingHtml = '<div class="fk-section"><h4>Referenced by (incoming foreign keys)</h4><ul class="fk-list">' . $items . '</ul></div>';
         }
 
         $tableCards .= '<div class="tbl-card">
@@ -379,17 +563,19 @@ function schemaPage(mysqli $conn): string
                 <tr><th>Column</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th></tr>
                 ' . $rows . '
             </table>
+            ' . $outgoingHtml . $incomingHtml . '
         </div>';
     }
 
-    $summaryRows = '<div class="summary-grid">
+    $summaryGrid = '<div class="summary-grid">
         <div class="summary-card"><div class="num">' . count($tables) . '</div><div class="lbl">Tables</div></div>
         <div class="summary-card"><div class="num">' . number_format($totalRows) . '</div><div class="lbl">Total Rows</div></div>
-        <div class="summary-card"><div class="num">' . formatBytes((string)$totalSize) . '</div><div class="lbl">Total Size (data + indexes)</div></div>
+        <div class="summary-card"><div class="num">' . count($fks['flat']) . '</div><div class="lbl">Foreign Keys</div></div>
         <div class="summary-card"><div class="num">' . formatBytes((string)$totalSize) . '</div><div class="lbl">Data + Index</div></div>
     </div>';
 
-    $html = $summaryRows;
+    $html = $summaryGrid;
+    $html .= fkOverviewTable($fks['flat']);
     $html .= $tableCards;
     return $html;
 }

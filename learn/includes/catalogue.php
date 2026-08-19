@@ -100,9 +100,8 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
     }
 
     // Normalise cover_image so it always resolves from the web root.
-    // Department admins store relative paths like "uploads/short_courses/x.jpg",
-    // while the authoring UI stores root-absolute "/uploads/...". A relative
-    // path rendered on /learn/ would resolve to /learn/uploads/... and 404.
+    // Department admins now store absolute paths like "/uploads/short_courses/x.jpg",
+    // but legacy entries may still have relative paths. Ensure consistency.
     foreach ($rows as &$row) {
         $cover = (string)($row['cover_image'] ?? '');
         if ($cover !== '' && strpos($cover, '/') !== 0) {

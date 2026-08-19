@@ -85,6 +85,11 @@ $technicians_count = $conn->query("SELECT COUNT(*) as c FROM technicians WHERE d
                 <h3>Manage Courses</h3>
                 <p>Add, edit, and organize courses</p>
             </div>
+            <div class="action-card" onclick="location.href='short_courses_analytics.php'">
+                <div class="icon"><i class="fas fa-chart-line"></i></div>
+                <h3>Short Courses Analytics</h3>
+                <p>Short course banners, registrations, tutors &amp; sponsors</p>
+            </div>
             <div class="action-card" onclick="alert('Unit management - coming soon')">
                 <div class="icon"><i class="fas fa-cube"></i></div>
                 <h3>Manage Units</h3>
