@@ -40,20 +40,23 @@ if (!$stmt->get_result()->fetch_row()) {
 $stmt->close();
 
 if ($lesson_id > 0) {
-    // Update existing lesson - build dynamic update based on provided fields
+    // Update existing lesson - build dynamic update based on provided fields.
+    // NOTE: public_course_lessons stores ordering in `position` (there is no
+    // `lesson_number` column), while the JS sends the "lesson number" as
+    // `lesson_number`. Map it to `position` so inline renumbering persists.
     $updateFields = [];
     $params = [];
     $types = '';
-    
+
     if ($title !== '') {
         $updateFields[] = 'title = ?';
         $params[] = $title;
         $types .= 's';
     }
     if ($lesson_number !== '') {
-        $updateFields[] = 'lesson_number = ?';
-        $params[] = $lesson_number;
-        $types .= 's';
+        $updateFields[] = 'position = ?';
+        $params[] = (int)$lesson_number;
+        $types .= 'i';
     }
     if ($video_url !== '') {
         $updateFields[] = 'video_url = ?';
@@ -72,10 +75,21 @@ if ($lesson_id > 0) {
     
     $sql = "UPDATE public_course_lessons SET " . implode(', ', $updateFields) . " WHERE id = ? AND module_id = ?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
+    $result = $stmt->bind_param($types, ...$params);
+    if (!$result) {
+        echo json_encode(['success' => false, 'message' => 'Failed to prepare statement']);
+        exit;
+    }
+    $executeResult = $stmt->execute();
+    $affected = $stmt->affected_rows;
     $stmt->close();
-    echo json_encode(['success' => true, 'message' => 'Lesson updated']);
+    
+    if ($executeResult) {
+        $message = $affected > 0 ? 'Lesson updated' : 'Lesson updated (no changes)';
+        echo json_encode(['success' => true, 'message' => $message]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to update lesson']);
+    }
 } else {
     // Create new lesson - title is required for new lessons
     if (!$title) {
@@ -88,8 +102,8 @@ if ($lesson_id > 0) {
     $position = (int)$posRow['next'];
     $posResult->free();
 
-    $stmt = $conn->prepare("INSERT INTO public_course_lessons (module_id, title, position, lesson_number, video_url) VALUES (?, ?, ?, ?, ?)");
-    $stmt->bind_param("isiss", $module_id, $title, $position, $lesson_number, $video_url);
+    $stmt = $conn->prepare("INSERT INTO public_course_lessons (module_id, title, position, video_url) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("isis", $module_id, $title, $position, $video_url);
     $stmt->execute();
     $newId = $conn->insert_id;
     $stmt->close();

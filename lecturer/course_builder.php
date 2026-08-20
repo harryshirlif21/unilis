@@ -495,6 +495,11 @@ body {
     font-family: 'DM Sans', sans-serif;
     font-size: 0.85rem;
     outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.lesson-title-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(79, 142, 247, 0.2);
 }
 .lesson-actions { display: flex; gap: 4px; }
 
@@ -1011,7 +1016,7 @@ body {
         <h3><i class="fas fa-cog"></i> Edit Lesson Details</h3>
         <div class="form-group">
             <label>Lesson Title</label>
-            <input type="text" class="form-input" id="lesson-title-input" readonly>
+            <input type="text" class="form-input" id="lesson-title-input" placeholder="Enter lesson title">
         </div>
         <div class="form-group">
             <label>YouTube Recording URL</label>
@@ -1127,6 +1132,7 @@ let modules          = [];
 let outline          = null;
 let editingModuleId  = null;
 let editingLessonId   = null;
+let editingLessonModuleId = null;
 
 // All units from PHP (for import modal)
 const ALL_UNITS = <?= json_encode($units) ?>;
@@ -1280,7 +1286,7 @@ function buildModuleCard(mod, idx) {
             <span class="module-number">M${idx + 1}</span>
             <div class="module-title-wrap">
                 <span class="module-title" id="mt-${mod.id}"
-                      ${canEdit ? `ondblclick="inlineEditModule(${mod.id})"` : ''}
+                      ${canEdit ? `ondblclick="openEditModuleModal(${mod.id}, '${escAttr(mod.title)}', '${escAttr(mod.summary || '')}', '${escAttr(mod.start_date || '')}', '${escAttr(mod.end_date || '')}')"` : ''}
                       title="${canEdit ? 'Double-click to rename' : 'View only - cannot edit'}"
                       style="${canEdit ? '' : 'cursor:default'}">
                     ${escHtml(mod.title)}
@@ -1332,7 +1338,7 @@ function buildLessonRowHTML(lesson, moduleId, canEdit = true) {
         <div class="lesson-row" draggable="${canEdit}" data-id="${lesson.id}" data-module="${moduleId}">
             <i class="fas fa-grip-vertical lesson-drag" style="${canEdit ? '' : 'display:none'};color:var(--text-dim);font-size:0.75rem"></i>
             <span class="lesson-num" ${canEdit ? `onclick="inlineEditLessonNumber(${lesson.id}, ${moduleId})"` : ''} id="ln-${lesson.id}" title="${canEdit ? 'Click to edit number' : 'View only'}" style="${canEdit ? 'cursor:pointer' : 'cursor:default'}">L${lesson.lesson_number || (lesson.position !== undefined ? lesson.position + 1 : '')}</span>
-            <span class="lesson-title" ${canEdit ? `ondblclick="inlineEditLesson(${lesson.id}, ${moduleId})"` : ''} id="lt-${lesson.id}" title="${canEdit ? 'Double-click to rename' : 'View only'}" style="${canEdit ? '' : 'cursor:default'}">
+            <span class="lesson-title" ${canEdit ? `ondblclick="openEditLessonModal(${lesson.id}, '${escAttr(lesson.title)}', '${escAttr(lesson.video_url || '')}', ${moduleId})"` : ''} id="lt-${lesson.id}" title="${canEdit ? 'Double-click to rename' : 'View only'}" style="${canEdit ? '' : 'cursor:default'}">
                 ${escHtml(lesson.title)}
             </span>
             ${hasVideo ? `<i class="fab fa-youtube" style="color:var(--accent3);font-size:0.75rem;margin-left:8px" title="Has video recording"></i>` : ''}
@@ -1340,10 +1346,10 @@ function buildLessonRowHTML(lesson, moduleId, canEdit = true) {
                 ${MODE === 'short_course' ? `<a href="lesson_preview.php?course_id=${COURSE_ID}&lesson_id=${lessonId}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm btn-icon" title="Preview Lesson">
                     <i class="fas fa-eye" style="color:var(--accent2)"></i>
                 </a>` : ''}
-                ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openEditLessonModal(${lesson.id}, '${escAttr(lesson.title)}', '${escAttr(lesson.video_url || '')}')" title="Edit Lesson Details">
+                ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openEditLessonModal(${lesson.id}, '${escAttr(lesson.title)}', '${escAttr(lesson.video_url || '')}', ${moduleId})" title="Edit Lesson Details">
                     <i class="fas fa-cog" style="color:var(--text-muted)"></i>
                 </button>` : ''}
-                ${canEdit ? `<a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content">
+                ${canEdit ? `<a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content" onclick="console.log('Opening lesson editor: ${editLink}')">
                     <i class="fas fa-pen" style="color:var(--accent)"></i>
                 </a>` : ''}
                 ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteLesson(${lesson.id}, '${escAttr(lesson.title)}', ${moduleId})" title="Delete">
@@ -1367,65 +1373,6 @@ function toggleModule(moduleId) {
         lc.style.display = 'none';
         icon.className   = 'fas fa-chevron-right';
     }
-}
-
-// ─────────────────────────────────────────────────────────────
-// INLINE EDIT MODULE TITLE
-// ─────────────────────────────────────────────────────────────
-function inlineEditModule(moduleId) {
-    const titleEl = document.getElementById(`mt-${moduleId}`);
-    const current = titleEl.textContent.trim();
-    const mod     = modules.find(m => m.id === moduleId);
-    titleEl.style.display = 'none';
-    const input = document.createElement('input');
-    input.type      = 'text';
-    input.className = 'module-title-input';
-    input.value     = current;
-    titleEl.parentNode.insertBefore(input, titleEl.nextSibling);
-    input.focus(); input.select();
-    const commit = () => {
-        const newTitle = input.value.trim();
-        input.remove(); titleEl.style.display = '';
-        if (!newTitle || newTitle === current) return;
-        titleEl.textContent = newTitle;
-        mod.title = newTitle;
-        ajaxSaveModule(moduleId, newTitle);
-    };
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') commit();
-        if (e.key === 'Escape') { input.remove(); titleEl.style.display = ''; }
-    });
-}
-
-// ─────────────────────────────────────────────────────────────
-// INLINE EDIT LESSON TITLE
-// ─────────────────────────────────────────────────────────────
-function inlineEditLesson(lessonId, moduleId) {
-    const titleEl = document.getElementById(`lt-${lessonId}`);
-    const current = titleEl.textContent.trim();
-    const mod     = modules.find(m => m.id === moduleId);
-    const lesson  = mod.lessons.find(l => l.id === lessonId);
-    titleEl.style.display = 'none';
-    const input = document.createElement('input');
-    input.type      = 'text';
-    input.className = 'lesson-title-input';
-    input.value     = current;
-    titleEl.parentNode.insertBefore(input, titleEl.nextSibling);
-    input.focus(); input.select();
-    const commit = () => {
-        const newTitle = input.value.trim();
-        input.remove(); titleEl.style.display = '';
-        if (!newTitle || newTitle === current) return;
-        titleEl.textContent = newTitle;
-        lesson.title = newTitle;
-        ajaxSaveLesson(lessonId, moduleId, newTitle);
-    };
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') commit();
-        if (e.key === 'Escape') { input.remove(); titleEl.style.display = ''; }
-    });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1487,22 +1434,29 @@ function ajaxSaveLessonNumber(lessonId, moduleId, lessonNumber) {
 // ─────────────────────────────────────────────────────────────
 // LESSON DETAILS MODAL
 // ─────────────────────────────────────────────────────────────
-function openEditLessonModal(lessonId, title, videoUrl) {
+function openEditLessonModal(lessonId, title, videoUrl, moduleId) {
     editingLessonId = lessonId;
+    editingLessonModuleId = moduleId || null;
     document.getElementById('lesson-title-input').value = title || '';
     document.getElementById('lesson-video-url-input').value = videoUrl || '';
     openModal('lesson-details-modal');
-    setTimeout(() => document.getElementById('lesson-video-url-input').focus(), 150);
+    setTimeout(() => {
+        const el = document.getElementById('lesson-title-input');
+        el.focus(); el.select();
+    }, 150);
 }
 
 function saveLessonDetails() {
+    const title    = document.getElementById('lesson-title-input').value.trim();
     const videoUrl = document.getElementById('lesson-video-url-input').value.trim();
     const btn = document.querySelector('#lesson-details-modal .btn-primary');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Saving...';
-    
+
     const body = new FormData();
     body.append('lesson_id', editingLessonId);
+    body.append('module_id', editingLessonModuleId || '');
+    body.append('title', title);
     body.append('video_url', videoUrl);
     if (MODE === 'short_course') {
         body.append('course_id', COURSE_ID);

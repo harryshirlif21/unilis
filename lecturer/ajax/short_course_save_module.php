@@ -28,16 +28,54 @@ if (!shortCourseCanManage($conn, $course_id)) {
 }
 
 if ($module_id > 0) {
-    // Update existing module
-    $stmt = $conn->prepare("UPDATE public_course_modules SET title = ?, summary = ?, start_date = ?, end_date = ? WHERE id = ? AND course_id = ?");
-    $stmt->bind_param("ssssii", $title, $summary, $start_date, $end_date, $module_id, $course_id);
-    $stmt->execute();
+    // Update existing module — only touch fields that were actually submitted.
+    // The inline title rename posts only `title`; the module modal posts summary + dates too.
+    $updateFields = [];
+    $params = [];
+    $types = '';
+
+    // Title is always present for this endpoint.
+    $updateFields[] = 'title = ?';
+    $params[] = $title;
+    $types .= 's';
+
+    if (isset($_POST['summary'])) {
+        $updateFields[] = 'summary = ?';
+        $params[] = trim($_POST['summary']);
+        $types .= 's';
+    }
+    // date columns: convert empty submission to NULL so we never write '' into a DATE field.
+    if (isset($_POST['start_date'])) {
+        $updateFields[] = 'start_date = ?';
+        $params[] = trim($_POST['start_date']) !== '' ? trim($_POST['start_date']) : null;
+        $types .= 's';
+    }
+    if (isset($_POST['end_date'])) {
+        $updateFields[] = 'end_date = ?';
+        $params[] = trim($_POST['end_date']) !== '' ? trim($_POST['end_date']) : null;
+        $types .= 's';
+    }
+
+    $params[] = $module_id;
+    $params[] = $course_id;
+    $types .= 'ii';
+
+    $sql = "UPDATE public_course_modules SET " . implode(', ', $updateFields) . " WHERE id = ? AND course_id = ?";
+    $stmt = $conn->prepare($sql);
+    $bindOk = $stmt->bind_param($types, ...$params);
+    if (!$bindOk) {
+        echo json_encode(['success' => false, 'message' => 'Failed to prepare module update']);
+        exit;
+    }
+    $result = $stmt->execute();
     $affected = $stmt->affected_rows;
     $stmt->close();
-    if ($affected > 0) {
-        echo json_encode(['success' => true, 'message' => 'Module updated']);
+
+    if ($result) {
+        $message = $affected > 0 ? 'Module updated' : 'Module updated (no changes)';
+        echo json_encode(['success' => true, 'message' => $message]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Module not found']);
+        echo json_encode(['success' => false, 'message' => 'Failed to update module']);
     }
 } else {
     // Create new module
