@@ -1010,6 +1010,27 @@ body {
     </div>
 </div>
 
+<!-- Rename Module Title Modal -->
+<div class="modal-overlay" id="module-title-modal">
+    <div class="modal">
+        <h3><i class="fas fa-i-cursor"></i> Edit Module Title</h3>
+        <div class="form-group">
+            <label>Module Title</label>
+            <input type="text" class="form-input" id="module-title-edit-input"
+                   placeholder="e.g. Introduction to Networking">
+        </div>
+        <small style="color:var(--text-muted);font-size:0.75rem">
+            Press Enter to save, or use the button below.
+        </small>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('module-title-modal')">Cancel</button>
+            <button class="btn btn-primary" id="module-title-save-btn" onclick="saveModuleTitle()">
+                <i class="fas fa-save"></i> Save Title
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Lesson Details Modal -->
 <div class="modal-overlay" id="lesson-details-modal">
     <div class="modal">
@@ -1286,7 +1307,7 @@ function buildModuleCard(mod, idx) {
             <span class="module-number">M${idx + 1}</span>
             <div class="module-title-wrap">
                 <span class="module-title" id="mt-${mod.id}"
-                      ${canEdit ? `ondblclick="openEditModuleModal(${mod.id}, '${escAttr(mod.title)}', '${escAttr(mod.summary || '')}', '${escAttr(mod.start_date || '')}', '${escAttr(mod.end_date || '')}')"` : ''}
+                      ${canEdit ? `ondblclick="openEditModuleTitleModal(${mod.id}, '${escAttr(mod.title)}')"` : ''}
                       title="${canEdit ? 'Double-click to rename' : 'View only - cannot edit'}"
                       style="${canEdit ? '' : 'cursor:default'}">
                     ${escHtml(mod.title)}
@@ -1534,6 +1555,56 @@ function openEditModuleModal(moduleId, title, summary, startDate, endDate) {
     document.getElementById('module-end-date-input').value = endDate || '';
     openModal('module-modal');
     setTimeout(() => document.getElementById('module-title-input').focus(), 150);
+}
+
+function openEditModuleTitleModal(moduleId, title) {
+    editingModuleId = moduleId;
+    const input = document.getElementById('module-title-edit-input');
+    input.value = title || '';
+    input.onkeydown = null;
+    input.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); saveModuleTitle(); }
+        if (e.key === 'Escape') closeModal('module-title-modal');
+    };
+    openModal('module-title-modal');
+    setTimeout(() => {
+        input.focus(); input.select();
+    }, 150);
+}
+
+function saveModuleTitle() {
+    const title = document.getElementById('module-title-edit-input').value.trim();
+    if (!title) { toast('Module title is required', 'error'); return; }
+    const btn = document.getElementById('module-title-save-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving...';
+    const body = new FormData();
+    body.append('module_id', editingModuleId);
+    if (MODE === 'short_course') {
+        body.append('course_id', COURSE_ID);
+    } else {
+        body.append('unit_id', selectedUnitId);
+    }
+    body.append('lecturer_id', LECTURER_ID);
+    body.append('title', title);
+
+    const endpoint = MODE === 'short_course' ? 'ajax/short_course_save_module.php' : 'ajax/save_module.php';
+    fetch(endpoint, { method: 'POST', body })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                toast(data.message, 'success');
+                closeModal('module-title-modal');
+                reloadTree();
+            } else {
+                toast(data.message, 'error');
+            }
+        })
+        .catch(() => toast('Network error', 'error'))
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Save Title';
+        });
 }
 
 function saveModule() {
