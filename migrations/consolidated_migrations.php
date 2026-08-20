@@ -255,6 +255,28 @@ function run_all_migrations() {
         }
     }
 
+    function migrate_public_course_sponsorship(mysqli $conn) {
+        if (!tableExists($conn, 'public_courses')) {
+            skip('Migration: public_course_sponsorship', 'public_courses table not found');
+            return;
+        }
+        $columns = [
+            'is_sponsored' => 'TINYINT(1) NOT NULL DEFAULT 0',
+            'sponsor_name' => 'VARCHAR(255) DEFAULT NULL',
+            'sponsor_details' => 'TEXT NULL',
+            'sponsor_logo' => 'VARCHAR(500) DEFAULT NULL',
+            'sponsorship_start_date' => 'DATE DEFAULT NULL',
+            'sponsorship_end_date' => 'DATE DEFAULT NULL',
+        ];
+        foreach ($columns as $column => $definition) {
+            if (columnExists($conn, 'public_courses', $column)) {
+                skip("ALTER TABLE public_courses ADD $column");
+                continue;
+            }
+            run_sql($conn, "ALTER TABLE public_courses ADD $column", "ALTER TABLE `public_courses` ADD COLUMN `$column` $definition");
+        }
+    }
+
     // --- Run all migrations ---
     echo "<h1>Running All Migrations...</h1>";
     
@@ -271,6 +293,7 @@ function run_all_migrations() {
     fix_collations($conn);
     fix_notifications_columns($conn);
     migrate_note_status($conn);
+    migrate_public_course_sponsorship($conn);
     $GLOBALS['log'][] = migrate_unique_unit_assignment($conn);
 
     // --- Run Phase 1 Migration ---

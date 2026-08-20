@@ -631,6 +631,14 @@ if ($action === 'edit_short_course') {
             $methods_str = $is_paid ? implode(',', array_map('trim', $payment_methods)) : '';
             $is_sponsored = $has_sponsors ? 1 : 0;
 
+            // Snapshot the row before the update so the success message can report
+            // exactly which fields changed.
+            $before = [];
+            $beforeRes = $conn->query("SELECT * FROM public_courses WHERE id = $id");
+            if ($beforeRes) {
+                $before = $beforeRes->fetch_assoc() ?: [];
+            }
+
             // Build dynamic update query based on which columns exist
             $updates = ['slug = ?', 'title = ?', 'summary = ?', 'description = ?'];
             $params = [$slug, $name, $description, $description];
@@ -693,6 +701,9 @@ if ($action === 'edit_short_course') {
                 if (!is_dir($sponsor_upload_dir)) mkdir($sponsor_upload_dir, 0755, true);
                 
                 $sponsor_count = 0;
+                $sponsors_added = 0;
+                $sponsors_updated = 0;
+                $sponsors_removed = 0;
                 $matched_existing_ids = [];
                 
                 if ($has_sponsors) {
@@ -729,6 +740,7 @@ if ($action === 'edit_short_course') {
                                 $sponsor_stmt->close();
                                 $matched_existing_ids[] = $sponsor_id;
                                 $sponsor_count++;
+                                $sponsors_updated++;
                             } else {
                                 // INSERT new sponsor
                                 $logo_to_use = $slogo_path ? $slogo_path : '';
@@ -737,6 +749,7 @@ if ($action === 'edit_short_course') {
                                 $sponsor_stmt->execute();
                                 $sponsor_stmt->close();
                                 $sponsor_count++;
+                                $sponsors_added++;
                             }
                         }
                     }
@@ -745,14 +758,72 @@ if ($action === 'edit_short_course') {
                     foreach ($existing_sponsors as $existing) {
                         if (!in_array($existing['id'], $matched_existing_ids)) {
                             $conn->query("DELETE FROM course_sponsors WHERE id = " . (int)$existing['id']);
+                            $sponsors_removed++;
                         }
                     }
                 } else {
                     // No sponsors in form, delete all existing sponsors
                     $conn->query("DELETE FROM course_sponsors WHERE course_id = $id");
+                    $sponsors_removed = count($existing_sponsors);
                 }
-                
-                $message = "Short course updated successfully!" . ($sponsor_count > 0 ? " Updated with $sponsor_count sponsor(s)." : "");
+
+                // Report what actually changed rather than a generic confirmation.
+                $department_names = [];
+                $departmentRes = $conn->query("SELECT id, name FROM departments");
+                if ($departmentRes) {
+                    while ($deptRow = $departmentRes->fetch_assoc()) {
+                        $department_names[(int)$deptRow['id']] = $deptRow['name'];
+                    }
+                }
+
+                $changes = [];
+                $trackedFields = [
+                    'title' => ['label' => 'Name', 'new' => $name],
+                    'code' => ['label' => 'Code', 'new' => $code],
+                    'duration' => ['label' => 'Duration', 'new' => $duration],
+                    'summary' => ['label' => 'Description', 'new' => $description],
+                ];
+                foreach ($trackedFields as $field => $info) {
+                    if (array_key_exists($field, $before) && (string)$before[$field] !== (string)$info['new']) {
+                        $changes[] = $info['label'] . ' changed';
+                    }
+                }
+
+                if (array_key_exists('department_id', $before) && (int)$before['department_id'] !== (int)$department_id_input) {
+                    $oldDept = $department_names[(int)$before['department_id']] ?? 'none';
+                    $newDept = $department_names[(int)$department_id_input] ?? 'unknown';
+                    $changes[] = "Department moved from $oldDept to $newDept";
+                }
+
+                if (array_key_exists('is_paid', $before) && (int)$before['is_paid'] !== $is_paid) {
+                    $changes[] = 'Pricing switched to ' . ($is_paid ? 'paid' : 'free');
+                }
+                if ($is_paid && array_key_exists('price', $before) && (float)$before['price'] !== (float)$price) {
+                    $changes[] = 'Price set to KSh ' . number_format($price, 2);
+                }
+                if (array_key_exists('payment_methods', $before) && (string)$before['payment_methods'] !== (string)$methods_str) {
+                    $changes[] = 'Payment methods set to ' . ($methods_str !== '' ? str_replace(',', ', ', $methods_str) : 'none');
+                }
+                if ($banner_path) {
+                    $changes[] = 'Banner image replaced';
+                }
+                if (array_key_exists('is_sponsored', $before) && (int)$before['is_sponsored'] !== $is_sponsored) {
+                    $changes[] = $is_sponsored ? 'Marked as sponsored' : 'Sponsorship removed';
+                }
+
+                $sponsorChanges = [];
+                if ($sponsors_added > 0) $sponsorChanges[] = "$sponsors_added added";
+                if ($sponsors_updated > 0) $sponsorChanges[] = "$sponsors_updated updated";
+                if ($sponsors_removed > 0) $sponsorChanges[] = "$sponsors_removed removed";
+                if ($sponsorChanges) {
+                    $changes[] = 'Sponsors: ' . implode(', ', $sponsorChanges);
+                }
+
+                $updated_at = date('d M Y, H:i');
+                $message = 'Short course "' . $name . '" updated successfully on ' . $updated_at . '. ';
+                $message .= $changes
+                    ? 'Updated: ' . implode('; ', $changes) . '.'
+                    : 'No field values changed.';
                 $message_type = 'success';
             } else {
                 $message = "Failed to update short course: " . $stmt->error;
