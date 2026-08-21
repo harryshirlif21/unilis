@@ -11,13 +11,30 @@ $message = '';
 $messageType = '';
 
 try {
-    // Check if table already exists
+    $results = [];
+
+    // 1) Ensure sponsor columns exist on public_courses (banner flow needs them)
+    $cols = [
+        'is_sponsored'    => "ADD COLUMN is_sponsored TINYINT(1) NOT NULL DEFAULT 0 AFTER payment_methods",
+        'sponsor_name'    => "ADD COLUMN sponsor_name VARCHAR(255) DEFAULT NULL AFTER is_sponsored",
+        'sponsor_details' => "ADD COLUMN sponsor_details TEXT AFTER sponsor_name",
+        'sponsor_logo'    => "ADD COLUMN sponsor_logo VARCHAR(500) DEFAULT NULL AFTER sponsor_details",
+    ];
+    foreach ($cols as $col => $clause) {
+        $check = $conn->query("SHOW COLUMNS FROM public_courses LIKE '$col'");
+        if ($check && $check->num_rows > 0) {
+            $results[] = "public_courses.$col already exists";
+        } else {
+            $conn->query("ALTER TABLE public_courses $clause");
+            $results[] = "added public_courses.$col";
+        }
+    }
+
+    // 2) Ensure course_sponsors table exists
     $checkTable = $conn->query("SHOW TABLES LIKE 'course_sponsors'");
     if ($checkTable && $checkTable->num_rows > 0) {
-        $message = "The course_sponsors table already exists.";
-        $messageType = 'warning';
+        $results[] = "course_sponsors table already exists";
     } else {
-        // Create the course_sponsors table
         $sql = "CREATE TABLE course_sponsors (
             id INT AUTO_INCREMENT PRIMARY KEY,
             course_id INT NOT NULL,
@@ -27,15 +44,16 @@ try {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (course_id) REFERENCES public_courses(id) ON DELETE CASCADE
         )";
-        
         if ($conn->query($sql)) {
-            $message = "Successfully created course_sponsors table for multiple sponsor support.";
-            $messageType = 'success';
+            $results[] = "created course_sponsors table";
         } else {
-            $message = "Failed to create course_sponsors table: " . $conn->error;
-            $messageType = 'error';
+            $results[] = "FAILED to create course_sponsors: " . $conn->error;
         }
     }
+
+    $count = count(array_filter($results, fn($r) => strpos($r, 'already exists') === false));
+    $message = implode("\n", $results);
+    $messageType = $count > 0 ? 'success' : 'warning';
 } catch (Exception $e) {
     $message = "Migration error: " . $e->getMessage();
     $messageType = 'error';
@@ -63,7 +81,7 @@ try {
     
     <?php if ($message): ?>
         <div class="message <?= $messageType ?>">
-            <?= htmlspecialchars($message) ?>
+            <?= nl2br(htmlspecialchars($message)) ?>
         </div>
     <?php endif; ?>
     

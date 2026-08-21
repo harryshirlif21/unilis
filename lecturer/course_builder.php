@@ -1367,9 +1367,9 @@ function buildLessonRowHTML(lesson, moduleId, canEdit = true) {
                 ${MODE === 'short_course' ? `<a href="lesson_preview.php?course_id=${COURSE_ID}&lesson_id=${lessonId}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm btn-icon" title="Preview Lesson">
                     <i class="fas fa-eye" style="color:var(--accent2)"></i>
                 </a>` : ''}
-                ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="openEditLessonModal(${lesson.id}, '${escAttr(lesson.title)}', '${escAttr(lesson.video_url || '')}', ${moduleId})" title="Edit Lesson Details">
-                    <i class="fas fa-cog" style="color:var(--text-muted)"></i>
-                </button>` : ''}
+                ${canEdit ? `<a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Lesson">
+                    <i class="fas fa-cog" style="color:var(--accent)"></i>
+                </a>` : ''}
                 ${canEdit ? `<a href="${editLink}" class="btn btn-ghost btn-sm btn-icon" title="Edit Content" onclick="console.log('Opening lesson editor: ${editLink}')">
                     <i class="fas fa-pen" style="color:var(--accent)"></i>
                 </a>` : ''}
