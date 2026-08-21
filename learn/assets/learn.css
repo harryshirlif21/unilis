@@ -398,6 +398,38 @@ a { color: var(--ln-green-mid); }
 .ln-empty h2 { margin: 0 0 6px; font-size: 1.1rem; color: var(--ln-ink); }
 .ln-empty p { margin: 0; font-size: 0.9rem; }
 
+/* ── Lesson schedule (dashboard) ─────────────────────────────────────── */
+
+.ln-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--ln-line);
+}
+.ln-card-head .material-symbols-rounded {
+    font-size: 24px;
+    color: var(--ln-green-mid);
+    flex-shrink: 0;
+}
+.ln-card-head .material-symbols-rounded + div { min-width: 0; }
+
+.ln-schedule-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+.ln-schedule-item + .ln-schedule-item {
+    border-top: 1px solid var(--ln-line);
+}
+.ln-schedule-item:hover { background: rgba(27, 94, 32, .045); }
+
+@media (max-width: 900px) {
+    .ln-schedule-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 980px) {
     .ln-grid { grid-template-columns: repeat(2, 1fr); }
 }

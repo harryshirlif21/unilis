@@ -551,7 +551,7 @@ function learn_my_courses(mysqli $conn, int $learnerId): array
     $stmt->close();
 
     foreach ($rows as &$row) {
-        // Normalise cover_image (see learn_catalogue() for why).
+        // Normalise the cover_image (see learn_catalogue() for why).
         $cover = (string)($row['cover_image'] ?? '');
         if ($cover !== '' && strpos($cover, '/') !== 0) {
             $row['cover_image'] = '/' . ltrim($cover, '/');
@@ -563,4 +563,70 @@ function learn_my_courses(mysqli $conn, int $learnerId): array
     unset($row);
 
     return $rows;
+}
+
+/**
+ * Lessons across a learner's enrolled courses that carry a schedule, split
+ * into upcoming and past buckets for the "My learning" dashboard.
+ *
+ * A lesson belongs to "upcoming" while its start day is still ahead or its
+ * window is currently open (started but not yet over). It is "past" once its
+ * end day is gone, or - for single-date lessons - the day itself is over.
+ * Unscheduled lessons (neither a start nor an end date) are left out, because
+ * they have no place on a calendar view.
+ */
+function learn_lesson_schedule(mysqli $conn, int $learnerId): array
+{
+    $today = date('Y-m-d');
+
+    $stmt = $conn->prepare("
+        SELECT l.id, l.title, l.duration_minutes, l.start_date, l.end_date,
+               m.id AS module_id, m.title AS module_title, m.start_date AS module_start_date,
+               c.id AS course_id, c.slug AS course_slug, c.title AS course_title
+        FROM external_enrollments e
+        JOIN public_courses c ON c.id = e.course_id
+        JOIN public_course_modules m ON m.course_id = c.id
+        JOIN public_course_lessons l ON l.module_id = m.id
+        WHERE e.learner_id = ?
+          AND (l.start_date IS NOT NULL OR l.end_date IS NOT NULL)
+        ORDER BY COALESCE(l.start_date, l.end_date) ASC, l.position, l.id
+    ");
+    $stmt->bind_param('i', $learnerId);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $upcoming = [];
+    $active = [];
+    $past = [];
+
+    foreach ($rows as $row) {
+        $start = (string)($row['start_date'] ?? '');
+        $end = (string)($row['end_date'] ?? '');
+
+        $isPast = false;
+        if ($end !== '' && $end < $today) {
+            // The scheduled window has closed.
+            $isPast = true;
+        } elseif ($start !== '' && $end === '' && $start < $today) {
+            // A single-date lesson is over once its day has passed.
+            $isPast = true;
+        }
+
+        if ($isPast) {
+            $past[] = $row;
+        } elseif ($start !== '' && $start <= $today && ($end === '' || $end >= $today)) {
+            // Started but not finished: currently live, listed at the head of
+            // the "upcoming" bucket so the learner sees it on their dashboard.
+            $active[] = $row;
+        } else {
+            $upcoming[] = $row;
+        }
+    }
+
+    // Active first, then soonest future dates.
+    return [
+        'upcoming' => [...$active, ...$upcoming],
+        'past' => $past,
+    ];
 }
