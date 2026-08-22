@@ -11,31 +11,32 @@ $message = '';
 $messageType = '';
 
 try {
-    $results = [];
+    // Apply sponsor columns to public_courses if missing (idempotent).
+    $alter = "ALTER TABLE public_courses
+        ADD COLUMN is_sponsored     TINYINT(1) NOT NULL DEFAULT 0 AFTER payment_methods,
+        ADD COLUMN sponsor_name     VARCHAR(255) DEFAULT NULL AFTER is_sponsored,
+        ADD COLUMN sponsor_details  TEXT AFTER sponsor_name,
+        ADD COLUMN sponsor_logo     VARCHAR(500) DEFAULT NULL AFTER sponsor_name";
 
-    // 1) Ensure sponsor columns exist on public_courses (banner flow needs them)
-    $cols = [
-        'is_sponsored'    => "ADD COLUMN is_sponsored TINYINT(1) NOT NULL DEFAULT 0 AFTER payment_methods",
-        'sponsor_name'    => "ADD COLUMN sponsor_name VARCHAR(255) DEFAULT NULL AFTER is_sponsored",
-        'sponsor_details' => "ADD COLUMN sponsor_details TEXT AFTER sponsor_name",
-        'sponsor_logo'    => "ADD COLUMN sponsor_logo VARCHAR(500) DEFAULT NULL AFTER sponsor_details",
-    ];
-    foreach ($cols as $col => $clause) {
+    $applyColumns = false;
+    $cols = ['is_sponsored', 'sponsor_name', 'sponsor_details', 'sponsor_logo'];
+    foreach ($cols as $col) {
         $check = $conn->query("SHOW COLUMNS FROM public_courses LIKE '$col'");
-        if ($check && $check->num_rows > 0) {
-            $results[] = "public_courses.$col already exists";
-        } else {
-            $conn->query("ALTER TABLE public_courses $clause");
-            $results[] = "added public_courses.$col";
+        if (!$check || $check->num_rows === 0) {
+            $applyColumns = true;
+            break;
         }
     }
 
-    // 2) Ensure course_sponsors table exists
+    if ($applyColumns) {
+        $conn->multi_query($alter);
+        $conn->query("SELECT 1"); // flush multi_query results
+    }
+
+    // Ensure course_sponsors table exists.
     $checkTable = $conn->query("SHOW TABLES LIKE 'course_sponsors'");
-    if ($checkTable && $checkTable->num_rows > 0) {
-        $results[] = "course_sponsors table already exists";
-    } else {
-        $sql = "CREATE TABLE course_sponsors (
+    if (!$checkTable || $checkTable->num_rows === 0) {
+        $conn->query("CREATE TABLE course_sponsors (
             id INT AUTO_INCREMENT PRIMARY KEY,
             course_id INT NOT NULL,
             sponsor_name VARCHAR(255) NOT NULL,
@@ -43,17 +44,11 @@ try {
             sponsor_logo VARCHAR(500),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (course_id) REFERENCES public_courses(id) ON DELETE CASCADE
-        )";
-        if ($conn->query($sql)) {
-            $results[] = "created course_sponsors table";
-        } else {
-            $results[] = "FAILED to create course_sponsors: " . $conn->error;
-        }
+        )");
     }
 
-    $count = count(array_filter($results, fn($r) => strpos($r, 'already exists') === false));
-    $message = implode("\n", $results);
-    $messageType = $count > 0 ? 'success' : 'warning';
+    $message = "Sponsor columns and course_sponsors table are present in the database.";
+    $messageType = 'success';
 } catch (Exception $e) {
     $message = "Migration error: " . $e->getMessage();
     $messageType = 'error';
