@@ -577,8 +577,6 @@ function learn_my_courses(mysqli $conn, int $learnerId): array
  */
 function learn_lesson_schedule(mysqli $conn, int $learnerId): array
 {
-    $today = date('Y-m-d');
-
     $stmt = $conn->prepare("
         SELECT l.id, l.title, l.duration_minutes, l.start_date, l.end_date,
                m.id AS module_id, m.title AS module_title, m.start_date AS module_start_date,
@@ -596,6 +594,47 @@ function learn_lesson_schedule(mysqli $conn, int $learnerId): array
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
+    return learn_classify_scheduled_lessons($rows, date('Y-m-d'));
+}
+
+/**
+ * Scheduled lessons for a single course, for the course page. Unlike the
+ * learner-wide helper this is not limited to enrolled learners - the schedule
+ * is part of the course description, so it is visible to anyone browsing the
+ * course before they decide to enrol.
+ */
+function learn_course_lesson_schedule(mysqli $conn, int $courseId): array
+{
+    $stmt = $conn->prepare("
+        SELECT l.id, l.title, l.duration_minutes, l.start_date, l.end_date,
+               m.id AS module_id, m.title AS module_title, m.start_date AS module_start_date,
+               c.id AS course_id, c.slug AS course_slug, c.title AS course_title
+        FROM public_courses c
+        JOIN public_course_modules m ON m.course_id = c.id
+        JOIN public_course_lessons l ON l.module_id = m.id
+        WHERE c.id = ?
+          AND (l.start_date IS NOT NULL OR l.end_date IS NOT NULL)
+        ORDER BY COALESCE(l.start_date, l.end_date) ASC, l.position, l.id
+    ");
+    $stmt->bind_param('i', $courseId);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return learn_classify_scheduled_lessons($rows, date('Y-m-d'));
+}
+
+/**
+ * Shared classifier for scheduled lessons.
+ *
+ * A lesson belongs to "upcoming" while its start day is still ahead or its
+ * window is currently open (started but not yet over). It is "past" once its
+ * end day is gone, or - for single-date lessons - the day itself is over.
+ * Unscheduled lessons (neither a start nor an end date) are left out by the
+ * callers and never reach this point.
+ */
+function learn_classify_scheduled_lessons(array $rows, string $today): array
+{
     $upcoming = [];
     $active = [];
     $past = [];
@@ -617,7 +656,7 @@ function learn_lesson_schedule(mysqli $conn, int $learnerId): array
             $past[] = $row;
         } elseif ($start !== '' && $start <= $today && ($end === '' || $end >= $today)) {
             // Started but not finished: currently live, listed at the head of
-            // the "upcoming" bucket so the learner sees it on their dashboard.
+            // the "upcoming" bucket so the learner sees it straight away.
             $active[] = $row;
         } else {
             $upcoming[] = $row;

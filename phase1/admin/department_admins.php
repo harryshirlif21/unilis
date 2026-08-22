@@ -2601,7 +2601,10 @@ if ($department_id) {
                 </div>
                 <div class="form-group">
                     <label>Banner Image</label>
-                    <input type="file" name="banner" accept="image/*">
+                    <input type="file" name="banner" id="edit_banner_input" accept="image/*">
+                    <div id="edit_banner_preview_wrap" style="margin-top:8px; display:none;">
+                        <img id="edit_banner_preview" alt="Current banner" style="max-width:100%; max-height:140px; border-radius:6px; border:1px solid var(--border); display:block; object-fit:cover;">
+                    </div>
                     <p style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Leave empty to keep the current banner.</p>
                 </div>
                 <div class="form-group">
@@ -2675,6 +2678,18 @@ if ($department_id) {
         
         document.getElementById('edit_price').value = sc.price || '';
 
+        // Banner preview — show current cover image
+        const bannerSrc = sc.banner || sc.cover_image || '';
+        const bWrap = document.getElementById('edit_banner_preview_wrap');
+        const bImg = document.getElementById('edit_banner_preview');
+        if (bannerSrc) {
+            bImg.src = bannerSrc;
+            bWrap.style.display = 'block';
+        } else {
+            bImg.removeAttribute('src');
+            bWrap.style.display = 'none';
+        }
+
         // Clear existing sponsor fields
         const container = document.getElementById('edit_sponsors_container');
         container.innerHTML = '';
@@ -2698,6 +2713,20 @@ if ($department_id) {
         toggleEditPricing();
 
         document.getElementById('editShortCourseModal').style.display = 'block';
+    }
+
+    // Live preview when a new banner file is chosen
+    function initBannerPreview() {
+        const input = document.getElementById('edit_banner_input');
+        if (!input) return;
+        input.onchange = function () {
+            const wrap = document.getElementById('edit_banner_preview_wrap');
+            const img = document.getElementById('edit_banner_preview');
+            if (this.files && this.files[0]) {
+                img.src = URL.createObjectURL(this.files[0]);
+                wrap.style.display = 'block';
+            }
+        };
     }
 
     async function loadCourseSponsors(courseId) {
@@ -2747,7 +2776,9 @@ if ($department_id) {
             <div class="form-group" style="margin-bottom:0;">
                 <label style="font-size:12px;">Sponsor Logo</label>
                 <input type="file" name="sponsor_logo[]" accept="image/*" style="padding:8px; font-size:13px;">
-                ${logoPath ? `<p style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">Current: ${logoPath}</p>` : ''}
+                ${logoPath ? `<div style="margin-top:4px;">
+                    <img src="${logoPath}" alt="sponsor logo" style="max-width:120px; max-height:60px; border-radius:4px; border:1px solid var(--border); object-fit:contain;">
+                </div>` : ''}
                 <p style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">Leave empty to keep existing logo</p>
             </div>
         `;
@@ -2774,6 +2805,8 @@ if ($department_id) {
     document.getElementById('editShortCourseModal').addEventListener('click', function(e) {
         if (e.target === this) closeEditModal();
     });
+
+    initBannerPreview();
 
     function togglePricing() {
         const isPaid = document.getElementById('pricing_paid').checked;

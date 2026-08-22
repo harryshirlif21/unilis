@@ -40,6 +40,12 @@ $ongoingModules = learn_ongoing_modules($conn, $courseId);
 $upcomingModules = learn_upcoming_modules($conn, $courseId);
 $completedModules = learn_completed_modules($conn, $courseId);
 
+// Scheduled lessons for this course, bucketed by date for the
+// "Upcoming lessons" / "Past lessons" sections on this page.
+$courseSchedule = learn_course_lesson_schedule($conn, $courseId);
+$courseUpcomingLessons = $courseSchedule['upcoming'];
+$coursePastLessons = $courseSchedule['past'];
+
 // Fetch course sponsors from course_sponsors table
 $course_sponsors = [];
 $checkSponsorsTable = $conn->query("SHOW TABLES LIKE 'course_sponsors'");
@@ -483,6 +489,89 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
         <?php endif; ?>
     </div>
 <?php endif; ?>
+<?php endif; ?>
+
+<?php if ($courseUpcomingLessons || $coursePastLessons): ?>
+    <?php
+    $learnCourseLessonRow = static function (array $lesson, bool $isPast, bool $canOpen) use ($slug): void {
+        $lessonUrl = '/learn/course.php?c=' . rawurlencode($slug) . '&lesson=' . (int)$lesson['id'];
+        $start = (string)($lesson['start_date'] ?? '');
+        $end = (string)($lesson['end_date'] ?? '');
+        $today = date('Y-m-d');
+
+        $dateLabel = '';
+        $isActive = false;
+        if ($start !== '' && $end !== '') {
+            $isActive = (!$isPast && $start <= $today && $end >= $today);
+            $dateLabel = ($start === $end)
+                ? date('M j, Y', strtotime($start))
+                : date('M j', strtotime($start)) . ' – ' . date('M j, Y', strtotime($end));
+        } elseif ($start !== '') {
+            $dateLabel = date('M j, Y', strtotime($start));
+            $isActive = (!$isPast && $start <= $today);
+        } elseif ($end !== '') {
+            $dateLabel = 'Until ' . date('M j, Y', strtotime($end));
+        }
+        ?>
+        <div style="display:flex; align-items:flex-start; gap:12px; padding:13px 22px; border-bottom:1px solid var(--ln-line);">
+            <span class="material-symbols-rounded" style="font-size:21px; color:<?= $isActive ? 'var(--ln-amber)' : ($isPast ? 'var(--ln-muted)' : 'var(--ln-green-mid)') ?>;">
+                <?= $isActive ? 'radio_button_checked' : ($isPast ? 'history' : 'event_upcoming') ?>
+            </span>
+            <div style="flex:1; min-width:0;">
+                <?php if ($canOpen): ?>
+                    <a href="<?= learn_e($lessonUrl) ?>" style="font-size:0.95rem; font-weight:650; color:var(--ln-ink); text-decoration:none;"><?= learn_e($lesson['title']) ?></a>
+                <?php else: ?>
+                    <span style="font-size:0.95rem; font-weight:650; color:var(--ln-ink);"><?= learn_e($lesson['title']) ?></span>
+                <?php endif; ?>
+                <p style="margin:3px 0 0; font-size:0.82rem; color:var(--ln-muted); display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <?php if (!empty($lesson['module_title'])): ?>
+                        <span class="ln-chip"><span class="material-symbols-rounded" style="font-size:14px;">folder_special</span><?= learn_e($lesson['module_title']) ?></span>
+                    <?php endif; ?>
+                    <?php if ($dateLabel !== ''): ?>
+                        <span class="material-symbols-rounded" style="font-size:15px;">calendar_today</span>
+                        <span><?= learn_e($dateLabel) ?></span>
+                    <?php endif; ?>
+                    <?php if ((int)$lesson['duration_minutes'] > 0): ?>
+                        <span class="material-symbols-rounded" style="font-size:15px;">schedule</span>
+                        <span><?= (int)$lesson['duration_minutes'] ?> min</span>
+                    <?php endif; ?>
+                </p>
+            </div>
+        </div>
+        <?php
+    };
+    ?>
+    <h2 style="font-size:1.15rem; color:var(--ln-ink); margin:26px 0 14px;">Lesson schedule</h2>
+    <div style="display:grid; gap:12px; grid-template-columns:repeat(2, 1fr);">
+        <?php if ($courseUpcomingLessons): ?>
+            <section class="ln-card" style="padding:0; overflow:hidden;">
+                <div class="ln-card-head">
+                    <span class="material-symbols-rounded">event_upcoming</span>
+                    <div>
+                        <h3 style="margin:0; font-size:1.02rem; color:var(--ln-ink);">Upcoming lessons</h3>
+                        <p style="margin:2px 0 0; font-size:0.8rem; color:var(--ln-muted);">Scheduled and in progress on this course</p>
+                    </div>
+                </div>
+                <?php foreach ($courseUpcomingLessons as $lesson): ?>
+                    <?php $learnCourseLessonRow($lesson, false, $enrolled); ?>
+                <?php endforeach; ?>
+            </section>
+        <?php endif; ?>
+        <?php if ($coursePastLessons): ?>
+            <section class="ln-card" style="padding:0; overflow:hidden;">
+                <div class="ln-card-head">
+                    <span class="material-symbols-rounded">history</span>
+                    <div>
+                        <h3 style="margin:0; font-size:1.02rem; color:var(--ln-ink);">Past lessons</h3>
+                        <p style="margin:2px 0 0; font-size:0.8rem; color:var(--ln-muted);">Review what has already been covered</p>
+                    </div>
+                </div>
+                <?php foreach ($coursePastLessons as $lesson): ?>
+                    <?php $learnCourseLessonRow($lesson, true, $enrolled); ?>
+                <?php endforeach; ?>
+            </section>
+        <?php endif; ?>
+    </div>
 <?php endif; ?>
 <?php
 learn_foot();
