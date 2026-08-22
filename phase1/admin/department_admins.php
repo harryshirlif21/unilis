@@ -61,6 +61,57 @@ $message = '';
 $message_type = '';
 $short_courses_refreshed = false;
 
+/**
+ * Upload an image file to a subdirectory under uploads/, creating the folder if
+ * missing (Docker-safe: passes mkdir through and re-checks writability). Returns
+ * the web path on success, or an error string in the shape ['error' => msg].
+ */
+function upload_short_course_image(array $file, string $subdir): array
+{
+    // Physical base = <project>/uploads (works in both XAMPP and Docker mount).
+    $projectRoot = dirname(__DIR__, 2); // .../phase1/admin -> project root
+    $absDir = $projectRoot . '/uploads/' . $subdir;
+
+    // 1) Ensure folder exists (auto-create, including parent uploads/).
+    if (!is_dir($absDir)) {
+        @mkdir($absDir, 0755, true);
+    }
+    if (!is_dir($absDir)) {
+        return ['ok' => false, 'msg' => "Upload folder could not be created: {$subdir}. Please create it manually and ensure the web server can write to it."];
+    }
+    if (!is_writable($absDir)) {
+        return ['ok' => false, 'msg' => "Upload folder is not writable: {$subdir}. Fix permissions (e.g. chown www-data / chmod 775) and retry."];
+    }
+
+    // 2) Validate the uploaded file errors.
+    if (isset($file['error']) && $file['error'] !== UPLOAD_ERR_OK) {
+        $uploadErrors = [
+            UPLOAD_ERR_INI_SIZE   => 'The uploaded file exceeds the upload_max_filesize in php.ini.',
+            UPLOAD_ERR_FORM_SIZE  => 'The uploaded file exceeds the MAX_FILE_SIZE directive in the form.',
+            UPLOAD_ERR_PARTIAL    => 'The file was only partially uploaded (network interruption).',
+            UPLOAD_ERR_NO_FILE    => 'No file was submitted.',
+            UPLOAD_ERR_NO_TMP_DIR => 'PHP has no temporary folder configured (upload_tmp_dir).',
+            UPLOAD_ERR_CANT_WRITE => 'PHP could not write the file to disk.',
+            UPLOAD_ERR_EXTENSION  => 'A PHP extension stopped the file upload.',
+        ];
+        $code = (int)$file['error'];
+        return ['ok' => false, 'msg' => 'Upload error: ' . ($uploadErrors[$code] ?? "code {$code}.")];
+    }
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return ['ok' => false, 'msg' => 'No valid uploaded file provided.'];
+    }
+
+    // 3. Sanitise name and write file.
+    $safe_name = preg_replace('/[^a-zA-Z0-9._-]/', '-', basename($file['name']));
+    $storedName = time() . '_' . $safe_name;
+    $webPath = '/uploads/' . $subdir . '/' . $storedName;
+
+    if (!move_uploaded_file($file['tmp_name'], $absDir . '/' . $storedName)) {
+        return ['ok' => false, 'msg' => "Failed to move uploaded file into {$subdir}. Check folder permissions."];
+    }
+    return ['ok' => true, 'path' => $webPath];
+}
+
 // Handle actions
 $action = $_POST['action'] ?? '';
 
@@ -452,17 +503,12 @@ if ($action === 'add_short_course') {
         $checkTable = $conn->query("SHOW TABLES LIKE 'public_courses'");
         if ($checkTable && $checkTable->num_rows > 0) {
             $banner_path = '';
-            if ($banner && $banner['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = __DIR__ . '/../../uploads/short_courses/';
-                if (!is_dir($upload_dir)) {
-                    mkdir($upload_dir, 0755, true);
-                }
-                $safe_name = preg_replace('/[^a-zA-Z0-9._-]/', '-', basename($banner['name']));
-                $candidate_path = '/uploads/short_courses/' . time() . '_' . $safe_name;
-                if (move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $candidate_path)) {
-                    $banner_path = $candidate_path;
+            if ($banner && $banner['error'] !== UPLOAD_ERR_NO_FILE) {
+                $bannerRes = upload_short_course_image($banner, 'short_courses');
+                if ($bannerRes['ok']) {
+                    $banner_path = $bannerRes['path'];
                 } else {
-                    $message = 'Failed to upload the banner image. Please check folder permissions and try again.';
+                    $message = 'Banner upload failed: ' . $bannerRes['msg'];
                     $message_type = 'error';
                 }
             }
@@ -508,16 +554,26 @@ if ($action === 'add_short_course') {
                             
                             // Handle sponsor logo upload
                             $slogo_path = '';
-                            if (isset($sponsor_logos['tmp_name'][$index]) && $sponsor_logos['error'][$index] === UPLOAD_ERR_OK) {
-                                $slogo_path = '/uploads/short_courses/sponsors/' . time() . '_' . $index . '_' . basename($sponsor_logos['name'][$index]);
-                                if (move_uploaded_file($sponsor_logos['tmp_name'][$index], __DIR__ . '/../../' . $slogo_path)) {
-                                    $sponsor_stmt = $conn->prepare("INSERT INTO course_sponsors (course_id, sponsor_name, sponsor_details, sponsor_logo) VALUES (?, ?, ?, ?)");
-                                    $sponsor_stmt->bind_param('isss', $course_id, $sname, $sdetails, $slogo_path);
-                                    $sponsor_stmt->execute();
-                                    $sponsor_stmt->close();
-                                    $sponsor_count++;
+                            if (isset($sponsor_logos['name'][$index]) && !empty($sponsor_logos['name'][$index])) {
+                                $logoFile = [
+                                    'name' => $sponsor_logos['name'][$index],
+                                    'tmp_name' => $sponsor_logos['tmp_name'][$index],
+                                    'error' => $sponsor_logos['error'][$index],
+                                    'size' => $sponsor_logos['size'][$index],
+                                ];
+                                $logoRes = upload_short_course_image($logoFile, 'short_courses/sponsors');
+                                if ($logoRes['ok']) {
+                                    $slogo_path = $logoRes['path'];
+                                } else {
+                                    $message = 'Sponsor logo upload failed for "' . $sname . '": ' . $logoRes['msg'];
+                                    $message_type = 'error';
                                 }
                             }
+                            $sponsor_stmt = $conn->prepare("INSERT INTO course_sponsors (course_id, sponsor_name, sponsor_details, sponsor_logo) VALUES (?, ?, ?, ?)");
+                            $sponsor_stmt->bind_param('isss', $course_id, $sname, $sdetails, $slogo_path);
+                            $sponsor_stmt->execute();
+                            $sponsor_stmt->close();
+                            $sponsor_count++;
                         }
                     }
                 }
@@ -596,17 +652,12 @@ if ($action === 'edit_short_course') {
         if ($checkTable && $checkTable->num_rows > 0) {
             // Handle banner upload if provided
             $banner_path = null;
-            if ($banner && $banner['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = __DIR__ . '/../../uploads/short_courses/';
-                if (!is_dir($upload_dir)) {
-                    mkdir($upload_dir, 0755, true);
-                }
-                $safe_name = preg_replace('/[^a-zA-Z0-9._-]/', '-', basename($banner['name']));
-                $candidate_path = '/uploads/short_courses/' . time() . '_' . $safe_name;
-                if (move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $candidate_path)) {
-                    $banner_path = $candidate_path;
+            if ($banner && $banner['error'] !== UPLOAD_ERR_NO_FILE) {
+                $bannerRes = upload_short_course_image($banner, 'short_courses');
+                if ($bannerRes['ok']) {
+                    $banner_path = $bannerRes['path'];
                 } else {
-                    $message = 'Failed to upload the banner image. Please check folder permissions and try again.';
+                    $message = 'Banner upload failed: ' . $bannerRes['msg'];
                     $message_type = 'error';
                 }
             }
@@ -704,10 +755,19 @@ if ($action === 'edit_short_course') {
                             
                             // Handle sponsor logo upload
                             $slogo_path = null;
-                            if (isset($sponsor_logos['tmp_name'][$index]) && $sponsor_logos['error'][$index] === UPLOAD_ERR_OK) {
-                                $slogo_path = '/uploads/short_courses/sponsors/' . time() . '_' . $index . '_' . basename($sponsor_logos['name'][$index]);
-                                if (!move_uploaded_file($sponsor_logos['tmp_name'][$index], __DIR__ . '/../../' . $slogo_path)) {
-                                    $slogo_path = null;
+                            if (isset($sponsor_logos['name'][$index]) && !empty($sponsor_logos['name'][$index])) {
+                                $logoFile = [
+                                    'name' => $sponsor_logos['name'][$index],
+                                    'tmp_name' => $sponsor_logos['tmp_name'][$index],
+                                    'error' => $sponsor_logos['error'][$index],
+                                    'size' => $sponsor_logos['size'][$index],
+                                ];
+                                $logoRes = upload_short_course_image($logoFile, 'short_courses/sponsors');
+                                if ($logoRes['ok']) {
+                                    $slogo_path = $logoRes['path'];
+                                } else {
+                                    $message = 'Sponsor logo upload failed for "' . $sname . '": ' . $logoRes['msg'];
+                                    $message_type = 'error';
                                 }
                             }
                             
