@@ -578,8 +578,13 @@ if ($action === 'add_short_course') {
                     }
                 }
                 
-                $message = "Short course added successfully! " . ($is_paid ? "Price: KSh " . number_format($price, 2) : "Free course") . ($sponsor_count > 0 ? " with $sponsor_count sponsor(s)." : "");
-                $message_type = 'success';
+                if ($message_type === 'error') {
+                    // Preserve the upload error already set (banner/sponsor logo).
+                    $message = rtrim($message, '.') . '. The banner upload did not persist — please check the upload folder and retry.';
+                } else {
+                    $message = "Short course added successfully! " . ($is_paid ? "Price: KSh " . number_format($price, 2) : "Free course") . ($sponsor_count > 0 ? " with $sponsor_count sponsor(s)." : "");
+                    $message_type = 'success';
+                }
                 $short_courses_refreshed = true;
             } else {
                 $message = "Failed to add short course: " . $stmt->error;
@@ -812,8 +817,13 @@ if ($action === 'edit_short_course') {
                     $conn->query("DELETE FROM course_sponsors WHERE course_id = $id");
                 }
                 
-                $message = "Short course updated successfully!" . ($sponsor_count > 0 ? " Updated with $sponsor_count sponsor(s)." : "");
-                $message_type = 'success';
+                if ($message_type === 'error') {
+                    // Preserve the upload error already set (banner/sponsor logo).
+                    $message = rtrim($message, '.') . '. The banner upload did not persist — please check the upload folder and retry.';
+                } else {
+                    $message = "Short course updated successfully!" . ($sponsor_count > 0 ? " Updated with $sponsor_count sponsor(s)." : "");
+                    $message_type = 'success';
+                }
             } else {
                 $message = "Failed to update short course: " . $stmt->error;
                 $message_type = 'error';
