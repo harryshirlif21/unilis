@@ -10,13 +10,14 @@ services:
       - .:/var/www/html
       - vendor:/var/www/html/vendor
       - ./assets/uploads:/var/www/html/assets/uploads
-      - ./uploads:/var/www/uploads
+      - ./uploads:/var/www/html/uploads
       - ./uploads/course_presentations:/var/www/html/uploads/course_presentations
       - ./uploads/course_pdfs:/var/www/html/uploads/course_pdfs
       - ./uploads/course_images:/var/www/html/uploads/course_images
       - ./uploads/course_videos:/var/www/html/uploads/course_videos
       - ./uploads/course_audio:/var/www/html/uploads/course_audio
       - ./uploads/course_diagrams:/var/www/html/uploads/course_diagrams
+      - ./uploads/short_courses:/var/www/html/uploads/short_courses
       - ./assets/assignments:/var/www/html/assets/assignments
       # Runtime data only (recordings). Do not put static app files here — this
       # mount shadows whatever the image ships at that path. The meeting
