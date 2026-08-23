@@ -45,7 +45,10 @@ if (strpos($normalizedAbsolute, $normalizedUploads . '/') !== 0) {
     exit('PDF not found.');
 }
 
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+    ? 'https'
+    : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $basePath = rtrim(str_replace('\\', '/', dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/lecturer/pdf_preview.php'))), '/');
 $fileUrl = $scheme . '://' . $host . $basePath . '/' . $file;
