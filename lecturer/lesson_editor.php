@@ -22,10 +22,10 @@ $can_edit = false;
 $has_access = false;
 
 if ($mode === 'short_course') {
-    // Check if course author
+    // Check if course author (created_by_lecturer_id — author_id doesn't exist)
     $isAuthor = false;
     try {
-        $checkAuthor = $conn->prepare("SELECT id FROM public_courses WHERE id = ? AND author_id = ?");
+        $checkAuthor = $conn->prepare("SELECT id FROM public_courses WHERE id = ? AND created_by_lecturer_id = ?");
         $checkAuthor->bind_param("ii", $course_id, $lecturer_id);
         $checkAuthor->execute();
         if ($checkAuthor->get_result()->fetch_row()) {
@@ -36,6 +36,20 @@ if ($mode === 'short_course') {
         $checkAuthor->close();
     } catch (Exception $e) {
         error_log("Error checking author: " . $e->getMessage());
+    }
+
+    // Global admins and department admins can manage any (department) short course.
+    if (!$isAuthor) {
+        try {
+            $roleAllowed = shortCourseCanManage($conn, $course_id);
+            if ($roleAllowed) {
+                $isAuthor = true;      // treat like the author for full edit access
+                $can_edit = true;
+                $has_access = true;
+            }
+        } catch (Exception $e) {
+            error_log("Error checking role access: " . $e->getMessage());
+        }
     }
 
     // If not author, check module/lesson permissions
