@@ -47,10 +47,10 @@ if ($mode === 'short_course') {
     } else {
         // Lecturers: check assigned tutor or owner
         $stmt = $conn->prepare("
-            SELECT pc.*, sct.id AS tutor_id
+            SELECT pc.*, sct.id AS tutor_id, sct.is_active AS is_primary_tutor
             FROM public_courses pc
             JOIN short_course_tutors sct ON sct.short_course_id = pc.id
-            WHERE pc.id = ? AND sct.lecturer_id = ? AND sct.is_active = 1
+            WHERE pc.id = ? AND sct.lecturer_id = ?
             LIMIT 1
         ");
         $stmt->bind_param("ii", $course_id, $lecturer_id);

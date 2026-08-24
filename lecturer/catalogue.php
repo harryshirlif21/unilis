@@ -52,10 +52,11 @@ if ($actor['role'] === 'lecturer') {
                (SELECT COUNT(*) FROM public_course_assessments a WHERE a.course_id = pc.id) AS assessment_count,
                (SELECT COUNT(*) FROM external_enrollments e WHERE e.course_id = pc.id) AS learner_count,
                (SELECT COUNT(*) FROM certificates t WHERE t.course_id = pc.id AND t.revoked_at IS NULL) AS certificate_count,
-               sct.id AS tutor_id
+               sct.id AS tutor_id,
+               sct.is_active AS is_primary_tutor
         FROM short_course_tutors sct
         JOIN public_courses pc ON pc.id = sct.short_course_id
-        WHERE sct.lecturer_id = ? AND sct.is_active = 1
+        WHERE sct.lecturer_id = ?
         ORDER BY pc.updated_at DESC
     ");
     $stmt->bind_param('i', $actor['id']);
@@ -78,14 +79,16 @@ if ($checkTmp && $checkTmp->num_rows > 0) {
                (SELECT COUNT(*) FROM external_enrollments e WHERE e.course_id = pc.id) AS learner_count,
                (SELECT COUNT(*) FROM certificates t WHERE t.course_id = pc.id AND t.revoked_at IS NULL) AS certificate_count,
                (SELECT COALESCE(sct.id, 0) FROM short_course_tutors sct
-                 WHERE sct.short_course_id = pc.id AND sct.lecturer_id = ? AND sct.is_active = 1 LIMIT 1) AS tutor_id
+                 WHERE sct.short_course_id = pc.id AND sct.lecturer_id = ? LIMIT 1) AS tutor_id,
+               (SELECT sct.is_active FROM short_course_tutors sct
+                 WHERE sct.short_course_id = pc.id AND sct.lecturer_id = ? LIMIT 1) AS is_primary_tutor
         FROM public_course_modules m
         JOIN public_courses pc ON pc.id = m.course_id
         JOIN tutor_module_permissions tmp ON tmp.module_id = m.id
         WHERE tmp.tutor_id = ? AND tmp.can_edit = 1
         ORDER BY pc.updated_at DESC
     ");
-    $stmt->bind_param('ii', $actor['id'], $actor['id']);
+    $stmt->bind_param('iii', $actor['id'], $actor['id'], $actor['id']);
     $stmt->execute();
     $extra = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -104,7 +107,9 @@ if ($checkTlp && $checkTlp->num_rows > 0) {
                (SELECT COUNT(*) FROM external_enrollments e WHERE e.course_id = pc.id) AS learner_count,
                (SELECT COUNT(*) FROM certificates t WHERE t.course_id = pc.id AND t.revoked_at IS NULL) AS certificate_count,
                (SELECT COALESCE(sct.id, 0) FROM short_course_tutors sct
-                 WHERE sct.short_course_id = pc.id AND sct.lecturer_id = ? AND sct.is_active = 1 LIMIT 1) AS tutor_id
+                 WHERE sct.short_course_id = pc.id AND sct.lecturer_id = ? LIMIT 1) AS tutor_id,
+               (SELECT sct.is_active FROM short_course_tutors sct
+                 WHERE sct.short_course_id = pc.id AND sct.lecturer_id = ? LIMIT 1) AS is_primary_tutor
         FROM public_course_lessons ls
         JOIN public_course_modules m ON m.id = ls.module_id
         JOIN public_courses pc ON pc.id = m.course_id
@@ -112,7 +117,7 @@ if ($checkTlp && $checkTlp->num_rows > 0) {
         WHERE tlp.tutor_id = ? AND tlp.can_edit = 1
         ORDER BY pc.updated_at DESC
     ");
-    $stmt->bind_param('ii', $actor['id'], $actor['id']);
+    $stmt->bind_param('iii', $actor['id'], $actor['id'], $actor['id']);
     $stmt->execute();
     $extra = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -167,6 +172,7 @@ studio_head('My open courses');
             $courseId = (int)$course['id'];
             $isPublished = (int)$course['is_published'] === 1;
             $isAssigned = ($course['tutor_id'] ?? null) !== null;
+            $isPrimary = !empty($course['is_primary_tutor']);
             $courseSlug = $course['slug'] ?? '';
             ?>
             <article class="st-course" data-course-id="<?= $courseId ?>" data-course-slug="<?= htmlspecialchars($courseSlug) ?>">
@@ -192,7 +198,7 @@ studio_head('My open courses');
                         </span>
                         <?php if ($isAssigned): ?>
                             <span class="st-chip st-chip-info">
-                                <i class="fas fa-user-graduate"></i> Assigned
+                                <i class="fas fa-user-graduate"></i> <?= $isPrimary ? 'Primary Tutor' : 'Contributor' ?>
                             </span>
                         <?php endif; ?>
                         <span class="st-chip"><?= studio_e(ucfirst((string)$course['level'])) ?></span>
