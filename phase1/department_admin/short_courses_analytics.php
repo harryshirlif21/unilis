@@ -155,12 +155,18 @@ function short_course_unique_slug(mysqli $conn, string $title, int $ignoreId = 0
 
 
 /**
- * Validate and move an uploaded cover image. Uses finfo (MIME sniff) rather
- * than trusting the client extension, and enforces a max size.
+ * STEP 1 — Move the banner image into its final location under
+ * uploads/short_courses. Validation uses finfo (MIME sniff) rather than
+ * trusting the client extension, and enforces a max size.
+ *
+ * This step ONLY physically stores the file. The caller is responsible for
+ * STEP 2 (popup + banner error on failure) and STEP 3 (saving the returned
+ * path to the database afterwards). A failed move therefore never reaches the
+ * database.
  *
  * @return array{ok:bool, path:string, error:string}
  */
-function short_course_handle_cover(array $file, string $subdir = ''): array
+function short_course_move_banner(array $file, string $subdir = ''): array
 {
     $relRoot = 'uploads/short_courses' . ($subdir !== '' ? '/' . $subdir : '');
     $absRoot = APP_ROOT_DIR . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relRoot);
@@ -288,6 +294,9 @@ if (!$uploadCheck['ok']) {
 /* ── State for the page ──────────────────────────────────────────────────── */
 $errors   = [];
 $messages = [];
+// Set by the POST handlers in STEP 2 when moving a banner fails. Used at the
+// bottom of the page to fire a browser popup in addition to the error banner.
+$bannerMoveError = '';
 
 /* ── Handle POST actions (all server-side scoped + prepared) ────────────── */
 
@@ -339,18 +348,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
         if (empty($errors) && $uploadCheck['ok']) {
             $slug = short_course_unique_slug($conn, $title);
-            $coverRes = ['ok' => false, 'path' => '', 'error' => ''];
+
+            // STEP 1 — move the banner file to its final location (if uploaded).
+            $coverPath  = '';
+            $coverError = '';
             if (!empty($_FILES['cover_image']['name'])) {
-                $coverRes = short_course_handle_cover($_FILES['cover_image']);
-                if (!$coverRes['ok'] && $coverRes['error'] !== '') {
-                    $errors[] = $coverRes['error'];
+                $coverRes = short_course_move_banner($_FILES['cover_image']);
+                if ($coverRes['ok']) {
+                    $coverPath = $coverRes['path'];          // used in STEP 3
+                } elseif ($coverRes['error'] !== '') {
+                    $coverError = $coverRes['error'];        // STEP 2 failure
                 }
-            } else {
-                $coverRes['ok'] = true;
             }
 
+            // STEP 2 — a failed banner move surfaces as a popup error and
+            // aborts the insert below, so no path is persisted on failure.
+            if ($coverError !== '') {
+                $errors[] = $coverError;
+                $bannerMoveError = $coverError;
+            }
+
+            // STEP 3 — only now (banner moved, or nothing uploaded) save the
+            // stored path along with the new course to the database.
             if (empty($errors)) {
-                $coverPath = $coverRes['path']; // '' if none uploaded
                 $stmt = $conn->prepare('INSERT INTO public_courses
                     (slug, title, code, duration, department_id, summary, description, cover_image,
                      level, estimated_hours, is_published, certificate_enabled, pass_mark,
@@ -420,21 +440,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             // Banner: preserve existing when no new file is uploaded.
             $coverPath = (string)($course['cover_image'] ?? '');
             $removedOld = false;
+            $coverError = '';
             if (empty($errors) && !empty($_FILES['cover_image']['name']) && $uploadCheck['ok']) {
-                $coverRes = short_course_handle_cover($_FILES['cover_image']);
+                // STEP 1 — move the newly uploaded banner to its final location.
+                $coverRes = short_course_move_banner($_FILES['cover_image']);
                 if (!$coverRes['ok']) {
-                    if ($coverRes['error'] !== '') {
-                        $errors[] = $coverRes['error'];
-                    }
+                    $coverError = $coverRes['error'];   // STEP 2 failure
                 } else {
-                    // Decision: delete the previously managed file to avoid
-                    // unbounded disk growth. History is intentionally not kept.
+                    // STEP 3 — this path gets saved to the DB below. Remove the
+                    // previously managed file to avoid unbounded disk growth
+                    // (history is intentionally not kept).
                     if ($coverPath !== '' && $coverPath !== '0') {
                         short_course_remove_managed_file($coverPath);
                         $removedOld = true;
                     }
                     $coverPath = $coverRes['path'];
                 }
+            }
+
+            // STEP 2 — a failed banner move surfaces as a popup error and
+            // prevents the DB update below from persisting it.
+            if ($coverError !== '') {
+                $errors[] = $coverError;
+                $bannerMoveError = $coverError;
             }
 
             if (empty($errors)) {
@@ -1383,6 +1411,12 @@ if ($isGlobalAdmin) {
             'cover_image' => short_course_media_url((string)$c['cover_image']),
         ];
     }, $courses)) ?>);
+
+    <?php if (!empty($bannerMoveError)): ?>
+    // STEP 2 — a failed banner move is surfaced to the user as a popup (on top
+    // of the red error banner already rendered in the page body).
+    alert('Banner upload failed: <?= htmlspecialchars($bannerMoveError, ENT_QUOTES) ?>');
+    <?php endif; ?>
 
     const modal = document.getElementById('courseModal');
     const form = document.getElementById('courseForm');

@@ -792,14 +792,6 @@ body {
 .outline-level-editor { margin-top: 14px; padding: 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 
 /* Ã¢â€â‚¬Ã¢â€â‚¬ RESPONSIVE Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
-.assessments-block { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
-.assessments-block-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
-.assessments-list { display: flex; flex-direction: column; gap: 6px; }
-.assessment-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.82rem; }
-.assessment-title { flex: 1; color: var(--text); }
-.assessment-type-tag { font-size: 0.68rem; padding: 2px 7px; border-radius: 999px; background: var(--surface3); color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
-.assessments-empty { font-size: 0.78rem; color: var(--text-dim); font-style: italic; }
-.lesson-assessment-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; padding: 2px 8px; margin-left: 6px; border-radius: 999px; background: rgba(247,147,79,0.12); border: 1px solid rgba(247,147,79,0.25); color: var(--accent3); }
 @media (max-width: 768px) {
     .layout { flex-direction: column; }
     .sidebar { width: 100%; min-width: unset; height: auto; }
@@ -1175,64 +1167,6 @@ body {
     </div>
 </div>
 
-<!-- Assessment Modal -->
-<div class="modal-overlay" id="assessment-modal">
-    <div class="modal" style="width:560px">
-        <h3 id="assessment-modal-title"><i class="fas fa-tasks"></i> Add Assessment</h3>
-        <div class="form-group">
-            <label>Type</label>
-            <div class="pricing-options" style="gap:20px">
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;font-size:0.85rem">
-                    <input type="radio" name="assessment-type" value="cat" id="assessment-type-cat" checked onchange="toggleAssessmentTypeFields()"> CAT (Quiz)
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;font-size:0.85rem">
-                    <input type="radio" name="assessment-type" value="assignment" id="assessment-type-assignment" onchange="toggleAssessmentTypeFields()"> Assignment
-                </label>
-            </div>
-        </div>
-        <div class="form-group">
-            <label>Title</label>
-            <input type="text" class="form-input" id="assessment-title-input" placeholder="e.g. Week 1 Quiz">
-        </div>
-        <div class="form-group">
-            <label>Instructions</label>
-            <textarea class="form-textarea" id="assessment-instructions-input" placeholder="What should learners do?"></textarea>
-        </div>
-        <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-            <div class="form-group">
-                <label>Pass Mark (%)</label>
-                <input type="number" class="form-input" id="assessment-pass-mark-input" min="0" max="100" value="70">
-            </div>
-            <div class="form-group" id="assessment-max-attempts-group">
-                <label>Max Attempts</label>
-                <input type="number" class="form-input" id="assessment-max-attempts-input" min="0" value="1">
-            </div>
-        </div>
-        <div class="form-group" id="assessment-time-limit-group">
-            <label>Time Limit (minutes)</label>
-            <input type="number" class="form-input" id="assessment-time-limit-input" min="0" placeholder="e.g. 30 (blank = no limit)">
-        </div>
-        <div class="form-group" id="assessment-submission-type-group" style="display:none">
-            <label>Submission Type</label>
-            <select class="styled-select" id="assessment-submission-type-input">
-                <option value="both">File or Text</option>
-                <option value="file">File only</option>
-                <option value="text">Text only</option>
-            </select>
-        </div>
-        <div class="form-group" id="assessment-due-date-group" style="display:none">
-            <label>Due Date</label>
-            <input type="datetime-local" class="form-input" id="assessment-due-date-input">
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closeModal('assessment-modal')">Cancel</button>
-            <button class="btn btn-primary" id="assessment-save-btn" onclick="saveAssessment()">
-                <i class="fas fa-save"></i> Save
-            </button>
-        </div>
-    </div>
-</div>
-
 <!-- Toast container -->
 <div id="toast"></div>
 
@@ -1252,10 +1186,6 @@ let outline          = null;
 let editingModuleId  = null;
 let editingLessonId   = null;
 let editingLessonModuleId = null;
-let assessments = [];
-let editingAssessmentId = null;
-let assessmentTargetModuleId = null;
-let assessmentTargetLessonId = null;
 
 // All units from PHP (for import modal)
 const ALL_UNITS = <?= json_encode($units) ?>;
@@ -1265,7 +1195,7 @@ const ALL_UNITS = <?= json_encode($units) ?>;
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 document.addEventListener('DOMContentLoaded', function() {
     if (MODE === 'short_course') {
-        loadShortCourseTree(); loadAssessmentsThenRender();
+        loadShortCourseTree();
     } else {
         // ICLM mode: set up unit selector
         const sel = document.getElementById('unit-select');
@@ -1392,7 +1322,6 @@ function renderModuleTree() {
 
     modules.forEach((mod, idx) => tree.appendChild(buildModuleCard(mod, idx)));
     initModuleDrag();
-    decorateAssessments();
 }
 
 function buildModuleCard(mod, idx) {
@@ -1486,137 +1415,6 @@ function buildLessonRowHTML(lesson, moduleId, canEdit = true) {
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // TOGGLE MODULE COLLAPSE
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-function getAssessmentsForModule(moduleId) {
-    return assessments.filter(a => Number(a.module_id) === Number(moduleId) && !a.lesson_id);
-}
-function getAssessmentsForLesson(lessonId) {
-    return assessments.filter(a => Number(a.lesson_id) === Number(lessonId));
-}
-function assessmentTypeIcon(type) {
-    return type === 'assignment' ? 'fa-file-signature' : 'fa-clipboard-check';
-}
-function buildAssessmentSectionHTML(moduleId, canEditModule) {
-    const items = getAssessmentsForModule(moduleId);
-    const list = items.map(a => `
-        <div class="assessment-item" data-id="${a.id}">
-            <i class="fas ${assessmentTypeIcon(a.type)}" style="color:${a.type === 'assignment' ? 'var(--accent3)' : 'var(--accent2)'}"></i>
-            <span class="assessment-title" ${a.can_edit ? `onclick="openAssessmentModal(${moduleId}, null, ${a.id})"` : ''} style="${a.can_edit ? 'cursor:pointer' : 'cursor:default'}">${escHtml(a.title)}</span>
-            <span class="assessment-type-tag">${a.type === 'assignment' ? 'Assignment' : 'CAT'}</span>
-            ${a.can_edit ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="confirmDeleteAssessment(${a.id}, '${escAttr(a.title)}')" title="Delete">
-                <i class="fas fa-trash" style="color:var(--danger)"></i>
-            </button>` : ''}
-        </div>`).join('');
-    return `
-        <div class="assessments-block">
-            <div class="assessments-block-header">
-                <span><i class="fas fa-tasks"></i> Module Assessments</span>
-                ${canEditModule ? `<button class="btn btn-ghost btn-sm" onclick="openAssessmentModal(${moduleId}, null, null)">
-                    <i class="fas fa-plus"></i> Add
-                </button>` : ''}
-            </div>
-            ${items.length ? `<div class="assessments-list">${list}</div>` : '<p class="assessments-empty">No assessments yet.</p>'}
-        </div>`;
-}
-function buildLessonAssessmentBadgesHTML(lessonId) {
-    const items = getAssessmentsForLesson(lessonId);
-    if (!items.length) return '';
-    return items.map(a => `
-        <span class="lesson-assessment-badge" title="${escAttr((a.type === 'assignment' ? 'Assignment' : 'CAT') + ': ' + a.title)}" ${a.can_edit ? `onclick="openAssessmentModal(null, ${lessonId}, ${a.id})"` : ''} style="${a.can_edit ? 'cursor:pointer' : 'cursor:default'}">
-            <i class="fas ${assessmentTypeIcon(a.type)}"></i> ${escHtml(a.title)}
-        </span>`).join('');
-}
-function toggleAssessmentTypeFields() {
-    const isAssignment = document.getElementById('assessment-type-assignment').checked;
-    document.getElementById('assessment-time-limit-group').style.display = isAssignment ? 'none' : '';
-    document.getElementById('assessment-max-attempts-group').style.display = isAssignment ? 'none' : '';
-    document.getElementById('assessment-submission-type-group').style.display = isAssignment ? '' : 'none';
-    document.getElementById('assessment-due-date-group').style.display = isAssignment ? '' : 'none';
-}
-function openAssessmentModal(moduleId, lessonId, assessmentId) {
-    assessmentTargetModuleId = moduleId;
-    assessmentTargetLessonId = lessonId;
-    editingAssessmentId = assessmentId || null;
-    const existing = assessmentId ? assessments.find(a => Number(a.id) === Number(assessmentId)) : null;
-    document.getElementById('assessment-modal-title').innerHTML = existing
-        ? '<i class="fas fa-tasks"></i> Edit Assessment'
-        : '<i class="fas fa-tasks"></i> Add Assessment';
-    const isAssignment = existing ? existing.type === 'assignment' : false;
-    document.getElementById('assessment-type-cat').checked = !isAssignment;
-    document.getElementById('assessment-type-assignment').checked = isAssignment;
-    document.getElementById('assessment-title-input').value = existing ? existing.title : '';
-    document.getElementById('assessment-instructions-input').value = existing ? (existing.instructions || '') : '';
-    document.getElementById('assessment-pass-mark-input').value = existing ? existing.pass_mark : 70;
-    document.getElementById('assessment-max-attempts-input').value = existing ? existing.max_attempts : 1;
-    document.getElementById('assessment-time-limit-input').value = existing ? (existing.time_limit_minutes || '') : '';
-    document.getElementById('assessment-submission-type-input').value = existing ? (existing.submission_type || 'both') : 'both';
-    document.getElementById('assessment-due-date-input').value = existing && existing.due_date ? existing.due_date.replace(' ', 'T').slice(0, 16) : '';
-    toggleAssessmentTypeFields();
-    openModal('assessment-modal');
-    setTimeout(() => document.getElementById('assessment-title-input').focus(), 150);
-}
-function saveAssessment() {
-    const title = document.getElementById('assessment-title-input').value.trim();
-    if (!title) { toast('Title is required', 'error'); return; }
-    const isAssignment = document.getElementById('assessment-type-assignment').checked;
-    const btn = document.getElementById('assessment-save-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Saving...';
-    const body = new FormData();
-    if (editingAssessmentId) body.append('assessment_id', editingAssessmentId);
-    body.append('course_id', COURSE_ID);
-    if (assessmentTargetLessonId) body.append('lesson_id', assessmentTargetLessonId);
-    if (assessmentTargetModuleId) body.append('module_id', assessmentTargetModuleId);
-    body.append('title', title);
-    body.append('type', isAssignment ? 'assignment' : 'cat');
-    body.append('instructions', document.getElementById('assessment-instructions-input').value.trim());
-    body.append('pass_mark', document.getElementById('assessment-pass-mark-input').value || 0);
-    body.append('max_attempts', document.getElementById('assessment-max-attempts-input').value || (isAssignment ? 0 : 1));
-    if (!isAssignment) {
-        body.append('time_limit_minutes', document.getElementById('assessment-time-limit-input').value || '');
-    } else {
-        body.append('submission_type', document.getElementById('assessment-submission-type-input').value);
-        body.append('due_date', document.getElementById('assessment-due-date-input').value || '');
-    }
-    fetch('ajax/short_course_save_assessment.php', { method: 'POST', body })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) { toast(data.message, 'success'); closeModal('assessment-modal'); reloadTree(); }
-            else toast(data.message, 'error');
-        })
-        .catch(() => toast('Network error', 'error'))
-        .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save'; });
-}
-function confirmDeleteAssessment(assessmentId, title) {
-    if (!confirm(`Delete assessment "${title}"?\n\nThis cannot be undone.`)) return;
-    const body = new FormData();
-    body.append('assessment_id', assessmentId);
-    fetch('ajax/short_course_delete_assessment.php', { method: 'POST', body })
-        .then(r => r.json())
-        .then(d => { if (d.success) { toast('Assessment deleted', 'success'); reloadTree(); } else toast(d.message, 'error'); })
-        .catch(() => toast('Delete failed', 'error'));
-}
-function decorateAssessments() {
-    document.querySelectorAll('.assessments-block, .lesson-assessment-badge, .assessment-add-btn').forEach(el => el.remove());
-    modules.forEach(mod => {
-        const canEdit = mod.can_edit !== false;
-        const lc = document.getElementById(`lc-${mod.id}`);
-        if (lc) {
-            lc.insertAdjacentHTML('beforeend', buildAssessmentSectionHTML(mod.id, canEdit));
-        }
-        (mod.lessons || []).forEach(lesson => {
-            const lt = document.getElementById(`lt-${lesson.id}`);
-            if (lt) {
-                lt.insertAdjacentHTML('afterend', buildLessonAssessmentBadgesHTML(lesson.id));
-            }
-            if (canEdit) {
-                const row = document.querySelector(`.lesson-row[data-id="${lesson.id}"] .lesson-actions`);
-                if (row && !row.querySelector('.assessment-add-btn')) {
-                    row.insertAdjacentHTML('afterbegin', `<button class="btn btn-ghost btn-sm btn-icon assessment-add-btn" onclick="openAssessmentModal(null, ${lesson.id}, null)" title="Add Assessment"><i class="fas fa-tasks" style="color:var(--accent3)"></i></button>`);
-                }
-            }
-        });
-    });
-}
 function toggleModule(moduleId) {
     const lc   = document.getElementById(`lc-${moduleId}`);
     const btn  = document.getElementById(`toggle-${moduleId}`);
@@ -2022,18 +1820,9 @@ function confirmDeleteLesson(lessonId, title, moduleId) {
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // RELOAD TREE
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-function loadAssessmentsThenRender() {
-    fetch(`ajax/short_course_get_assessments.php?course_id=${COURSE_ID}`)
-        .then(r => r.json())
-        .then(data => {
-            assessments = (data && data.success) ? (data.assessments || []) : [];
-            decorateAssessments();
-        })
-        .catch(() => {});
-}
 function reloadTree() {
     if (MODE === 'short_course') {
-        loadShortCourseTree(); loadAssessmentsThenRender();
+        loadShortCourseTree();
     } else {
         loadCourseTree();
     }

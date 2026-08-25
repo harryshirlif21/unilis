@@ -345,6 +345,36 @@ if ($checkSponsors && $checkSponsors->num_rows > 0) {
     }
 }
 
+// Fetch enrolled students for each course (learners subscribed via the public catalogue)
+$course_enrollments = [];
+$checkEnrollments = $conn->query("SHOW TABLES LIKE 'external_enrollments'");
+if ($checkEnrollments && $checkEnrollments->num_rows > 0) {
+    $course_ids = array_column($courses, 'id');
+    if (!empty($course_ids)) {
+        $placeholders = str_repeat('?,', count($course_ids) - 1) . '?';
+        $enrollStmt = $conn->prepare("
+            SELECT ee.course_id, el.name, el.email, el.phone, el.country, el.organisation,
+                   ee.enrolled_at, ee.completed_at
+            FROM external_enrollments ee
+            JOIN external_learners el ON el.id = ee.learner_id
+            WHERE ee.course_id IN ($placeholders)
+            ORDER BY ee.enrolled_at DESC
+        ");
+        $enrollStmt->bind_param(str_repeat('i', count($course_ids)), ...$course_ids);
+        $enrollStmt->execute();
+        $enrollResult = $enrollStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $enrollStmt->close();
+
+        foreach ($enrollResult as $enr) {
+            $course_id = (int)$enr['course_id'];
+            if (!isset($course_enrollments[$course_id])) {
+                $course_enrollments[$course_id] = [];
+            }
+            $course_enrollments[$course_id][] = $enr;
+        }
+    }
+}
+
 // Calculate total revenue for paid courses
 $total_revenue = 0;
 $paid_course_count = 0;
@@ -354,6 +384,121 @@ foreach ($courses as $course) {
         $paid_course_count++;
     }
 }
+// Download enrolled students as a PDF for a given course
+if (isset($_GET['action']) && $_GET['action'] === 'download_enrollments_pdf') {
+    $course_id = (int)($_GET['course_id'] ?? 0);
+    if ($course_id <= 0) {
+        http_response_code(400);
+        exit('Invalid course ID.');
+    }
+
+    // Fetch the course (needed for title + department scope check)
+    $course = null;
+    $stmt = $conn->prepare("SELECT id, title, code, duration, department_id FROM public_courses WHERE id = ?");
+    $stmt->bind_param('i', $course_id);
+    $stmt->execute();
+    $course = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$course) {
+        http_response_code(404);
+        exit('Course not found.');
+    }
+
+    // Department admins may only export courses within their department
+    if ($is_department_admin && (int)$course['department_id'] !== $department_id) {
+        http_response_code(403);
+        exit('Access denied.');
+    }
+
+    // Fetch all enrolled learners
+    $enrollments = [];
+    $estmt = $conn->prepare("
+        SELECT el.name, el.email, el.phone, el.country, el.organisation,
+               ee.enrolled_at, ee.completed_at
+        FROM external_enrollments ee
+        JOIN external_learners el ON el.id = ee.learner_id
+        WHERE ee.course_id = ?
+        ORDER BY ee.enrolled_at DESC
+    ");
+    $estmt->bind_param('i', $course_id);
+    $estmt->execute();
+    $enrollments = $estmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $estmt->close();
+
+    $courseTitle = htmlspecialchars($course['title'] ?? 'Course', ENT_QUOTES, 'UTF-8');
+    $courseCode  = htmlspecialchars((string)($course['code'] ?? ''), ENT_QUOTES, 'UTF-8');
+
+    // Build the enrollee table rows
+    $rows = '';
+    if (empty($enrollments)) {
+        $rows = '<tr><td colspan="6" style="text-align:center; color:#888; padding:24px;">No students enrolled yet.</td></tr>';
+    } else {
+        foreach ($enrollments as $e) {
+            $name     = htmlspecialchars((string)($e['name'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $email    = htmlspecialchars((string)($e['email'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $phone    = htmlspecialchars((string)($e['phone'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $org      = htmlspecialchars((string)($e['organisation'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $enr      = htmlspecialchars(date('Y-m-d', strtotime((string)$e['enrolled_at'])), ENT_QUOTES, 'UTF-8');
+            $status   = !empty($e['completed_at']) ? 'Completed' : 'Active';
+            $rows .= '<tr>'
+                . '<td>' . $name . '</td>'
+                . '<td>' . $email . '</td>'
+                . '<td>' . $phone . '</td>'
+                . '<td>' . $org . '</td>'
+                . '<td>' . $enr . '</td>'
+                . '<td>' . $status . '</td>'
+                . '</tr>';
+        }
+    }
+
+    $html = '<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            @page { margin: 18mm 14mm; }
+            body { font-family: Arial, Helvetica, sans-serif; color: #222; line-height: 1.4; }
+            h1 { font-size: 22px; color: #1f2937; border-bottom: 3px solid #4f46e5; padding-bottom: 8px; margin: 0 0 4px; }
+            .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 18px; }
+            .meta { font-size: 12px; color: #555; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th { background: #4f46e5; color: #fff; text-align: left; padding: 8px 10px; }
+            td { padding: 7px 10px; border-bottom: 1px solid #ddd; }
+            tr:nth-child(even) td { background: #f5f7fa; }
+            .footer { margin-top: 28px; text-align: center; color: #888; font-size: 11px; }
+        </style>
+    </head>
+    <body>
+        <h1>Enrolled Students</h1>
+        <div class="subtitle">' . $courseTitle . ($courseCode !== '' ? ' &mdash; ' . $courseCode : '') . '</div>
+        <div class="meta">Total students: ' . count($enrollments) . ' &nbsp;|&nbsp; Generated: ' . date('F j, Y H:i') . '</div>
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Email</th><th>Phone</th><th>Organisation</th><th>Enrolled</th><th>Status</th></tr>
+            </thead>
+            <tbody>' . $rows . '</tbody>
+        </table>
+        <div class="footer">UNILIS &mdash; Short Courses &bull; Downloaded from Short Courses Analytics</div>
+    </body>
+    </html>';
+
+    require_once __DIR__ . '/../../vendor/autoload.php';
+    $options = new \Dompdf\Options();
+    $options->set('isRemoteEnabled', false);
+    $options->set('isHtml5ParserEnabled', true);
+    $options->set('defaultFont', 'Helvetica');
+    $pdf = new \Dompdf\Dompdf($options);
+    $pdf->loadHtml($html, 'UTF-8');
+    $pdf->setPaper('A4', 'landscape');
+    $pdf->render();
+
+    $filename = 'enrolled_students_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $course['title']) . '_' . date('Y-m-d') . '.pdf';
+    $pdf->stream($filename, ['Attachment' => true]);
+    exit;
+}
+
+?>
 
 ?>
 <!DOCTYPE html>
@@ -701,6 +846,96 @@ foreach ($courses as $course) {
             color: white;
         }
 
+        /* Enrollments modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-box {
+            background: var(--surface);
+            border-radius: var(--radius);
+            width: 92%;
+            max-width: 780px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+            animation: slideIn 0.2s ease;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h3 {
+            font-size: 1rem;
+            color: var(--accent);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        .modal-close:hover {
+            color: var(--danger);
+        }
+
+        .modal-course {
+            padding: 10px 20px 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .modal-course strong {
+            color: var(--text);
+        }
+
+        .modal-body {
+            overflow-y: auto;
+            padding: 12px 20px 16px;
+        }
+
+        .enroll-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .enroll-table th,
+        .enroll-table td {
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .enroll-table th {
+            background: var(--surface2);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .modal-footer {
+            padding: 14px 20px;
+            border-top: 1px solid var(--border);
+            text-align: right;
+        }
+
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
@@ -894,6 +1129,9 @@ foreach ($courses as $course) {
                                     <?= date('M j, Y', strtotime($course['created_at'])) ?>
                                 </td>
                                 <td>
+                                    <button type="button" class="action-btn" data-course-id="<?= (int)$course['id'] ?>" data-course-title="<?= htmlspecialchars($course['title'], ENT_QUOTES) ?>" onclick="openEnrollmentsModal(this)" title="View enrolled students">
+                                        <i class="fas fa-users"></i> Students
+                                    </button>
                                     <form method="POST" style="display: inline;">
                                         <input type="hidden" name="action" value="toggle_publish">
                                         <input type="hidden" name="course_id" value="<?= $course['id'] ?>">
@@ -914,6 +1152,104 @@ foreach ($courses as $course) {
                     </tbody>
                 </table>
             <?php endif; ?>
+        </div>
+    </div>
+
+    <script>
+        const COURSE_ENROLLMENTS = <?= json_encode($course_enrollments, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+
+        function escapeHtml(value) {
+            const d = document.createElement('div');
+            d.textContent = value == null ? '' : String(value);
+            return d.innerHTML;
+        }
+
+        function openEnrollmentsModal(btn) {
+            const courseId = btn.dataset.courseId;
+            const courseTitle = btn.dataset.courseTitle || 'Course';
+
+            const downloadBtn = document.getElementById('enrollments-download-btn');
+            if (downloadBtn) {
+                downloadBtn.href = 'short_courses_analytics.php?action=download_enrollments_pdf&course_id=' + encodeURIComponent(courseId);
+            }
+
+            if (courseTitle) {
+                const titleEl = document.getElementById('enrollments-course-title');
+                if (titleEl) titleEl.innerHTML = 'Course: <strong>' + escapeHtml(courseTitle) + '</strong>';
+            }
+
+            const body = document.getElementById('enrollments-body');
+            body.innerHTML = '';
+            const list = COURSE_ENROLLMENTS[courseId] || [];
+
+            if (!list.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 6;
+                td.style.textAlign = 'center';
+                td.style.color = 'var(--text-muted)';
+                td.style.padding = '24px';
+                td.textContent = 'No students enrolled yet.';
+                tr.appendChild(td);
+                body.appendChild(tr);
+                document.getElementById('enrollments-modal').style.display = 'flex';
+                return;
+            }
+
+            list.forEach(e => {
+                const status = e.completed_at ? 'Completed' : 'Active';
+                const statusClass = status === 'Completed' ? 'status-published' : 'status-draft';
+                const tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td>' + escapeHtml(e.name) + '</td>' +
+                    '<td>' + escapeHtml(e.email) + '</td>' +
+                    '<td>' + escapeHtml(e.phone || '') + '</td>' +
+                    '<td>' + escapeHtml(e.organisation || '') + '</td>' +
+                    '<td>' + escapeHtml((e.enrolled_at || '').slice(0, 10)) + '</td>' +
+                    '<td><span class="status-badge ' + statusClass + '">' + status + '</span></td>';
+                body.appendChild(tr);
+            });
+
+            document.getElementById('enrollments-modal').style.display = 'flex';
+        }
+
+        function closeEnrollmentsModal() {
+            document.getElementById('enrollments-modal').style.display = 'none';
+        }
+
+        document.addEventListener('click', function (e) {
+            const overlay = document.getElementById('enrollments-modal');
+            if (overlay && e.target === overlay) closeEnrollmentsModal();
+        });
+    </script>
+
+    <!-- Enrollments Modal -->
+    <div class="modal-overlay" id="enrollments-modal" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3><i class="fas fa-users"></i> Enrolled Students</h3>
+                <button type="button" class="modal-close" onclick="closeEnrollmentsModal()" title="Close">&times;</button>
+            </div>
+            <div class="modal-course" id="enrollments-course-title"></div>
+            <div class="modal-body">
+                <table class="enroll-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Organisation</th>
+                            <th>Enrolled</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="enrollments-body"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <a href="#" class="action-btn" id="enrollments-download-btn" title="Download enrolled students as PDF"><i class="fas fa-file-pdf"></i> Download PDF</a>
+                <button type="button" class="action-btn" onclick="closeEnrollmentsModal()">Close</button>
+            </div>
         </div>
     </div>
 

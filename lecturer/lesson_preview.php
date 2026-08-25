@@ -17,7 +17,7 @@ if (!$courseId || (!$lessonId && !$moduleId)) {
     exit('A course and either a lesson or module are required.');
 }
 
-if (!shortCourseCanManage($conn, $courseId)) {
+if (!shortCourseCanView($conn, $courseId)) {
     http_response_code(403);
     exit('You do not have access to this lesson.');
 }
