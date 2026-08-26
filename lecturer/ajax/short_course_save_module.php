@@ -28,6 +28,12 @@ if (!shortCourseCanManage($conn, $course_id)) {
 }
 
 if ($module_id > 0) {
+    // Check granular module edit permission for updates
+    if (!shortCourseCanEditModule($conn, $module_id)) {
+        echo json_encode(['success' => false, 'message' => 'You do not have permission to edit this module']);
+        exit;
+    }
+    
     // Update existing module — only touch fields that were actually submitted.
     // The inline title rename posts only `title`; the module modal posts summary + dates too.
     $updateFields = [];

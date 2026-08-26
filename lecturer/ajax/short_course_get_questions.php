@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/short_course_access.php';
@@ -15,7 +15,7 @@ if (!$assessment_id) {
     exit;
 }
 
-$stmt = $conn->prepare('SELECT module_id, lesson_id, title, type AS assessment_type FROM public_course_assessments WHERE id = ? LIMIT 1');
+$stmt = $conn->prepare('SELECT course_id, module_id, title FROM public_course_assessments WHERE id = ? LIMIT 1');
 $stmt->bind_param('i', $assessment_id);
 $stmt->execute();
 $assessment = $stmt->get_result()->fetch_assoc();
@@ -26,16 +26,17 @@ if (!$assessment) {
     exit;
 }
 
-$canView = $assessment['lesson_id']
-    ? shortCourseCanEditLesson($conn, (int)$assessment['lesson_id']) || shortCourseIsAuthor()
-    : shortCourseCanEditModule($conn, (int)$assessment['module_id']) || shortCourseIsAuthor();
+$canView = shortCourseCanView($conn, (int)$assessment['course_id']);
+if (!$canView) {
+    echo json_encode(['success' => false, 'message' => 'Access denied']);
+    exit;
+}
 // Viewing the question list is allowed for anyone who can view the course at
-// all (read-only for contributors without edit rights); only saving/deleting
-// is gated to can_edit. shortCourseIsAuthor() already confirmed session validity above.
-
-$canEdit = $assessment['lesson_id']
-    ? shortCourseCanEditLesson($conn, (int)$assessment['lesson_id'])
-    : shortCourseCanEditModule($conn, (int)$assessment['module_id']);
+// all (readonly for contributors without edit rights); only saving/deleting
+// is gated to can_edit.
+$canEdit = (int)$assessment['module_id']
+    ? shortCourseCanEditModule($conn, (int)$assessment['module_id'])
+    : shortCourseCanManage($conn, (int)$assessment['course_id']);
 
 $stmt = $conn->prepare('SELECT id, question, type, options, correct_answer, marks, position FROM public_course_questions WHERE assessment_id = ? ORDER BY position ASC, id ASC');
 $stmt->bind_param('i', $assessment_id);
@@ -50,7 +51,8 @@ $stmt->close();
 
 echo json_encode([
     'success' => true,
-    'assessment' => ['title' => $assessment['title'], 'type' => $assessment['assessment_type']],
+    'assessment' => ['title' => $assessment['title'], 'type' => 'quiz'],
+    'can_view' => $canView,
     'can_edit' => $canEdit,
     'questions' => $questions,
 ]);

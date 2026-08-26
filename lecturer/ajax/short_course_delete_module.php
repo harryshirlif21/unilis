@@ -34,6 +34,12 @@ if (!$stmt->get_result()->fetch_row()) {
 }
 $stmt->close();
 
+// Check granular module edit permission for deletions
+if (!shortCourseCanEditModule($conn, $module_id)) {
+    echo json_encode(['success' => false, 'message' => 'You do not have permission to delete this module']);
+    exit;
+}
+
 // Delete lessons first (cascade may not be set)
 $conn->query("DELETE FROM public_course_lessons WHERE module_id = $module_id");
 // Delete module

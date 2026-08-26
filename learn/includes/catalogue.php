@@ -669,3 +669,90 @@ function learn_classify_scheduled_lessons(array $rows, string $today): array
         'past' => $past,
     ];
 }
+/**
+ * Ordered topics (+ subtopics) for a lesson.
+ *
+ * Returns an array of top-level topics, each with a 'subs' array of subtopics
+ * (parent_id > 0), ordered by position then id. Every row includes id,
+ * title, content_html, parent_id (and position).
+ */
+function learn_lesson_topics(mysqli $conn, int $lessonId): array
+{
+    $stmt = $conn->prepare("
+        SELECT id, lesson_id, parent_id, title, content_html, position
+        FROM public_course_lesson_topics
+        WHERE lesson_id = ?
+        ORDER BY parent_id ASC, position ASC, id ASC
+    ");
+    $stmt->bind_param('i', $lessonId);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $index = [];
+    foreach ($rows as $r) {
+        $r['subs'] = [];
+        $index[(int)$r['id']] = $r;
+    }
+    // Build parent/child links by reference so subtopics accrete onto their
+    // parent before the parent is copied into the returned tree.
+    foreach ($index as $id => &$row) {
+        $pid = (int)$row['parent_id'];
+        if ($pid > 0 && isset($index[$pid])) {
+            $index[$pid]['subs'][] = &$row;
+        }
+    }
+    unset($row);
+    foreach ($index as $row) {
+        $pid = (int)$row['parent_id'];
+        if (!($pid > 0 && isset($index[$pid]))) {
+            $tree[] = $row;
+        }
+    }
+    return $tree;
+}
+
+/**
+ * Set of topic ids this learner has read (completed) within a lesson.
+ */
+function learn_read_topic_ids(mysqli $conn, int $learnerId, int $lessonId): array
+{
+    $stmt = $conn->prepare("
+        SELECT t.id
+        FROM external_lesson_topic_progress p
+        JOIN public_course_lesson_topics t ON t.id = p.topic_id
+        WHERE p.learner_id = ? AND t.lesson_id = ?
+    ");
+    $stmt->bind_param('ii', $learnerId, $lessonId);
+    $stmt->execute();
+    $ids = array_map('intval', $stmt->get_result()->fetch_all(MYSQLI_NUM) ?: []);
+    $stmt->close();
+    foreach ($ids as $i => $row) { $ids[$i] = (int)$row[0]; }
+    return $ids;
+}
+
+/**
+ * Mark a topic as read for a learner. Idempotent: the unique key on
+ * (learner_id, topic_id) means a double-click cannot inflate the figures.
+ */
+function learn_mark_topic_read(mysqli $conn, int $learnerId, int $topicId): void
+{
+    $stmt = $conn->prepare('INSERT IGNORE INTO external_lesson_topic_progress (learner_id, topic_id) VALUES (?, ?)');
+    $stmt->bind_param('ii', $learnerId, $topicId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+/**
+ * Number of distinct learners who have finished reading a topic. Used to show
+ * a small completion trace at the bottom of each topic ("X have read this").
+ */
+function learn_topic_reader_count(mysqli $conn, int $topicId): int
+{
+    $stmt = $conn->prepare('SELECT COUNT(*) AS c FROM external_lesson_topic_progress WHERE topic_id = ?');
+    $stmt->bind_param('i', $topicId);
+    $stmt->execute();
+    $count = (int)$stmt->get_result()->fetch_assoc()['c'];
+    $stmt->close();
+    return $count;
+}

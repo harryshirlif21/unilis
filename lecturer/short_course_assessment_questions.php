@@ -1,45 +1,83 @@
-﻿<?php
+<?php
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/ajax/short_course_access.php';
+// Any uncaught runtime exception (e.g. a mysqli failure from a schema mismatch)
+// must never silently produce a blank page. Log the real cause and render a
+// clear HTTP 500 with a message instead. This does NOT weaken authorization:
+// the explicit http_response_code(...) + exit() checks below still short-circuit
+// to their intended status (403/404/400) because they never throw.
+set_exception_handler(function (Throwable $e): void {
+    error_log('[short_course_assessment_questions.php] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/html; charset=utf-8');
+    }
+    echo '<!doctype html><meta charset="utf-8">'
+        . '<h2 style="font:600 1.2rem/1.4 Segoe UI, Arial, sans-serif;color:#b00020;margin:24px;">'
+        . 'Something went wrong rendering this page. The error has been logged.</h2>'
+        . '<pre style="white-space:pre-wrap;margin:0 24px 24px;font-family:Consolas,monospace;font-size:0.9rem;">'
+        . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8')
+        . ' @ ' . htmlspecialchars($e->getFile(), ENT_QUOTES, 'UTF-8') . ':' . $e->getLine()
+        . '</pre>';
+});
 
 if (!shortCourseIsAuthor()) {
     header('Location: ../login.php');
     exit;
 }
 
-$assessment_id = (int)($_GET['assessment_id'] ?? 0);
-if (!$assessment_id) {
-    http_response_code(400);
-    exit('An assessment_id is required.');
-}
+$requestedId = (int)($_GET['assessment_id'] ?? 0);
 
-$stmt = $conn->prepare('
-    SELECT pca.*, pc.title AS course_title
+// Build the list of assessments this tutor can reach, so the top of the page can
+// offer a quiz/assessment selector (no need to hand-edit the URL). Every
+// accessible assessment hosts a question bank (MCQ + short answer builder).
+// The deployed schema has no separate "type" column on
+// public_course_assessments (the migration that added one was never applied),
+// so we deliberately do NOT hard-fail unless the current user cannot access
+// the assessment's course.
+$listRes = $conn->query("
+    SELECT pca.id, pca.course_id, pca.module_id, pca.position, pca.title,
+           pc.title AS course_title
     FROM public_course_assessments pca
     JOIN public_courses pc ON pc.id = pca.course_id
-    WHERE pca.id = ? LIMIT 1
-');
-$stmt->bind_param('i', $assessment_id);
-$stmt->execute();
-$assessment = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+    ORDER BY pc.title ASC, pca.position ASC, pca.id ASC
+");
 
-if (!$assessment) {
-    http_response_code(404);
-    exit('Assessment not found.');
-}
-if ($assessment['type'] !== 'cat') {
-    http_response_code(400);
-    exit('Only CAT assessments have a question bank.');
+$quizList = [];
+if ($listRes) {
+    while ($q = $listRes->fetch_assoc()) {
+        $q['can_view'] = shortCourseCanView($conn, (int)$q['course_id']);
+        $q['can_edit'] = (int)$q['module_id']
+            ? shortCourseCanEditModule($conn, (int)$q['module_id'])
+            : shortCourseCanManage($conn, (int)$q['course_id']);
+        if ($q['can_view']) {
+            $quizList[] = $q;
+        }
+    }
 }
 
-$canEdit = $assessment['lesson_id']
-    ? shortCourseCanEditLesson($conn, (int)$assessment['lesson_id'])
-    : shortCourseCanEditModule($conn, (int)$assessment['module_id']);
-$canView = $assessment['lesson_id']
-    ? shortCourseCanView($conn, (int)$assessment['course_id'])
-    : shortCourseCanView($conn, (int)$assessment['course_id']);
+$assessment = null;
+if ($requestedId) {
+    foreach ($quizList as $q) {
+        if ((int)$q['id'] === $requestedId) { $assessment = $q; break; }
+    }
+    if (!$assessment) {
+        http_response_code(403);
+        exit('You do not have access to this assessment.');
+    }
+} else {
+    // No id supplied: open the first editable quiz so the page is immediately useful.
+    foreach ($quizList as $q) { if ($q['can_edit']) { $assessment = $q; break; } }
+    if (!$assessment) { $assessment = $quizList[0] ?? null; }
+    if (!$assessment) {
+        http_response_code(404);
+        exit('No assessments are available to you yet.');
+    }
+}
+$assessment_id = (int)$assessment['id'];
+$canEdit = (bool)$assessment['can_edit'];
+$canView = (bool)$assessment['can_view'];
 
 if (!$canView) {
     http_response_code(403);
@@ -71,6 +109,9 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .main { max-width: 800px; margin: 0 auto; padding: 28px 32px; display: flex; flex-direction: column; gap: 20px; }
 .page-head h1 { font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
 .page-head p { color: var(--text-muted); font-size: 0.85rem; }
+.quiz-picker { display: flex; flex-direction: column; gap: 8px; }
+.quiz-picker .picker-label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; gap: 7px; }
+.quiz-picker .styled-select { max-width: 100%; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
 .question-item { padding: 14px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 10px; }
 .question-item .q-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
@@ -105,7 +146,21 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 <main class="main">
     <div class="page-head">
         <h1><i class="fas fa-clipboard-check"></i> <?= htmlspecialchars($assessment['title']) ?></h1>
-        <p><?= htmlspecialchars($assessment['course_title']) ?> — CAT question bank<?= $canEdit ? '' : ' (view only)' ?></p>
+        <p><?= htmlspecialchars($assessment['course_title']) ?> — Question bank<?= $canEdit ? '' : ' (view only)' ?></p>
+    </div>
+
+    <div class="card quiz-picker">
+        <label class="picker-label" for="assessment-select"><i class="fas fa-list-check"></i> Choose quiz / assessment to edit</label>
+        <select class="styled-select" id="assessment-select" onchange="switchAssessment(this.value)">
+            <?php foreach ($quizList as $q):
+                $isCur = (int)$q['id'] === $assessment_id;
+                $locked = !$q['can_edit'] && !$isCur;
+                ?>
+                <option value="<?= (int)$q['id'] ?>" <?= $isCur ? 'selected' : '' ?> <?= $locked ? 'disabled' : '' ?>>
+                    <?= htmlspecialchars($q['title']) ?> — <?= htmlspecialchars($q['course_title']).($q['can_edit'] ? '' : ' (view only)') ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
     </div>
 
     <?php if ($canEdit): ?>
@@ -160,6 +215,12 @@ const CAN_EDIT = <?= $canEdit ? 'true' : 'false' ?>;
 let questions = [];
 let editingQuestionId = null;
 let optionIndex = 0;
+
+// Jump to another quiz/assessment from the selector.
+function switchAssessment(id) {
+    if (!id) return;
+    window.location.href = 'short_course_assessment_questions.php?assessment_id=' + id;
+}
 
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 

@@ -2,6 +2,25 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/ajax/short_course_access.php';
+// Any uncaught runtime exception (e.g. a mysqli failure from a schema mismatch)
+// must never silently produce a blank iframe/page. Log the real cause and
+// render a clear HTTP 500 instead. This does NOT weaken authorization: the
+// explicit 403/400/404 http_response_code(...) + exit() guards below never
+// throw, so they still enforce per-item assignment checks as intended.
+set_exception_handler(function (Throwable $e): void {
+    error_log('[lesson_preview.php] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/html; charset=utf-8');
+    }
+    echo '<!doctype html><meta charset="utf-8">'
+        . '<h2 style="font:600 1.2rem/1.4 Segoe UI, Arial, sans-serif;color:#b00020;margin:24px;">'
+        . 'Something went wrong rendering this preview. The error has been logged.</h2>'
+        . '<pre style="white-space:pre-wrap;margin:0 24px 24px;font-family:Consolas,monospace;font-size:0.9rem;">'
+        . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8')
+        . ' @ ' . htmlspecialchars($e->getFile(), ENT_QUOTES, 'UTF-8') . ':' . $e->getLine()
+        . '</pre>';
+});
 
 if (!shortCourseIsAuthor()) {
     header('Location: ../login.php');
@@ -17,9 +36,13 @@ if (!$courseId || (!$lessonId && !$moduleId)) {
     exit('A course and either a lesson or module are required.');
 }
 
-if (!shortCourseCanView($conn, $courseId)) {
+$itemAuthorized = $moduleId
+    ? shortCourseIsAssignedToModule($conn, $moduleId)
+    : shortCourseIsAssignedToLesson($conn, $lessonId);
+
+if (!$itemAuthorized) {
     http_response_code(403);
-    exit('You do not have access to this lesson.');
+    exit('You are not assigned to this content.');
 }
 
 function previewHasOutlineColumn(mysqli $conn, string $table): bool

@@ -40,6 +40,12 @@ if (!$stmt->get_result()->fetch_row()) {
 $stmt->close();
 
 if ($lesson_id > 0) {
+    // Check granular lesson edit permission for updates
+    if (!shortCourseCanEditLesson($conn, $lesson_id)) {
+        echo json_encode(['success' => false, 'message' => 'You do not have permission to edit this lesson']);
+        exit;
+    }
+    
     // Update existing lesson - build dynamic update based on provided fields.
     // NOTE: public_course_lessons stores ordering in `position` (there is no
     // `lesson_number` column), while the JS sends the "lesson number" as

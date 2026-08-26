@@ -375,6 +375,8 @@ if ($lesson_id) {
     --c-diagram: #e879f9;
     --c-pdf:     #f97316;
     --c-ppt:     #d24726;
+    --c-quiz:    #22c1a0;
+    --c-cat:     #e879f9;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -465,6 +467,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .block-btn[data-type="pdf"]:hover     { background: rgba(249,115,22,0.12); color: var(--c-pdf); border-color: var(--c-pdf); }
 .block-btn[data-type="ppt"]     { border-color: rgba(210,71,38,0.4); }
 .block-btn[data-type="ppt"]:hover     { background: rgba(210,71,38,0.12); color: var(--c-ppt); border-color: var(--c-ppt); }
+.block-btn[data-type="quiz"]    { border-color: rgba(34,193,160,0.4); }
+.block-btn[data-type="quiz"]:hover    { background: rgba(34,193,160,0.12); color: var(--c-quiz); border-color: var(--c-quiz); }
+.block-btn[data-type="cat"]     { border-color: rgba(232,121,249,0.4); }
+.block-btn[data-type="cat"]:hover     { background: rgba(232,121,249,0.12); color: var(--c-cat); border-color: var(--c-cat); }
 
 /* ── VIDEO BLOCK ───────────────────────────────────────────── */
 .vid-tabs { display:flex; gap:0; margin-bottom:12px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
@@ -549,6 +555,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .dot-diagram { background: var(--c-diagram); }
 .dot-pdf     { background: var(--c-pdf); }
 .dot-ppt     { background: var(--c-ppt); }
+.dot-quiz    { background: var(--c-quiz); }
+.dot-cat     { background: var(--c-cat); }
 
 .block-type-label {
     font-family: 'Syne', sans-serif; font-size: 0.68rem; font-weight: 700;
@@ -561,6 +569,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .label-diagram { color: var(--c-diagram); }
 .label-pdf     { color: var(--c-pdf); }
 .label-ppt     { color: var(--c-ppt); }
+.label-quiz    { color: var(--c-quiz); }
+.label-cat     { color: var(--c-cat); }
 
 .block-drag-handle { display: flex; gap: 3px; margin-left: auto; opacity: 0.4; }
 .block-drag-handle span { display: block; width: 3px; height: 3px; background: var(--text-muted); border-radius: 50%; }
@@ -812,6 +822,11 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
                         <i class="fas fa-pen"></i> Edit Title
                     </button>
                 <?php endif; ?>
+                <?php if ($can_edit && isset($current_lesson['id']) && (int)$current_lesson['id'] > 0): ?>
+                    <a href="lesson_topics.php?lesson_id=<?= (int)$current_lesson['id'] ?>" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); text-decoration:none; cursor:pointer; padding:6px 10px; font-size:0.8rem; border-radius:var(--radius-sm); white-space:nowrap;">
+                        <i class="fas fa-list-ul"></i> Topics &amp; subtopics
+                    </a>
+                <?php endif; ?>
             </div>
             
             <!-- Title edit form (hidden by default) -->
@@ -850,6 +865,14 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
                 <button class="block-btn" data-type="ppt" onclick="addBlock('ppt')" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-file-powerpoint" style="color:var(--c-ppt)"></i> PowerPoint
                 </button>
+                <?php if ($mode === 'short_course' && $lesson_id): ?>
+                    <button class="block-btn" data-type="quiz" onclick="addQuizAssessment()" <?= !$can_edit ? 'disabled' : '' ?>>
+                        <i class="fas fa-circle-question" style="color:var(--c-quiz)"></i> Quiz
+                    </button>
+                    <button class="block-btn" data-type="cat" onclick="addCatAssessment()" <?= !$can_edit ? 'disabled' : '' ?>>
+                        <i class="fas fa-flag-checkered" style="color:var(--c-cat)"></i> CAT
+                    </button>
+                <?php endif; ?>
                 <div class="toolbar-sep"></div>
                 <button class="block-btn" onclick="saveAllBlocks()" style="border-color:rgba(62,207,142,0.4)" <?= !$can_edit ? 'disabled' : '' ?>>
                     <i class="fas fa-floppy-disk" style="color:var(--accent2)"></i> Save All
@@ -1027,6 +1050,69 @@ function addBlock(type) {
     container.appendChild(card);
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     updateBlockCount();
+}
+
+// ── Assessment flow helpers (short-course mode) ─────────────────────────────
+function fetchAssessments() {
+    return fetch('ajax/short_course_get_assessments.php?course_id=' + COURSE_ID)
+        .then(r => r.json())
+        .then(d => (d && d.success) ? d.assessments : [])
+        .catch(() => []);
+}
+
+function createAssessment(payload) {
+    const fd = new FormData();
+    fd.append('course_id', COURSE_ID);
+    fd.append('module_id', payload.module_id || 0);
+    fd.append('lesson_id', payload.lesson_id || 0);
+    fd.append('type', payload.type);
+    fd.append('title', payload.title);
+    fd.append('instructions', payload.type === 'quiz' ? 'Answer all the questions.' : 'Read the instructions carefully before starting.');
+    fd.append('pass_mark', payload.pass_mark || 50);
+    fd.append('max_attempts', payload.type === 'quiz' ? 3 : 1);
+    fd.append('time_limit_minutes', payload.time_limit_minutes || 0);
+    return fetch('ajax/short_course_save_assessment.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                toast(payload.type.toUpperCase() + ' created', 'success');
+                window.location.href = 'short_course_assessment_questions.php?assessment_id=' + d.assessment_id;
+            } else {
+                toast(d.message, 'error');
+            }
+            return d.success;
+        })
+        .catch(() => { toast('Failed to create ' + payload.type, 'error'); return false; });
+}
+
+// A Quiz belongs to a single topic (short-course lesson).
+function addQuizAssessment() {
+    if (!LESSON_ID || !COURSE_ID || !MODULE_ID) { toast('Select a short-course lesson first', 'error'); return; }
+    fetchAssessments().then(existing => {
+        const quiz = (existing || []).find(a => a.type === 'quiz' && Number(a.lesson_id) === LESSON_ID);
+        if (quiz) {
+            toast('Quiz already exists — opening it', 'info');
+            window.location.href = 'short_course_assessment_questions.php?assessment_id=' + quiz.id;
+            return;
+        }
+        const lessonName = (document.getElementById('lesson-title-display')?.textContent || 'Lesson').trim();
+        createAssessment({ type: 'quiz', title: lessonName + ' Quiz', module_id: MODULE_ID, lesson_id: LESSON_ID });
+    });
+}
+
+// A CAT follows the whole module of lessons.
+function addCatAssessment() {
+    if (!LESSON_ID || !COURSE_ID || !MODULE_ID) { toast('Select a short-course lesson first', 'error'); return; }
+    fetchAssessments().then(existing => {
+        const cat = (existing || []).find(a => a.type === 'cat' && Number(a.lesson_id) === 0 && Number(a.module_id) === MODULE_ID);
+        if (cat) {
+            toast('CAT already exists — opening it', 'info');
+            window.location.href = 'short_course_assessment_questions.php?assessment_id=' + cat.id;
+            return;
+        }
+        const moduleName = (document.querySelector('.lesson-module-tag')?.textContent || 'Module').trim();
+        createAssessment({ type: 'cat', title: moduleName + ' CAT', module_id: MODULE_ID, lesson_id: 0 });
+    });
 }
 
 // ─────────────────────────────────────────────────────────

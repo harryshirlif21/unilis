@@ -29,6 +29,14 @@ if (!is_array($ids)) {
     exit;
 }
 
+// Check granular edit permissions for each module being reordered
+foreach ($ids as $id) {
+    if (!shortCourseCanEditModule($conn, (int)$id)) {
+        echo json_encode(['success' => false, 'message' => 'You do not have permission to reorder modules']);
+        exit;
+    }
+}
+
 // Update positions
 $stmt = $conn->prepare("UPDATE public_course_modules SET position = ? WHERE id = ? AND course_id = ?");
 foreach ($ids as $index => $id) {

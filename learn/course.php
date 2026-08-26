@@ -128,11 +128,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $notice = 'Course complete — your certificate is ready.';
                 }
             }
-        }
-    }
-}
+        } elseif ($action === 'mark_topic_read') {
+            $topicId = (int)($_POST['topic_id'] ?? 0);
 
-$enrolled = $learner !== null && learn_is_enrolled($conn, $learner['id'], $courseId);
+            // The topic must belong to a lesson within this course, or a learner
+            // could mark topics in another course's lessons as read.
+            $stmt = $conn->prepare("
+                SELECT t.id
+                FROM public_course_lesson_topics t
+                JOIN public_course_lessons l ON l.id = t.lesson_id
+                JOIN public_course_modules m ON m.id = l.module_id
+                WHERE t.id = ? AND m.course_id = ? LIMIT 1
+            ");
+            $stmt->bind_param('ii', $topicId, $courseId);
+            $stmt->execute();
+            $valid = $stmt->get_result()->num_rows > 0;
+            $stmt->close();
+
+            if (!$valid) {
+                $notice = 'That topic is not part of this course.';
+                $noticeKind = 'error';
+            } elseif (!learn_is_enrolled($conn, $learner['id'], $courseId)) {
+                $notice = 'Enrol on the course first.';
+                $noticeKind = 'error';
+            } else {
+                learn_mark_topic_read($conn, $learner['id'], $topicId);
+                $notice = 'Marked as read.';
+            }
+        }
+        if ($action !== 'mark_topic_read') {
+    }
 $progress = $learner !== null ? learn_progress($conn, $learner['id'], $courseId) : null;
 $doneLessons = $learner !== null ? learn_completed_lessons($conn, $learner['id'], $courseId) : [];
 $certificate = $learner !== null ? learn_certificate_for($conn, $learner['id'], $courseId) : null;
@@ -168,6 +193,68 @@ if ($openLessonId > 0 && $enrolled) {
     $stmt->execute();
     $openLesson = $stmt->get_result()->fetch_assoc() ?: null;
     $stmt->close();
+}
+
+// Mirror the course flow on the learner side: each topic (lesson) has a Quiz,
+// and each module of lessons ends with a CAT. Surfaced right on the open lesson
+// so the flow reads "topic → quiz → next topic … → CAT" as the learner works.
+$openLessonQuiz = null;
+$openLessonCat = null;
+if ($openLesson && $learner !== null) {
+    $openModuleId = (int)$openLesson['module_id'];
+
+    $stmt = $conn->prepare("
+        SELECT a.id, a.title, a.type, a.module_id, a.lesson_id
+        FROM public_course_assessments a
+        WHERE a.course_id = ? AND a.type = 'quiz' AND a.lesson_id = ?
+        ORDER BY a.position, a.id LIMIT 1
+    ");
+    $stmt->bind_param('ii', $courseId, $openLessonId);
+    $stmt->execute();
+    $openLessonQuiz = $stmt->get_result()->fetch_assoc() ?: null;
+    $stmt->close();
+
+    $stmt = $conn->prepare("
+        SELECT a.id, a.title, a.type, a.module_id, a.lesson_id
+        FROM public_course_assessments a
+        WHERE a.course_id = ? AND a.type = 'cat' AND a.module_id = ? AND a.lesson_id = 0
+        ORDER BY a.position, a.id LIMIT 1
+    ");
+    $stmt->bind_param('ii', $courseId, $openModuleId);
+    $stmt->execute();
+    $openLessonCat = $stmt->get_result()->fetch_assoc() ?: null;
+    $stmt->close();
+
+    // Learner's passing status for these, so the flow shows what is done.
+    $assessmentTargets = [];
+    foreach ([$openLessonQuiz, $openLessonCat] as $a) {
+        if ($a) {
+            $assessmentTargets[(int)$a['id']] = false;
+        }
+    }
+    if (!empty($assessmentTargets)) {
+        $ids = array_keys($assessmentTargets);
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $conn->prepare("
+            SELECT assessment_id, MAX(passed) AS passed
+            FROM external_assessment_attempts
+            WHERE learner_id = ? AND assessment_id IN ($placeholders)
+            GROUP BY assessment_id
+        ");
+        $stmt->bind_param('i' . str_repeat('i', count($ids)), $learner['id'], ...$ids);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        while ($row = $r->fetch_assoc()) {
+            $assessmentTargets[(int)$row['assessment_id']] = (int)$row['passed'] === 1;
+        }
+        $stmt->close();
+    }
+    if ($openLessonQuiz) {
+        $openLessonQuiz['passed'] = $assessmentTargets[(int)$openLessonQuiz['id']];
+    }
+    if ($openLessonCat) {
+        $openLessonCat['passed'] = $assessmentTargets[(int)$openLessonCat['id']];
+    }
 }
 
 learn_head(['title' => $course['title'], 'learner' => $learner]);
@@ -303,21 +390,46 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
               // they are rendered as markup here by design. ?>
         <div class="ln-lesson-body"><?= render_lesson_content($openLesson['content_html'] ?? '') ?></div>
 
-        <?php if (!in_array((int)$openLesson['id'], $doneLessons, true)): ?>
-            <form method="post" style="margin-top:22px;">
-                <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
-                <input type="hidden" name="action" value="complete_lesson">
-                <input type="hidden" name="lesson_id" value="<?= (int)$openLesson['id'] ?>">
-                <button class="ln-btn ln-btn-primary" type="submit">
-                    <span class="material-symbols-rounded">check</span> Mark complete
-                </button>
-            </form>
-        <?php else: ?>
+        <?php if ($openLessonQuiz): ?>
+            <div class="ln-card" style="margin-top:20px; padding:16px 18px; display:flex; align-items:center; gap:12px;">
+                <span class="material-symbols-rounded" style="font-size:24px; color:var(--ln-green-mid);">quiz</span>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:650; color:var(--ln-ink);"><?= learn_e($openLessonQuiz['title']) ?></div>
+                    <div style="font-size:0.8rem; color:var(--ln-muted);">Quiz for this topic</div>
+                </div>
+                <?php if ($openLessonQuiz['passed']): ?>
+                    <span class="ln-chip ln-chip-done"><span class="material-symbols-rounded">check_circle</span> Passed</span>
+                <?php else: ?>
+                    <a class="ln-btn ln-btn-primary" href="/learn/assessment.php?a=<?= (int)$openLessonQuiz['id'] ?>">
+                        <span class="material-symbols-rounded">quiz</span> Take Quiz
+                    </a>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (in_array((int)$openLesson['id'], $doneLessons, true)): ?>
             <p style="margin-top:22px;">
                 <span class="ln-chip ln-chip-done">
                     <span class="material-symbols-rounded">check_circle</span> Completed
                 </span>
             </p>
+        <?php endif; ?>
+
+        <?php if ($openLessonCat): ?>
+            <div class="ln-card" style="margin-top:20px; padding:16px 18px; display:flex; align-items:center; gap:12px;">
+                <span class="material-symbols-rounded" style="font-size:24px; color:var(--ln-amber);">flag</span>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:650; color:var(--ln-ink);"><?= learn_e($openLessonCat['title']) ?></div>
+                    <div style="font-size:0.8rem; color:var(--ln-muted);">CAT at the end of this lesson</div>
+                </div>
+                <?php if ($openLessonCat['passed']): ?>
+                    <span class="ln-chip ln-chip-done"><span class="material-symbols-rounded">check_circle</span> Passed</span>
+                <?php else: ?>
+                    <a class="ln-btn ln-btn-primary" href="/learn/assessment.php?a=<?= (int)$openLessonCat['id'] ?>">
+                        <span class="material-symbols-rounded">fact_check</span> Take CAT
+                    </a>
+                <?php endif; ?>
+            </div>
         <?php endif; ?>
     </article>
 <?php endif; ?>

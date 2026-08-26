@@ -20,11 +20,11 @@ $course_id     = (int)($_POST['course_id'] ?? 0);
 $module_id     = (int)($_POST['module_id'] ?? 0) ?: null;
 $lesson_id     = (int)($_POST['lesson_id'] ?? 0) ?: null;
 $title         = trim((string)($_POST['title'] ?? ''));
-$type          = ($_POST['type'] ?? '') === 'assignment' ? 'assignment' : 'cat';
+$type          = in_array($_POST['type'] ?? '', ['quiz', 'cat', 'assignment'], true) ? $_POST['type'] : 'cat';
 $instructions  = trim((string)($_POST['instructions'] ?? ''));
 $pass_mark     = (int)($_POST['pass_mark'] ?? 0);
 $max_attempts  = (int)($_POST['max_attempts'] ?? ($type === 'cat' ? 1 : 0));
-$time_limit    = $type === 'cat' ? ((int)($_POST['time_limit_minutes'] ?? 0) ?: null) : null;
+$time_limit    = ($type === 'cat' || $type === 'quiz') ? ((int)($_POST['time_limit_minutes'] ?? 0) ?: null) : null;
 $submission_type = $type === 'assignment' ? (in_array($_POST['submission_type'] ?? '', ['file', 'text', 'both'], true) ? $_POST['submission_type'] : 'both') : null;
 $due_date      = trim((string)($_POST['due_date'] ?? '')) ?: null;
 

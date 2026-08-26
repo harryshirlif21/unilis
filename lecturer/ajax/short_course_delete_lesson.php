@@ -38,6 +38,12 @@ if (!$stmt->get_result()->fetch_row()) {
 }
 $stmt->close();
 
+// Check granular lesson edit permission for deletions
+if (!shortCourseCanEditLesson($conn, $lesson_id)) {
+    echo json_encode(['success' => false, 'message' => 'You do not have permission to delete this lesson']);
+    exit;
+}
+
 $stmt = $conn->prepare("DELETE FROM public_course_lessons WHERE id = ?");
 $stmt->bind_param("i", $lesson_id);
 $stmt->execute();

@@ -30,6 +30,12 @@ if (!is_array($ids)) {
     exit;
 }
 
+// Check module edit permission (reordering lessons within a module requires module edit access)
+if (!shortCourseCanEditModule($conn, $module_id)) {
+    echo json_encode(['success' => false, 'message' => 'You do not have permission to reorder lessons in this module']);
+    exit;
+}
+
 // Update positions
 $stmt = $conn->prepare("UPDATE public_course_lessons SET position = ? WHERE id = ? AND module_id = ?");
 foreach ($ids as $index => $id) {

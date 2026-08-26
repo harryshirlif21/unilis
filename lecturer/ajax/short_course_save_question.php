@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/short_course_access.php';
@@ -23,7 +23,7 @@ if (!$assessment_id || $question === '') {
     exit;
 }
 
-$stmt = $conn->prepare('SELECT module_id, lesson_id, type AS assessment_type FROM public_course_assessments WHERE id = ? LIMIT 1');
+$stmt = $conn->prepare('SELECT course_id, module_id, title FROM public_course_assessments WHERE id = ? LIMIT 1');
 $stmt->bind_param('i', $assessment_id);
 $stmt->execute();
 $assessment = $stmt->get_result()->fetch_assoc();
@@ -33,14 +33,9 @@ if (!$assessment) {
     echo json_encode(['success' => false, 'message' => 'Assessment not found.']);
     exit;
 }
-if ($assessment['assessment_type'] !== 'cat') {
-    echo json_encode(['success' => false, 'message' => 'Only CAT assessments can have questions.']);
-    exit;
-}
-
-$allowed = $assessment['lesson_id']
-    ? shortCourseCanEditLesson($conn, (int)$assessment['lesson_id'])
-    : shortCourseCanEditModule($conn, (int)$assessment['module_id']);
+$allowed = (int)$assessment['module_id']
+    ? shortCourseCanEditModule($conn, (int)$assessment['module_id'])
+    : shortCourseCanManage($conn, (int)$assessment['course_id']);
 
 if (!$allowed) {
     echo json_encode(['success' => false, 'message' => 'Access denied']);

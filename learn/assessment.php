@@ -169,6 +169,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'record' => $record,
         ];
 
+        // A topic's Quiz, when passed, is what records that a lesson is
+        // finished. The lesson's "Completed" chip on the course page reads
+        // straight from this record in external_lesson_progress.
+        if ($passed && ($assessment['type'] ?? '') === 'quiz' && (int)$assessment['lesson_id'] > 0) {
+            learn_complete_lesson($conn, $learner['id'], (int)$assessment['lesson_id']);
+        }
+
         // Passing the last outstanding item is what completes a course.
         $awarded = $passed ? learn_maybe_award_certificate($conn, $learner['id'], $courseId) : null;
         $result['certificate'] = $awarded;
