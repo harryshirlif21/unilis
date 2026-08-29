@@ -702,6 +702,27 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+/* ---- Topics & subtopics modal ---- */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.62); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); width: 640px; max-width: 100%; max-height: 90vh; overflow: auto; padding: 26px; box-shadow: var(--shadow); }
+.modal h3 { margin: 0 0 16px; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.modal .form-group { margin-bottom: 12px; }
+.modal label { display: block; font-size: .76rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+.form-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 9px 11px; font-size: .88rem; font-family: inherit; }
+.form-input:focus { border-color: var(--accent); outline: none; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; font-size: .85rem; font-family: inherit; }
+.btn:hover { border-color: var(--accent); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #0b0d11; font-weight: 600; }
+.btn-sm { padding: 5px 9px; font-size: .78rem; }
+.btn-icon { padding: 5px 8px; }
+.topic-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 8px; background: var(--surface2); }
+.topic-item .trow { display: flex; align-items: center; gap: 8px; }
+.topic-item .ttl { flex: 1; font-weight: 600; color: var(--text); }
+.subtopic-row { margin: 6px 0 0 20px; padding: 6px 10px; background: var(--surface3); border-radius: var(--radius-sm); display: flex; align-items: center; gap: 8px; }
+.subtopic-row .ttl { flex: 1; color: var(--text); }
+.modal-empty { color: var(--text-muted); font-size: .85rem; font-style: italic; padding: 6px 0; }
 </style>
 </head>
 <body>
@@ -823,9 +844,9 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
                     </button>
                 <?php endif; ?>
                 <?php if ($can_edit && isset($current_lesson['id']) && (int)$current_lesson['id'] > 0): ?>
-                    <a href="lesson_topics.php?lesson_id=<?= (int)$current_lesson['id'] ?>" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); text-decoration:none; cursor:pointer; padding:6px 10px; font-size:0.8rem; border-radius:var(--radius-sm); white-space:nowrap;">
+                    <button onclick="openTopicsModal(<?= (int)$current_lesson['id'] ?>)" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); cursor:pointer; padding:6px 10px; font-size:0.8rem; border-radius:var(--radius-sm); white-space:nowrap;">
                         <i class="fas fa-list-ul"></i> Topics &amp; subtopics
-                    </a>
+                    </button>
                 <?php endif; ?>
             </div>
             
@@ -908,6 +929,24 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
     </div>
 </div>
 
+<!-- Topics & Subtopics modal -->
+<div class="modal-overlay" id="topics-modal">
+    <div class="modal">
+        <h3 id="topics-modal-title"><i class="fas fa-list-ul"></i> Topics &amp; subtopics</h3>
+        <input type="hidden" id="topics-lesson-id">
+        <div class="form-group">
+            <label>Add a topic</label>
+            <div style="display:flex;gap:8px">
+                <input type="text" class="form-input" id="topics-title-input" placeholder="Topic title" style="flex:1">
+                <button class="btn btn-primary" type="button" onclick="addTopic()"><i class="fas fa-plus"></i> Add</button>
+            </div>
+        </div>
+        <div id="topics-list" style="max-height:400px;overflow:auto;margin-top:6px"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeTopicsModal()">Close</button>
+        </div>
+    </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -1963,5 +2002,89 @@ function escAttr(s) {
     return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 </script>
+// TOPICS & SUBTOPICS
+let topicsLessonId = null;
+function openTopicsModal(lessonId) {
+    topicsLessonId = lessonId;
+    document.getElementById('topics-lesson-id').value = lessonId;
+    document.getElementById('topics-modal-title').innerHTML = '<i class="fas fa-list-ul"></i> Topics &amp; subtopics';
+    document.getElementById('topics-title-input').value = '';
+    document.getElementById('topics-modal').classList.add('open');
+    loadTopics();
+}
+function closeTopicsModal() { document.getElementById('topics-modal').classList.remove('open'); }
+function loadTopics() {
+    const list = document.getElementById('topics-list');
+    list.innerHTML = '<p class="modal-empty">Loading&hellip;</p>';
+    fetch(`ajax/short_course_topics.php?lesson_id=${topicsLessonId}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) { list.innerHTML = `<p class="modal-empty">${escHtml(d.message || 'Error')}</p>`; return; }
+            if (!d.topics.length) { list.innerHTML = '<p class="modal-empty">No topics yet. Add one above.</p>'; return; }
+            list.innerHTML = d.topics.map(buildTopicBlock).join('');
+        })
+        .catch(() => list.innerHTML = '<p class="modal-empty">Failed to load topics.</p>');
+}
+function buildTopicBlock(t) {
+    const subs = (t.subs || []).map(s => `
+        <div class="subtopic-row">
+            <i class="fas fa-angle-right" style="color:var(--text-dim)"></i>
+            <span class="ttl">${escHtml(s.title)}</span>
+            <button class="btn btn-sm btn-icon" onclick="deleteTopic(${s.id})" title="Delete subtopic"><i class="fas fa-trash" style="color:var(--danger)"></i></button>
+        </div>`).join('');
+    return `
+        <div class="topic-item">
+            <div class="trow">
+                <i class="fas fa-folder-open" style="color:var(--accent2)"></i>
+                <span class="ttl">${escHtml(t.title)}</span>
+                <button class="btn btn-sm btn-icon" onclick="addSubTopic(${t.id})" title="Add subtopic"><i class="fas fa-plus" style="color:var(--accent3)"></i></button>
+                <button class="btn btn-sm btn-icon" onclick="deleteTopic(${t.id})" title="Delete topic"><i class="fas fa-trash" style="color:var(--danger)"></i></button>
+            </div>
+            ${subs}
+        </div>`;
+}
+function addTopic() {
+    const title = document.getElementById('topics-title-input').value.trim();
+    if (!title) { toast('Topic title is required', 'error'); return; }
+    const fd = new FormData();
+    fd.append('action', 'add');
+    fd.append('lesson_id', topicsLessonId);
+    fd.append('title', title);
+    fd.append('parent_id', '0');
+    fetch('ajax/short_course_topics.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(d => {
+            if (d.success) { toast('Topic added', 'success'); document.getElementById('topics-title-input').value=''; loadTopics(); }
+            else toast(d.message, 'error');
+        }).catch(() => toast('Network error', 'error'));
+}
+function addSubTopic(parentId) {
+    const title = prompt('Subtopic title:');
+    if (!title || !title.trim()) return;
+    const fd = new FormData();
+    fd.append('action', 'add');
+    fd.append('lesson_id', topicsLessonId);
+    fd.append('title', title.trim());
+    fd.append('parent_id', parentId);
+    fetch('ajax/short_course_topics.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(d => {
+            if (d.success) { toast('Subtopic added', 'success'); loadTopics(); }
+            else toast(d.message, 'error');
+        }).catch(() => toast('Network error', 'error'));
+}
+function deleteTopic(id) {
+    if (!confirm('Delete this topic and any subtopics under it?')) return;
+    const fd = new FormData();
+    fd.append('action', 'delete');
+    fd.append('topic_id', id);
+    fetch('ajax/short_course_topics.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(d => {
+            if (d.success) { toast('Deleted', 'success'); loadTopics(); }
+            else toast(d.message, 'error');
+        }).catch(() => toast('Network error', 'error'));
+}
+document.addEventListener('click', function(e) {
+    if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
+});
+
 </body>
 </html>

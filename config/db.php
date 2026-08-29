@@ -63,7 +63,7 @@ $conn = null;
 for ($i = 0; $i < $maxRetries; $i++) {
     try {
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-        $conn = new mysqli($host, $user, $password, $dbname);
+        $conn = new mysqli($host, $user, $password, $dbname, (int)(getenv('DB_PORT') ?: 0) ?: null);
         
         // Successfully connected - set UTF-8 character set
         $conn->set_charset("utf8mb4");

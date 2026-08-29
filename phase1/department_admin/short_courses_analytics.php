@@ -84,7 +84,7 @@ function short_course_abs_path(string $path): ?string
 function short_course_remove_managed_file(string $path): void
 {
     $abs = short_course_abs_path($path);
-    $base = realpath(APP_ROOT_DIR . DIRECTORY_SEPARATOR . 'uploads');
+    $base = realpath(APP_ROOT_DIR . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'uploads');
     if ($abs === null || $base === false) {
         return;
     }
@@ -102,7 +102,7 @@ function short_course_remove_managed_file(string $path): void
 function short_course_upload_check(): array
 {
     $messages = [];
-    $base = APP_ROOT_DIR . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'short_courses';
+    $base = APP_ROOT_DIR . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'uploads';
     $dirs = [$base, $base . DIRECTORY_SEPARATOR . 'sponsors'];
 
     foreach ($dirs as $dir) {
@@ -117,11 +117,11 @@ function short_course_upload_check(): array
 
     // Reachability: uploads must live under the document root, or a
     // UPLOAD_BASE_URL must be configured, for the browser to load the file.
-    $uploadsWeb = str_replace('\\', '/', realpath(APP_ROOT_DIR . DIRECTORY_SEPARATOR . 'uploads') ?: '');
+    $uploadsWeb = str_replace('\\', '/', realpath(APP_ROOT_DIR . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'uploads') ?: '');
     $docRoot    = str_replace('\\', '/', rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/'));
     $underDocRoot = ($docRoot !== '' && strpos($uploadsWeb, $docRoot) === 0);
     if ((!defined('UPLOAD_BASE_URL') || UPLOAD_BASE_URL === '') && !$underDocRoot) {
-        $messages[] = 'uploads/ is not under the document root and no UPLOAD_BASE_URL is set — banners will 404 for public users.';
+        $messages[] = 'assets/uploads is not under the document root and no UPLOAD_BASE_URL is set — banners will 404 for public users.';
     }
 
     return ['ok' => empty($messages), 'messages' => $messages];
@@ -156,8 +156,9 @@ function short_course_unique_slug(mysqli $conn, string $title, int $ignoreId = 0
 
 /**
  * STEP 1 — Move the banner image into its final location under
- * uploads/short_courses. Validation uses finfo (MIME sniff) rather than
- * trusting the client extension, and enforces a max size.
+ * assets/uploads (the same directory the lecturer dashboard uses for its
+ * notes uploads). Validation uses finfo (MIME sniff) rather than trusting
+ * the client extension, and enforces a max size.
  *
  * This step ONLY physically stores the file. The caller is responsible for
  * STEP 2 (popup + banner error on failure) and STEP 3 (saving the returned
@@ -168,7 +169,7 @@ function short_course_unique_slug(mysqli $conn, string $title, int $ignoreId = 0
  */
 function short_course_move_banner(array $file, string $subdir = ''): array
 {
-    $relRoot = 'uploads/short_courses' . ($subdir !== '' ? '/' . $subdir : '');
+    $relRoot = 'assets/uploads' . ($subdir !== '' ? '/' . $subdir : '');
     $absRoot = APP_ROOT_DIR . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relRoot);
 
     if (!isset($file['error']) || is_array($file['error'])) {

@@ -156,8 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notice = 'Marked as read.';
             }
         }
-        if ($action !== 'mark_topic_read') {
     }
+}
+$enrolled = $learner !== null && learn_is_enrolled($conn, $learner['id'], $courseId);
 $progress = $learner !== null ? learn_progress($conn, $learner['id'], $courseId) : null;
 $doneLessons = $learner !== null ? learn_completed_lessons($conn, $learner['id'], $courseId) : [];
 $certificate = $learner !== null ? learn_certificate_for($conn, $learner['id'], $courseId) : null;
@@ -193,6 +194,52 @@ if ($openLessonId > 0 && $enrolled) {
     $stmt->execute();
     $openLesson = $stmt->get_result()->fetch_assoc() ?: null;
     $stmt->close();
+}
+
+// Topics (and subtopics) authored for this lesson, plus which the learner has
+// already marked as read, for the reading tracker + per-topic completion counts.
+$openLessonTopics = $openLesson ? learn_lesson_topics($conn, (int)$openLesson['id']) : [];
+$readTopicIds = [];
+if ($openLesson && $learner !== null) {
+    $readTopicIds = learn_read_topic_ids($conn, (int)$learner['id'], (int)$openLesson['id']);
+}
+
+// Info for the lesson-tap modal shown in the course outline: each lesson's
+// notes (topics/subtopics) and its own assessments (linked by lesson_id).
+$lessonInfoMap = [];
+if ($learner !== null && $enrolled) {
+    foreach ($allLessons as $lesson) {
+        $lid = (int)$lesson['id'];
+        $notes = learn_lesson_topics($conn, $lid);
+        $munits = [];
+        foreach ((array)$notes as $t) {
+            $entry = ['title' => (string)$t['title'], 'subs' => []];
+            foreach ((array)$t['subs'] as $s) {
+                $entry['subs'][] = ['title' => (string)$s['title']];
+            }
+            $munits[] = $entry;
+        }
+
+        $asmt = [];
+        $stmt = $conn->prepare("
+            SELECT id, title, type
+            FROM public_course_assessments
+            WHERE lesson_id = ? ORDER BY position, id
+        ");
+        $stmt->bind_param('i', $lid);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        foreach ($rows as $a) {
+            $asmt[] = ['title' => (string)$a['title'], 'type' => (string)$a['type']];
+        }
+
+        $lessonInfoMap[$lid] = [
+            'title'       => (string)$lesson['title'],
+            'notes'       => $munits,
+            'assessments' => $asmt,
+        ];
+    }
 }
 
 // Mirror the course flow on the learner side: each topic (lesson) has a Quiz,
@@ -390,6 +437,71 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
               // they are rendered as markup here by design. ?>
         <div class="ln-lesson-body"><?= render_lesson_content($openLesson['content_html'] ?? '') ?></div>
 
+        <?php if ($openLessonTopics): ?>
+            <div style="margin-top:20px; border-top:1px solid var(--ln-line); padding-top:14px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                    <h2 style="font-size:1.05rem; color:var(--ln-ink); margin:0;">Reading topics</h2>
+                    <?php
+                    // Count read topics+subtopics out of the learner's read set.
+                    $readCount = count(array_intersect($readTopicIds, array_column(array_merge($openLessonTopics, array_merge(...array_map(fn($t) => $t['subs'], $openLessonTopics))), 'id')));
+                    ?>
+                    <span style="font-size:0.8rem; color:var(--ln-muted);"><?= $readCount ?> read</span>
+                </div>
+                <?php foreach ($openLessonTopics as $topic):
+                    $tRead = in_array((int)$topic['id'], $readTopicIds, true);
+                    ?>
+                    <div style="border:1px solid var(--ln-line); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                            <?php if ($learner !== null): ?>
+                                <form method="post" style="margin:0;">
+                                    <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
+                                    <input type="hidden" name="action" value="mark_topic_read">
+                                    <input type="hidden" name="topic_id" value="<?= (int)$topic['id'] ?>">
+                                    <button type="submit" style="background:none;border:none;padding:0;cursor:pointer;" title="<?= $tRead ? 'Marked as read' : 'Mark this topic as read' ?>">
+                                        <span class="material-symbols-rounded" style="font-size:26px; color:<?= $tRead ? 'var(--ln-green-mid)' : 'var(--ln-muted)' ?>;"><?= $tRead ? 'check_circle' : 'radio_button_unchecked' ?></span>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-weight:650; color:var(--ln-ink);"><?= learn_e($topic['title']) ?></div>
+                                <?php if (!empty($topic['content_html'])): ?>
+                                    <p style="margin:6px 0 0; font-size:0.85rem; color:var(--ln-ink); white-space:pre-wrap;"><?= learn_e($topic['content_html']) ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($topic['subs']): ?>
+                            <?php foreach ($topic['subs'] as $sub):
+                                $sRead = in_array((int)$sub['id'], $readTopicIds, true);
+                                ?>
+                                <div style="margin:10px 0 0 26px; padding-top:10px; border-top:1px dashed var(--ln-line);">
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <form method="post" style="margin:0;">
+                                            <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
+                                            <input type="hidden" name="action" value="mark_topic_read">
+                                            <input type="hidden" name="topic_id" value="<?= (int)$sub['id'] ?>">
+                                            <button type="submit" class="material-symbols-rounded" style="background:none;border:none;padding:0;cursor:pointer;font-size:18px;color:<?= $sRead ? 'var(--ln-green-mid)' : 'var(--ln-muted)' ?>;"><?= $sRead ? 'check_circle' : 'radio_button_unchecked' ?></button>
+                                        </form>
+                                        <div style="flex:1; min-width:0;">
+                                            <div style="font-size:0.9rem; color:var(--ln-ink);"><?= learn_e($sub['title']) ?></div>
+                                            <?php if (!empty($sub['content_html'])): ?>
+                                                <p style="margin:4px 0 0; font-size:0.82rem; color:var(--ln-muted); white-space:pre-wrap;"><?= learn_e($sub['content_html']) ?></p>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+
+                        <?php // small completion trace at the bottom of each topic ?>
+                        <div style="margin-top:10px; padding-top:8px; border-top:1px dashed var(--ln-line); font-size:0.78rem; color:var(--ln-muted);">
+                            <span class="material-symbols-rounded" style="font-size:14px; vertical-align:middle; color:var(--ln-green-mid);">visibility</span>
+                            <?= (int)learn_topic_reader_count($conn, (int)$topic['id']) ?> learner<?= learn_topic_reader_count($conn, (int)$topic['id']) === 1 ? '' : 's' ?> have completed reading this topic
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
         <?php if ($openLessonQuiz): ?>
             <div class="ln-card" style="margin-top:20px; padding:16px 18px; display:flex; align-items:center; gap:12px;">
                 <span class="material-symbols-rounded" style="font-size:24px; color:var(--ln-green-mid);">quiz</span>
@@ -502,7 +614,7 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
                                     <?= $done ? 'check_circle' : 'radio_button_unchecked' ?>
                                 </span>
                             <?php if ($enrolled): ?>
-                                <a href="/learn/course.php?c=<?= learn_e($slug) ?>&lesson=<?= (int)$lesson['id'] ?>">
+                                <a href="javascript:void(0)" onclick="openLessonModal(<?= (int)$lesson['id'] ?>)" style="cursor:pointer;">
                                     <?= learn_e($lesson['title']) ?>
                                 </a>
                             <?php else: ?>
@@ -685,5 +797,68 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
         <?php endif; ?>
     </div>
 <?php endif; ?>
+
+
+<!-- Lesson info (notes/assessments) modal -->
+<style>
+.ln-modal-overlay{position:fixed;inset:0;background:rgba(10,14,22,.66);display:none;align-items:center;justify-content:center;z-index:3000;padding:20px;}
+.ln-modal-overlay.open{display:flex;}
+.ln-modal{background:#fff;border:1px solid var(--ln-line);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:560px;max-width:100%;max-height:88vh;overflow:auto;padding:22px 24px;}
+.ln-modal-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.ln-modal-head .material-symbols-rounded{color:var(--ln-green-mid);font-size:26px;}
+.ln-modal-head h3{margin:0;font-size:1.1rem;color:var(--ln-ink);}
+.ln-modal-body{color:var(--ln-ink);}
+.ln-modal-sec{margin-bottom:16px;}
+.ln-modal-sec h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ln-muted);margin:0 0 8px;}
+.ln-modal-note{border:1px solid var(--ln-line);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.88rem;background:#fafbfc;}
+.ln-modal-subs{margin:8px 0 0;padding:0 0 0 18px;font-size:.84rem;color:var(--ln-muted);}
+.ln-modal-subs li{margin:3px 0;}
+.ln-modal-asmt{display:flex;align-items:center;gap:8px;border:1px solid var(--ln-line);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.88rem;}
+.ln-modal-asmt .material-symbols-rounded{color:var(--ln-amber);font-size:20px;}
+.ln-modal-empty{color:var(--ln-muted);font-size:.9rem;text-align:center;padding:24px;}
+.ln-modal-actions{display:flex;justify-content:flex-end;margin-top:18px;}
+</style>
+<div id="ln-modal" class="ln-modal-overlay">
+  <div class="ln-modal" role="dialog" aria-modal="true">
+    <div class="ln-modal-head"><span class="material-symbols-rounded">menu_book</span><h3 id="ln-modal-title"></h3></div>
+    <div id="ln-modal-body" class="ln-modal-body"></div>
+    <div class="ln-modal-actions"><button type="button" class="ln-btn ln-btn-primary" onclick="closeLessonModal()">Close</button></div>
+  </div>
+</div>
+<script>
+const LESSON_INFO = <?= json_encode($lessonInfoMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+function escTxt(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;");}
+function openLessonModal(id){
+  const info = LESSON_INFO[id] || {title:"Lesson",notes:[],assessments:[]};
+  const notes = Array.isArray(info.notes)?info.notes:[];
+  const asmts = Array.isArray(info.assessments)?info.assessments:[];
+  let html = "";
+  if(notes.length===0 && asmts.length===0){
+    html = '<div class="ln-modal-empty">No notes/assessments under this topic.</div>';
+  } else {
+    if(notes.length){ html += '<div class="ln-modal-sec"><h4>Notes</h4>';
+      notes.forEach(function(n){
+        html += '<div class="ln-modal-note"><strong>'+escTxt(n.title)+'</strong>';
+        if(n.subs && n.subs.length){ html += '<ul class="ln-modal-subs">'+n.subs.map(function(s){return '<li>'+escTxt(s.title)+'</li>';}).join("")+'</ul>'; }
+        html += '</div>';
+      }); html += '</div>'; }
+    if(asmts.length){ html += '<div class="ln-modal-sec"><h4>Assessments</h4>';
+      asmts.forEach(function(a){
+        const label = (a.type==="cat"?"CAT":(a.type==="quiz"?"Quiz":"Assessment"));
+        html += '<div class="ln-modal-asmt"><span class="material-symbols-rounded">quiz</span>'+escTxt(a.title)+' <span class="ln-chip">'+label+'</span></div>';
+      }); html += '</div>'; }
+  }
+  document.getElementById("ln-modal-title").textContent = escTxt(info.title) || "Lesson";
+  document.getElementById("ln-modal-body").innerHTML = html;
+  const m = document.getElementById("ln-modal");
+  m.classList.add("open"); m.style.display = "flex";
+  document.getElementById("ln-modal-body").scrollTop = 0;
+}
+function closeLessonModal(){
+  const m = document.getElementById("ln-modal");
+  m.classList.remove("open"); m.style.display = "none";
+}
+</script>
+
 <?php
 learn_foot();

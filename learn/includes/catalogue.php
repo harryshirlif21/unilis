@@ -678,6 +678,14 @@ function learn_classify_scheduled_lessons(array $rows, string $today): array
  */
 function learn_lesson_topics(mysqli $conn, int $lessonId): array
 {
+    // Defensive: the topics feature is optional. If the table is not present
+    // (migration not run), fall back to an empty list rather than fatalling the
+    // whole course page.
+    $tbl = $conn->query("SHOW TABLES LIKE 'public_course_lesson_topics'");
+    if (!$tbl || $tbl->num_rows === 0) {
+        return [];
+    }
+
     $stmt = $conn->prepare("
         SELECT id, lesson_id, parent_id, title, content_html, position
         FROM public_course_lesson_topics
@@ -690,6 +698,7 @@ function learn_lesson_topics(mysqli $conn, int $lessonId): array
     $stmt->close();
 
     $index = [];
+    $tree = [];
     foreach ($rows as $r) {
         $r['subs'] = [];
         $index[(int)$r['id']] = $r;
@@ -717,6 +726,10 @@ function learn_lesson_topics(mysqli $conn, int $lessonId): array
  */
 function learn_read_topic_ids(mysqli $conn, int $learnerId, int $lessonId): array
 {
+    $tbl = $conn->query("SHOW TABLES LIKE 'external_lesson_topic_progress'");
+    if (!$tbl || $tbl->num_rows === 0) {
+        return [];
+    }
     $stmt = $conn->prepare("
         SELECT t.id
         FROM external_lesson_topic_progress p
@@ -725,9 +738,10 @@ function learn_read_topic_ids(mysqli $conn, int $learnerId, int $lessonId): arra
     ");
     $stmt->bind_param('ii', $learnerId, $lessonId);
     $stmt->execute();
-    $ids = array_map('intval', $stmt->get_result()->fetch_all(MYSQLI_NUM) ?: []);
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_NUM) ?: [];
     $stmt->close();
-    foreach ($ids as $i => $row) { $ids[$i] = (int)$row[0]; }
+    $ids = [];
+    foreach ($rows as $r) { $ids[] = (int)$r[0]; }
     return $ids;
 }
 
@@ -737,6 +751,10 @@ function learn_read_topic_ids(mysqli $conn, int $learnerId, int $lessonId): arra
  */
 function learn_mark_topic_read(mysqli $conn, int $learnerId, int $topicId): void
 {
+    $tbl = $conn->query("SHOW TABLES LIKE 'external_lesson_topic_progress'");
+    if (!$tbl || $tbl->num_rows === 0) {
+        return;
+    }
     $stmt = $conn->prepare('INSERT IGNORE INTO external_lesson_topic_progress (learner_id, topic_id) VALUES (?, ?)');
     $stmt->bind_param('ii', $learnerId, $topicId);
     $stmt->execute();
@@ -749,6 +767,10 @@ function learn_mark_topic_read(mysqli $conn, int $learnerId, int $topicId): void
  */
 function learn_topic_reader_count(mysqli $conn, int $topicId): int
 {
+    $tbl = $conn->query("SHOW TABLES LIKE 'external_lesson_topic_progress'");
+    if (!$tbl || $tbl->num_rows === 0) {
+        return 0;
+    }
     $stmt = $conn->prepare('SELECT COUNT(*) AS c FROM external_lesson_topic_progress WHERE topic_id = ?');
     $stmt->bind_param('i', $topicId);
     $stmt->execute();
