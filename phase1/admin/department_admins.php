@@ -1,4 +1,4 @@
-`<or on?php
+<?php
 /**
  * Department Admin Dashboard
  * UNILIS Academic Foundation Expansion
