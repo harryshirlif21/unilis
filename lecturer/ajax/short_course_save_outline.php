@@ -22,7 +22,7 @@ if (!$course_id) {
 // Verify access. Department administrators are restricted to their own department.
 $role = $_SESSION['user_role'];
 if ($role === 'lecturer') {
-    $check = $conn->prepare("SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? AND is_active = 1 UNION SELECT 1 FROM public_courses WHERE id = ? AND created_by_lecturer_id = ?");
+$check = $conn->prepare("SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? UNION SELECT 1 FROM public_courses WHERE id = ? AND created_by_lecturer_id = ?");
     $check->bind_param("iiii", $lecturer_id, $course_id, $course_id, $lecturer_id);
 } elseif ($role === 'department_admin') {
     $departmentId = (int)($_SESSION['department_id'] ?? 0);

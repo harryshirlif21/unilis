@@ -1233,26 +1233,6 @@ body {
     </div>
 </div>
 
-<!-- Topics & Subtopics Modal -->
-<div class="modal-overlay" id="topics-modal">
-    <div class="modal" style="width:620px">
-        <h3 id="topics-modal-title"><i class="fas fa-list-ul"></i> Topics &amp; subtopics</h3>
-        <input type="hidden" id="topics-lesson-id">
-        <div class="form-group">
-            <label>Add a topic</label>
-            <div style="display:flex;gap:8px">
-                <input type="text" class="form-input" id="topics-title-input" placeholder="Topic title" style="flex:1">
-                <button class="btn btn-primary" onclick="addTopic()"><i class="fas fa-plus"></i> Add</button>
-            </div>
-        </div>
-        <div id="topics-list" style="max-height:400px;overflow:auto;margin-top:6px"></div>
-        <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closeModal('topics-modal')">Close</button>
-        </div>
-    </div>
-</div>
-
-
 <!-- Toast container -->
 <div id="toast"></div>
 
@@ -1617,21 +1597,7 @@ function confirmDeleteAssessment(assessmentId, title) {
         .catch(() => toast('Delete failed', 'error'));
 }
 function decorateAssessments() {
-    // Assessments (CAT/quiz) UI is intentionally removed from the course builder.
-    // Strip any leftover assessment markup, then inject a "Topics & subtopics"
-    // button at the front of each lesson's actions that opens the topics modal.
     document.querySelectorAll('.assessments-block, .lesson-assessment-badge, .assessment-add-btn').forEach(el => el.remove());
-    modules.forEach(mod => {
-        const canEdit = mod.can_edit !== false;
-        (mod.lessons || []).forEach(lesson => {
-            if (!canEdit) return;
-            const row = document.querySelector(`.lesson-row[data-id="${lesson.id}"] .lesson-actions`);
-            if (row && !row.querySelector('.lesson-topics-btn')) {
-                row.insertAdjacentHTML('afterbegin',
-                    `<button class="btn btn-ghost btn-sm btn-icon lesson-topics-btn" onclick="openTopicsModal(${lesson.id}, '${escAttr(lesson.title)}')" title="Topics &amp; subtopics"><i class="fas fa-list-ul" style="color:var(--accent3)"></i></button>`);
-            }
-        });
-    });
 }
 function toggleModule(moduleId) {
     const lc   = document.getElementById(`lc-${moduleId}`);
@@ -2321,94 +2287,7 @@ function saveLessonOrder(moduleId) {
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // MODAL HELPERS
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-// ====== Topics & subtopics ======
-let topicsLessonId = null;
-function openTopicsModal(lessonId, title) {
-    topicsLessonId = lessonId;
-    document.getElementById('topics-lesson-id').value = lessonId;
-    document.getElementById('topics-modal-title').innerHTML = '<i class="fas fa-list-ul"></i> Topics &amp; subtopics &mdash; ' + escHtml(title);
-    document.getElementById('topics-title-input').value = '';
-    document.getElementById('topics-list').innerHTML = '<p class="assessments-empty">Loading&hellip;</p>';
-    openModal('topics-modal');
-    loadTopics();
-}
-function loadTopics() {
-    const list = document.getElementById('topics-list');
-    list.innerHTML = '<p class="assessments-empty">Loading&hellip;</p>';
-    fetch(`ajax/short_course_topics.php?lesson_id=${topicsLessonId}`)
-        .then(r => r.json())
-        .then(d => {
-            if (!d.success) { list.innerHTML = `<p class="assessments-empty">${escHtml(d.message || 'Error')}</p>`; return; }
-            if (!d.topics.length) { list.innerHTML = '<p class="assessments-empty">No topics yet. Add one above.</p>'; return; }
-            list.innerHTML = d.topics.map(t => buildTopicBlock(t)).join('');
-        })
-        .catch(() => list.innerHTML = '<p class="assessments-empty">Failed to load topics.</p>');
-}
-function buildTopicBlock(t) {
-    const subs = (t.subs || []).map(s => `
-        <div style="margin:6px 0 0 22px; padding:6px 10px; background:var(--surface2); border-radius:var(--radius-sm); display:flex; align-items:center; gap:8px;">
-            <i class="fas fa-angle-right" style="color:var(--text-dim)"></i>
-            <span style="flex:1">${escHtml(s.title)}</span>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="addSubTopic(${t.id})" title="Add subtopic"><i class="fas fa-plus" style="color:var(--accent3)"></i></button>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteTopic(${s.id})" title="Delete"><i class="fas fa-trash" style="color:var(--danger)"></i></button>
-        </div>`).join('');
-    return `
-        <div style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 12px; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <i class="fas fa-folder-open" style="color:var(--accent2)"></i>
-                <span style="flex:1; font-weight:600">${escHtml(t.title)}</span>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="addSubTopic(${t.id})" title="Add subtopic"><i class="fas fa-arrow-down" style="color:var(--accent3)"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteTopic(${t.id})" title="Delete topic"><i class="fas fa-trash" style="color:var(--danger)"></i></button>
-            </div>
-            ${subs}
-        </div>`;
-}
-function addTopic() {
-    const title = document.getElementById('topics-title-input').value.trim();
-    if (!title) { toast('Topic title is required', 'error'); return; }
-    const fd = new FormData();
-    fd.append('action', 'add');
-    fd.append('lesson_id', topicsLessonId);
-    fd.append('title', title);
-    fd.append('parent_id', '0');
-    fetch('ajax/short_course_topics.php', { method: 'POST', body: fd })
-        .then(r => r.json()).then(d => {
-            if (d.success) { toast('Topic added', 'success'); document.getElementById('topics-title-input').value=''; loadTopics(); }
-            else toast(d.message, 'error');
-        }).catch(() => toast('Network error', 'error'));
-}
-function addSubTopic(parentId) {
-    const title = prompt('Subtopic title:');
-    if (!title || !title.trim()) return;
-    const fd = new FormData();
-    fd.append('action', 'add');
-    fd.append('lesson_id', topicsLessonId);
-    fd.append('title', title.trim());
-    fd.append('parent_id', parentId);
-    fetch('ajax/short_course_topics.php', { method: 'POST', body: fd })
-        .then(r => r.json()).then(d => {
-            if (d.success) { toast('Subtopic added', 'success'); loadTopics(); }
-            else toast(d.message, 'error');
-        }).catch(() => toast('Network error', 'error'));
-}
-function deleteTopic(id) {
-    if (!confirm('Delete this topic and any subtopics under it?')) return;
-    const fd = new FormData();
-    fd.append('action', 'delete');
-    fd.append('topic_id', id);
-    fetch('ajax/short_course_topics.php', { method: 'POST', body: fd })
-        .then(r => r.json()).then(d => {
-            if (d.success) { toast('Deleted', 'success'); loadTopics(); }
-            else toast(d.message, 'error');
-        }).catch(() => toast('Network error', 'error'));
-}
 
-function openModal(id)  { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
-});
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // CHAR COUNT

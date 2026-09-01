@@ -32,8 +32,8 @@ function shortCourseCanView(mysqli $conn, int $courseId): bool
         return $allowed;
     }
 
-    // Lecturer: any linked tutor — primary, contributor, module-level, or
-    // lesson-level assignment — or the course owner, may view.
+    // Lecturer: any linked tutor ï¿½ primary, contributor, module-level, or
+    // lesson-level assignment ï¿½ or the course owner, may view.
     $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? LIMIT 1');
     $stmt->bind_param('ii', $userId, $courseId);
     $stmt->execute();
@@ -95,7 +95,7 @@ function shortCourseCanEditModule(mysqli $conn, int $moduleId): bool
     if ((int)$course['created_by_lecturer_id'] === $userId) {
         return true;
     }
-    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? AND is_active = 1 LIMIT 1');
+    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? LIMIT 1');
     $stmt->bind_param('ii', $userId, $course['id']);
     $stmt->execute();
     if ($stmt->get_result()->fetch_row()) { $stmt->close(); return true; }
@@ -146,7 +146,7 @@ function shortCourseCanEditLesson(mysqli $conn, int $lessonId): bool
     if ((int)$row['created_by_lecturer_id'] === $userId) {
         return true;
     }
-    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? AND is_active = 1 LIMIT 1');
+    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? LIMIT 1');
     $stmt->bind_param('ii', $userId, $row['course_id']);
     $stmt->execute();
     if ($stmt->get_result()->fetch_row()) { $stmt->close(); return true; }
@@ -196,7 +196,7 @@ function shortCourseIsAssignedToModule(mysqli $conn, int $moduleId): bool
     if ((int)$course['created_by_lecturer_id'] === $userId) {
         return true;
     }
-    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? AND is_active = 1 LIMIT 1');
+    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? LIMIT 1');
     $stmt->bind_param('ii', $userId, $course['id']);
     $stmt->execute();
     if ($stmt->get_result()->fetch_row()) { $stmt->close(); return true; }
@@ -244,7 +244,7 @@ function shortCourseIsAssignedToLesson(mysqli $conn, int $lessonId): bool
     if ((int)$row['created_by_lecturer_id'] === $userId) {
         return true;
     }
-    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? AND is_active = 1 LIMIT 1');
+    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? LIMIT 1');
     $stmt->bind_param('ii', $userId, $row['course_id']);
     $stmt->execute();
     if ($stmt->get_result()->fetch_row()) { $stmt->close(); return true; }
@@ -279,7 +279,7 @@ function shortCourseCanManage(mysqli $conn, int $courseId): bool
         $stmt = $conn->prepare('SELECT 1 FROM public_courses WHERE id = ? AND department_id = ? LIMIT 1');
         $stmt->bind_param('ii', $courseId, $departmentId);
     } else {
-        $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? AND is_active = 1 UNION SELECT 1 FROM public_courses WHERE id = ? AND created_by_lecturer_id = ? LIMIT 1');
+        $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? UNION SELECT 1 FROM public_courses WHERE id = ? AND created_by_lecturer_id = ? LIMIT 1');
         $stmt->bind_param('iiii', $userId, $courseId, $courseId, $userId);
     }
 

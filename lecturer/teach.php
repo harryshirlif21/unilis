@@ -22,6 +22,8 @@ set_exception_handler(function (Throwable $e): void {
         . '</pre>';
 });
 
+require_once __DIR__ . '/../learn/includes/catalogue.php';
+
 if (!shortCourseIsAuthor()) {
     header('Location: ../login.php');
     exit;
@@ -55,12 +57,12 @@ $isPrimary = false;
 if ($role === 'admin' || $role === 'department_admin') {
     $isPrimary = true;
 } else {
-    $stmt = $conn->prepare('SELECT is_active FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT 1 FROM short_course_tutors WHERE lecturer_id = ? AND short_course_id = ? LIMIT 1');
     $stmt->bind_param('ii', $userId, $course_id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    if ($row && (int)$row['is_active'] === 1) {
+    if ($row) {
         $isPrimary = true;
     }
     $ownerStmt = $conn->prepare('SELECT 1 FROM public_courses WHERE id = ? AND created_by_lecturer_id = ? LIMIT 1');
@@ -70,6 +72,57 @@ if ($role === 'admin' || $role === 'department_admin') {
         $isPrimary = true;
     }
     $ownerStmt->close();
+}
+
+$courseOutlineText = '';
+$stmt = $conn->prepare('SELECT outline FROM public_courses WHERE id = ? LIMIT 1');
+$stmt->bind_param('i', $course_id);
+$stmt->execute();
+$courseOutlineRow = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+$courseOutlineText = (string)($courseOutlineRow['outline'] ?? '');
+
+$moduleOutlineMap = [];
+$lessonOutlineMap = [];
+$assessmentMap = []; // [lessonId][] / [moduleId][]
+$topicMap = [];
+
+$stmt = $conn->prepare('SELECT id, title, outline FROM public_course_modules WHERE course_id = ? ORDER BY position ASC, id ASC');
+$stmt->bind_param('i', $course_id);
+$stmt->execute();
+$moduleRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+foreach ($moduleRows as $moduleRow) {
+    $moduleOutlineMap[(int)$moduleRow['id']] = (string)($moduleRow['outline'] ?? '');
+}
+
+if (!empty($moduleRows)) {
+    $moduleIds = array_map(static fn($row) => (int)$row['id'], $moduleRows);
+    $moduleIdsList = implode(',', $moduleIds);
+    $lessonStmt = $conn->query("SELECT id, module_id, title, outline FROM public_course_lessons WHERE module_id IN ({$moduleIdsList}) ORDER BY position ASC, id ASC");
+    while ($lessonRow = $lessonStmt->fetch_assoc()) {
+        $lessonId = (int)$lessonRow['id'];
+        $moduleId = (int)$lessonRow['module_id'];
+        $lessonOutlineMap[$lessonId] = (string)($lessonRow['outline'] ?? '');
+        $topicMap[$lessonId] = learn_lesson_topics($conn, $lessonId);
+        $assessmentMap[$lessonId] = [];
+        $moduleAssessmentRows = $conn->prepare('SELECT id, title, type FROM public_course_assessments WHERE course_id = ? AND lesson_id = ? ORDER BY position ASC, id ASC');
+        $moduleAssessmentRows->bind_param('ii', $course_id, $lessonId);
+        $moduleAssessmentRows->execute();
+        $moduleAssessmentResult = $moduleAssessmentRows->get_result();
+        while ($assessmentRow = $moduleAssessmentResult->fetch_assoc()) {
+            $assessmentMap[$lessonId][] = ['id' => (int)$assessmentRow['id'], 'title' => (string)$assessmentRow['title'], 'type' => (string)$assessmentRow['type']];
+        }
+        $moduleAssessmentRows->close();
+        $modAssessmentRows = $conn->prepare('SELECT id, title, type FROM public_course_assessments WHERE course_id = ? AND module_id = ? AND lesson_id = 0 ORDER BY position ASC, id ASC');
+        $modAssessmentRows->bind_param('ii', $course_id, $moduleId);
+        $modAssessmentRows->execute();
+        $modAssessmentResult = $modAssessmentRows->get_result();
+        while ($assessmentRow = $modAssessmentResult->fetch_assoc()) {
+            $assessmentMap[$lessonId][] = ['id' => (int)$assessmentRow['id'], 'title' => (string)$assessmentRow['title'], 'type' => (string)$assessmentRow['type']];
+        }
+        $modAssessmentRows->close();
+    }
 }
 
 // Load every module + lesson in the course, unfiltered — filtering happens
@@ -177,15 +230,32 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .btn-nav:hover { background: var(--surface2); color: var(--text); }
 .layout { display: flex; min-height: calc(100vh - 60px); }
 .sidebar { width: 280px; min-width: 280px; background: var(--surface); border-right: 1px solid var(--border); padding: 18px 14px; overflow-y: auto; }
-.module-block { margin-bottom: 10px; }
-.module-head { padding: 9px 10px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.82rem; display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.module-block { margin-bottom: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: rgba(255,255,255,0.01); }
+.module-head { padding: 10px 12px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.82rem; display: flex; align-items: center; gap: 6px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 .module-head.locked { opacity: 0.5; }
-.lesson-link { display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 20px; font-size: 0.84rem; border-radius: var(--radius-sm); text-decoration: none; color: var(--text); }
-.lesson-link:hover { background: var(--surface2); }
-.lesson-link.active { background: rgba(79,142,247,0.12); color: var(--accent); }
-.lesson-link.locked { color: var(--text-dim); cursor: not-allowed; opacity: 0.6; }
-.lesson-link.locked:hover { background: none; }
+.lesson-group { padding: 6px 8px 8px; }
+.lesson-toggle { display: flex; align-items: center; gap: 8px; width: 100%; background: transparent; border: none; color: var(--text); padding: 7px 10px 7px 14px; text-align: left; border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: 0.84rem; }
+.lesson-toggle:hover { background: var(--surface2); }
+.lesson-toggle.active { background: rgba(79,142,247,0.12); color: var(--accent); }
+.lesson-toggle.locked { color: var(--text-dim); cursor: not-allowed; opacity: 0.6; }
+.lesson-toggle.locked:hover { background: none; }
+.lesson-body { margin-top: 4px; padding-left: 10px; }
 .lock-icon { font-size: 0.7rem; }
+.outline-block { margin: 0 0 10px; padding: 0 2px; }
+.outline-link, .topic-link, .assessment-link { display: flex; align-items: center; gap: 7px; width: 100%; color: var(--text-muted); text-decoration: none; background: transparent; border: none; font: inherit; padding: 7px 10px 7px 22px; border-radius: var(--radius-sm); text-align: left; }
+.outline-link:hover, .topic-link:hover, .assessment-link:hover { background: var(--surface2); color: var(--text); }
+.outline-link, .topic-link, .assessment-link { font-size: 0.78rem; }
+.outline-body { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); color: var(--text-muted); font-size: 0.78rem; line-height: 1.5; white-space: pre-wrap; }
+.topic-list { margin: 6px 0 0 18px; padding-left: 6px; border-left: 1px solid var(--border); }
+.topic-item { margin: 6px 0; }
+.topic-link { color: var(--text); font-weight: 600; }
+.subtopic-list { margin: 6px 0 0 18px; }
+.subtopic-item { display: flex; align-items: center; gap: 7px; padding: 5px 8px 5px 8px; color: var(--text-muted); font-size: 0.75rem; }
+.assessment-link { color: var(--accent3); }
+.sidebar-summary { margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); }
+.sidebar-summary summary { cursor: pointer; list-style: none; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+.sidebar-summary summary::-webkit-details-marker { display: none; }
+.sidebar-summary[open] summary { color: var(--text); }
 .main { flex: 1; padding: 28px 36px; max-width: 820px; }
 .page-head h1 { font-family: 'Syne', sans-serif; font-size: 1.25rem; margin-bottom: 4px; }
 .page-head p { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; }
@@ -207,6 +277,13 @@ iframe.content-frame { width: 100%; height: 640px; border: 0; border-radius: var
 
 <div class="layout">
     <aside class="sidebar">
+        <details class="sidebar-summary" open>
+            <summary><i class="fas fa-align-left"></i> Course outline</summary>
+            <div class="outline-body">
+                <?= $courseOutlineText !== '' ? escHtml($courseOutlineText) : 'No course outline saved yet.' ?>
+            </div>
+        </details>
+
         <?php if (empty($modules)): ?>
             <p style="color:var(--text-dim);font-size:0.85rem;padding:10px;">No modules in this course yet.</p>
         <?php else: foreach ($modules as $mid => $mod): ?>
@@ -215,21 +292,70 @@ iframe.content-frame { width: 100%; height: 640px; border: 0; border-radius: var
                     <?= $mod['unlocked'] ? '<i class="fas fa-folder-open"></i>' : '<i class="fas fa-lock lock-icon"></i>' ?>
                     <?= escHtml($mod['title']) ?>
                 </div>
+
                 <?php foreach ($mod['lessons'] as $lesson):
                     $isCurrent = $currentItem && $currentItem['type'] === 'lesson' && $currentItem['id'] === (int)$lesson['id'];
+                    $lessonId = (int)$lesson['id'];
+                    $lessonOutline = (string)($lessonOutlineMap[$lessonId] ?? '');
+                    $lessonTopics = $topicMap[$lessonId] ?? [];
+                    $lessonAssessments = $assessmentMap[$lessonId] ?? [];
+                    $hasNested = $lessonOutline !== '' || !empty($lessonTopics) || !empty($lessonAssessments);
                     ?>
-                    <?php if ($lesson['unlocked']): ?>
-                        <a class="lesson-link <?= $isCurrent ? 'active' : '' ?>" href="teach.php?course_id=<?= $course_id ?>&lesson_id=<?= $lesson['id'] ?>">
-                            <i class="fas fa-file-alt"></i> <?= escHtml($lesson['title']) ?>
-                        </a>
-                    <?php else: ?>
-                        <span class="lesson-link locked" title="Not assigned to you">
-                            <i class="fas fa-lock lock-icon"></i> <?= escHtml($lesson['title']) ?>
-                        </span>
-                    <?php endif; ?>
+                    <div class="lesson-group">
+                        <?php if ($lesson['unlocked']): ?>
+                            <details class="sidebar-summary" <?= $isCurrent ? 'open' : '' ?>>
+                                <summary class="lesson-toggle <?= $isCurrent ? 'active' : '' ?>">
+                                    <span><i class="fas fa-file-alt"></i> <?= escHtml($lesson['title']) ?></span>
+                                </summary>
+                                <?php if ($hasNested): ?>
+                                    <div class="lesson-body">
+                                        <?php if ($lessonOutline !== ''): ?>
+                                            <a class="outline-link" href="teach.php?course_id=<?= $course_id ?>&lesson_id=<?= $lesson['id'] ?>">
+                                                <i class="fas fa-list"></i> Lesson outline
+                                            </a>
+                                        <?php endif; ?>
+
+                                        <?php if (!empty($lessonTopics)): ?>
+                                            <div class="topic-list">
+                                                <?php foreach ($lessonTopics as $topic): ?>
+                                                    <div class="topic-item">
+                                                        <a class="topic-link" href="teach.php?course_id=<?= $course_id ?>&lesson_id=<?= $lesson['id'] ?>">
+                                                            <i class="fas fa-book-open"></i> <?= escHtml($topic['title']) ?>
+                                                        </a>
+                                                        <?php if (!empty($topic['subs'])): ?>
+                                                            <div class="subtopic-list">
+                                                                <?php foreach ($topic['subs'] as $sub): ?>
+                                                                    <div class="subtopic-item">
+                                                                        <i class="fas fa-caret-right"></i>
+                                                                        <span><?= escHtml($sub['title']) ?></span>
+                                                                    </div>
+                                                                <?php endforeach; ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <?php if (!empty($lessonAssessments)): ?>
+                                            <?php foreach ($lessonAssessments as $assessment): ?>
+                                                <a class="assessment-link" href="lesson_preview.php?course_id=<?= $course_id ?>&lesson_id=<?= $lesson['id'] ?>">
+                                                    <i class="fas fa-clipboard-check"></i> <?= escHtml($assessment['title']) ?>
+                                                </a>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </details>
+                        <?php else: ?>
+                            <span class="lesson-toggle locked" title="Not assigned to you">
+                                <i class="fas fa-lock lock-icon"></i> <?= escHtml($lesson['title']) ?>
+                            </span>
+                        <?php endif; ?>
+                    </div>
                 <?php endforeach; ?>
                 <?php if (empty($mod['lessons']) && !$mod['unlocked']): ?>
-                    <span class="lesson-link locked" title="Not assigned to you">
+                    <span class="lesson-toggle locked" title="Not assigned to you">
                         <i class="fas fa-lock lock-icon"></i> Whole module locked
                     </span>
                 <?php endif; ?>

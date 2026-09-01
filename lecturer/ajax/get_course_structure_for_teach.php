@@ -30,7 +30,7 @@ $checkAuthor->close();
 
 // Check if assigned via short_course_tutors
 if (!$hasAccess) {
-    $checkTutor = $conn->prepare("SELECT id FROM short_course_tutors WHERE short_course_id = ? AND lecturer_id = ? AND is_active = 1");
+    $checkTutor = $conn->prepare("SELECT id FROM short_course_tutors WHERE short_course_id = ? AND lecturer_id = ?");
     $checkTutor->bind_param("ii", $course_id, $lecturer_id);
     $checkTutor->execute();
     if ($checkTutor->get_result()->fetch_row()) {

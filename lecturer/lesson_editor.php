@@ -56,7 +56,7 @@ if ($mode === 'short_course') {
     if (!$isAuthor) {
         // Check if assigned as course tutor
         try {
-            $checkTutor = $conn->prepare("SELECT id FROM short_course_tutors WHERE short_course_id = ? AND lecturer_id = ? AND is_active = 1");
+            $checkTutor = $conn->prepare("SELECT id FROM short_course_tutors WHERE short_course_id = ? AND lecturer_id = ?");
             $checkTutor->bind_param("ii", $course_id, $lecturer_id);
             $checkTutor->execute();
             if ($checkTutor->get_result()->fetch_row()) {
@@ -844,9 +844,9 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
                     </button>
                 <?php endif; ?>
                 <?php if ($can_edit && isset($current_lesson['id']) && (int)$current_lesson['id'] > 0): ?>
-                    <button onclick="openTopicsModal(<?= (int)$current_lesson['id'] ?>)" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); cursor:pointer; padding:6px 10px; font-size:0.8rem; border-radius:var(--radius-sm); white-space:nowrap;">
+                    <a href="lesson_topics.php?lesson_id=<?= (int)$current_lesson['id'] ?>" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); cursor:pointer; padding:6px 10px; font-size:0.8rem; border-radius:var(--radius-sm); white-space:nowrap; text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
                         <i class="fas fa-list-ul"></i> Topics &amp; subtopics
-                    </button>
+                    </a>
                 <?php endif; ?>
             </div>
             
@@ -2075,6 +2075,7 @@ function deleteTopic(id) {
     if (!confirm('Delete this topic and any subtopics under it?')) return;
     const fd = new FormData();
     fd.append('action', 'delete');
+    fd.append('lesson_id', topicsLessonId);
     fd.append('topic_id', id);
     fetch('ajax/short_course_topics.php', { method: 'POST', body: fd })
         .then(r => r.json()).then(d => {

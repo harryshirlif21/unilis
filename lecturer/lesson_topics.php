@@ -69,9 +69,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $owned = $chk->get_result()->fetch_row() ? true : false; $chk->close();
         if (!$owned) { $flash = 'Topic not found in this lesson.'; $flashType = 'err'; }
         else {
-            $del = $conn->prepare('DELETE FROM public_course_lesson_topics WHERE id = ?');
-            $del->bind_param('i', $topic_id); $del->execute(); $del->close();
-            $flash = 'Topic deleted (its subtopics and reading progress went with it).';
+            $ids = [$topic_id];
+            $seen = [$topic_id => true];
+            while ($ids) {
+                $current = array_pop($ids);
+                $children = $conn->prepare('SELECT id FROM public_course_lesson_topics WHERE lesson_id = ? AND parent_id = ?');
+                $children->bind_param('ii', $lesson_id, $current);
+                $children->execute();
+                foreach ($children->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+                    $childId = (int)$row['id'];
+                    if (!isset($seen[$childId])) {
+                        $seen[$childId] = true;
+                        $ids[] = $childId;
+                    }
+                }
+                $children->close();
+            }
+
+            $deleteIds = array_keys($seen);
+            sort($deleteIds, SORT_NUMERIC);
+
+            $conn->begin_transaction();
+            try {
+                $progressTable = $conn->query("SHOW TABLES LIKE 'external_lesson_topic_progress'");
+                if ($progressTable && $progressTable->num_rows > 0) {
+                    $ph = implode(',', array_fill(0, count($deleteIds), '?'));
+                    $progress = $conn->prepare('DELETE FROM external_lesson_topic_progress WHERE topic_id IN (' . $ph . ')');
+                    $progress->bind_param(str_repeat('i', count($deleteIds)), ...$deleteIds);
+                    $progress->execute();
+                    $progress->close();
+                }
+
+                $ph = implode(',', array_fill(0, count($deleteIds), '?'));
+                $del = $conn->prepare('DELETE FROM public_course_lesson_topics WHERE id IN (' . $ph . ')');
+                $del->bind_param(str_repeat('i', count($deleteIds)), ...$deleteIds);
+                $del->execute();
+                $del->close();
+
+                $conn->commit();
+                $flash = 'Topic deleted (all nested topics and reading progress were removed).';
+            } catch (Exception $e) {
+                $conn->rollback();
+                $flash = 'Delete failed: ' . $e->getMessage();
+                $flashType = 'err';
+            }
         }
     } elseif ($action === 'move') {
         $topic_id = (int)($_POST['topic_id'] ?? 0);

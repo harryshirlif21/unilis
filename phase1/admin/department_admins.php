@@ -236,19 +236,19 @@ if ($action === 'add_short_course') {
         if ($checkTable && $checkTable->num_rows > 0) {
             $banner_path = '';
             if ($banner && $banner['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = __DIR__ . '/../../uploads/short_courses/';
+                $upload_dir = __DIR__ . '/../../assets/uploads/';
                 if (!is_dir($upload_dir)) {
                     mkdir($upload_dir, 0755, true);
                 }
-                $banner_path = 'uploads/short_courses/' . time() . '_' . basename($banner['name']);
+                $banner_path = 'assets/uploads/' . time() . '_' . basename($banner['name']);
                 move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $banner_path);
             }
 
             $sponsor_logo_path = '';
             if ($is_sponsored) {
-                $upload_dir = __DIR__ . '/../../uploads/short_courses/sponsors/';
+                $upload_dir = __DIR__ . '/../../assets/uploads/sponsors/';
                 if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
-                $sponsor_logo_path = 'uploads/short_courses/sponsors/' . time() . '_' . basename($sponsor_logo['name']);
+                $sponsor_logo_path = 'assets/uploads/sponsors/' . time() . '_' . basename($sponsor_logo['name']);
                 if (!move_uploaded_file($sponsor_logo['tmp_name'], __DIR__ . '/../../' . $sponsor_logo_path)) {
                     $message = 'Failed to upload the sponsor logo.';
                     $message_type = 'error';
@@ -333,11 +333,11 @@ if ($action === 'edit_short_course') {
             // Handle banner upload if provided
             $banner_path = null;
             if ($banner && $banner['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = __DIR__ . '/../../uploads/short_courses/';
+                $upload_dir = __DIR__ . '/../../assets/uploads/';
                 if (!is_dir($upload_dir)) {
                     mkdir($upload_dir, 0755, true);
                 }
-                $banner_path = 'uploads/short_courses/' . time() . '_' . basename($banner['name']);
+                $banner_path = 'assets/uploads/' . time() . '_' . basename($banner['name']);
                 move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $banner_path);
             }
 
@@ -349,11 +349,11 @@ if ($action === 'edit_short_course') {
             }
             $sponsor_logo_path = $existing_sponsor_logo;
             if ($sponsor_logo && $sponsor_logo['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = __DIR__ . '/../../uploads/short_courses/sponsors/';
+                $upload_dir = __DIR__ . '/../../assets/uploads/sponsors/';
                 if (!is_dir($upload_dir)) {
                     mkdir($upload_dir, 0755, true);
                 }
-                $sponsor_logo_path = 'uploads/short_courses/sponsors/' . time() . '_' . basename($sponsor_logo['name']);
+                $sponsor_logo_path = 'assets/uploads/sponsors/' . time() . '_' . basename($sponsor_logo['name']);
                 if (!move_uploaded_file($sponsor_logo['tmp_name'], __DIR__ . '/../../' . $sponsor_logo_path)) {
                     $message = 'Failed to upload the sponsor logo.';
                     $message_type = 'error';
