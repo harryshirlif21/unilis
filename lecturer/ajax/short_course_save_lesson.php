@@ -16,6 +16,10 @@ $lesson_id   = (int)($_POST['lesson_id'] ?? 0);
 $title       = trim($_POST['title'] ?? '');
 $lesson_number = trim($_POST['lesson_number'] ?? '');
 $video_url    = trim($_POST['video_url'] ?? '');
+$has_start_date = array_key_exists('start_date', $_POST);
+$has_end_date   = array_key_exists('end_date', $_POST);
+$start_date     = trim($_POST['start_date'] ?? '');
+$end_date       = trim($_POST['end_date'] ?? '');
 
 // For updates, title might not be required if only updating other fields
 if (!$course_id || !$module_id) {
@@ -25,6 +29,16 @@ if (!$course_id || !$module_id) {
 
 if (!shortCourseCanManage($conn, $course_id)) {
     echo json_encode(['success' => false, 'message' => 'Access denied']);
+    exit;
+}
+
+if (($start_date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date))
+    || ($end_date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date))) {
+    echo json_encode(['success' => false, 'message' => 'Invalid lesson schedule date']);
+    exit;
+}
+if ($start_date !== '' && $end_date !== '' && $start_date > $end_date) {
+    echo json_encode(['success' => false, 'message' => 'Start date must be before end date']);
     exit;
 }
 
@@ -67,6 +81,19 @@ if ($lesson_id > 0) {
     if ($video_url !== '') {
         $updateFields[] = 'video_url = ?';
         $params[] = $video_url;
+        $types .= 's';
+    }
+    if ($has_start_date || $has_end_date) {
+        $dateColumns = $conn->query("SHOW COLUMNS FROM public_course_lessons WHERE Field IN ('start_date', 'end_date')");
+        if (!$dateColumns || $dateColumns->num_rows !== 2) {
+            echo json_encode(['success' => false, 'message' => 'Lesson scheduling has not been installed yet']);
+            exit;
+        }
+        $updateFields[] = 'start_date = NULLIF(?, \'\')';
+        $params[] = $start_date;
+        $types .= 's';
+        $updateFields[] = 'end_date = NULLIF(?, \'\')';
+        $params[] = $end_date;
         $types .= 's';
     }
     

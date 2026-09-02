@@ -28,13 +28,25 @@ function hasOutlineColumn(mysqli $conn, string $table): bool
     return $result && $result->num_rows > 0;
 }
 
+function hasColumn(mysqli $conn, string $table, string $column): bool
+{
+    $table = $conn->real_escape_string($table);
+    $column = $conn->real_escape_string($column);
+    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
+    return $result && $result->num_rows > 0;
+}
+
 $courseHasOutline = hasOutlineColumn($conn, 'public_courses');
 $moduleHasOutline = hasOutlineColumn($conn, 'public_course_modules');
 $lessonHasOutline = hasOutlineColumn($conn, 'public_course_lessons');
 
 // Check if summary, start_date, end_date columns exist in modules
-$moduleHasSummary = hasOutlineColumn($conn, 'public_course_modules') && $conn->query("SHOW COLUMNS FROM public_course_modules LIKE 'summary'")->num_rows > 0;
-$moduleHasDates = $conn->query("SHOW COLUMNS FROM public_course_modules LIKE 'start_date'")->num_rows > 0;
+$moduleHasSummary = hasColumn($conn, 'public_course_modules', 'summary');
+$moduleHasDates = hasColumn($conn, 'public_course_modules', 'start_date')
+    && hasColumn($conn, 'public_course_modules', 'end_date');
+$lessonHasVideo = hasColumn($conn, 'public_course_lessons', 'video_url');
+$lessonHasDates = hasColumn($conn, 'public_course_lessons', 'start_date')
+    && hasColumn($conn, 'public_course_lessons', 'end_date');
 
 // Fetch course info for outline (description)
 $outline = null;
@@ -104,7 +116,10 @@ $stmt->close();
 if (!empty($modules)) {
     $moduleIds = implode(',', array_keys($modules));
     $lessonQuery = $conn->query("
-        SELECT id, module_id, title, position" . ($lessonHasOutline ? ', outline' : '') . "
+        SELECT id, module_id, title, position"
+        . ($lessonHasOutline ? ', outline' : '')
+        . ($lessonHasVideo ? ', video_url' : '')
+        . ($lessonHasDates ? ', start_date, end_date' : '') . "
         FROM public_course_lessons
         WHERE module_id IN ($moduleIds)
         ORDER BY position ASC, id ASC

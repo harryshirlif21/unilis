@@ -2001,7 +2001,7 @@ function escHtml(s) {
 function escAttr(s) {
     return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
-</script>
+
 // TOPICS & SUBTOPICS
 let topicsLessonId = null;
 function openTopicsModal(lessonId) {
@@ -2087,5 +2087,6 @@ document.addEventListener('click', function(e) {
     if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
 });
 
+</script>
 </body>
 </html>

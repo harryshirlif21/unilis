@@ -290,7 +290,7 @@ function learn_register(mysqli $conn, array $input): array
  *
  * Returns ['ok' => bool, 'message' => string, 'already' => bool].
  */
-function learn_verify_token(mysqli $conn, string $token): array
+function learn_verify_token(mysqli $conn, string $token, string $courseSlug = ''): array
 {
     if ($token === '') {
         return ['ok' => false, 'already' => false, 'message' => 'No verification code was supplied.'];
@@ -325,7 +325,20 @@ function learn_verify_token(mysqli $conn, string $token): array
     $stmt->execute();
     $stmt->close();
 
-    return ['ok' => true, 'already' => false, 'message' => 'Your email is verified. You can sign in now.'];
+    $course = $courseSlug !== '' && function_exists('learn_course_by_slug')
+        ? learn_course_by_slug($conn, $courseSlug)
+        : null;
+    if ($course !== null && function_exists('learn_enrol')) {
+        learn_enrol($conn, (int)$learner['id'], (int)$course['id']);
+    }
+
+    return [
+        'ok' => true,
+        'already' => false,
+        'message' => $course !== null
+            ? 'Your email is verified and you are enrolled in ' . $course['title'] . '. You can sign in now.'
+            : 'Your email is verified. You can sign in now.',
+    ];
 }
 
 /**

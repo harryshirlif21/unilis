@@ -19,7 +19,7 @@
  * rather than failing the registration - the account exists either way, and the
  * learner can ask for another link.
  */
-function learn_send_verification(string $email, string $token, string $name = ''): bool
+function learn_send_verification(string $email, string $token, string $name = '', string $courseSlug = ''): bool
 {
     $mailerPath = dirname(__DIR__, 2) . '/includes/mailer.php';
     if (!is_file($mailerPath)) {
@@ -41,6 +41,9 @@ function learn_send_verification(string $email, string $token, string $name = ''
         }
 
         $link = learn_base_url() . '/learn/verify.php?token=' . urlencode($token);
+        if ($courseSlug !== '') {
+            $link .= '&course=' . urlencode($courseSlug);
+        }
         $safeName = htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES, 'UTF-8');
         $safeLink = htmlspecialchars($link, ENT_QUOTES, 'UTF-8');
 
@@ -50,7 +53,7 @@ function learn_send_verification(string $email, string $token, string $name = ''
             <div style=\"font-family:Inter,Segoe UI,sans-serif;max-width:560px;margin:0 auto;color:#111827;\">
               <h2 style=\"color:#1B5E20;margin:0 0 12px;\">Confirm your email</h2>
               <p>Hello {$safeName},</p>
-              <p>Thanks for creating a UNILIS Learning account. Confirm this address to start the courses in the catalogue.</p>
+              <p>Thanks for creating a UNILIS Learning account. Confirm this address to enrol in your selected short course.</p>
               <p style=\"margin:26px 0;\">
                 <a href=\"{$safeLink}\"
                    style=\"background:#1B5E20;color:#fff;padding:12px 26px;border-radius:10px;

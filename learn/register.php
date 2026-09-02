@@ -11,6 +11,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/catalogue.php';
 require_once __DIR__ . '/includes/layout.php';
 
 if (!learn_schema_ready($conn)) {
@@ -33,6 +34,11 @@ $errors = [];
 $done = false;
 $mailFailed = false;
 $old = [];
+$selectedCourseSlug = trim((string)($_GET['course'] ?? $_POST['course'] ?? ''));
+$selectedCourse = $selectedCourseSlug !== '' ? learn_course_by_slug($conn, $selectedCourseSlug) : null;
+if ($selectedCourse === null) {
+    $selectedCourseSlug = '';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!learn_csrf_valid($_POST['csrf_token'] ?? null)) {
@@ -48,7 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mailFailed = !learn_send_verification(
                 $result['email'],
                 $result['token'],
-                $result['name']
+                $result['name'],
+                $selectedCourseSlug
             );
         }
     }
@@ -79,7 +86,7 @@ if ($done):
             The link works for <?= (int) LEARN_VERIFY_TTL_HOURS ?> hours. If it does not arrive,
             check your spam folder first.
         </p>
-        <a class="ln-btn ln-btn-ghost ln-btn-block" href="/learn/verify.php?pending=1">Resend the link</a>
+        <a class="ln-btn ln-btn-ghost ln-btn-block" href="/learn/verify.php?pending=1<?= $selectedCourseSlug !== '' ? '&amp;course=' . learn_e(urlencode($selectedCourseSlug)) : '' ?>">Resend the link</a>
     </div>
     <?php
 else:
@@ -99,6 +106,9 @@ else:
 
         <form method="post" novalidate>
             <input type="hidden" name="csrf_token" value="<?= learn_e($csrf) ?>">
+            <?php if ($selectedCourseSlug !== ''): ?>
+                <input type="hidden" name="course" value="<?= learn_e($selectedCourseSlug) ?>">
+            <?php endif; ?>
 
             <div class="ln-field">
                 <label for="name">Full name</label>

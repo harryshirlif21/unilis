@@ -10,11 +10,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/catalogue.php';
 require_once __DIR__ . '/includes/layout.php';
 
 learn_require_schema($conn);
 
 $token = (string)($_GET['token'] ?? '');
+$courseSlug = trim((string)($_GET['course'] ?? $_POST['course'] ?? ''));
 $pending = !empty($_GET['pending']);
 
 $result = null;
@@ -27,12 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $reissued = learn_reissue_verification($conn, (string)($_POST['email'] ?? ''));
         if ($reissued !== null) {
-            learn_send_verification($reissued['email'], $reissued['token'], $reissued['name']);
+            learn_send_verification($reissued['email'], $reissued['token'], $reissued['name'], $courseSlug);
         }
         $resent = true;
     }
 } elseif ($token !== '') {
-    $result = learn_verify_token($conn, $token);
+    $result = learn_verify_token($conn, $token, $courseSlug);
 }
 
 learn_head(['title' => 'Confirm your email', 'narrow' => true]);
@@ -66,6 +68,9 @@ learn_head(['title' => 'Confirm your email', 'narrow' => true]);
 
         <form method="post">
             <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
+            <?php if ($courseSlug !== ''): ?>
+                <input type="hidden" name="course" value="<?= learn_e($courseSlug) ?>">
+            <?php endif; ?>
             <div class="ln-field">
                 <label for="email">Email address</label>
                 <input id="email" name="email" type="email" required autocomplete="email">

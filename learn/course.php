@@ -65,7 +65,8 @@ $completedModules = learn_completed_modules($conn, $courseId);
 // Scheduled lessons for this course, bucketed by date for the
 // "Upcoming lessons" / "Past lessons" sections on this page.
 $courseSchedule = learn_course_lesson_schedule($conn, $courseId);
-$courseUpcomingLessons = $courseSchedule['upcoming'];
+$courseOngoingLessons = $courseSchedule['ongoing'] ?? [];
+$courseUpcomingLessons = $courseSchedule['future'] ?? $courseSchedule['upcoming'];
 $coursePastLessons = $courseSchedule['past'];
 
 // Fetch course sponsors from course_sponsors table
@@ -97,28 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = (string)($_POST['action'] ?? '');
 
-        if ($action === 'enrol') {
-            // Check if learner is a tutor assigned to this course
-            $stmt = $conn->prepare("
-                SELECT sct.id 
-                FROM short_course_tutors sct
-                JOIN lecturers l ON l.id = sct.lecturer_id
-                WHERE sct.short_course_id = ? AND l.email = ? AND sct.is_active = 1
-                LIMIT 1
-            ");
-            $stmt->bind_param('is', $courseId, $learner['email']);
-            $stmt->execute();
-            $is_tutor = $stmt->get_result()->num_rows > 0;
-            $stmt->close();
-
-            if ($is_tutor) {
-                $notice = 'You are a tutor for this course and cannot enroll as a learner.';
-                $noticeKind = 'error';
-            } else {
-                learn_enrol($conn, $learner['id'], $courseId);
-                $notice = 'You are enrolled. Start with the first lesson below.';
-            }
-        } elseif ($action === 'complete_lesson') {
+        if ($action === 'complete_lesson') {
             $lessonId = (int)($_POST['lesson_id'] ?? 0);
 
             // The lesson must belong to this course, or a learner could mark
@@ -360,9 +340,65 @@ $nextLesson = ($currentIndex >= 0 && $currentIndex < count($lessonSequence) - 1)
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     <link rel="stylesheet" href="<?= learn_asset('assets/learn.css') ?>">
+    <style>
+        .course-schedule-float { position:fixed; right:24px; bottom:24px; z-index:1000; width:min(390px, calc(100vw - 32px)); max-height:min(70vh, 620px); overflow:hidden; background:#fff; border:1px solid #dfe4ee; border-radius:14px; box-shadow:0 18px 48px rgba(24,33,55,.22); color:#1a1d29; }
+        .course-schedule-float__head { display:flex; align-items:center; gap:9px; padding:14px 16px; background:#162238; color:#fff; }
+        .course-schedule-float__title { flex:1; font-size:.92rem; font-weight:700; }
+        .course-schedule-float__close { border:0; background:transparent; color:#fff; cursor:pointer; padding:3px; line-height:1; border-radius:4px; }
+        .course-schedule-float__close:hover { background:rgba(255,255,255,.16); }
+        .course-schedule-float__body { max-height:calc(min(70vh, 620px) - 52px); overflow-y:auto; padding:12px; }
+        .course-schedule-group + .course-schedule-group { margin-top:14px; }
+        .course-schedule-group h3 { margin:0 0 7px; font-size:.73rem; text-transform:uppercase; letter-spacing:.07em; color:#677086; }
+        .course-schedule-item { display:flex; align-items:flex-start; gap:9px; padding:9px; border-radius:8px; color:inherit; text-decoration:none; }
+        .course-schedule-item:hover { background:#f3f6fb; }
+        .course-schedule-dot { width:9px; height:9px; flex:0 0 9px; border-radius:50%; margin-top:5px; background:#4f8ef7; }
+        .course-schedule-group--ongoing .course-schedule-dot { background:#1caa78; }
+        .course-schedule-group--ended .course-schedule-dot { background:#9aa3b5; }
+        .course-schedule-item strong { display:block; font-size:.84rem; line-height:1.3; }
+        .course-schedule-item small { display:block; margin-top:2px; font-size:.76rem; color:#6b7280; }
+        @media (max-width:600px) { .course-schedule-float { right:16px; bottom:16px; } }
+    </style>
 </head>
 <body>
 <main class="ln-main">
+
+<?php if ($courseOngoingLessons || $courseUpcomingLessons || $coursePastLessons): ?>
+    <aside class="course-schedule-float" id="course-schedule-float" aria-label="Lesson schedule">
+        <div class="course-schedule-float__head">
+            <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+            <span class="course-schedule-float__title">Lesson schedule</span>
+            <button class="course-schedule-float__close" type="button" aria-label="Close lesson schedule" onclick="document.getElementById('course-schedule-float').remove()">
+                <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
+        </div>
+        <div class="course-schedule-float__body">
+            <?php
+            $scheduleGroups = [
+                'ongoing' => ['title' => 'Ongoing now', 'items' => $courseOngoingLessons],
+                'upcoming' => ['title' => 'Upcoming lessons', 'items' => $courseUpcomingLessons],
+                'ended' => ['title' => 'Ended lessons', 'items' => $coursePastLessons],
+            ];
+            foreach ($scheduleGroups as $key => $group):
+                if (!$group['items']) continue;
+            ?>
+                <section class="course-schedule-group course-schedule-group--<?= $key ?>">
+                    <h3><?= learn_e($group['title']) ?></h3>
+                    <?php foreach ($group['items'] as $scheduledLesson):
+                        $start = (string)($scheduledLesson['start_date'] ?? '');
+                        $end = (string)($scheduledLesson['end_date'] ?? '');
+                        $dateLabel = $start !== '' ? date('M j, Y', strtotime($start)) : date('M j, Y', strtotime($end));
+                        if ($end !== '' && $end !== $start) $dateLabel .= ' – ' . date('M j, Y', strtotime($end));
+                    ?>
+                        <a class="course-schedule-item" href="<?= learn_e('/learn/course.php?c=' . $slug . '&view=lesson-' . (int)$scheduledLesson['id']) ?>">
+                            <span class="course-schedule-dot" aria-hidden="true"></span>
+                            <span><strong><?= learn_e($scheduledLesson['title']) ?></strong><small><?= learn_e($scheduledLesson['module_title']) ?> · <?= learn_e($dateLabel) ?></small></span>
+                        </a>
+                    <?php endforeach; ?>
+                </section>
+            <?php endforeach; ?>
+        </div>
+    </aside>
+<?php endif; ?>
 
 <?php if ($notice !== null) { learn_notice($notice, $noticeKind); } ?>
 
@@ -381,7 +417,7 @@ $nextLesson = ($currentIndex >= 0 && $currentIndex < count($lessonSequence) - 1)
         <h1 style="font-size: 1.5rem; margin-bottom: 12px;"><?= learn_e($course['title']) ?></h1>
         <p style="color: var(--ln-muted); margin-bottom: 24px;"><?= learn_e($course['summary'] ?? '') ?></p>
         <div style="display:flex; gap:10px; justify-content: center; flex-wrap:wrap;">
-            <a class="ln-btn ln-btn-primary" href="/learn/register.php">Create account</a>
+            <a class="ln-btn ln-btn-primary" href="/learn/register.php?course=<?= learn_e(urlencode($slug)) ?>">Create account</a>
             <a class="ln-btn ln-btn-ghost"
                href="/learn/login.php?next=<?= learn_e(urlencode('/learn/course.php?c=' . $slug)) ?>">Sign in</a>
         </div>
@@ -389,14 +425,12 @@ $nextLesson = ($currentIndex >= 0 && $currentIndex < count($lessonSequence) - 1)
 <?php elseif (!$enrolled): ?>
     <section style="margin: 40px auto; max-width: 600px; text-align: center;">
         <h1 style="font-size: 1.5rem; margin-bottom: 12px;"><?= learn_e($course['title']) ?></h1>
-        <p style="color: var(--ln-muted); margin-bottom: 24px;"><?= learn_e($course['summary'] ?? '') ?></p>
-        <form method="post">
-            <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
-            <input type="hidden" name="action" value="enrol">
-            <button class="ln-btn ln-btn-primary" type="submit" style="font-size: 1rem; padding: 12px 28px;">
-                <span class="material-symbols-rounded">bookmark_add</span> Enrol on this course
-            </button>
-        </form>
+        <p style="color: var(--ln-muted); margin-bottom: 24px;">
+            Enrolment is created automatically when you confirm the email link sent after registering for this course.
+        </p>
+        <a class="ln-btn ln-btn-primary" href="/learn/dashboard.php" style="font-size: 1rem; padding: 12px 28px;">
+            <span class="material-symbols-rounded">dashboard</span> Go to my courses
+        </a>
     </section>
 <?php else: ?>
 

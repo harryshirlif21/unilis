@@ -663,9 +663,12 @@ function learn_classify_scheduled_lessons(array $rows, string $today): array
         }
     }
 
-    // Active first, then soonest future dates.
+    // Preserve the existing dashboard's combined upcoming list while exposing
+    // distinct active and future lists for callers that show all three states.
     return [
+        'ongoing' => $active,
         'upcoming' => [...$active, ...$upcoming],
+        'future' => $upcoming,
         'past' => $past,
     ];
 }
