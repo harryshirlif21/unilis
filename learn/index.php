@@ -66,12 +66,23 @@ learn_head(['title' => 'Open courses', 'learner' => $learner]);
                                 // Normalize the image path: stored as relative "uploads/..." but
                                 // the learn pages live under /learn/, so prefix with / to resolve
                                 // from the site root.
-                                $coverPath = $course['cover_image'];
+                                $coverPath   = $course['cover_image'];
+                                $coverUsable = true;
                                 if (strpos($coverPath, 'http') !== 0 && strpos($coverPath, '/') !== 0) {
                                     $coverPath = '/' . $coverPath;
                                 }
+                                // Skip a local upload that no longer exists on disk so orphaned
+                                // DB rows (e.g. a banner whose file was never written or was
+                                // deleted) don't fire a 404 in the browser console.
+                                if (strpos($coverPath, 'http') !== 0 && strpos($coverPath, '/uploads/') === 0) {
+                                    $coverUsable = is_file(APP_ROOT . $coverPath);
+                                }
                                 ?>
-                                <img src="<?= learn_e($coverPath) ?>" alt="" loading="lazy" onerror="this.remove()">
+                                <?php if ($coverUsable): ?>
+                                    <img src="<?= learn_e($coverPath) ?>" alt="" loading="lazy" onerror="this.remove()">
+                                <?php else: ?>
+                                    <span class="material-symbols-rounded">school</span>
+                                <?php endif; ?>
                             <?php else: ?>
                                 <span class="material-symbols-rounded">school</span>
                             <?php endif; ?>
