@@ -14,7 +14,6 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/catalogue.php';
 require_once __DIR__ . '/includes/layout.php';
 require_once __DIR__ . '/includes/content_renderer.php';
-require_once __DIR__ . '/includes/course_ui.php';
 
 learn_require_schema($conn);
 
@@ -23,11 +22,33 @@ $slug = (string)($_GET['c'] ?? '');
 $course = $slug !== '' ? learn_course_by_slug($conn, $slug) : null;
 
 if ($course === null) {
-    learn_head(['title' => 'Course not found', 'learner' => $learner, 'narrow' => true]);
-    echo '<div class="ln-empty"><span class="material-symbols-rounded">search_off</span>'
-       . '<h2>Course not found</h2><p>It may have been unpublished.</p>'
-       . '<p style="margin-top:16px;"><a class="ln-btn ln-btn-primary" href="/learn/">Browse courses</a></p></div>';
-    learn_foot();
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Course not found · UNILIS Learning</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+        <link rel="stylesheet" href="<?= learn_asset('assets/learn.css') ?>">
+    </head>
+    <body>
+    <main class="ln-main">
+    <div class="ln-empty"><span class="material-symbols-rounded">search_off</span>
+        <h2>Course not found</h2><p>It may have been unpublished.</p>
+        <p style="margin-top:16px;"><a class="ln-btn ln-btn-primary" href="/learn/">Browse courses</a></p>
+    </div>
+    </main>
+    <footer class="ln-footer">
+        <p>UNILIS Learning · open courses from JHUB Africa</p>
+        <p><a href="/">Back to UNILIS</a> · <a href="/login.php">Student &amp; staff sign in</a></p>
+    </footer>
+    </body>
+    </html>
+    <?php
     exit;
 }
 
@@ -306,66 +327,42 @@ if ($openLesson && $learner !== null) {
     }
 }
 
-learn_head(['title' => $course['title'], 'learner' => $learner]);
-?>
-<?php if (!empty($course['cover_image']) && $course['cover_image'] !== '0'): ?>
-    <?php
-    $bannerPath = (string)$course['cover_image'];
-    // Remove any relative path components and ensure leading slash
-    $bannerPath = preg_replace('#^(?:\.\./)+#', '', $bannerPath);
-    if (strpos($bannerPath, 'http') !== 0 && strpos($bannerPath, '/') !== 0) {
-        $bannerPath = '/' . ltrim($bannerPath, '/');
+// Build lesson navigation sequence for prev/next
+$lessonSequence = [];
+foreach ($modules as $moduleId => $moduleData) {
+    foreach ($moduleData['lessons'] as $lesson) {
+        $lessonSequence[] = ['type' => 'lesson', 'id' => (int)$lesson['id'], 'title' => (string)$lesson['title'], 'module_id' => (int)$moduleId];
     }
-    ?>
-    <div class="ln-course-banner"><img src="<?= learn_e($bannerPath) ?>" alt=""></div>
-<?php endif; ?>
-<section class="ln-hero ln-course-intro">
-    <h1><?= learn_e($course['title']) ?></h1>
-    <p><?= learn_e($course['summary'] ?? '') ?></p>
-    <div class="ln-meta" style="margin-top:14px;">
-        <span class="ln-chip">
-            <span class="material-symbols-rounded">signal_cellular_alt</span>
-            <?= learn_e(ucfirst((string)$course['level'])) ?>
-        </span>
-        <?php if (!empty($course['estimated_hours'])): ?>
-            <span class="ln-chip">
-                <span class="material-symbols-rounded">schedule</span>
-                <?= learn_e((string)(float)$course['estimated_hours']) ?> hours
-            </span>
-        <?php endif; ?>
-        <?php if ((int)$course['certificate_enabled'] === 1): ?>
-            <span class="ln-chip ln-chip-amber">
-                <span class="material-symbols-rounded">workspace_premium</span>
-                Certificate on completion
-            </span>
-        <?php endif; ?>
-    </div>
-</section>
+}
 
-<?php if (!empty($course_sponsors)): ?>
-    <?php foreach ($course_sponsors as $sponsor): ?>
-    <aside class="ln-sponsor" aria-label="Course sponsor">
-        <?php if (!empty($sponsor['sponsor_logo'])):
-            $sponsorLogoPath = (string)$sponsor['sponsor_logo'];
-            if (strpos($sponsorLogoPath, 'http') !== 0 && strpos($sponsorLogoPath, '/') !== 0) $sponsorLogoPath = '/' . ltrim($sponsorLogoPath, '/');
-        ?>
-            <img src="<?= learn_e($sponsorLogoPath) ?>" alt="<?= learn_e($sponsor['sponsor_name']) ?> logo">
-        <?php endif; ?>
-        <div><strong>Sponsored by <?= learn_e($sponsor['sponsor_name']) ?></strong><?php if (!empty($sponsor['sponsor_details'])): ?><p><?= learn_e($sponsor['sponsor_details']) ?></p><?php endif; ?></div>
-    </aside>
-    <?php endforeach; ?>
-<?php elseif ((int)($course['is_sponsored'] ?? 0) === 1 && !empty($course['sponsor_name'])): ?>
-    <!-- Fallback for legacy single sponsor data -->
-    <aside class="ln-sponsor" aria-label="Course sponsor">
-        <?php if (!empty($course['sponsor_logo'])):
-            $sponsorLogoPath = (string)$course['sponsor_logo'];
-            if (strpos($sponsorLogoPath, 'http') !== 0 && strpos($sponsorLogoPath, '/') !== 0) $sponsorLogoPath = '/' . ltrim($sponsorLogoPath, '/');
-        ?>
-            <img src="<?= learn_e($sponsorLogoPath) ?>" alt="<?= learn_e($course['sponsor_name']) ?> logo">
-        <?php endif; ?>
-        <div><strong>Sponsored by <?= learn_e($course['sponsor_name']) ?></strong><?php if (!empty($course['sponsor_details'])): ?><p><?= learn_e($course['sponsor_details']) ?></p><?php endif; ?></div>
-    </aside>
-<?php endif; ?>
+$currentIndex = -1;
+if ($openLessonId > 0) {
+    foreach ($lessonSequence as $i => $item) {
+        if ($item['id'] === $openLessonId) {
+            $currentIndex = $i;
+            break;
+        }
+    }
+}
+
+$prevLesson = ($currentIndex > 0) ? $lessonSequence[$currentIndex - 1] : null;
+$nextLesson = ($currentIndex >= 0 && $currentIndex < count($lessonSequence) - 1) ? $lessonSequence[$currentIndex + 1] : null;
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= learn_e($course['title']) ?> · UNILIS Learning</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <link rel="stylesheet" href="<?= learn_asset('assets/learn.css') ?>">
+</head>
+<body>
+<main class="ln-main">
 
 <?php if ($notice !== null) { learn_notice($notice, $noticeKind); } ?>
 
@@ -380,322 +377,460 @@ learn_head(['title' => $course['title'], 'learner' => $learner]);
 <?php endif; ?>
 
 <?php if ($learner === null): ?>
-    <div class="ln-card" style="margin-bottom:26px;">
-        <h1 style="font-size:1.15rem;">Sign in to start</h1>
-        <p class="ln-sub">The outline is below. Create a free account to work through it and earn the certificate.</p>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <section style="margin: 40px auto; max-width: 600px; text-align: center;">
+        <h1 style="font-size: 1.5rem; margin-bottom: 12px;"><?= learn_e($course['title']) ?></h1>
+        <p style="color: var(--ln-muted); margin-bottom: 24px;"><?= learn_e($course['summary'] ?? '') ?></p>
+        <div style="display:flex; gap:10px; justify-content: center; flex-wrap:wrap;">
             <a class="ln-btn ln-btn-primary" href="/learn/register.php">Create account</a>
             <a class="ln-btn ln-btn-ghost"
                href="/learn/login.php?next=<?= learn_e(urlencode('/learn/course.php?c=' . $slug)) ?>">Sign in</a>
         </div>
-    </div>
+    </section>
 <?php elseif (!$enrolled): ?>
-    <form method="post" style="margin-bottom:26px;">
-        <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
-        <input type="hidden" name="action" value="enrol">
-        <button class="ln-btn ln-btn-primary" type="submit">
-            <span class="material-symbols-rounded">bookmark_add</span> Enrol on this course
-        </button>
-    </form>
+    <section style="margin: 40px auto; max-width: 600px; text-align: center;">
+        <h1 style="font-size: 1.5rem; margin-bottom: 12px;"><?= learn_e($course['title']) ?></h1>
+        <p style="color: var(--ln-muted); margin-bottom: 24px;"><?= learn_e($course['summary'] ?? '') ?></p>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
+            <input type="hidden" name="action" value="enrol">
+            <button class="ln-btn ln-btn-primary" type="submit" style="font-size: 1rem; padding: 12px 28px;">
+                <span class="material-symbols-rounded">bookmark_add</span> Enrol on this course
+            </button>
+        </form>
+    </section>
 <?php else: ?>
-    <div class="ln-card" style="margin-bottom:26px; padding:20px 24px;">
-        <div class="ln-bar" style="margin-top:0;" role="progressbar"
-             aria-valuenow="<?= (int)$progress['percent'] ?>" aria-valuemin="0" aria-valuemax="100">
-            <div class="ln-bar-fill" style="width:<?= (int)$progress['percent'] ?>%"></div>
-        </div>
-        <p style="margin:0; font-size:0.86rem; color:var(--ln-muted);">
-            <?= (int)$progress['done_lessons'] ?>/<?= (int)$progress['total_lessons'] ?> lessons
-            <?php if ((int)$progress['total_assessments'] > 0): ?>
-                · <?= (int)$progress['passed_assessments'] ?>/<?= (int)$progress['total_assessments'] ?> assessments passed
-            <?php endif; ?>
-            · <?= (int)$progress['percent'] ?>% complete
-        </p>
+
+<style>
+/* teach.php design language on a light background */
+:root {
+    --lt-bg: #ffffff; --lt-page: #f5f6fa; --lt-surface2: #f0f2f8;
+    --lt-surface3: #e8ebf4; --lt-border: #e2e5ee;
+    --lt-accent: #4f8ef7; --lt-accent2: #1caa78; --lt-accent3: #f0883f;
+    --lt-text: #1a1d29; --lt-muted: #6b7280; --lt-dim: #a3a9bd;
+    --lt-radius: 10px; --lt-radius-sm: 6px;
+}
+.ln-layout-wrapper { display:flex; gap:24px; padding:0; background:var(--lt-page); border-radius:var(--lt-radius); }
+.ln-sidebar-col { width:280px; min-width:280px; padding:16px 0 16px 16px; }
+.ln-main-col { flex:1; min-width:0; padding:16px 16px 16px 0; }
+
+/* Sidebar � same structure as teach.php .sidebar */
+.ln-sidebar {
+    border:1px solid var(--lt-border); border-radius:var(--lt-radius);
+    background:#fff; overflow:hidden; position:sticky; top:20px;
+    max-height:calc(100vh - 40px); display:flex; flex-direction:column;
+    box-shadow:0 1px 3px rgba(20,24,40,.05);
+}
+.ln-sidebar-header {
+    padding:16px; border-bottom:1px solid var(--lt-border);
+    background:var(--lt-surface2); flex-shrink:0;
+}
+.ln-sidebar-header h3 {
+    font-family:'Syne','Inter',sans-serif; font-weight:800; font-size:0.95rem;
+    color:var(--lt-text); margin:0; display:flex; align-items:center; gap:8px;
+}
+.ln-sidebar-content { overflow-y:auto; flex:1; padding:14px; }
+
+/* Module block � mirrors teach.php .module-block / .module-head */
+.ln-module-block {
+    margin:0 0 12px; border:1px solid var(--lt-border);
+    border-radius:var(--lt-radius-sm); overflow:hidden;
+    background:rgba(20,24,40,.012);
+}
+.ln-module-title {
+    padding:10px 12px; font-family:'Syne','Inter',sans-serif;
+    font-weight:700; font-size:0.82rem; color:var(--lt-muted);
+    border-bottom:1px solid var(--lt-border);
+    display:flex; align-items:center; gap:6px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ln-module-title::before {
+    font-family:'Material Symbols Rounded'; content:"folder_open";
+    font-size:16px; color:var(--lt-accent); flex-shrink:0;
+}
+
+/* Lesson link � mirrors teach.php .lesson-toggle */
+.ln-lesson-link {
+    display:flex; align-items:center; gap:8px; width:100%;
+    padding:8px 12px 8px 14px; color:var(--lt-text); text-decoration:none;
+    font-size:0.86rem; border-left:3px solid transparent;
+    background:transparent; border-top:none; border-right:none; border-bottom:none;
+    font:inherit; text-align:left; cursor:pointer; transition:all .2s;
+}
+.ln-lesson-link:hover { background:var(--lt-surface2); }
+.ln-lesson-link.active {
+    background:rgba(79,142,247,.10); border-left-color:var(--lt-accent);
+    color:var(--lt-accent); font-weight:700;
+}
+
+/* Page head � mirrors teach.php .page-head */
+.ln-page-head { margin-bottom:18px; padding:0 4px; }
+.ln-page-head h2 {
+    font-family:'Syne','Inter',sans-serif; font-weight:800; font-size:1.15rem;
+    color:var(--lt-text); margin:0 0 4px; display:flex; align-items:center; gap:8px;
+}
+.ln-page-head p { color:var(--lt-muted); font-size:0.85rem; margin:0; }
+
+/* Content card � mirrors teach.php .content-card */
+.ln-content-card {
+    border:1px solid var(--lt-border); border-radius:var(--lt-radius);
+    background:#fff; padding:28px; margin-bottom:20px;
+    box-shadow:0 1px 3px rgba(20,24,40,.05);
+}
+.ln-content-card h1 {
+    font-family:'Syne','Inter',sans-serif; font-weight:800; font-size:1.3rem;
+    color:var(--lt-text); margin-top:0; margin-bottom:12px;
+}
+.ln-content-card .ln-sub { display:flex; align-items:center; gap:8px; font-size:0.9rem; color:var(--lt-accent); text-decoration:none; }
+
+.ln-section-divider { margin:24px 0; padding-top:20px; border-top:1px solid var(--lt-border); }
+
+.ln-topic-item { border:1px solid var(--lt-border); border-radius:var(--lt-radius-sm); background:#fff; padding:14px 16px; margin-bottom:12px; }
+.ln-topic-header { display:flex; align-items:center; gap:12px; }
+.ln-topic-content { flex:1; min-width:0; }
+.ln-topic-title { font-weight:700; color:var(--lt-text); margin:0; }
+.ln-topic-desc { font-size:0.85rem; color:var(--lt-muted); margin:6px 0 0; white-space:pre-wrap; }
+
+.ln-assessment-card { display:flex; align-items:center; gap:12px; padding:16px; border:1px solid var(--lt-border); border-radius:var(--lt-radius-sm); margin-bottom:12px; }
+.ln-assessment-icon { font-size:24px; flex-shrink:0; }
+.ln-assessment-info { flex:1; min-width:0; }
+.ln-assessment-title { font-weight:700; color:var(--lt-text); margin:0; }
+.ln-assessment-type { font-size:0.8rem; color:var(--lt-muted); margin:4px 0 0; }
+
+/* Nav row � mirrors teach.php .nav-row / .btn */
+.ln-nav-buttons { display:flex; gap:10px; margin-top:24px; }
+.ln-nav-button {
+    flex:1; padding:10px 18px; border:1px solid var(--lt-border);
+    border-radius:var(--lt-radius-sm); background:#fff; color:var(--lt-muted);
+    text-decoration:none; text-align:center; font-size:0.85rem; font-weight:600;
+    transition:all .2s; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;
+}
+.ln-nav-button:hover:not(:disabled) { background:var(--lt-surface2); color:var(--lt-text); }
+.ln-nav-button.primary { background:var(--lt-accent); color:#fff; border-color:var(--lt-accent); }
+.ln-nav-button.primary:hover:not(:disabled) { opacity:.92; }
+.ln-nav-button:disabled { opacity:.4; cursor:not-allowed; }
+
+.ln-progress-bar { background:var(--lt-surface3); height:8px; border-radius:4px; overflow:hidden; margin-bottom:8px; }
+.ln-progress-fill { background:var(--lt-accent); height:100%; transition:width .3s; }
+.ln-progress-text { font-size:0.8rem; color:var(--lt-muted); }
+</style>
+
+<div class="ln-page-head">
+        <h2><span class="material-symbols-rounded" style="font-size:22px;color:var(--lt-accent)">school</span><?= learn_e($course['title']) ?></h2>
+        <p>You are enrolled &mdash; working through <?= count($modules) ?> module<?= count($modules) === 1 ? '' : 's' ?>.</p>
     </div>
-<?php endif; ?>
-
-<?php if ($openLesson !== null): ?>
-    <article class="ln-card" style="margin-bottom:26px;">
-        <h1 style="font-size:1.3rem;"><?= learn_e($openLesson['title']) ?></h1>
-        <?php if (!empty($openLesson['video_url'])): ?>
-            <p class="ln-sub">
-                <a href="<?= learn_e($openLesson['video_url']) ?>" target="_blank" rel="noopener">
-                    Watch the video for this lesson
-                </a>
-            </p>
-        <?php endif; ?>
-
-        <?php // The lesson editor lets an author attach a PDF, so it has to be
-              // reachable from here - otherwise the upload goes nowhere a learner
-              // can see it. ?>
-        <?php if (!empty($openLesson['attachment_path'])): ?>
-            <p class="ln-sub">
-                <a href="<?= learn_e($openLesson['attachment_path']) ?>" target="_blank" rel="noopener">
-                    Download the notes for this lesson (PDF)
-                </a>
-            </p>
-        <?php endif; ?>
-
-        <?php // Lesson bodies are lecturer-authored rich text from the editor, so
-              // they are rendered as markup here by design. ?>
-        <div class="ln-lesson-body"><?= render_lesson_content($openLesson['content_html'] ?? '') ?></div>
-
-        <?php if ($openLessonTopics): ?>
-            <div style="margin-top:20px; border-top:1px solid var(--ln-line); padding-top:14px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-                    <h2 style="font-size:1.05rem; color:var(--ln-ink); margin:0;">Reading topics</h2>
-                    <?php
-                    // Count read topics+subtopics out of the learner's read set.
-                    $readCount = count(array_intersect($readTopicIds, array_column(array_merge($openLessonTopics, array_merge(...array_map(fn($t) => $t['subs'], $openLessonTopics))), 'id')));
-                    ?>
-                    <span style="font-size:0.8rem; color:var(--ln-muted);"><?= $readCount ?> read</span>
-                </div>
-                <?php foreach ($openLessonTopics as $topic):
-                    $tRead = in_array((int)$topic['id'], $readTopicIds, true);
-                    ?>
-                    <div style="border:1px solid var(--ln-line); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
-                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                            <?php if ($learner !== null): ?>
-                                <form method="post" style="margin:0;">
-                                    <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
-                                    <input type="hidden" name="action" value="mark_topic_read">
-                                    <input type="hidden" name="topic_id" value="<?= (int)$topic['id'] ?>">
-                                    <button type="submit" style="background:none;border:none;padding:0;cursor:pointer;" title="<?= $tRead ? 'Marked as read' : 'Mark this topic as read' ?>">
-                                        <span class="material-symbols-rounded" style="font-size:26px; color:<?= $tRead ? 'var(--ln-green-mid)' : 'var(--ln-muted)' ?>;"><?= $tRead ? 'check_circle' : 'radio_button_unchecked' ?></span>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                            <div style="flex:1; min-width:0;">
-                                <div style="font-weight:650; color:var(--ln-ink);"><?= learn_e($topic['title']) ?></div>
-                                <?php if (!empty($topic['content_html'])): ?>
-                                    <p style="margin:6px 0 0; font-size:0.85rem; color:var(--ln-ink); white-space:pre-wrap;"><?= learn_e($topic['content_html']) ?></p>
+<div class="ln-layout-wrapper">
+    <!-- Sidebar Navigation -->
+    <div class="ln-sidebar-col">
+        <div class="ln-sidebar">
+            <div class="ln-sidebar-header">
+                <h3>
+                    <span class="material-symbols-rounded">library_books</span>
+                    <?= learn_e($course['title']) ?>
+                </h3>
+            </div>
+            <div class="ln-sidebar-content">
+                <?php foreach ($modules as $moduleId => $moduleData): ?>
+                    <div class="ln-module-block">
+                        <div class="ln-module-title" title="<?= learn_e($moduleData['title']) ?>">
+                            <?= learn_e($moduleData['title']) ?>
+                        </div>
+                        
+                        <!-- Lessons in this module -->
+                        <?php foreach ($moduleData['lessons'] as $lesson):
+                            $lessonId = (int)$lesson['id'];
+                            $isCurrentLesson = $lessonId === $openLessonId;
+                            $lessonDone = in_array($lessonId, $doneLessons, true);
+                            $lessonTopics = learn_lesson_topics($conn, $lessonId);
+                        ?>
+                            <!-- Lesson Link -->
+                            <a href="<?= learn_e('/learn/course.php?c=' . $slug . '&view=lesson-' . $lessonId) ?>"
+                               class="ln-lesson-link <?= $isCurrentLesson ? 'active' : '' ?>"
+                               style="padding-left: 16px;">
+                                <span class="material-symbols-rounded" style="font-size: 16px;">
+                                    <?= $lessonDone ? 'check_circle' : 'circle' ?>
+                                </span>
+                                <span><?= learn_e($lesson['title']) ?></span>
+                            </a>
+                            
+                            <!-- Topics & Subtopics (indented) -->
+                            <?php if ($isCurrentLesson && $lessonTopics): ?>
+                                <?php foreach ($lessonTopics as $topic):
+                                    $tRead = in_array((int)$topic['id'], $readTopicIds, true);
+                                ?>
+                                    <div style="padding: 6px 16px 6px 48px; font-size: 0.82rem; color: var(--ln-muted); display: flex; align-items: center; gap: 6px;">
+                                        <span class="material-symbols-rounded" style="font-size: 14px; flex-shrink: 0;">
+                                            <?= $tRead ? 'check_circle' : 'radio_button_unchecked' ?>
+                                        </span>
+                                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= learn_e($topic['title']) ?>">
+                                            <?= learn_e($topic['title']) ?>
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Subtopics -->
+                                    <?php if ($topic['subs']): ?>
+                                        <?php foreach ($topic['subs'] as $sub):
+                                            $sRead = in_array((int)$sub['id'], $readTopicIds, true);
+                                        ?>
+                                            <div style="padding: 4px 16px 4px 68px; font-size: 0.75rem; color: var(--ln-muted); display: flex; align-items: center; gap: 6px;">
+                                                <span class="material-symbols-rounded" style="font-size: 12px; flex-shrink: 0;">
+                                                    <?= $sRead ? 'check_circle' : 'radio_button_unchecked' ?>
+                                                </span>
+                                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= learn_e($sub['title']) ?>">
+                                                    <?= learn_e($sub['title']) ?>
+                                                </span>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                                
+                                <!-- Quiz for this lesson -->
+                                <?php if ($openLessonQuiz): ?>
+                                    <div style="padding: 6px 16px 6px 48px; font-size: 0.82rem; color: var(--ln-muted); display: flex; align-items: center; gap: 6px;">
+                                        <span class="material-symbols-rounded" style="font-size: 14px; flex-shrink: 0; color: var(--ln-green-mid);">
+                                            <?= $openLessonQuiz['passed'] ? 'check_circle' : 'radio_button_unchecked' ?>
+                                        </span>
+                                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Quiz</span>
+                                    </div>
                                 <?php endif; ?>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        
+                        <!-- CAT for this module -->
+                        <?php if ($openLessonCat && $openLesson): 
+                            $openModuleId = (int)$openLesson['module_id'];
+                            if ($openModuleId == $moduleId):
+                        ?>
+                            <div style="padding: 6px 16px 6px 48px; font-size: 0.82rem; color: var(--ln-muted); display: flex; align-items: center; gap: 6px;">
+                                <span class="material-symbols-rounded" style="font-size: 14px; flex-shrink: 0; color: var(--ln-amber);">
+                                    <?= $openLessonCat['passed'] ? 'check_circle' : 'radio_button_unchecked' ?>
+                                </span>
+                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CAT: <?= learn_e($openLessonCat['title']) ?></span>
+                            </div>
+                        <?php endif; endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <?php if ($learner !== null): ?>
+                <div style="padding: 16px; border-top: 1px solid var(--ln-line); background: var(--ln-bg);">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--ln-line);">
+                        <span class="material-symbols-rounded" style="font-size: 20px; color: var(--ln-muted);">account_circle</span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 0.85rem; font-weight: 600; color: var(--ln-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                <?= learn_e($learner['name']) ?>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--ln-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                <?= learn_e($learner['email']) ?>
                             </div>
                         </div>
-                        <?php if ($topic['subs']): ?>
-                            <?php foreach ($topic['subs'] as $sub):
-                                $sRead = in_array((int)$sub['id'], $readTopicIds, true);
-                                ?>
-                                <div style="margin:10px 0 0 26px; padding-top:10px; border-top:1px dashed var(--ln-line);">
-                                    <div style="display:flex; align-items:center; gap:12px;">
-                                        <form method="post" style="margin:0;">
-                                            <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
-                                            <input type="hidden" name="action" value="mark_topic_read">
-                                            <input type="hidden" name="topic_id" value="<?= (int)$sub['id'] ?>">
-                                            <button type="submit" class="material-symbols-rounded" style="background:none;border:none;padding:0;cursor:pointer;font-size:18px;color:<?= $sRead ? 'var(--ln-green-mid)' : 'var(--ln-muted)' ?>;"><?= $sRead ? 'check_circle' : 'radio_button_unchecked' ?></button>
-                                        </form>
-                                        <div style="flex:1; min-width:0;">
-                                            <div style="font-size:0.9rem; color:var(--ln-ink);"><?= learn_e($sub['title']) ?></div>
-                                            <?php if (!empty($sub['content_html'])): ?>
-                                                <p style="margin:4px 0 0; font-size:0.82rem; color:var(--ln-muted); white-space:pre-wrap;"><?= learn_e($sub['content_html']) ?></p>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-
-                        <?php // small completion trace at the bottom of each topic ?>
-                        <div style="margin-top:10px; padding-top:8px; border-top:1px dashed var(--ln-line); font-size:0.78rem; color:var(--ln-muted);">
-                            <span class="material-symbols-rounded" style="font-size:14px; vertical-align:middle; color:var(--ln-green-mid);">visibility</span>
-                            <?= (int)learn_topic_reader_count($conn, (int)$topic['id']) ?> learner<?= learn_topic_reader_count($conn, (int)$topic['id']) === 1 ? '' : 's' ?> have completed reading this topic
-                        </div>
                     </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($openLessonQuiz): ?>
-            <div class="ln-card" style="margin-top:20px; padding:16px 18px; display:flex; align-items:center; gap:12px;">
-                <span class="material-symbols-rounded" style="font-size:24px; color:var(--ln-green-mid);">quiz</span>
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:650; color:var(--ln-ink);"><?= learn_e($openLessonQuiz['title']) ?></div>
-                    <div style="font-size:0.8rem; color:var(--ln-muted);">Quiz for this topic</div>
-                </div>
-                <?php if ($openLessonQuiz['passed']): ?>
-                    <span class="ln-chip ln-chip-done"><span class="material-symbols-rounded">check_circle</span> Passed</span>
-                <?php else: ?>
-                    <a class="ln-btn ln-btn-primary" href="/learn/assessment.php?a=<?= (int)$openLessonQuiz['id'] ?>">
-                        <span class="material-symbols-rounded">quiz</span> Take Quiz
+                    <a href="/learn/logout.php" class="ln-btn ln-btn-ghost" style="width: 100%; text-align: center;">
+                        <span class="material-symbols-rounded">logout</span>
+                        Sign out
                     </a>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if (in_array((int)$openLesson['id'], $doneLessons, true)): ?>
-            <p style="margin-top:22px;">
-                <span class="ln-chip ln-chip-done">
-                    <span class="material-symbols-rounded">check_circle</span> Completed
-                </span>
-            </p>
-        <?php endif; ?>
-
-        <?php if ($openLessonCat): ?>
-            <div class="ln-card" style="margin-top:20px; padding:16px 18px; display:flex; align-items:center; gap:12px;">
-                <span class="material-symbols-rounded" style="font-size:24px; color:var(--ln-amber);">flag</span>
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:650; color:var(--ln-ink);"><?= learn_e($openLessonCat['title']) ?></div>
-                    <div style="font-size:0.8rem; color:var(--ln-muted);">CAT at the end of this lesson</div>
                 </div>
-                <?php if ($openLessonCat['passed']): ?>
-                    <span class="ln-chip ln-chip-done"><span class="material-symbols-rounded">check_circle</span> Passed</span>
-                <?php else: ?>
-                    <a class="ln-btn ln-btn-primary" href="/learn/assessment.php?a=<?= (int)$openLessonCat['id'] ?>">
-                        <span class="material-symbols-rounded">fact_check</span> Take CAT
-                    </a>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-    </article>
-<?php endif; ?>
+            <?php endif; ?>
+        </div>
+    </div>
 
-<?php if ($learner !== null): ?>
-    <?php require __DIR__ . '/includes/course_ui.php'; ?>
-<?php endif; ?>
-
-<?php if ($courseUpcomingLessons || $coursePastLessons): ?>
-    <?php
-    $learnCourseLessonRow = static function (array $lesson, bool $isPast, bool $canOpen) use ($slug): void {
-        $lessonUrl = '/learn/course.php?c=' . rawurlencode($slug) . '&lesson=' . (int)$lesson['id'];
-        $start = (string)($lesson['start_date'] ?? '');
-        $end = (string)($lesson['end_date'] ?? '');
-        $today = date('Y-m-d');
-
-        $dateLabel = '';
-        $isActive = false;
-        if ($start !== '' && $end !== '') {
-            $isActive = (!$isPast && $start <= $today && $end >= $today);
-            $dateLabel = ($start === $end)
-                ? date('M j, Y', strtotime($start))
-                : date('M j', strtotime($start)) . ' – ' . date('M j, Y', strtotime($end));
-        } elseif ($start !== '') {
-            $dateLabel = date('M j, Y', strtotime($start));
-            $isActive = (!$isPast && $start <= $today);
-        } elseif ($end !== '') {
-            $dateLabel = 'Until ' . date('M j, Y', strtotime($end));
-        }
-        ?>
-        <div style="display:flex; align-items:flex-start; gap:12px; padding:13px 22px; border-bottom:1px solid var(--ln-line);">
-            <span class="material-symbols-rounded" style="font-size:21px; color:<?= $isActive ? 'var(--ln-amber)' : ($isPast ? 'var(--ln-muted)' : 'var(--ln-green-mid)') ?>;">
-                <?= $isActive ? 'radio_button_checked' : ($isPast ? 'history' : 'event_upcoming') ?>
-            </span>
-            <div style="flex:1; min-width:0;">
-                <?php if ($canOpen): ?>
-                    <a href="<?= learn_e($lessonUrl) ?>" style="font-size:0.95rem; font-weight:650; color:var(--ln-ink); text-decoration:none;"><?= learn_e($lesson['title']) ?></a>
-                <?php else: ?>
-                    <span style="font-size:0.95rem; font-weight:650; color:var(--ln-ink);"><?= learn_e($lesson['title']) ?></span>
-                <?php endif; ?>
-                <p style="margin:3px 0 0; font-size:0.82rem; color:var(--ln-muted); display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                    <?php if (!empty($lesson['module_title'])): ?>
-                        <span class="ln-chip"><span class="material-symbols-rounded" style="font-size:14px;">folder_special</span><?= learn_e($lesson['module_title']) ?></span>
+    <!-- Main Content -->
+    <div class="ln-main-col">
+        <div class="ln-content-card">
+            <h1><?= learn_e($openLesson['title']) ?></h1>
+            
+            <!-- Progress -->
+            <div style="margin: 16px 0 20px;">
+                <div class="ln-progress-bar">
+                    <div class="ln-progress-fill" style="width: <?= (int)$progress['percent'] ?>%"></div>
+                </div>
+                <p class="ln-progress-text">
+                    <?= (int)$progress['done_lessons'] ?>/<?= (int)$progress['total_lessons'] ?> lessons
+                    <?php if ((int)$progress['total_assessments'] > 0): ?>
+                        · <?= (int)$progress['passed_assessments'] ?>/<?= (int)$progress['total_assessments'] ?> passed
                     <?php endif; ?>
-                    <?php if ($dateLabel !== ''): ?>
-                        <span class="material-symbols-rounded" style="font-size:15px;">calendar_today</span>
-                        <span><?= learn_e($dateLabel) ?></span>
-                    <?php endif; ?>
-                    <?php if ((int)$lesson['duration_minutes'] > 0): ?>
-                        <span class="material-symbols-rounded" style="font-size:15px;">schedule</span>
-                        <span><?= (int)$lesson['duration_minutes'] ?> min</span>
-                    <?php endif; ?>
+                    · <?= (int)$progress['percent'] ?>% complete
                 </p>
             </div>
+
+            <!-- Video & PDF Links -->
+            <?php if (!empty($openLesson['video_url']) || !empty($openLesson['attachment_path'])): ?>
+                <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;">
+                    <?php if (!empty($openLesson['video_url'])): ?>
+                        <a href="<?= learn_e($openLesson['video_url']) ?>" target="_blank" rel="noopener" class="ln-sub">
+                            <span class="material-symbols-rounded">play_circle</span>
+                            Watch video
+                        </a>
+                    <?php endif; ?>
+                    <?php if (!empty($openLesson['attachment_path'])): ?>
+                        <a href="<?= learn_e($openLesson['attachment_path']) ?>" target="_blank" rel="noopener" class="ln-sub">
+                            <span class="material-symbols-rounded">description</span>
+                            Download PDF
+                        </a>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- Lesson Content -->
+            <div class="ln-lesson-body"><?= render_lesson_content($openLesson['content_html'] ?? '') ?></div>
+
+            <!-- Reading Topics -->
+            <?php if ($openLessonTopics): ?>
+                <div class="ln-section-divider">
+                    <h2 style="font-size: 1.05rem; color: var(--ln-ink); margin: 0 0 16px;">Reading Topics</h2>
+                    <p class="ln-progress-text" style="margin-bottom: 16px;">
+                        <?php 
+                        $readCount = count(array_intersect($readTopicIds, array_column(array_merge($openLessonTopics, array_merge(...array_map(fn($t) => $t['subs'], $openLessonTopics))), 'id')));
+                        ?>
+                        <?= $readCount ?> of <?= count(array_merge($openLessonTopics, array_merge(...array_map(fn($t) => $t['subs'], $openLessonTopics)))) ?> marked as read
+                    </p>
+                    
+                    <?php foreach ($openLessonTopics as $topic):
+                        $tRead = in_array((int)$topic['id'], $readTopicIds, true);
+                    ?>
+                        <div class="ln-topic-item">
+                            <div class="ln-topic-header">
+                                <?php if ($learner !== null): ?>
+                                    <form method="post" style="margin: 0;">
+                                        <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
+                                        <input type="hidden" name="action" value="mark_topic_read">
+                                        <input type="hidden" name="topic_id" value="<?= (int)$topic['id'] ?>">
+                                        <button type="submit" style="background: none; border: none; padding: 0; cursor: pointer; display: flex; align-items: center;">
+                                            <span class="material-symbols-rounded" style="font-size: 24px; color: <?= $tRead ? 'var(--ln-green-mid)' : 'var(--ln-muted)' ?>;">
+                                                <?= $tRead ? 'check_circle' : 'radio_button_unchecked' ?>
+                                            </span>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                                <div class="ln-topic-content">
+                                    <div class="ln-topic-title"><?= learn_e($topic['title']) ?></div>
+                                    <?php if (!empty($topic['content_html'])): ?>
+                                        <p class="ln-topic-desc"><?= learn_e($topic['content_html']) ?></p>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <?php if ($topic['subs']): ?>
+                                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--ln-line); margin-left: 32px;">
+                                    <?php foreach ($topic['subs'] as $sub):
+                                        $sRead = in_array((int)$sub['id'], $readTopicIds, true);
+                                    ?>
+                                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                                            <form method="post" style="margin: 0;">
+                                                <input type="hidden" name="csrf_token" value="<?= learn_e(learn_csrf_token()) ?>">
+                                                <input type="hidden" name="action" value="mark_topic_read">
+                                                <input type="hidden" name="topic_id" value="<?= (int)$sub['id'] ?>">
+                                                <button type="submit" style="background: none; border: none; padding: 0; cursor: pointer; display: flex; align-items: center;">
+                                                    <span class="material-symbols-rounded" style="font-size: 18px; color: <?= $sRead ? 'var(--ln-green-mid)' : 'var(--ln-muted)' ?>;">
+                                                        <?= $sRead ? 'check_circle' : 'radio_button_unchecked' ?>
+                                                    </span>
+                                                </button>
+                                            </form>
+                                            <div>
+                                                <div style="font-size: 0.9rem; color: var(--ln-ink);"><?= learn_e($sub['title']) ?></div>
+                                                <?php if (!empty($sub['content_html'])): ?>
+                                                    <p style="margin: 4px 0 0; font-size: 0.82rem; color: var(--ln-muted); white-space: pre-wrap;"><?= learn_e($sub['content_html']) ?></p>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- Quiz -->
+            <?php if ($openLessonQuiz): ?>
+                <div class="ln-section-divider">
+                    <div class="ln-assessment-card" style="background: rgba(79, 142, 247, 0.05);">
+                        <span class="ln-assessment-icon" style="color: var(--ln-green-mid);">
+                            <span class="material-symbols-rounded">quiz</span>
+                        </span>
+                        <div class="ln-assessment-info">
+                            <div class="ln-assessment-title"><?= learn_e($openLessonQuiz['title']) ?></div>
+                            <div class="ln-assessment-type">Quiz for this topic</div>
+                        </div>
+                        <?php if ($openLessonQuiz['passed']): ?>
+                            <span class="ln-chip ln-chip-done" style="flex-shrink: 0;">
+                                <span class="material-symbols-rounded">check_circle</span> Passed
+                            </span>
+                        <?php else: ?>
+                            <a class="ln-btn ln-btn-primary" href="/learn/assessment.php?a=<?= (int)$openLessonQuiz['id'] ?>" style="flex-shrink: 0;">
+                                <span class="material-symbols-rounded">quiz</span> Take
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <!-- Completion Badge -->
+            <?php if (in_array((int)$openLesson['id'], $doneLessons, true)): ?>
+                <p style="margin-top: 20px;">
+                    <span class="ln-chip ln-chip-done">
+                        <span class="material-symbols-rounded">check_circle</span> Lesson Completed
+                    </span>
+                </p>
+            <?php endif; ?>
+
+            <!-- CAT -->
+            <?php if ($openLessonCat): ?>
+                <div class="ln-section-divider">
+                    <div class="ln-assessment-card" style="background: rgba(247, 147, 79, 0.05);">
+                        <span class="ln-assessment-icon" style="color: var(--ln-amber);">
+                            <span class="material-symbols-rounded">flag</span>
+                        </span>
+                        <div class="ln-assessment-info">
+                            <div class="ln-assessment-title"><?= learn_e($openLessonCat['title']) ?></div>
+                            <div class="ln-assessment-type">Module assessment</div>
+                        </div>
+                        <?php if ($openLessonCat['passed']): ?>
+                            <span class="ln-chip ln-chip-done" style="flex-shrink: 0;">
+                                <span class="material-symbols-rounded">check_circle</span> Passed
+                            </span>
+                        <?php else: ?>
+                            <a class="ln-btn ln-btn-primary" href="/learn/assessment.php?a=<?= (int)$openLessonCat['id'] ?>" style="flex-shrink: 0;">
+                                <span class="material-symbols-rounded">fact_check</span> Take
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <!-- Navigation -->
+            <div class="ln-nav-buttons">
+                <?php if ($prevLesson): ?>
+                    <a href="<?= learn_e('/learn/course.php?c=' . $slug . '&view=lesson-' . $prevLesson['id']) ?>" class="ln-nav-button">
+                        <span class="material-symbols-rounded">chevron_left</span>
+                        Previous
+                    </a>
+                <?php else: ?>
+                    <button class="ln-nav-button" disabled>
+                        <span class="material-symbols-rounded">chevron_left</span>
+                        Previous
+                    </button>
+                <?php endif; ?>
+                
+                <?php if ($nextLesson): ?>
+                    <a href="<?= learn_e('/learn/course.php?c=' . $slug . '&view=lesson-' . $nextLesson['id']) ?>" class="ln-nav-button primary">
+                        Next
+                        <span class="material-symbols-rounded">chevron_right</span>
+                    </a>
+                <?php else: ?>
+                    <button class="ln-nav-button primary" disabled>
+                        Next
+                        <span class="material-symbols-rounded">chevron_right</span>
+                    </button>
+                <?php endif; ?>
+            </div>
         </div>
-        <?php
-    };
-    ?>
-    <h2 style="font-size:1.15rem; color:var(--ln-ink); margin:26px 0 14px;">Lesson schedule</h2>
-    <div style="display:grid; gap:12px; grid-template-columns:repeat(2, 1fr);">
-        <?php if ($courseUpcomingLessons): ?>
-            <section class="ln-card" style="padding:0; overflow:hidden;">
-                <div class="ln-card-head">
-                    <span class="material-symbols-rounded">event_upcoming</span>
-                    <div>
-                        <h3 style="margin:0; font-size:1.02rem; color:var(--ln-ink);">Upcoming lessons</h3>
-                        <p style="margin:2px 0 0; font-size:0.8rem; color:var(--ln-muted);">Scheduled and in progress on this course</p>
-                    </div>
-                </div>
-                <?php foreach ($courseUpcomingLessons as $lesson): ?>
-                    <?php $learnCourseLessonRow($lesson, false, $enrolled); ?>
-                <?php endforeach; ?>
-            </section>
-        <?php endif; ?>
-        <?php if ($coursePastLessons): ?>
-            <section class="ln-card" style="padding:0; overflow:hidden;">
-                <div class="ln-card-head">
-                    <span class="material-symbols-rounded">history</span>
-                    <div>
-                        <h3 style="margin:0; font-size:1.02rem; color:var(--ln-ink);">Past lessons</h3>
-                        <p style="margin:2px 0 0; font-size:0.8rem; color:var(--ln-muted);">Review what has already been covered</p>
-                    </div>
-                </div>
-                <?php foreach ($coursePastLessons as $lesson): ?>
-                    <?php $learnCourseLessonRow($lesson, true, $enrolled); ?>
-                <?php endforeach; ?>
-            </section>
-        <?php endif; ?>
     </div>
-<?php endif; ?>
-
-
-<!-- Lesson info (notes/assessments) modal -->
-<style>
-.ln-modal-overlay{position:fixed;inset:0;background:rgba(10,14,22,.66);display:none;align-items:center;justify-content:center;z-index:3000;padding:20px;}
-.ln-modal-overlay.open{display:flex;}
-.ln-modal{background:#fff;border:1px solid var(--ln-line);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:560px;max-width:100%;max-height:88vh;overflow:auto;padding:22px 24px;}
-.ln-modal-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-.ln-modal-head .material-symbols-rounded{color:var(--ln-green-mid);font-size:26px;}
-.ln-modal-head h3{margin:0;font-size:1.1rem;color:var(--ln-ink);}
-.ln-modal-body{color:var(--ln-ink);}
-.ln-modal-sec{margin-bottom:16px;}
-.ln-modal-sec h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ln-muted);margin:0 0 8px;}
-.ln-modal-note{border:1px solid var(--ln-line);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.88rem;background:#fafbfc;}
-.ln-modal-subs{margin:8px 0 0;padding:0 0 0 18px;font-size:.84rem;color:var(--ln-muted);}
-.ln-modal-subs li{margin:3px 0;}
-.ln-modal-asmt{display:flex;align-items:center;gap:8px;border:1px solid var(--ln-line);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.88rem;}
-.ln-modal-asmt .material-symbols-rounded{color:var(--ln-amber);font-size:20px;}
-.ln-modal-empty{color:var(--ln-muted);font-size:.9rem;text-align:center;padding:24px;}
-.ln-modal-actions{display:flex;justify-content:flex-end;margin-top:18px;}
-</style>
-<div id="ln-modal" class="ln-modal-overlay">
-  <div class="ln-modal" role="dialog" aria-modal="true">
-    <div class="ln-modal-head"><span class="material-symbols-rounded">menu_book</span><h3 id="ln-modal-title"></h3></div>
-    <div id="ln-modal-body" class="ln-modal-body"></div>
-    <div class="ln-modal-actions"><button type="button" class="ln-btn ln-btn-primary" onclick="closeLessonModal()">Close</button></div>
-  </div>
 </div>
-<script>
-const LESSON_INFO = <?= json_encode($lessonInfoMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-function escTxt(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;");}
-function openLessonModal(id){
-  const info = LESSON_INFO[id] || {title:"Lesson",notes:[],assessments:[]};
-  const notes = Array.isArray(info.notes)?info.notes:[];
-  const asmts = Array.isArray(info.assessments)?info.assessments:[];
-  let html = "";
-  if(notes.length===0 && asmts.length===0){
-    html = '<div class="ln-modal-empty">No notes/assessments under this topic.</div>';
-  } else {
-    if(notes.length){ html += '<div class="ln-modal-sec"><h4>Notes</h4>';
-      notes.forEach(function(n){
-        html += '<div class="ln-modal-note"><strong>'+escTxt(n.title)+'</strong>';
-        if(n.subs && n.subs.length){ html += '<ul class="ln-modal-subs">'+n.subs.map(function(s){return '<li>'+escTxt(s.title)+'</li>';}).join("")+'</ul>'; }
-        html += '</div>';
-      }); html += '</div>'; }
-    if(asmts.length){ html += '<div class="ln-modal-sec"><h4>Assessments</h4>';
-      asmts.forEach(function(a){
-        const label = (a.type==="cat"?"CAT":(a.type==="quiz"?"Quiz":"Assessment"));
-        html += '<div class="ln-modal-asmt"><span class="material-symbols-rounded">quiz</span>'+escTxt(a.title)+' <span class="ln-chip">'+label+'</span></div>';
-      }); html += '</div>'; }
-  }
-  document.getElementById("ln-modal-title").textContent = escTxt(info.title) || "Lesson";
-  document.getElementById("ln-modal-body").innerHTML = html;
-  const m = document.getElementById("ln-modal");
-  m.classList.add("open"); m.style.display = "flex";
-  document.getElementById("ln-modal-body").scrollTop = 0;
-}
-function closeLessonModal(){
-  const m = document.getElementById("ln-modal");
-  m.classList.remove("open"); m.style.display = "none";
-}
-</script>
 
-<?php
-learn_foot();
+<?php endif; ?>
+</main>
+<footer class="ln-footer">
+    <p>UNILIS Learning · open courses from JHUB Africa</p>
+    <p><a href="/">Back to UNILIS</a> · <a href="/login.php">Student &amp; staff sign in</a></p>
+</footer>
+</body>
+</html>
