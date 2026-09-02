@@ -12,14 +12,14 @@ $file = str_replace('\\', '/', trim((string)($_GET['file'] ?? '')));
 $embed = isset($_GET['embed']) && $_GET['embed'] === '1';
 
 // Validate file pattern
-if (!preg_match('#^uploads/course_pdfs/[A-Za-z0-9._-]+\.pdf$#i', $file)) {
+if (!preg_match('#^uploads/(files/)?course_pdfs/[A-Za-z0-9._-]+\.pdf$#i', $file)) {
     error_log("pdf_preview: Invalid file pattern - $file");
     http_response_code(400);
     exit('Invalid PDF file.');
 }
 
 $absolute = realpath(__DIR__ . '/../' . $file);
-$uploads = realpath(__DIR__ . '/../uploads/course_pdfs');
+$uploads = realpath(__DIR__ . '/../uploads/files/course_pdfs');
 
 // Debug logging
 error_log("pdf_preview: file=$file, absolute=" . ($absolute ?: 'false') . ", uploads=" . ($uploads ?: 'false'));
@@ -31,7 +31,7 @@ if ($absolute === false) {
 }
 
 if ($uploads === false) {
-    error_log("pdf_preview: Uploads directory not found: " . __DIR__ . '/../uploads/course_pdfs');
+    error_log("pdf_preview: Uploads directory not found: " . __DIR__ . '/../uploads/files/course_pdfs');
     http_response_code(404);
     exit('Uploads directory not found.');
 }

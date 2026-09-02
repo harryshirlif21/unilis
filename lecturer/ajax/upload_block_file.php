@@ -197,7 +197,8 @@ if ($folder === 'course_videos' || $folder === 'course_presentations') {
 }
 
 // ── Build destination ─────────────────────────────────────────────────────
-$upload_dir = __DIR__ . '/../../uploads/' . $folder . '/';
+// Short-course multimedia lives under the shared notes directory (uploads/files).
+$upload_dir = __DIR__ . '/../../uploads/files/' . $folder . '/';
 if (!is_dir($upload_dir)) {
     if (!mkdir($upload_dir, 0755, true)) {
         echo json_encode(['success' => false, 'message' => 'Could not create upload directory']); exit;
@@ -213,7 +214,7 @@ if (!move_uploaded_file($tmp_path, $dest_path)) {
 }
 
 // ── Return relative path from unilis root ─────────────────────────────────
-$relative_path = 'uploads/' . $folder . '/' . $safe_name;
+$relative_path = 'uploads/files/' . $folder . '/' . $safe_name;
 
 echo json_encode([
     'success' => true,

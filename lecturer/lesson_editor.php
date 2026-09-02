@@ -284,17 +284,17 @@ if ($lesson_id) {
                 $storedData = json_decode($storedContent, true);
                 if (is_array($storedData) && !empty($storedData['src'])) {
                     $storedPath = preg_replace('#^(?:\.\./)+#', '', (string)$storedData['src']);
-                    if (preg_match('#^uploads/course_presentations/#', $storedPath)) {
+                    if (preg_match('#^uploads/files/course_presentations/#', $storedPath)) {
                         $storedType = 'ppt';
-                    } elseif (preg_match('#^uploads/course_pdfs/#', $storedPath)) {
+                    } elseif (preg_match('#^uploads/files/course_pdfs/#', $storedPath)) {
                         $storedType = 'pdf';
-                    } elseif (preg_match('#^uploads/course_images/#', $storedPath)) {
+                    } elseif (preg_match('#^uploads/files/course_images/#', $storedPath)) {
                         $storedType = 'image';
-                    } elseif (preg_match('#^uploads/course_audio/#', $storedPath)) {
+                    } elseif (preg_match('#^uploads/files/course_audio/#', $storedPath)) {
                         $storedType = 'audio';
-                    } elseif (preg_match('#^uploads/course_diagrams/#', $storedPath)) {
+                    } elseif (preg_match('#^uploads/files/course_diagrams/#', $storedPath)) {
                         $storedType = 'diagram';
-                    } elseif (preg_match('#^uploads/course_videos/#', $storedPath)) {
+                    } elseif (preg_match('#^uploads/files/course_videos/#', $storedPath)) {
                         $storedType = 'video';
                     }
                 }
@@ -723,6 +723,14 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .subtopic-row { margin: 6px 0 0 20px; padding: 6px 10px; background: var(--surface3); border-radius: var(--radius-sm); display: flex; align-items: center; gap: 8px; }
 .subtopic-row .ttl { flex: 1; color: var(--text); }
 .modal-empty { color: var(--text-muted); font-size: .85rem; font-style: italic; padding: 6px 0; }
+/* ---- Inline lesson-topics panel ---- */
+.topics-panel { margin: 14px 24px 30px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2); overflow: hidden; }
+.topics-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 11px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: .88rem; color: var(--text); }
+.topics-panel-hint { font-weight: 400; font-size: .76rem; color: var(--text-muted); }
+.topics-panel-list { padding: 14px 16px; }
+.topics-panel-list .topic-item { border-color: var(--border); background: var(--surface); }
+.topics-panel-list .ln-topic-title { font-weight: 700; color: var(--text); }
+.topics-panel-list .ln-subtopic-title { font-weight: 600; color: var(--text); }
 </style>
 </head>
 <body>
@@ -924,6 +932,20 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 
                 </div>
             </div>
+            <!-- Live lesson topics panel (short courses) -->
+            <?php if ($mode === 'short_course' && $current_lesson && (int)$current_lesson['id'] > 0): ?>
+                <div class="topics-panel" id="topics-panel">
+                    <div class="topics-panel-head">
+                        <span><i class="fas fa-list-ul"></i> Lesson topics &amp; sub-topics</span>
+                        <span class="topics-panel-hint">
+                            In the <b>Text</b> block mark a line with <b>▣ Topic</b> or <b>▸ Sub-topic</b>, then <b>Save All</b> —
+                            they appear here and on the lesson page.
+                        </span>
+                    </div>
+                    <div id="topics-panel-list" class="topics-panel-list"><p class="modal-empty" style="margin:0">Loading topics&hellip;</p></div>
+                </div>
+            <?php endif; ?>
+
 
         <?php endif; ?>
     </div>
@@ -985,6 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     updateBlockCount();
+    if (MODE === 'short_course' && document.getElementById('topics-panel-list')) refreshTopicPanel();
 });
 
 // ─────────────────────────────────────────────────────────
@@ -1237,6 +1260,8 @@ function buildTextBody(localId, content) {
             <button class="rich-btn" onclick="fmt('underline')"     title="Underline"><u>U</u></button>
             <button class="rich-btn" onclick="fmtBlock('h2')"       title="Heading">H2</button>
             <button class="rich-btn" onclick="fmtBlock('h3')"       title="Sub-heading">H3</button>
+            <button class="rich-btn" onclick="setTopicLine(${localId},'topic')"    title="Make this line a topic">▣ Topic</button>
+            <button class="rich-btn" onclick="setTopicLine(${localId},'subtopic')" title="Make this line a sub-topic">▸ Sub-topic</button>
             <button class="rich-btn" onclick="fmt('insertUnorderedList')" title="Bullet list"><i class="fas fa-list-ul"></i></button>
             <button class="rich-btn" onclick="fmt('insertOrderedList')"   title="Numbered list"><i class="fas fa-list-ol"></i></button>
             <button class="rich-btn" onclick="fmtBlock('blockquote')" title="Quote"><i class="fas fa-quote-left"></i></button>
@@ -1675,6 +1700,34 @@ function fmtBlock(tag) {
     document.execCommand('formatBlock', false, tag);
     if (activeEditorId) markUnsaved(activeEditorId);
 }
+// ── Inline topic / sub-topic formatting ───────────────────────────────────
+// Turns the current line (or selected sentence) into a structured topic
+// (h3.ln-topic) or sub-topic (h4.ln-subtopic) heading. save_short_course_content.php
+// parses these markers and rebuilds the lesson's topic/sub-topic tree.
+function caretBlock(container) {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    let node = sel.getRangeAt(0).startContainer;
+    if (node.nodeType === 3) node = node.parentNode;
+    while (node && node !== container && node.parentNode !== container) {
+        node = node.parentNode;
+    }
+    return (node && node !== container) ? node : null;
+}
+function setTopicLine(lid, kind) {
+    const el = document.getElementById('rc-' + lid);
+    if (!el) return;
+    const isSub = kind === 'subtopic';
+    const tag   = isSub ? 'H4' : 'H3';
+    const cls   = isSub ? 'ln-subtopic' : 'ln-topic';
+    document.execCommand('formatBlock', false, tag);
+    const block = caretBlock(el);
+    if (block) {
+        block.className = cls;
+        block.setAttribute('data-kind', kind);
+    }
+    markUnsaved(lid);
+}
 function insertCode(lid) {
     const sel = window.getSelection();
     if (sel && sel.toString()) {
@@ -1812,6 +1865,7 @@ function saveBlock(localId) {
                 b.saved   = true;
                 setStatus(localId, 'saved');
                 toast('Block saved', 'success');
+                if (MODE === 'short_course') refreshTopicPanel();
             } else {
                 setStatus(localId, 'unsaved');
                 toast(d.message, 'error');
@@ -2042,6 +2096,36 @@ function buildTopicBlock(t) {
             </div>
             ${subs}
         </div>`;
+}
+// Display-only renderer for the inline lesson-topics panel.
+function buildTopicPanelBlock(t) {
+    const subs = (t.subs || []).map(s => `
+        <div class="subtopic-row">
+            <i class="fas fa-angle-right" style="color:var(--text-dim)"></i>
+            <span class="ttl ln-subtopic-title">${escHtml(s.title)}</span>
+        </div>`).join('');
+    return `
+        <div class="topic-item">
+            <div class="trow">
+                <i class="fas fa-folder-open" style="color:var(--accent2)"></i>
+                <span class="ttl ln-topic-title">${escHtml(t.title)}</span>
+            </div>
+            ${subs}
+        </div>`;
+}
+// Refresh the inline lesson-topics panel (live display of topics/sub-topics).
+function refreshTopicPanel() {
+    const list = document.getElementById('topics-panel-list');
+    if (!list) return;
+    list.innerHTML = '<p class="modal-empty" style="margin:0">Loading topics&hellip;</p>';
+    fetch(`ajax/short_course_topics.php?lesson_id=${LESSON_ID}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) { list.innerHTML = `<p class="modal-empty" style="margin:0">${escHtml(d.message || 'Error')}</p>`; return; }
+            if (!d.topics.length) { list.innerHTML = '<p class="modal-empty" style="margin:0">No topics yet — mark a line as a Topic, then Save All.</p>'; return; }
+            list.innerHTML = d.topics.map(buildTopicPanelBlock).join('');
+        })
+        .catch(() => list.innerHTML = '<p class="modal-empty" style="margin:0">Failed to load topics.</p>');
 }
 function addTopic() {
     const title = document.getElementById('topics-title-input').value.trim();

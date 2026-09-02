@@ -103,12 +103,12 @@ function renderLessonPreviewContent(string $content): string
 
     // Older blocks saved paths with "../" while newer file blocks do not.
     $source = preg_replace('#^(?:\.\./)+#', '', trim((string)($block['src'] ?? '')));
-    if (!is_string($source) || !preg_match('#^uploads/(course_images|course_audio|course_diagrams|course_videos|course_pdfs|course_presentations)/[A-Za-z0-9._-]+\.(jpg|jpeg|png|gif|webp|svg|mp3|wav|ogg|m4a|mp4|webm|ogv|mov|avi|mkv|3gp|flv|wmv|mpeg|mpg|m4v|pdf|ppt|pptx)$#i', $source, $matches)) {
+    if (!is_string($source) || !preg_match('#^uploads/(files/)?(course_images|course_audio|course_diagrams|course_videos|course_pdfs|course_presentations)/[A-Za-z0-9._-]+\.(jpg|jpeg|png|gif|webp|svg|mp3|wav|ogg|m4a|mp4|webm|ogv|mov|avi|mkv|3gp|flv|wmv|mpeg|mpg|m4v|pdf|ppt|pptx)$#i', $source, $matches)) {
         return $content;
     }
 
-    $folder = strtolower($matches[1]);
-    $extension = strtolower($matches[2]);
+    $folder = strtolower($matches[2]);
+    $extension = strtolower($matches[3]);
     $name = trim((string)($block['name'] ?? basename($source)));
     $caption = trim((string)($block['caption'] ?? ''));
     $downloadUrl = '../' . $source;

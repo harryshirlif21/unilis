@@ -1402,13 +1402,13 @@ function catalogue_store_upload(array $file, string $kind): array
 {
     $rules = [
         'cover' => [
-            'folder' => 'course_images',
+            'folder' => 'files/course_images',
             'exts' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
             'mimes' => ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
             'limit' => 5 * 1024 * 1024,
         ],
         'attachment' => [
-            'folder' => 'course_pdfs',
+            'folder' => 'files/course_pdfs',
             'exts' => ['pdf'],
             'mimes' => ['application/pdf'],
             'limit' => 50 * 1024 * 1024,
