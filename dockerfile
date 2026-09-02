@@ -69,7 +69,8 @@ RUN mkdir -p /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
     /var/www/html/assets/requested_files \
-    /var/www/html/uploads
+    /var/www/html/uploads\
+    /var/www/html/uploads/short_courses
 
 # Set ownership to www-data for everything
 RUN chown -R www-data:www-data /var/www/html
