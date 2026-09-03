@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+﻿name: CI/CD Pipeline
 
 on:
   push:
@@ -60,7 +60,7 @@ jobs:
       # Production is compose-managed from a checkout on the server: the app
       # container bind-mounts that checkout, so PHP goes live on pull, while
       # meeting-server bakes its Python in at build time and must be rebuilt.
-      # Do not hand-write `docker run` here — it would remove the compose-managed
+      # Do not hand-write `docker run` here â€” it would remove the compose-managed
       # containers and recreate them without their mounts, network, or env.
       - name: Deploy to Production Server
         run: |
@@ -90,3 +90,4 @@ jobs:
 
             docker compose ps
           EOF
+

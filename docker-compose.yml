@@ -9,11 +9,11 @@
     volumes:
       - .:/var/www/html
       - vendor:/var/www/html/vendor
-      - uploads_data:/var/www/html/uploads
-      - assets_uploads_data:/var/www/html/assets/uploads
-      - assets_assignments_data:/var/www/html/assets/assignments
-      - assets_meetings_data:/var/www/html/assets/meetings
-      - assets_requested_files_data:/var/www/html/assets/requested_files
+      - /srv/unilis-uploads/uploads:/var/www/html/uploads
+      - /srv/unilis-uploads/assets/uploads:/var/www/html/assets/uploads
+      - /srv/unilis-uploads/assets/assignments:/var/www/html/assets/assignments
+      - /srv/unilis-uploads/assets/meetings:/var/www/html/assets/meetings
+      - /srv/unilis-uploads/assets/requested_files:/var/www/html/assets/requested_files
       - ./apache.conf:/etc/apache2/sites-available/000-default.conf.template
     depends_on:
       db:
@@ -97,8 +97,3 @@ volumes:
   db_data:
   smart_labs_data:
   vendor:
-  uploads_data:
-  assets_uploads_data:
-  assets_assignments_data:
-  assets_meetings_data:
-  assets_requested_files_data:
