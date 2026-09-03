@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Department Admin Dashboard
  * UNILIS Academic Foundation Expansion
@@ -605,6 +605,21 @@ if ($action === 'edit_short_course') {
                 $candidate_path = '/uploads/short_courses/' . time() . '_' . $safe_name;
                 if (move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $candidate_path)) {
                     $banner_path = $candidate_path;
+                    // Save old banner to history before replacing
+                    $oldBannerStmt = $conn->prepare("SELECT cover_image, cover_image_history FROM public_courses WHERE id = ? LIMIT 1");
+                    $oldBannerStmt->bind_param("i", $id);
+                    $oldBannerStmt->execute();
+                    $oldBannerRow = $oldBannerStmt->get_result()->fetch_assoc();
+                    $oldBannerStmt->close();
+                    if ($oldBannerRow && !empty($oldBannerRow["cover_image"])) {
+                        $bannerHistory = json_decode($oldBannerRow["cover_image_history"] ?? "[]", true) ?: [];
+                        $bannerHistory[] = $oldBannerRow["cover_image"];
+                        $bannerHistJson = json_encode($bannerHistory);
+                        $histStmt = $conn->prepare("UPDATE public_courses SET cover_image_history = ? WHERE id = ?");
+                        $histStmt->bind_param("si", $bannerHistJson, $id);
+                        $histStmt->execute();
+                        $histStmt->close();
+                    }
                 } else {
                     $message = 'Failed to upload the banner image. Please check folder permissions and try again.';
                     $message_type = 'error';
@@ -723,6 +738,21 @@ if ($action === 'edit_short_course') {
                                 }
                                 
                                 $logo_to_use = $slogo_path ? $slogo_path : $existing_logo;
+                                // Save old sponsor logo to history before replacing
+                                if ($slogo_path && !empty($existing_logo)) {
+                                    $slogoHistStmt = $conn->prepare("SELECT sponsor_logo_history FROM course_sponsors WHERE id = ? LIMIT 1");
+                                    $slogoHistStmt->bind_param("i", $sponsor_id);
+                                    $slogoHistStmt->execute();
+                                    $slogoHistRow = $slogoHistStmt->get_result()->fetch_assoc();
+                                    $slogoHistStmt->close();
+                                    $slogoHistory = json_decode($slogoHistRow["sponsor_logo_history"] ?? "[]", true) ?: [];
+                                    $slogoHistory[] = $existing_logo;
+                                    $slogoHistJson = json_encode($slogoHistory);
+                                    $slogoUpdStmt = $conn->prepare("UPDATE course_sponsors SET sponsor_logo_history = ? WHERE id = ?");
+                                    $slogoUpdStmt->bind_param("si", $slogoHistJson, $sponsor_id);
+                                    $slogoUpdStmt->execute();
+                                    $slogoUpdStmt->close();
+                                }
                                 $sponsor_stmt = $conn->prepare("UPDATE course_sponsors SET sponsor_name = ?, sponsor_details = ?, sponsor_logo = ? WHERE id = ?");
                                 $sponsor_stmt->bind_param('sssi', $sname, $sdetails, $logo_to_use, $sponsor_id);
                                 $sponsor_stmt->execute();
@@ -1258,7 +1288,7 @@ if ($department_id) {
             color: var(--text);
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ TOP NAV Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ TOP NAV ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .topbar {
             background: var(--surface);
             border-bottom: 1px solid var(--border);
@@ -1349,13 +1379,13 @@ if ($department_id) {
             border-color: #fecaca;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ LAYOUT Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ LAYOUT ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .layout {
             display: flex;
             min-height: calc(100vh - 64px);
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ SIDEBAR Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ SIDEBAR ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .sidebar {
             width: 240px;
             min-width: 240px;
@@ -1428,7 +1458,7 @@ if ($department_id) {
             color: var(--accent);
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ MAIN Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ MAIN ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .main {
             flex: 1;
             padding: 28px 32px;
@@ -1452,7 +1482,7 @@ if ($department_id) {
             margin-top: 4px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ MESSAGE Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ MESSAGE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .message {
             padding: 12px 16px;
             border-radius: var(--radius-sm);
@@ -1474,7 +1504,7 @@ if ($department_id) {
         .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
         .message.warning { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ STATS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ STATS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .stats-row {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1526,7 +1556,7 @@ if ($department_id) {
             margin-top: 2px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ PANELS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ PANELS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .panel {
             display: none;
         }
@@ -1541,7 +1571,7 @@ if ($department_id) {
             to { opacity: 1; }
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ CARDS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ CARDS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -1581,7 +1611,7 @@ if ($department_id) {
             padding: 20px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ FORMS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ FORMS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1631,7 +1661,7 @@ if ($department_id) {
             padding-right: 32px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ BUTTONS Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ BUTTONS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .btn {
             padding: 10px 20px;
             border: none;
@@ -1672,7 +1702,7 @@ if ($department_id) {
             font-size: 12px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ TABLE Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ TABLE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .table-wrap {
             overflow-x: auto;
         }
@@ -1721,7 +1751,7 @@ if ($department_id) {
             opacity: 0.4;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ PRICING TOGGLE Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ PRICING TOGGLE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         .pricing-options {
             display: flex;
             gap: 16px;
@@ -1755,7 +1785,7 @@ if ($department_id) {
             color: var(--text);
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ RESPONSIVE Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ RESPONSIVE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
         @media (max-width: 768px) {
             .layout { flex-direction: column; }
             .sidebar { width: 100%; min-width: unset; flex-direction: row; flex-wrap: wrap; padding: 12px; }
@@ -1918,8 +1948,8 @@ if ($department_id) {
                                         ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($sc['name']) ?></td>
-                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : 'Ã¢â‚¬â€' ?></td>
-                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : 'Ã¢â‚¬â€' ?></td>
+                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
+                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
                                                 <td>
                                                     <button type="button" class="btn btn-primary btn-sm" style="margin-right:4px;" data-edit-sc='<?= htmlspecialchars(json_encode($sc), ENT_QUOTES, 'UTF-8') ?>' onclick="openEditModalFromBtn(this)">
                                                         <i class="fas fa-pen"></i> Edit
@@ -1997,8 +2027,8 @@ if ($department_id) {
                                             <tr>
                                                 <td><?= htmlspecialchars($l['name']) ?></td>
                                                 <td><?= htmlspecialchars($l['email']) ?></td>
-                                                <td><?= htmlspecialchars($l['phone'] ?? 'Ã¢â‚¬â€') ?></td>
-                                                <td><?= htmlspecialchars($l['staff_id'] ?? 'Ã¢â‚¬â€') ?></td>
+                                                <td><?= htmlspecialchars($l['phone'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
+                                                <td><?= htmlspecialchars($l['staff_id'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     <?php else: ?>
@@ -2057,7 +2087,7 @@ if ($department_id) {
                                         <?php while ($c = $courses->fetch_assoc()): ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($c['name']) ?></td>
-                                                <td><?= htmlspecialchars($c['code'] ?? 'Ã¢â‚¬â€') ?></td>
+                                                <td><?= htmlspecialchars($c['code'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     <?php else: ?>
@@ -2237,8 +2267,8 @@ if ($department_id) {
                                         ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($sc['name']) ?></td>
-                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : 'Ã¢â‚¬â€' ?></td>
-                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : 'Ã¢â‚¬â€' ?></td>
+                                                <td><?= !empty($tutors) ? implode(', ', array_map('htmlspecialchars', $tutors)) : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
+                                                <td><?= $sc['banner'] ? '<i class="fas fa-image"></i>' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
                                                 <td>
                                                     <button type="button" class="btn btn-primary btn-sm" style="margin-right:4px;" data-edit-sc='<?= htmlspecialchars(json_encode($sc), ENT_QUOTES, 'UTF-8') ?>' onclick="openEditModalFromBtn(this)">
                                                         <i class="fas fa-pen"></i> Edit
@@ -2316,7 +2346,7 @@ if ($department_id) {
                                             <tr>
                                                 <td><?= htmlspecialchars($t['name']) ?></td>
                                                 <td><?= htmlspecialchars($t['email']) ?></td>
-                                                <td><?= htmlspecialchars($t['phone'] ?? 'Ã¢â‚¬â€') ?></td>
+                                                <td><?= htmlspecialchars($t['phone'] ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â') ?></td>
                                                 <td><?= htmlspecialchars($t['staff_id']) ?></td>
                                             </tr>
                                         <?php endwhile; ?>
@@ -2518,8 +2548,8 @@ if ($department_id) {
                                                 <td><?= htmlspecialchars($ma['course_name']) ?></td>
                                                 <td><?= htmlspecialchars($ma['module_title']) ?></td>
                                                 <td><?= htmlspecialchars($ma['tutor_name']) ?></td>
-                                                <td><?= $ma['can_edit'] ? 'Ã¢Å“â€' : 'Ã¢â‚¬â€' ?></td>
-                                                <td><?= $ma['can_teach'] ? 'Ã¢Å“â€' : 'Ã¢â‚¬â€' ?></td>
+                                                <td><?= $ma['can_edit'] ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
+                                                <td><?= $ma['can_teach'] ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     </tbody>
@@ -2541,8 +2571,8 @@ if ($department_id) {
                                                 <td><?= htmlspecialchars($la['module_title']) ?></td>
                                                 <td><?= htmlspecialchars($la['lesson_title']) ?></td>
                                                 <td><?= htmlspecialchars($la['tutor_name']) ?></td>
-                                                <td><?= $la['can_edit'] ? 'Ã¢Å“â€' : 'Ã¢â‚¬â€' ?></td>
-                                                <td><?= $la['can_teach'] ? 'Ã¢Å“â€' : 'Ã¢â‚¬â€' ?></td>
+                                                <td><?= $la['can_edit'] ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
+                                                <td><?= $la['can_teach'] ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â' : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â' ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     </tbody>
@@ -3080,7 +3110,7 @@ if ($department_id) {
             <div class="module-permission-item" style="background:var(--surface2); padding:16px; border-radius:8px; margin-bottom:12px; border:1px solid var(--border);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                     <strong style="font-size:14px;">${m.title}</strong>
-                    ${m.start_date || m.end_date ? `<small style="color:var(--text-muted);">${m.start_date || 'Ã¢â‚¬â€'} to ${m.end_date || 'Ã¢â‚¬â€'}</small>` : ''}
+                    ${m.start_date || m.end_date ? `<small style="color:var(--text-muted);">${m.start_date || 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'} to ${m.end_date || 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'}</small>` : ''}
                 </div>
                 <div style="display:flex; gap:20px; align-items:center;">
                     <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
