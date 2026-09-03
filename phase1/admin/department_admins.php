@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Department Admin Dashboard
  * UNILIS Academic Foundation Expansion
@@ -16,6 +16,40 @@ if (file_exists(__DIR__ . '/../config/phase1_config.php')) {
 if (file_exists(__DIR__ . '/../includes/auth_extended.php')) {
     require_once __DIR__ . '/../includes/auth_extended.php';
 }
+// ===========================================================================
+// Error handling safety net.
+//
+// config/db.php enables MYSQLI_REPORT_STRICT, so any query against a missing
+// table or column throws an uncaught mysqli_sql_exception. When display_errors
+// is off (typical on a deployment / container) that surface as a silent white
+// screen. Log the real error and, outside production, render a readable one so
+// schema gaps are obvious instead of invisible.
+// ===========================================================================
+if (!function_exists('phase1_handle_page_error')) {
+    function phase1_handle_page_error(Throwable $e) {
+        $isProduction = strtolower((string)(getenv('APP_ENV'))) === 'production';
+        error_log('[department_admins.php] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+
+        // Keep AJAX actions response-shaped (JSON) rather than dumping HTML.
+        if (isset($_POST['action'])) {
+            @header('Content-Type: application/json', true);
+            echo json_encode(['success' => false, 'message' => $isProduction ? 'A server error occurred. Details were logged.' : $e->getMessage()]);
+        } else {
+            http_response_code(500);
+            echo '<!DOCTYPE html><html lang="en"><body style="font-family:Consolas,monospace;padding:24px;">';
+            echo '<h2 style="color:#b91c1c;">Unable to display the Department Admin page</h2>';
+            if (!$isProduction) {
+                echo '<p style="color:#111;"><strong>' . htmlspecialchars($e->getMessage()) . '</strong></p>';
+                echo '<p>File: ' . htmlspecialchars($e->getFile()) . ' : ' . (int)$e->getLine() . '</p>';
+            } else {
+                echo '<p>Details were written to the PHP error log.</p>';
+            }
+            echo '</body></html>';
+        }
+        exit;
+    }
+}
+set_exception_handler('phase1_handle_page_error');
 
 // Simple auth check if extended auth not available
 if (!function_exists('phase1_guard_role')) {
@@ -1184,11 +1218,18 @@ if ($checkPublicCourses && $checkPublicCourses->num_rows > 0) {
     // point lecturers receive, without showing courses assigned to others.
     if ($is_department_admin) {
         $adminId = (int)$_SESSION['user_id'];
-        $stmt = $conn->prepare('SELECT id, title FROM public_courses WHERE created_by_lecturer_id = ? AND department_id = ? ORDER BY title');
-        $stmt->bind_param('ii', $adminId, $department_id);
-        $stmt->execute();
-        $my_short_courses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
+        // Only query the owner column if it exists; deployed schemas behind on
+        // the "short course updates" migration may lack it, which would otherwise
+        // throw under MYSQLI_REPORT_STRICT and blank the whole page for exactly
+        // the department-admin role (global admins skip this block).
+        $checkOwnerCol = $conn->query("SHOW COLUMNS FROM public_courses LIKE 'created_by_lecturer_id'");
+        if ($checkOwnerCol && $checkOwnerCol->num_rows > 0) {
+            $stmt = $conn->prepare('SELECT id, title FROM public_courses WHERE created_by_lecturer_id = ? AND department_id = ? ORDER BY title');
+            $stmt->bind_param('ii', $adminId, $department_id);
+            $stmt->execute();
+            $my_short_courses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        }
     }
 }
 
