@@ -13,3 +13,7 @@ __pycache__/
 # tables was downloadable this way. Keep schema and backups out of git.
 *.sql
 *.bak
+
+# Uploaded files - stored in persistent Docker volume on server
+uploads/**/*
+!uploads/**/.gitkeep

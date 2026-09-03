@@ -1,4 +1,4 @@
-services:
+﻿services:
   app:
     build: .
     image: hilkim21/unilis-app:latest
@@ -9,21 +9,11 @@ services:
     volumes:
       - .:/var/www/html
       - vendor:/var/www/html/vendor
-      - ./assets/uploads:/var/www/html/assets/uploads
-      - ./uploads:/var/www/html/uploads
-      - ./uploads/course_presentations:/var/www/html/uploads/course_presentations
-      - ./uploads/course_pdfs:/var/www/html/uploads/course_pdfs
-      - ./uploads/course_images:/var/www/html/uploads/course_images
-      - ./uploads/course_videos:/var/www/html/uploads/course_videos
-      - ./uploads/course_audio:/var/www/html/uploads/course_audio
-      - ./uploads/course_diagrams:/var/www/html/uploads/course_diagrams
-      - ./uploads/short_courses:/var/www/html/uploads/short_courses
-      - ./assets/assignments:/var/www/html/assets/assignments
-      # Runtime data only (recordings). Do not put static app files here — this
-      # mount shadows whatever the image ships at that path. The meeting
-      # frontend lives in assets/meeting-app/ instead.
-      - ./assets/meetings:/var/www/html/assets/meetings
-      - ./assets/requested_files:/var/www/html/assets/requested_files
+      - uploads_data:/var/www/html/uploads
+      - assets_uploads_data:/var/www/html/assets/uploads
+      - assets_assignments_data:/var/www/html/assets/assignments
+      - assets_meetings_data:/var/www/html/assets/meetings
+      - assets_requested_files_data:/var/www/html/assets/requested_files
       - ./apache.conf:/etc/apache2/sites-available/000-default.conf.template
     depends_on:
       db:
@@ -56,10 +46,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: "8765"
-      # Shared secret for the read-only /api/meetings/* routes. Set the real
-      # value in .env (gitignored); unset leaves those routes open.
       MEETING_API_KEY: ${MEETING_API_KEY:-}
-      # Comma-separated CORS allowlist. "*" keeps the previous behaviour.
       MEETING_ALLOWED_ORIGINS: ${MEETING_ALLOWED_ORIGINS:-*}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
@@ -72,8 +59,6 @@ services:
     image: mysql:8.0.33
     container_name: unilis-db
     restart: always
-    # Loopback-bound: the app reaches MySQL over the compose network, so the
-    # port only needs to be reachable from the host for admin tooling.
     ports:
       - "127.0.0.1:3308:3306"
     environment:
@@ -83,10 +68,6 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-unilispass}
     volumes:
       - db_data:/var/lib/mysql
-      # No seed mount: the SQL files were removed from the repository. A fresh
-      # volume starts empty and must be loaded from a backup restored out of
-      # band. Existing volumes are unaffected — entrypoint seeds only ever run
-      # against an empty data directory.
 
   smart-labs-db:
     image: mysql:8.0.33
@@ -101,14 +82,11 @@ services:
       MYSQL_PASSWORD: ${SMARTLAB_MYSQL_PASSWORD:-lab_password}
     volumes:
       - smart_labs_data:/var/lib/mysql
-      # Seed mount removed along with the SQL files. See the note on db above.
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:5.2.1
     container_name: unilis-pma
     restart: unless-stopped
-    # Loopback-bound: reach it over an SSH tunnel rather than publishing a
-    # database admin console to the internet.
     ports:
       - "127.0.0.1:8081:80"
     environment:
@@ -119,3 +97,8 @@ volumes:
   db_data:
   smart_labs_data:
   vendor:
+  uploads_data:
+  assets_uploads_data:
+  assets_assignments_data:
+  assets_meetings_data:
+  assets_requested_files_data:
