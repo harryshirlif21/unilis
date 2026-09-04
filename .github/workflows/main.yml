@@ -57,18 +57,11 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -T 10 ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      # Production is compose-managed from a checkout on the server: the app
-      # container bind-mounts that checkout, so PHP goes live on pull, while
-      # meeting-server bakes its Python in at build time and must be rebuilt.
-      # Do not hand-write `docker run` here â€” it would remove the compose-managed
-      # containers and recreate them without their mounts, network, or env.
       - name: Deploy to Production Server
         run: |
           ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} << 'EOF'
             set -e
 
-            # DEPLOY_PATH is a filesystem path to the checkout on this server
-            # (the output of `pwd` there), not a password or a project name.
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
             if [ -z "$DEPLOY_PATH" ]; then
               echo "DEPLOY_PATH secret is not set - refusing to guess the checkout location."
@@ -81,6 +74,24 @@ jobs:
             fi
             cd "$DEPLOY_PATH"
 
+            # Create persistent upload directories outside the git checkout.
+            # These survive git pulls, container rebuilds and Docker restarts permanently.
+            mkdir -p /srv/unilis-uploads/uploads/short_courses/sponsors
+            mkdir -p /srv/unilis-uploads/uploads/course_images
+            mkdir -p /srv/unilis-uploads/uploads/course_pdfs
+            mkdir -p /srv/unilis-uploads/uploads/course_videos
+            mkdir -p /srv/unilis-uploads/uploads/course_audio
+            mkdir -p /srv/unilis-uploads/uploads/course_presentations
+            mkdir -p /srv/unilis-uploads/uploads/course_diagrams
+            mkdir -p /srv/unilis-uploads/uploads/chat
+            mkdir -p /srv/unilis-uploads/uploads/answers
+            mkdir -p /srv/unilis-uploads/assets/uploads
+            mkdir -p /srv/unilis-uploads/assets/assignments
+            mkdir -p /srv/unilis-uploads/assets/meetings
+            mkdir -p /srv/unilis-uploads/assets/requested_files
+            # Make sure the web server process can write to these directories
+            chmod -R 775 /srv/unilis-uploads
+
             # Fail loudly rather than deploy half an update: --ff-only refuses if the
             # server checkout has diverged (local edits to compose, deleted files, etc).
             git pull --ff-only
@@ -90,4 +101,3 @@ jobs:
 
             docker compose ps
           EOF
-
