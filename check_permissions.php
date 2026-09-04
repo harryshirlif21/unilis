@@ -1,8 +1,8 @@
-﻿<?php
+<?php
 if (($_GET['token'] ?? '') !== 'unilis_audit_2026') { http_response_code(403); die('403'); }
 require_once __DIR__ . "/config/db.php";
 
-$baseDir    = __DIR__ . "/uploads/short_courses";
+$baseDir    = __DIR__ . "/assets/uploads/short_courses";
 $sponsorDir = $baseDir . "/sponsors";
 
 $checks = [

@@ -66,6 +66,7 @@ RUN composer dump-autoload --optimize --classmap-authoritative || true
 # so anything copied into them above is invisible at runtime. Static app code
 # must live elsewhere (e.g. assets/meeting-app/).
 RUN mkdir -p /var/www/html/assets/uploads \
+    /var/www/html/assets/uploads/short_courses \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
     /var/www/html/assets/requested_files \
@@ -81,6 +82,7 @@ RUN find /var/www/html -type d -exec chmod 755 {} \; \
 
 # Writable permissions for specific upload folders
 RUN chmod -R 775 /var/www/html/assets/uploads \
+    /var/www/html/assets/uploads/short_courses \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
     /var/www/html/assets/requested_files \

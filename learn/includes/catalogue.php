@@ -100,7 +100,7 @@ function learn_catalogue(mysqli $conn, string $search = ''): array
     }
 
     // Normalise cover_image so it always resolves from the web root.
-    // Department admins now store absolute paths like "/uploads/short_courses/x.jpg",
+    // Department admins now store absolute paths like "/assets/uploads/short_courses/x.jpg",
     // but legacy entries may still have relative paths. Ensure consistency.
     foreach ($rows as &$row) {
         $cover = (string)($row['cover_image'] ?? '');

@@ -80,13 +80,13 @@ jobs:
             echo "/srv exists: $(test -d /srv && echo YES || echo NO)"
             echo "/srv/unilis-uploads exists: $(test -d /srv/unilis-uploads && echo YES || echo NO)"
             echo "/srv/unilis-uploads owner: $(stat -c '%U:%G %a' /srv/unilis-uploads 2>/dev/null || echo NOT_FOUND)"
-            echo "/srv/unilis-uploads/uploads/short_courses exists: $(test -d /srv/unilis-uploads/uploads/short_courses && echo YES || echo NO)"
-            echo "Files in short_courses: $(ls /srv/unilis-uploads/uploads/short_courses 2>/dev/null | wc -l || echo 0)"
+            echo "/srv/unilis-uploads/assets/uploads/short_courses exists: $(test -d /srv/unilis-uploads/assets/uploads/short_courses && echo YES || echo NO)"
+            echo "Files in short_courses: $(ls /srv/unilis-uploads/assets/uploads/short_courses 2>/dev/null | wc -l || echo 0)"
             echo "Can write to /srv/unilis-uploads: $(touch /srv/unilis-uploads/.writetest 2>/dev/null && echo YES && rm /srv/unilis-uploads/.writetest || echo NO)"
             echo "==========================="
 
             # Create persistent upload directories
-            mkdir -p /srv/unilis-uploads/uploads/short_courses/sponsors
+            mkdir -p /srv/unilis-uploads/assets/uploads/short_courses/sponsors
             mkdir -p /srv/unilis-uploads/uploads/course_images
             mkdir -p /srv/unilis-uploads/uploads/course_pdfs
             mkdir -p /srv/unilis-uploads/uploads/course_videos
@@ -101,7 +101,7 @@ jobs:
             mkdir -p /srv/unilis-uploads/assets/requested_files
             chmod -R 775 /srv/unilis-uploads
 
-            echo "After mkdir - Files in short_courses: $(ls /srv/unilis-uploads/uploads/short_courses 2>/dev/null | wc -l || echo 0)"
+            echo "After mkdir - Files in short_courses: $(ls /srv/unilis-uploads/assets/uploads/short_courses 2>/dev/null | wc -l || echo 0)"
 
             git pull --ff-only
 

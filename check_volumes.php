@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 if (($_GET['token'] ?? '') !== 'unilis_audit_2026') { die('403'); }
 
 echo "<pre style='font:14px monospace;padding:30px;background:#0f172a;color:#e2e8f0;min-height:100vh'>";
@@ -6,6 +6,7 @@ echo "=== COMPARING VOLUME MOUNTS ===\n\n";
 
 $paths = [
     'uploads/short_courses'        => __DIR__ . '/uploads/short_courses',
+'assets/uploads/short_courses'=> __DIR__ . '/assets/uploads/short_courses',
     'assets/uploads'               => __DIR__ . '/assets/uploads',
     'assets/uploads/assignments'   => __DIR__ . '/assets/uploads/assignments',
     'assets/assignments'           => __DIR__ . '/assets/assignments',

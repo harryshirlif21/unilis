@@ -427,12 +427,12 @@ if ($action === 'add_short_course') {
         if ($checkTable && $checkTable->num_rows > 0) {
             $banner_path = '';
             if ($banner && $banner['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = __DIR__ . '/../../uploads/short_courses/';
+                $upload_dir = __DIR__ . '/../../assets/uploads/short_courses/';
                 if (!is_dir($upload_dir)) {
                     mkdir($upload_dir, 0755, true);
                 }
                 $safe_name = preg_replace('/[^a-zA-Z0-9._-]/', '-', basename($banner['name']));
-                $candidate_path = 'uploads/short_courses/' . time() . '_' . $safe_name;
+                $candidate_path = 'assets/uploads/short_courses/' . time() . '_' . $safe_name;
                 if (move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $candidate_path)) {
                     $banner_path = $candidate_path;
                 } else {
@@ -472,7 +472,7 @@ if ($action === 'add_short_course') {
                 // Insert sponsors into course_sponsors table
                 $sponsor_count = 0;
                 if ($has_sponsors && $course_id) {
-                    $sponsor_upload_dir = __DIR__ . '/../../uploads/short_courses/sponsors/';
+                    $sponsor_upload_dir = __DIR__ . '/../../assets/uploads/short_courses/sponsors/';
                     if (!is_dir($sponsor_upload_dir)) mkdir($sponsor_upload_dir, 0755, true);
                     
                     foreach ($sponsor_names as $index => $sname) {
@@ -483,7 +483,7 @@ if ($action === 'add_short_course') {
                             // Handle sponsor logo upload
                             $slogo_path = '';
                             if (isset($sponsor_logos['tmp_name'][$index]) && $sponsor_logos['error'][$index] === UPLOAD_ERR_OK) {
-                                $slogo_path = 'uploads/short_courses/sponsors/' . time() . '_' . $index . '_' . basename($sponsor_logos['name'][$index]);
+                                $slogo_path = 'assets/uploads/short_courses/sponsors/' . time() . '_' . $index . '_' . basename($sponsor_logos['name'][$index]);
                                 if (move_uploaded_file($sponsor_logos['tmp_name'][$index], __DIR__ . '/../../' . $slogo_path)) {
                                     $sponsor_stmt = $conn->prepare("INSERT INTO course_sponsors (course_id, sponsor_name, sponsor_details, sponsor_logo) VALUES (?, ?, ?, ?)");
                                     $sponsor_stmt->bind_param('isss', $course_id, $sname, $sdetails, $slogo_path);
@@ -567,12 +567,12 @@ if ($action === 'edit_short_course') {
             // Handle banner upload if provided
             $banner_path = null;
             if ($banner && $banner['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = __DIR__ . '/../../uploads/short_courses/';
+                $upload_dir = __DIR__ . '/../../assets/uploads/short_courses/';
                 if (!is_dir($upload_dir)) {
                     mkdir($upload_dir, 0755, true);
                 }
                 $safe_name = preg_replace('/[^a-zA-Z0-9._-]/', '-', basename($banner['name']));
-                $candidate_path = 'uploads/short_courses/' . time() . '_' . $safe_name;
+                $candidate_path = 'assets/uploads/short_courses/' . time() . '_' . $safe_name;
                 if (move_uploaded_file($banner['tmp_name'], __DIR__ . '/../../' . $candidate_path)) {
                     $banner_path = $candidate_path;
                 } else {
@@ -663,7 +663,7 @@ if ($action === 'edit_short_course') {
                 
                 $sponsor_count = 0;
                 if ($has_sponsors) {
-                    $sponsor_upload_dir = __DIR__ . '/../../uploads/short_courses/sponsors/';
+                    $sponsor_upload_dir = __DIR__ . '/../../assets/uploads/short_courses/sponsors/';
                     if (!is_dir($sponsor_upload_dir)) mkdir($sponsor_upload_dir, 0755, true);
                     
                     foreach ($sponsor_names as $index => $sname) {
@@ -674,7 +674,7 @@ if ($action === 'edit_short_course') {
                             // Handle sponsor logo upload
                             $slogo_path = '';
                             if (isset($sponsor_logos['tmp_name'][$index]) && $sponsor_logos['error'][$index] === UPLOAD_ERR_OK) {
-                                $slogo_path = 'uploads/short_courses/sponsors/' . time() . '_' . $index . '_' . basename($sponsor_logos['name'][$index]);
+                                $slogo_path = 'assets/uploads/short_courses/sponsors/' . time() . '_' . $index . '_' . basename($sponsor_logos['name'][$index]);
                                 if (move_uploaded_file($sponsor_logos['tmp_name'][$index], __DIR__ . '/../../' . $slogo_path)) {
                                     $sponsor_stmt = $conn->prepare("INSERT INTO course_sponsors (course_id, sponsor_name, sponsor_details, sponsor_logo) VALUES (?, ?, ?, ?)");
                                     $sponsor_stmt->bind_param('isss', $id, $sname, $sdetails, $slogo_path);

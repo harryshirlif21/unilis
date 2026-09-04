@@ -34,9 +34,8 @@ header('Content-Type: text/plain');
 
 $projectRoot = dirname(__DIR__, 2); // phase1/admin -> project root
 $targets = [
-    $projectRoot . '/uploads',
-    $projectRoot . '/uploads/short_courses',
-    $projectRoot . '/uploads/short_courses/sponsors',
+    $projectRoot . '/assets/uploads/short_courses',
+    $projectRoot . '/assets/uploads/short_courses/sponsors',
 ];
 
 echo "Running as PHP user: " . (function_exists('posix_getpwuid') ? posix_getpwuid(posix_geteuid())['name'] : get_current_user()) . "\n";

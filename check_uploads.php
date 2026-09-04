@@ -253,7 +253,7 @@ tr:hover td{background:#fafbff}
       $mtime = file_exists($fp) ? date('Y-m-d H:i', filemtime($fp)) : '?';
     ?>
     <tr>
-      <td><img src="/uploads/short_courses/<?= rawurlencode($f) ?>" class="thumb" onerror="this.style.display='none'"></td>
+      <td><img src="/assets/uploads/short_courses/<?= rawurlencode($f) ?>" class="thumb" onerror="this.style.display='none'"></td>
       <td class="mono">short_courses/</td>
       <td class="mono"><?= htmlspecialchars($f) ?></td>
       <td><?= humanSize($fp) ?></td>
@@ -265,7 +265,7 @@ tr:hover td{background:#fafbff}
       $mtime = file_exists($fp) ? date('Y-m-d H:i', filemtime($fp)) : '?';
     ?>
     <tr>
-      <td><img src="/uploads/short_courses/sponsors/<?= rawurlencode($f) ?>" class="thumb" onerror="this.style.display='none'"></td>
+      <td><img src="/assets/uploads/short_courses/sponsors/<?= rawurlencode($f) ?>" class="thumb" onerror="this.style.display='none'"></td>
       <td class="mono">short_courses/sponsors/</td>
       <td class="mono"><?= htmlspecialchars($f) ?></td>
       <td><?= humanSize($fp) ?></td>

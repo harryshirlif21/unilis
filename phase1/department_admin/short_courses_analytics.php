@@ -167,7 +167,7 @@ function short_course_unique_slug(mysqli $conn, string $title, int $ignoreId = 0
  *
  * @return array{ok:bool, path:string, error:string}
  */
-function short_course_move_banner(array $file, string $subdir = ''): array
+function short_course_move_banner(array $file, string $subdir = 'short_courses'): array
 {
     $relRoot = 'assets/uploads' . ($subdir !== '' ? '/' . $subdir : '');
     $absRoot = APP_ROOT_DIR . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relRoot);
