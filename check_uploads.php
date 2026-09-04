@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Upload File Auditor
  * Works locally and on any remote server.

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 if (($_GET['token'] ?? '') !== 'unilis_audit_2026') { die('403'); }
 
 $dirs = [
