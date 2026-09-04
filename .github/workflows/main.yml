@@ -69,13 +69,23 @@ jobs:
             fi
             if [ ! -d "$DEPLOY_PATH/.git" ] || [ ! -f "$DEPLOY_PATH/docker-compose.yml" ]; then
               echo "DEPLOY_PATH='$DEPLOY_PATH' is not a git checkout containing docker-compose.yml."
-              echo "Set it to the absolute path of the deployment checkout, e.g. /srv/unilis."
               exit 1
             fi
             cd "$DEPLOY_PATH"
 
-            # Create persistent upload directories outside the git checkout.
-            # These survive git pulls, container rebuilds and Docker restarts permanently.
+            # Diagnostics - show who we are and what exists
+            echo "=== DEPLOY DIAGNOSTICS ==="
+            echo "User: $(whoami)"
+            echo "Deploy path: $DEPLOY_PATH"
+            echo "/srv exists: $(test -d /srv && echo YES || echo NO)"
+            echo "/srv/unilis-uploads exists: $(test -d /srv/unilis-uploads && echo YES || echo NO)"
+            echo "/srv/unilis-uploads owner: $(stat -c '%U:%G %a' /srv/unilis-uploads 2>/dev/null || echo NOT_FOUND)"
+            echo "/srv/unilis-uploads/uploads/short_courses exists: $(test -d /srv/unilis-uploads/uploads/short_courses && echo YES || echo NO)"
+            echo "Files in short_courses: $(ls /srv/unilis-uploads/uploads/short_courses 2>/dev/null | wc -l || echo 0)"
+            echo "Can write to /srv/unilis-uploads: $(touch /srv/unilis-uploads/.writetest 2>/dev/null && echo YES && rm /srv/unilis-uploads/.writetest || echo NO)"
+            echo "==========================="
+
+            # Create persistent upload directories
             mkdir -p /srv/unilis-uploads/uploads/short_courses/sponsors
             mkdir -p /srv/unilis-uploads/uploads/course_images
             mkdir -p /srv/unilis-uploads/uploads/course_pdfs
@@ -89,15 +99,13 @@ jobs:
             mkdir -p /srv/unilis-uploads/assets/assignments
             mkdir -p /srv/unilis-uploads/assets/meetings
             mkdir -p /srv/unilis-uploads/assets/requested_files
-            # Make sure the web server process can write to these directories
             chmod -R 775 /srv/unilis-uploads
 
-            # Fail loudly rather than deploy half an update: --ff-only refuses if the
-            # server checkout has diverged (local edits to compose, deleted files, etc).
+            echo "After mkdir - Files in short_courses: $(ls /srv/unilis-uploads/uploads/short_courses 2>/dev/null | wc -l || echo 0)"
+
             git pull --ff-only
 
             docker compose build
             docker compose up -d --remove-orphans
-
             docker compose ps
           EOF
