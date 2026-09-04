@@ -3,8 +3,8 @@ if (($_GET['token'] ?? '') !== 'unilis_audit_2026') { die('403'); }
 
 $dirs = [
     '/var/www/html/uploads',
-    '/var/www/html/uploads/short_courses',
-    '/var/www/html/uploads/short_courses/sponsors',
+    '/var/www/html/assets/uploads/short_courses',
+    '/var/www/html/assets/uploads/short_courses/sponsors',
     '/var/www/html/uploads/course_images',
     '/var/www/html/uploads/course_pdfs',
     '/var/www/html/uploads/course_videos',
@@ -68,3 +68,4 @@ foreach ($dirs as $dir) {
 
 echo "=== DONE ===\n";
 echo "</pre>";
+
