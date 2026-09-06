@@ -148,6 +148,11 @@ else:
                            value="<?= learn_e($old['organisation'] ?? '') ?>">
                 </div>
             </div>
+            <div class="ln-field">
+                <label for="phone">Safaricom phone number <span style="font-weight:400;color:#6b7280;">(required for paid courses)</span></label>
+                <input id="phone" name="phone" type="tel" autocomplete="tel" placeholder="0712345678"
+                       value="<?= learn_e($old['phone'] ?? '') ?>">
+            </div>
 
             <button class="ln-btn ln-btn-primary ln-btn-block" type="submit">
                 <span class="material-symbols-rounded">person_add</span> Create external account

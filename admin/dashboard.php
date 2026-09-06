@@ -8,8 +8,23 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
 }
 
 $user_id = $_SESSION['user_id'];
-$admin_res = $conn->query("SELECT * FROM admins WHERE id = $user_id");
+$admin_res = $conn->query("SELECT * FROM admins WHERE id = $user_id LIMIT 1");
 $admin = $admin_res->fetch_assoc();
+
+// Only the designated account may access the global super-admin dashboard.
+// Other admins retain their normal department-admin workflows.
+if (!$admin || strtolower(trim((string)($admin['email'] ?? ''))) !== 'admin@unilis.com') {
+    http_response_code(403);
+    exit('Forbidden: this dashboard is restricted to the designated super administrator.');
+}
+
+// Keep the database flag aligned with the single-account policy.
+$superAdminColumn = $conn->query("SHOW COLUMNS FROM admins LIKE 'is_super_admin'");
+if ($superAdminColumn && $superAdminColumn->num_rows > 0) {
+    $stmt = $conn->prepare("UPDATE admins SET is_super_admin = CASE WHEN LOWER(email) = 'admin@unilis.com' THEN 1 ELSE 0 END");
+    $stmt->execute();
+    $stmt->close();
+}
 
 $verify_success = $_SESSION['verify_success'] ?? '';
 $verify_error   = $_SESSION['verify_error'] ?? '';
@@ -558,6 +573,93 @@ if ($teamTablesExist) {
                 </select>
             </div>
         </div>
+    </div>
+
+    <?php
+    $mpesaEnvironment = strtolower((string)(getenv('MPESA_ENVIRONMENT') ?: 'sandbox'));
+    $mpesaStkConfigured = getenv('MPESA_CONSUMER_KEY')
+        && getenv('MPESA_CONSUMER_SECRET')
+        && getenv('MPESA_SHORTCODE')
+        && getenv('MPESA_PASSKEY')
+        && getenv('MPESA_STK_RESULT_URL')
+        && getenv('MPESA_STK_TIMEOUT_URL');
+    $mpesaB2bConfigured = getenv('MPESA_B2B_CONSUMER_KEY')
+        && getenv('MPESA_B2B_CONSUMER_SECRET')
+        && getenv('MPESA_B2B_SHORTCODE')
+        && getenv('MPESA_B2B_INITIATOR_NAME')
+        && getenv('MPESA_B2B_SECURITY_CREDENTIAL')
+        && getenv('MPESA_B2B_RESULT_URL')
+        && getenv('MPESA_B2B_TIMEOUT_URL');
+    $mpesaPaymentsCount = 0;
+    $mpesaRecentPayments = [];
+    $mpesaTable = $conn->query("SHOW TABLES LIKE 'short_course_payments'");
+    if ($mpesaTable && $mpesaTable->num_rows > 0) {
+        $mpesaPaymentsCount = (int)$conn->query("SELECT COUNT(*) AS total FROM short_course_payments")->fetch_assoc()['total'];
+        $recent = $conn->query("
+            SELECT p.id, p.amount, p.status, p.created_at, c.title, l.email
+            FROM short_course_payments p
+            JOIN public_courses c ON c.id = p.course_id
+            JOIN external_learners l ON l.id = p.learner_id
+            ORDER BY p.id DESC LIMIT 8
+        ");
+        if ($recent) {
+            while ($row = $recent->fetch_assoc()) {
+                $mpesaRecentPayments[] = $row;
+            }
+        }
+    }
+    ?>
+    <div class="registration-stats-section" style="border:2px solid #16a34a; background:#f0fdf4;">
+        <h3><i class="fas fa-mobile-alt" style="color:#16a34a;"></i> M-Pesa Sandbox Testing</h3>
+        <p style="margin:0 0 14px;color:#166534;">
+            This is the short-course payment test control panel. Use a Safaricom sandbox test number
+            on the public course payment page; successful callbacks create enrolment records.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <span style="padding:8px 12px;border-radius:999px;background:#dcfce7;color:#166534;">
+                Environment: <strong><?= htmlspecialchars($mpesaEnvironment, ENT_QUOTES, 'UTF-8') ?></strong>
+            </span>
+            <span style="padding:8px 12px;border-radius:999px;background:<?= $mpesaStkConfigured ? '#dcfce7' : '#fee2e2' ?>;color:<?= $mpesaStkConfigured ? '#166534' : '#991b1b' ?>;">
+                STK: <strong><?= $mpesaStkConfigured ? 'configured' : 'missing configuration' ?></strong>
+            </span>
+            <span style="padding:8px 12px;border-radius:999px;background:<?= $mpesaB2bConfigured ? '#dcfce7' : '#fef3c7' ?>;color:<?= $mpesaB2bConfigured ? '#166534' : '#92400e' ?>;">
+                B2B: <strong><?= $mpesaB2bConfigured ? 'configured' : 'not configured' ?></strong>
+            </span>
+            <span style="padding:8px 12px;border-radius:999px;background:#e0f2fe;color:#075985;">
+                Payments recorded: <strong><?= $mpesaPaymentsCount ?></strong>
+            </span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+            <a class="btn btn-primary" href="../learn/" target="_blank" rel="noopener">
+                <i class="fas fa-external-link-alt"></i> Open course catalogue
+            </a>
+            <a class="btn btn-success" href="../migrations/short_course_mpesa.php">
+                <i class="fas fa-database"></i> Open M-Pesa migration
+            </a>
+        </div>
+        <p style="margin:0 0 8px;color:#166534;">
+            Callback URLs:
+            <code>/api/mpesa_callback.php</code> and <code>/api/mpesa_b2b_callback.php</code>
+        </p>
+        <?php if ($mpesaRecentPayments): ?>
+            <div style="overflow:auto;">
+                <table style="width:100%;border-collapse:collapse;background:#fff;">
+                    <thead><tr><th style="text-align:left;padding:8px;">Course</th><th style="text-align:left;padding:8px;">Learner</th><th style="text-align:left;padding:8px;">Amount</th><th style="text-align:left;padding:8px;">Status</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($mpesaRecentPayments as $payment): ?>
+                        <tr>
+                            <td style="padding:8px;border-top:1px solid #dcfce7;"><?= htmlspecialchars($payment['title'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td style="padding:8px;border-top:1px solid #dcfce7;"><?= htmlspecialchars($payment['email'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td style="padding:8px;border-top:1px solid #dcfce7;">KSh <?= number_format((float)$payment['amount'], 2) ?></td>
+                            <td style="padding:8px;border-top:1px solid #dcfce7;"><?= htmlspecialchars($payment['status'], ENT_QUOTES, 'UTF-8') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <p style="margin:0;color:#166534;">No short-course payment attempts have been recorded yet.</p>
+        <?php endif; ?>
     </div>
 
     <div class="charts-grid">

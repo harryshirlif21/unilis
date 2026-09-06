@@ -114,7 +114,7 @@ learn_head(['title' => 'Open courses', 'learner' => $learner]);
                                 data-sponsor-count="<?= count($course['sponsors']) ?>"
                                 data-sponsors="<?= htmlspecialchars(json_encode($course['sponsors']), ENT_QUOTES, 'UTF-8') ?>"
                                 aria-haspopup="dialog">
-                            <span class="material-symbols-rounded">volunteer_activism</span> Sponsored
+                            <span class="material-symbols-rounded">volunteer_activism</span> Sponsored · KSh 250
                         </button>
                     <?php elseif ((int)($course['is_sponsored'] ?? 0) === 1 && !empty($course['sponsor_name'])): ?>
                         <!-- Fallback for legacy single sponsor data -->
@@ -123,17 +123,22 @@ learn_head(['title' => 'Open courses', 'learner' => $learner]);
                                 data-sponsor-details="<?= learn_e($course['sponsor_details'] ?? '') ?>"
                                 data-sponsor-logo="<?= learn_e($course['sponsor_logo'] ?? '') ?>"
                                 aria-haspopup="dialog">
-                            <span class="material-symbols-rounded">volunteer_activism</span> Sponsored
+                            <span class="material-symbols-rounded">volunteer_activism</span> Sponsored · KSh 250
                         </button>
                     <?php elseif ((int)($course['is_paid'] ?? 0) === 1): ?>
                         <div class="ln-course-bar ln-course-bar-paid">
                             <span class="material-symbols-rounded">payments</span>
-                            Paid<?php if (isset($course['price']) && (float)$course['price'] > 0): ?> · <?= learn_e(number_format((float)$course['price'], 2)) ?><?php endif; ?>
+                            Paid · KSh <?= learn_e(number_format((float)($course['price'] ?? 0) + 500, 2)) ?>
+                        </div>
+                    <?php elseif ((int)($course['is_sponsored'] ?? 0) === 1): ?>
+                        <div class="ln-course-bar ln-course-bar-paid">
+                            <span class="material-symbols-rounded">payments</span>
+                            Sponsored registration · KSh 250
                         </div>
                     <?php else: ?>
                         <div class="ln-course-bar ln-course-bar-free">
                             <span class="material-symbols-rounded">check_circle</span>
-                            Free
+                            Registration · KSh 500
                         </div>
                     <?php endif; ?>
                 </div>

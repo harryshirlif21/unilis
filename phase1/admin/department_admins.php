@@ -98,6 +98,54 @@ $short_courses_refreshed = false;
 // Handle actions
 $action = $_POST['action'] ?? '';
 
+// Department B2B payout details are maintained by the department admin.
+if ($is_department_admin && $department_id > 0) {
+    foreach ([
+        'payout_type' => "ALTER TABLE department_admins ADD COLUMN payout_type ENUM('till','paybill') DEFAULT NULL AFTER is_active",
+        'payout_shortcode' => "ALTER TABLE department_admins ADD COLUMN payout_shortcode VARCHAR(32) DEFAULT NULL AFTER payout_type",
+    ] as $column => $sql) {
+        $columnCheck = $conn->query("SHOW COLUMNS FROM department_admins LIKE '" . $conn->real_escape_string($column) . "'");
+        if (!$columnCheck || $columnCheck->num_rows === 0) {
+            @$conn->query($sql);
+        }
+    }
+}
+
+if ($action === 'save_department_payout' && $is_department_admin && $department_id > 0) {
+    $payoutType = ($_POST['payout_type'] ?? '') === 'paybill' ? 'paybill' : 'till';
+    $payoutShortcode = preg_replace('/\D+/', '', (string)($_POST['payout_shortcode'] ?? ''));
+    if ($payoutShortcode === '' || strlen($payoutShortcode) > 12) {
+        $message = 'Enter a valid Till or PayBill number.';
+        $message_type = 'error';
+    } else {
+        $stmt = $conn->prepare("
+            UPDATE department_admins
+            SET payout_type = ?, payout_shortcode = ?
+            WHERE admin_id = ? AND department_id = ? AND is_active = 1
+        ");
+        $adminId = (int)$_SESSION['user_id'];
+        $stmt->bind_param('ssii', $payoutType, $payoutShortcode, $adminId, $department_id);
+        $stmt->execute();
+        $stmt->close();
+        $message = 'M-Pesa department payout details saved.';
+        $message_type = 'success';
+    }
+}
+
+$departmentPayout = ['payout_type' => '', 'payout_shortcode' => ''];
+if ($is_department_admin && $department_id > 0) {
+    $stmt = $conn->prepare("
+        SELECT payout_type, payout_shortcode
+        FROM department_admins
+        WHERE admin_id = ? AND department_id = ? AND is_active = 1 LIMIT 1
+    ");
+    $adminId = (int)$_SESSION['user_id'];
+    $stmt->bind_param('ii', $adminId, $department_id);
+    $stmt->execute();
+    $departmentPayout = $stmt->get_result()->fetch_assoc() ?: $departmentPayout;
+    $stmt->close();
+}
+
 // AJAX: Search lecturer by email (returns JSON only)
 if ($action === 'search_lecturer') {
     header('Content-Type: application/json');
@@ -1911,6 +1959,37 @@ if ($department_id) {
                     <h1>Overview</h1>
                     <p>Manage your department's academic resources</p>
                 </div>
+                <?php if ($is_department_admin): ?>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-money-check-alt"></i></div>
+                        <h3>M-Pesa department payout</h3>
+                    </div>
+                    <div class="card-body">
+                        <p style="margin-top:0;color:var(--text-muted);">
+                            Enter the Till or PayBill that should receive the department's share after a paid short-course registration.
+                        </p>
+                        <form method="POST">
+                            <input type="hidden" name="action" value="save_department_payout">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Recipient type *</label>
+                                    <select name="payout_type" required>
+                                        <option value="till" <?= ($departmentPayout['payout_type'] ?? '') === 'till' ? 'selected' : '' ?>>Till</option>
+                                        <option value="paybill" <?= ($departmentPayout['payout_type'] ?? '') === 'paybill' ? 'selected' : '' ?>>PayBill</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Till / PayBill number *</label>
+                                    <input type="text" name="payout_shortcode" required inputmode="numeric"
+                                           value="<?= htmlspecialchars($departmentPayout['payout_shortcode'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save payout details</button>
+                        </form>
+                    </div>
+                </div>
+                <?php endif; ?>
                 <div class="stats-row">
                     <div class="stat-card">
                         <div class="stat-icon purple"><i class="fas fa-chalkboard-teacher"></i></div>
@@ -3263,4 +3342,3 @@ if ($department_id) {
 </div>
 </body>
 </html>
-

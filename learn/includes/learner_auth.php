@@ -336,7 +336,7 @@ function learn_verify_token(mysqli $conn, string $token, string $courseSlug = ''
         'ok' => true,
         'already' => false,
         'message' => $course !== null
-            ? 'Your email is verified and you are enrolled in ' . $course['title'] . '. You can sign in now.'
+            ? 'Your email is verified. Sign in to complete payment and register for ' . $course['title'] . '.'
             : 'Your email is verified. You can sign in now.',
     ];
 }

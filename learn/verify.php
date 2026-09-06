@@ -45,7 +45,7 @@ learn_head(['title' => 'Confirm your email', 'narrow' => true]);
         <?php learn_notice($result['message'], $result['ok'] ? 'success' : 'error'); ?>
 
         <?php if ($result['ok']): ?>
-            <a class="ln-btn ln-btn-primary ln-btn-block" href="/learn/login.php">
+            <a class="ln-btn ln-btn-primary ln-btn-block" href="/learn/login.php<?= $courseSlug !== '' ? '?next=' . learn_e(urlencode('/learn/payment.php?course=' . $courseSlug)) : '' ?>">
                 <span class="material-symbols-rounded">login</span> Sign in
             </a>
         <?php endif; ?>

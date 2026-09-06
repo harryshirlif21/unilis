@@ -426,10 +426,10 @@ $nextLesson = ($currentIndex >= 0 && $currentIndex < count($lessonSequence) - 1)
     <section style="margin: 40px auto; max-width: 600px; text-align: center;">
         <h1 style="font-size: 1.5rem; margin-bottom: 12px;"><?= learn_e($course['title']) ?></h1>
         <p style="color: var(--ln-muted); margin-bottom: 24px;">
-            Enrolment is created automatically when you confirm the email link sent after registering for this course.
+            Complete the M-Pesa payment to register for this course.
         </p>
-        <a class="ln-btn ln-btn-primary" href="/learn/dashboard.php" style="font-size: 1rem; padding: 12px 28px;">
-            <span class="material-symbols-rounded">dashboard</span> Go to my courses
+        <a class="ln-btn ln-btn-primary" href="/learn/payment.php?course=<?= learn_e(urlencode($slug)) ?>" style="font-size: 1rem; padding: 12px 28px;">
+            <span class="material-symbols-rounded">payments</span> Pay with M-Pesa
         </a>
     </section>
 <?php else: ?>
