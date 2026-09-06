@@ -14,7 +14,7 @@ $openAuthModal = !empty($_GET['auth']);
 
 Layout::start([
     'title'     => 'Live Engagement',
-    'layout'    => 'minimal',
+    'layout'    => 'app',
     'bodyClass' => 'le-home-page',
 ]);
 ?>

@@ -43,6 +43,7 @@ $meetingScripts = [
     'js/whiteboard.js',
     'js/screenshare.js',
     'js/polls.js',
+    'js/recording.js',
     'js/captions.js',
     'js/attendance.js',
     'js/settings.js',

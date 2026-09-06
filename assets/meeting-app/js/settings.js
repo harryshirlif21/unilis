@@ -88,6 +88,7 @@ UNILIS_MEETING.Settings = {
       </div>
 
       ${this._devicesBlock()}
+      ${this._privacyBlock()}
       ${this._infoBlock()}
     `;
   },
@@ -176,6 +177,7 @@ UNILIS_MEETING.Settings = {
       </div>
 
       ${this._devicesBlock()}
+      ${this._privacyBlock()}
       ${this._infoBlock()}
     `;
   },
@@ -246,6 +248,30 @@ UNILIS_MEETING.Settings = {
         <div class="sb-kv"><span>Length</span><span>${parseInt(config.duration, 10) || 0} min</span></div>
         ${config.back_url ? `
           <a class="sb-btn sb-btn-block" href="${this._esc(config.back_url)}">Leave and go back</a>` : ''}
+      </div>`;
+  },
+
+  _privacyBlock() {
+    const media = UNILIS_MEETING.MediaManager;
+    const active = media.privacyMode;
+    return `
+      <div class="sb-block">
+        <h4 class="sb-subhead">Presenter privacy</h4>
+        <p class="sb-meta">This changes the outgoing video other people receive. Image mode hides
+          your camera completely; blur mode blurs the complete frame because this browser does not
+          provide person segmentation.</p>
+        <div class="sb-actions">
+          <button class="sb-btn${active === 'blur' ? ' sb-btn-primary' : ''}"
+                  onclick="UNILIS_MEETING.Settings.setPrivacy('blur')">Blur outgoing video</button>
+          <label class="sb-btn">
+            Use image
+            <input type="file" accept="image/*" hidden
+              onchange="UNILIS_MEETING.Settings.setPrivacyImage(this.files[0])">
+          </label>
+          <button class="sb-btn"${active ? '' : ' disabled'}
+                  onclick="UNILIS_MEETING.Settings.setPrivacy('off')">Restore camera</button>
+        </div>
+        ${active === 'image' ? '<p class="sb-meta">A privacy image is being sent to other participants.</p>' : ''}
       </div>`;
   },
 
@@ -328,6 +354,30 @@ UNILIS_MEETING.Settings = {
         'Could not switch microphone: ' + ((err && err.message) || 'unknown error'),
         'error'
       );
+    }
+  },
+
+  async setPrivacy(mode) {
+    try {
+      await UNILIS_MEETING.MediaManager.setPrivacyBackground(mode);
+      UNILIS_MEETING.Notifications.show(
+        mode === 'blur' ? 'Outgoing video is blurred for privacy' : 'Camera restored',
+        'success'
+      );
+      UNILIS_MEETING.SidebarManager.switchTab('settings');
+    } catch (err) {
+      UNILIS_MEETING.Notifications.show(err.message || 'Could not change presenter privacy', 'error');
+    }
+  },
+
+  async setPrivacyImage(file) {
+    if (!file) return;
+    try {
+      await UNILIS_MEETING.MediaManager.setPrivacyBackground('image', file);
+      UNILIS_MEETING.Notifications.show('Privacy image is being sent to participants', 'success');
+      UNILIS_MEETING.SidebarManager.switchTab('settings');
+    } catch (err) {
+      UNILIS_MEETING.Notifications.show(err.message || 'Could not use that image', 'error');
     }
   },
 

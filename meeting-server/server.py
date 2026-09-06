@@ -346,6 +346,7 @@ def serve_meeting_page(
             "whiteboard.js",
             "screenshare.js",
             "polls.js",
+            "recording.js",
             "captions.js",
             "attendance.js",
             "settings.js",
@@ -438,12 +439,25 @@ async def signaling_websocket(ws: WebSocket):
 
                 # Replay the whiteboard so a late joiner sees what is already on
                 # it rather than an empty board everyone else has drawn on.
-                board = whiteboard_handler.get_state(meeting_id, None)
+                board = whiteboard_handler.get_state(
+                    meeting_id, room.get_participant(user_id).breakout_id
+                )
                 if board["items"]:
                     await send_json(ws, {
                         "type": "whiteboard_state",
                         "meeting_id": meeting_id,
                         "state": board,
+                    })
+
+                active_polls = [
+                    poll.to_dict()
+                    for poll in poll_handler.get_active_polls(meeting_id)
+                ]
+                if active_polls:
+                    await send_json(ws, {
+                        "type": "poll_state",
+                        "meeting_id": meeting_id,
+                        "polls": active_polls,
                     })
 
                 logger.info("User %s (%s) joined meeting %s as %s", user_id, display_name, meeting_id, role)
@@ -699,6 +713,22 @@ async def signaling_websocket(ws: WebSocket):
                 })
                 await broadcast_participants(meeting_id, room)
 
+            elif msg_type == "permission_response":
+                if meeting_id is None or user_id is None:
+                    continue
+                room = rooms.get_room(meeting_id)
+                host = room.get_participant(user_id)
+                target_id = int(message.get("target_user_id", 0))
+                capability = message.get("capability", "")
+                if not (host and host.is_host()) or capability not in CAPABILITIES:
+                    continue
+                await ws_manager.send_to_signaling(meeting_id, target_id, {
+                    "type": "permission_changed",
+                    "capability": capability,
+                    "granted": False,
+                    "by": host.display_name,
+                })
+
             elif msg_type == "set_policy":
                 if meeting_id is None or user_id is None:
                     continue
@@ -755,7 +785,19 @@ async def signaling_websocket(ws: WebSocket):
                 room = rooms.get_room(meeting_id)
                 host = room.get_participant(user_id)
                 if host and host.is_host():
+                    moved = [
+                        p.user_id
+                        for p in room.participants.values()
+                        if p.breakout_id == message.get("breakout_id")
+                    ]
                     if room.delete_breakout(message.get("breakout_id", "")):
+                        for target_id in moved:
+                            await ws_manager.send_to_signaling(meeting_id, target_id, {
+                                "type": "breakout_moved",
+                                "meeting_id": meeting_id,
+                                "breakout_id": None,
+                                "name": "the main room",
+                            })
                         await broadcast_room_state(meeting_id, room)
                         await broadcast_participants(meeting_id, room)
 
@@ -906,11 +948,27 @@ async def signaling_websocket(ws: WebSocket):
             elif msg_type == "poll_create":
                 if meeting_id is None or user_id is None:
                     continue
+                room = rooms.get_room(meeting_id)
+                creator = room.get_participant(user_id)
+                if not (creator and creator.is_host()):
+                    continue
+                question = str(message.get("question", "")).strip()[:500]
+                options = [
+                    str(option).strip()[:200]
+                    for option in (message.get("options") or [])
+                    if str(option).strip()
+                ][:10]
+                if not question or len(options) < 2:
+                    await send_json(ws, {
+                        "type": "error",
+                        "message": "A poll needs a question and at least two options.",
+                    })
+                    continue
                 poll = poll_handler.create_poll(
                     meeting_id=meeting_id,
                     creator_id=user_id,
-                    question=message.get("question", ""),
-                    options=message.get("options", []),
+                    question=question,
+                    options=options,
                     poll_type=message.get("poll_type", "multiple_choice"),
                     is_anonymous=message.get("is_anonymous", False),
                 )
@@ -932,6 +990,10 @@ async def signaling_websocket(ws: WebSocket):
 
             elif msg_type == "poll_close":
                 if meeting_id is None or user_id is None:
+                    continue
+                room = rooms.get_room(meeting_id)
+                creator = room.get_participant(user_id)
+                if not (creator and creator.is_host()):
                     continue
                 poll_id = message.get("poll_id", "")
                 if poll_handler.close_poll(poll_id):

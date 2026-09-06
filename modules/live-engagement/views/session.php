@@ -34,7 +34,8 @@ if (!$session) {
 
 Layout::start([
     'title' => $session['title'] ?? 'Live Session',
-    'layout' => 'immersive',
+    'layout' => 'app',
+    'activeNav' => 'join',
 ]);
 ?>
 

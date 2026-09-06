@@ -70,176 +70,261 @@ Layout::start([
 ]);
 ?>
 
-<div class="le-container le-page-enter">
-    <!-- ============================================================ -->
-    <!-- Page Header -->
-    <!-- ============================================================ -->
-    <div style="margin-bottom: var(--le-space-4);">
-        <div class="le-flex-between" style="flex-wrap: wrap; gap: var(--le-space-2);">
-            <div style="display: flex; align-items: center; gap: var(--le-space-2);">
-                <div style="width: 48px; height: 48px; border-radius: var(--le-radius-xl); background: linear-gradient(135deg, var(--le-primary), var(--le-primary-light)); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(27,94,32,0.3);">
-                    <span class="material-symbols-rounded" style="font-size: 28px; color: white;">slideshow</span>
+<style>
+/* Presentations page specific styles using live-dash.css variables */
+.ld-presentations-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+.ld-presentations-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+.ld-presentations-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.ld-presentations-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--green), var(--green-mid));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(27,94,32,0.3);
+}
+.ld-presentations-icon .material-symbols-rounded {
+    font-size: 28px;
+    color: white;
+}
+.ld-presentations-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+}
+.ld-presentations-subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 4px;
+}
+.ld-presentations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+.ld-presentation-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 20px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+.ld-presentation-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(102,242,154,.25);
+    box-shadow: 0 10px 28px rgba(0,0,0,.09);
+}
+.ld-presentation-thumbnail {
+    width: 100%;
+    height: 160px;
+    background: var(--panel-2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+.ld-presentation-thumbnail .material-symbols-rounded {
+    font-size: 48px;
+    color: var(--muted);
+}
+.ld-presentation-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ld-presentation-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 12px;
+}
+.ld-presentation-actions {
+    display: flex;
+    gap: 8px;
+}
+</style>
+
+<div class="ld">
+    <div class="ld-presentations-container">
+        <!-- Page Header -->
+        <div class="ld-presentations-header">
+            <div class="ld-presentations-title-group">
+                <div class="ld-presentations-icon">
+                    <span class="material-symbols-rounded">slideshow</span>
                 </div>
                 <div>
-                    <h1 style="font-size: var(--le-font-size-3xl); font-weight: var(--le-font-weight-bold); margin: 0;">Presentations</h1>
-                    <p style="color: var(--le-gray-500); margin: 2px 0 0; font-size: var(--le-font-size-sm);">
+                    <h1 class="ld-presentations-title">Presentations</h1>
+                    <p class="ld-presentations-subtitle">
                         <?= $totalPresentations ?> presentation<?= $totalPresentations !== 1 ? 's' : '' ?> in your library
                     </p>
                 </div>
             </div>
-            <div style="display: flex; gap: var(--le-space-2); flex-wrap: wrap; align-items: center;">
-                <?= UI::themeSwitcher() ?>
-                <button class="le-btn le-btn-primary le-btn-lg" onclick="showUploadModal()">
-                    <span class="material-symbols-rounded" style="font-size: 20px;">upload</span>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                <button class="ld-btn primary" onclick="showUploadModal()">
+                    <span class="material-symbols-rounded">upload</span>
                     Upload
                 </button>
-                <button class="le-btn le-btn-primary le-btn-lg" onclick="showCreateModal()">
-                    <span class="material-symbols-rounded" style="font-size: 20px;">add</span>
+                <button class="ld-btn primary" onclick="showCreateModal()">
+                    <span class="material-symbols-rounded">add</span>
                     New Presentation
                 </button>
             </div>
         </div>
-    </div>
 
     <?php if ($selectedSessionId > 0): ?>
-        <div class="le-card-solid" style="margin-bottom: var(--le-space-3); border-left: 4px solid var(--le-primary);">
-            <p style="margin: 0; color: var(--le-gray-600); font-size: var(--le-font-size-sm);">
+        <div style="margin-bottom: 24px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--green); border-radius: 12px;">
+            <p style="margin: 0; color: var(--muted); font-size: 14px;">
                 Showing presentations for session #<?= (int) $selectedSessionId ?>.
                 Uploads here will be attached to this session.
             </p>
         </div>
     <?php endif; ?>
 
-    <!-- ============================================================ -->
     <!-- Search & Filters -->
-    <!-- ============================================================ -->
-    <div class="le-card-solid" style="margin-bottom: var(--le-space-4);">
-        <form method="GET" style="display: flex; gap: var(--le-space-2); flex-wrap: wrap; align-items: flex-end;">
+    <div style="margin-bottom: 24px; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 20px;">
+        <form method="GET" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
             <input type="hidden" name="page" value="presentations">
             <?php if ($selectedSessionId > 0): ?>
                 <input type="hidden" name="session_id" value="<?= (int) $selectedSessionId ?>">
             <?php endif; ?>
             <div style="flex: 1; min-width: 200px;">
-                <label class="le-label">Search</label>
-                <div class="le-input-group">
-                    <span class="le-input-group-addon">
-                        <span class="material-symbols-rounded" style="font-size: 20px;">search</span>
-                    </span>
-                    <input type="text" class="le-input" name="search" value="<?= UI::escape($search) ?>" placeholder="Search presentations..." style="border: none;">
+                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px;">Search</label>
+                <div style="position: relative;">
+                    <span class="material-symbols-rounded" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 20px;">search</span>
+                    <input type="text" name="search" value="<?= le_esc($search) ?>" placeholder="Search presentations..." 
+                           style="width: 100%; padding: 12px 12px 12px 40px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; color: var(--text); font-size: 14px;">
                 </div>
             </div>
             <div style="min-width: 200px;">
-                <label class="le-label">Course</label>
-                <select class="le-select" name="course_id" onchange="this.form.submit()">
+                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px;">Course</label>
+                <select name="course_id" onchange="this.form.submit()" 
+                        style="width: 100%; padding: 12px 16px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; color: var(--text); font-size: 14px;">
                     <option value="">All Courses</option>
                     <?php foreach ($courses as $course): ?>
                         <option value="<?= $course['id'] ?>" <?= $courseFilter === (int)$course['id'] ? 'selected' : '' ?>>
-                            <?= UI::escape($course['name']) ?>
+                            <?= le_esc($course['name']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div style="min-width: 150px;">
-                <label class="le-label">Sort by</label>
-                <select class="le-select" name="sort" onchange="this.form.submit()">
+                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px;">Sort by</label>
+                <select name="sort" onchange="this.form.submit()"
+                        style="width: 100%; padding: 12px 16px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; color: var(--text); font-size: 14px;">
                     <option value="newest" <?= $sort === 'newest' ? 'selected' : '' ?>>Newest First</option>
                     <option value="oldest" <?= $sort === 'oldest' ? 'selected' : '' ?>>Oldest First</option>
                     <option value="views" <?= $sort === 'views' ? 'selected' : '' ?>>Most Viewed</option>
                     <option value="name" <?= $sort === 'name' ? 'selected' : '' ?>>Name A-Z</option>
                 </select>
             </div>
-            <button type="submit" class="le-btn le-btn-primary" style="margin-bottom: 0;">Search</button>
+            <button type="submit" class="ld-btn primary">Search</button>
             <?php if ($search || $courseFilter): ?>
-                <a href="?page=presentations" class="le-btn le-btn-ghost" style="margin-bottom: 0;">Clear</a>
+                <a href="?page=presentations" class="ld-btn secondary">Clear</a>
             <?php endif; ?>
         </form>
     </div>
 
-    <!-- ============================================================ -->
     <!-- Presentation Grid -->
-    <!-- ============================================================ -->
     <?php if (empty($presentations)): ?>
-        <div class="le-card-solid">
-            <?= UI::emptyState(
-                '📁',
-                'No Presentations Yet',
-                'Upload a PDF, PowerPoint, or create a new presentation to get started. Your presentations will appear here with previews and version history.',
-                UI::button('Upload Presentation', 'primary', [
-                    'icon' => 'upload',
-                    'size' => 'lg',
-                    'onclick' => 'showUploadModal()'
-                ]) . ' ' .
-                UI::button('Create Blank', 'secondary', [
-                    'icon' => 'add',
-                    'size' => 'lg',
-                    'onclick' => 'showCreateModal()'
-                ])
-            ) ?>
+        <div style="padding: 60px 20px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 20px;">
+            <span class="material-symbols-rounded" style="font-size: 48px; color: var(--muted); display: block; margin-bottom: 16px;">folder_open</span>
+            <h3 style="font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 8px;">No Presentations Yet</h3>
+            <p style="font-size: 14px; color: var(--muted); margin-bottom: 24px; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Upload a PDF, PowerPoint, or create a new presentation to get started.
+            </p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button class="ld-btn primary" onclick="showUploadModal()">
+                    <span class="material-symbols-rounded">upload</span>
+                    Upload Presentation
+                </button>
+                <button class="ld-btn secondary" onclick="showCreateModal()">
+                    <span class="material-symbols-rounded">add</span>
+                    Create Blank
+                </button>
+            </div>
         </div>
     <?php else: ?>
-        <div class="le-grid le-grid-auto" style="gap: var(--le-space-3);">
+        <div class="ld-presentations-grid">
             <?php foreach ($presentations as $pres): ?>
-                <div class="le-card-solid" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+                <div class="ld-presentation-card">
                     <!-- Thumbnail -->
-                    <div style="height: 160px; background: linear-gradient(135deg, var(--le-primary-lighter), var(--le-gray-100)); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                    <div class="ld-presentation-thumbnail">
                         <?php if (!empty($pres['thumbnail_path'])): ?>
-                            <img src="<?= UI::escape($pres['thumbnail_path']) ?>" alt="" style="width: 100%; height: 100%; object-fit: cover;">
+                            <img src="<?= le_esc($pres['thumbnail_path']) ?>" alt="" style="width: 100%; height: 100%; object-fit: cover;">
                         <?php else: ?>
-                            <span class="material-symbols-rounded" style="font-size: 48px; color: var(--le-gray-300);">description</span>
+                            <span class="material-symbols-rounded">description</span>
                         <?php endif; ?>
-                        <div style="position: absolute; top: var(--le-space-2); right: var(--le-space-2); display: flex; gap: 4px;">
-                            <span class="le-badge le-badge-<?= $pres['visibility'] ?? 'private' ?>" style="font-size: 0.65rem;">
+                        <div style="position: absolute; top: 12px; right: 12px; display: flex; gap: 4px;">
+                            <span style="font-size: 10px; padding: 4px 8px; background: rgba(102,242,154,.12); color: var(--green-2); border-radius: 99px;">
                                 <?= $pres['visibility'] ?? 'private' ?>
                             </span>
                             <?php if (!empty($pres['version']) && $pres['version'] > 1): ?>
-                                <span class="le-badge le-badge-neutral" style="font-size: 0.65rem;">v<?= $pres['version'] ?></span>
+                                <span style="font-size: 10px; padding: 4px 8px; background: var(--panel-2); color: var(--muted); border-radius: 99px;">v<?= $pres['version'] ?></span>
                             <?php endif; ?>
                         </div>
                     </div>
                     
                     <!-- Content -->
-                    <div style="padding: var(--le-space-3); flex: 1; display: flex; flex-direction: column;">
-                        <h3 style="font-size: var(--le-font-size-base); font-weight: var(--le-font-weight-semibold); margin: 0 0 4px; line-height: 1.3;">
-                            <?= UI::escape($pres['title']) ?>
+                    <div style="padding: 20px; flex: 1; display: flex; flex-direction: column;">
+                        <h3 style="font-size: 16px; font-weight: 600; margin: 0 0 8px; line-height: 1.3; color: var(--text);">
+                            <?= le_esc($pres['title']) ?>
                         </h3>
                         <?php if (!empty($pres['description'])): ?>
-                            <p style="font-size: var(--le-font-size-sm); color: var(--le-gray-500); margin: 0 0 var(--le-space-2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                                <?= UI::escape($pres['description']) ?>
+                            <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                <?= le_esc($pres['description']) ?>
                             </p>
                         <?php endif; ?>
                         
-                        <div style="display: flex; gap: var(--le-space-1); flex-wrap: wrap; margin-bottom: var(--le-space-2);">
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
                             <?php if (!empty($pres['course_name'])): ?>
-                                <span class="le-tag"><?= UI::escape($pres['course_name']) ?></span>
+                                <span style="font-size: 11px; padding: 4px 10px; background: var(--panel-2); color: var(--muted); border-radius: 99px;"><?= le_esc($pres['course_name']) ?></span>
                             <?php endif; ?>
-                            <span class="le-tag"><?= $pres['total_slides'] ?? 0 ?> slides</span>
-                            <span class="le-tag"><?= $pres['views'] ?? 0 ?> views</span>
+                            <span style="font-size: 11px; padding: 4px 10px; background: var(--panel-2); color: var(--muted); border-radius: 99px;"><?= $pres['total_slides'] ?? 0 ?> slides</span>
+                            <span style="font-size: 11px; padding: 4px 10px; background: var(--panel-2); color: var(--muted); border-radius: 99px;"><?= $pres['views'] ?? 0 ?> views</span>
                         </div>
                         
-                        <div style="display: flex; align-items: center; gap: var(--le-space-1); font-size: var(--le-font-size-xs); color: var(--le-gray-400); margin-top: auto;">
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-top: auto;">
                             <span class="material-symbols-rounded" style="font-size: 14px;">schedule</span>
                             <?= date('M j, Y', strtotime($pres['created_at'])) ?>
                         </div>
                     </div>
                     
                     <!-- Actions -->
-                    <div style="padding: var(--le-space-2) var(--le-space-3); border-top: 1px solid var(--le-gray-100); display: flex; gap: 4px; flex-wrap: wrap;">
-                        <button class="le-btn le-btn-sm le-btn-primary" onclick="presentPresentation(<?= $pres['id'] ?>)">
-                            <span class="material-symbols-rounded" style="font-size: 16px;">present_to_all</span>
-                            Present
+                    <div style="padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="ld-small-btn open" onclick="presentPresentation(<?= $pres['id'] ?>)">Present</button>
+                        <button class="ld-small-btn" onclick="sharePresentation(<?= $pres['id'] ?>, '<?= le_esc($pres['title']) ?>')">Share</button>
+                        <button class="ld-small-btn ld-icon-only" onclick="editPresentation(<?= $pres['id'] ?>)" title="Edit">
+                            <span class="material-symbols-rounded">edit</span>
                         </button>
-                        <button class="le-btn le-btn-sm le-btn-secondary" onclick="sharePresentation(<?= $pres['id'] ?>, '<?= UI::escape($pres['title']) ?>')">
-                            <span class="material-symbols-rounded" style="font-size: 16px;">share</span>
-                            Share
+                        <button class="ld-small-btn ld-icon-only" onclick="duplicatePresentation(<?= $pres['id'] ?>)" title="Duplicate">
+                            <span class="material-symbols-rounded">content_copy</span>
                         </button>
-                        <button class="le-btn le-btn-sm le-btn-ghost" onclick="editPresentation(<?= $pres['id'] ?>)">
-                            <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
-                        </button>
-                        <button class="le-btn le-btn-sm le-btn-ghost" onclick="duplicatePresentation(<?= $pres['id'] ?>)">
-                            <span class="material-symbols-rounded" style="font-size: 16px;">content_copy</span>
-                        </button>
-                        <button class="le-btn le-btn-sm le-btn-ghost" onclick="deletePresentation(<?= $pres['id'] ?>)" style="color: var(--le-danger);">
-                            <span class="material-symbols-rounded" style="font-size: 16px;">delete</span>
+                        <button class="ld-small-btn ld-icon-only" onclick="deletePresentation(<?= $pres['id'] ?>)" title="Delete" style="color: var(--orange);">
+                            <span class="material-symbols-rounded">delete</span>
                         </button>
                     </div>
                 </div>
@@ -250,11 +335,11 @@ Layout::start([
         <?php if ($totalPresentations > $perPage): 
             $totalPages = ceil($totalPresentations / $perPage);
         ?>
-        <div style="display: flex; justify-content: center; gap: var(--le-space-1); margin-top: var(--le-space-4);">
+        <div style="display: flex; justify-content: center; gap: 8px; margin-top: 24px;">
             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                 <a href="?page=presentations&p=<?= $i ?>&search=<?= urlencode($search) ?>&course_id=<?= $courseFilter ?>&sort=<?= $sort ?><?= $selectedSessionId ? '&session_id=' . (int) $selectedSessionId : '' ?>"
-                   class="le-btn le-btn-sm <?= $i === $currentPage ? 'le-btn-primary' : 'le-btn-ghost' ?>"
-                   style="min-width: 36px;">
+                   class="ld-btn <?= $i === $currentPage ? 'primary' : 'secondary' ?>"
+                   style="min-width: 36px; padding: 10px 14px;">
                     <?= $i ?>
                 </a>
             <?php endfor; ?>

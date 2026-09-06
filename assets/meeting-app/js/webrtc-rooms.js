@@ -6,6 +6,7 @@ UNILIS_MEETING.Signaling = {
   ws: null,
   url: '',
   connected: false,
+  intentionalDisconnect: false,
   reconnectTimer: null,
   onMessage: null,       // callback(message)
   onConnected: null,     // callback()
@@ -13,6 +14,7 @@ UNILIS_MEETING.Signaling = {
 
   connect(url) {
     this.url = url;
+    this.intentionalDisconnect = false;
     this._doConnect();
   },
 
@@ -44,7 +46,7 @@ UNILIS_MEETING.Signaling = {
     this.ws.onclose = () => {
       this.connected = false;
       if (this.onDisconnected) this.onDisconnected();
-      this._scheduleReconnect();
+      if (!this.intentionalDisconnect) this._scheduleReconnect();
     };
 
     this.ws.onerror = () => {
@@ -77,6 +79,7 @@ UNILIS_MEETING.Signaling = {
   },
 
   disconnect() {
+    this.intentionalDisconnect = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.ws) {
       this.ws.close();

@@ -64,180 +64,130 @@ if ($presentationId) {
 
 Layout::start([
     'title' => 'Join Session',
-    'layout' => 'minimal',
+    'layout' => 'app',
     'activeNav' => 'join',
 ]);
 ?>
 
-<div class="le-join-page">
-    <!-- Animated background particles -->
-    <div style="position: absolute; inset: 0; overflow: hidden; pointer-events: none;">
-        <div style="position: absolute; width: 300px; height: 300px; border-radius: 50%; background: rgba(255,255,255,0.05); top: 10%; left: 5%; animation: le-float-slow 12s ease-in-out infinite;"></div>
-        <div style="position: absolute; width: 200px; height: 200px; border-radius: 50%; background: rgba(255,255,255,0.03); top: 60%; left: 80%; animation: le-float-slow 15s ease-in-out infinite reverse;"></div>
-        <div style="position: absolute; width: 150px; height: 150px; border-radius: 50%; background: rgba(255,255,255,0.04); top: 30%; left: 50%; animation: le-float-slow 10s ease-in-out infinite 2s;"></div>
-    </div>
+<style>
+/* Join page specific styles using live-dash.css variables */
+.ld-join-container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+.ld-join-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    padding: 32px;
+    backdrop-filter: blur(24px);
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+.ld-join-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    background: rgba(102,242,154,.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+}
+.ld-join-icon .material-symbols-rounded {
+    font-size: 32px;
+    color: var(--green-2);
+}
+.ld-join-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+.ld-join-subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 24px;
+}
+.ld-join-input {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 16px;
+    text-align: center;
+    font-family: monospace;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    outline: none;
+    transition: all 0.2s ease;
+}
+.ld-join-input:focus {
+    border-color: var(--green-2);
+    box-shadow: 0 0 0 3px rgba(102,242,154,.12);
+}
+.ld-join-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-align: left;
+}
+.ld-join-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+}
+</style>
 
-    <div class="le-join-card">
-        <!-- Logo / Icon -->
-        <div style="margin-bottom: var(--le-space-3);">
-            <div style="width: 72px; height: 72px; border-radius: var(--le-radius-2xl); background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto; backdrop-filter: blur(8px);">
-                <span class="material-symbols-rounded" style="font-size: 36px; color: white;">rocket_launch</span>
+<div class="ld">
+    <div class="ld-join-container">
+        <div class="ld-join-card">
+            <div class="ld-join-icon">
+                <span class="material-symbols-rounded">vpn_key</span>
             </div>
-        </div>
+            <h1 class="ld-join-title">Join Live Session</h1>
+            <p class="ld-join-subtitle">Enter the session code provided by your lecturer</p>
 
-        <h1 style="font-size: 1.8rem; font-weight: 700; color: white; margin-bottom: 4px;">Join Live Session</h1>
-        <p style="color: rgba(255,255,255,0.7); margin-bottom: var(--le-space-4); font-size: 0.95rem;">
-            Enter the session code provided by your lecturer
-        </p>
-
-        <form id="joinForm" onsubmit="joinSession(event)" style="max-width: 380px; margin: 0 auto;">
-            <div class="le-form-group">
-                <div style="position: relative;">
-                    <span class="material-symbols-rounded" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.5); font-size: 24px;">vpn_key</span>
-                    <input type="text" class="le-input" id="sessionCode" 
-                           placeholder="Enter Code"
-                           style="background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); color: white; text-align: center; font-size: 1.8rem; font-family: var(--le-font-mono); letter-spacing: 10px; text-transform: uppercase; padding: 16px 16px 16px 48px; border-radius: var(--le-radius-xl); height: 60px;"
+            <form id="joinForm" onsubmit="joinSession(event)">
+                <div style="margin-bottom: 20px;">
+                    <input type="text" class="ld-join-input" id="sessionCode"
+                           placeholder="ENTER CODE"
                            maxlength="10" required autocomplete="off" autofocus>
+                    <p class="ld-join-hint">e.g. ABC12345</p>
                 </div>
-                <p class="le-hint-text" style="color: rgba(255,255,255,0.4); text-align: center; margin-top: 8px;">
-                    e.g. ABC12345
-                </p>
-            </div>
 
-            <div class="le-form-group" style="text-align: left;">
-                <label class="le-label" style="color: rgba(255,255,255,0.7);">Your Display Name</label>
-                <div style="position: relative;">
-                    <span class="material-symbols-rounded" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.5); font-size: 20px;">person</span>
-                    <input type="text" class="le-input" id="displayName" 
-                           value="<?= UI::escape($userName) ?>"
-                           style="background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); color: white; padding-left: 44px; border-radius: var(--le-radius-lg);"
+                <div style="margin-bottom: 24px; text-align: left;">
+                    <label class="ld-join-label">Your Display Name</label>
+                    <input type="text" class="ld-join-input" id="displayName"
+                           value="<?= le_esc($userName) ?>"
+                           style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
                            required>
                 </div>
-            </div>
 
-            <button type="submit" class="le-btn le-btn-primary le-btn-lg" style="width: 100%; justify-content: center; padding: 16px; font-size: 1rem; border-radius: var(--le-radius-xl); background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1)); border: 1px solid rgba(255,255,255,0.3); color: white; box-shadow: 0 8px 32px rgba(0,0,0,0.2);" 
-                    id="joinButton">
-                <span class="material-symbols-rounded" style="font-size: 22px;">login</span>
-                Join Session
-            </button>
-        </form>
-
-        <div id="errorMessage" style="display: none; margin-top: var(--le-space-3); padding: var(--le-space-2) var(--le-space-3); background: rgba(220, 38, 38, 0.2); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: var(--le-radius-lg); color: #FCA5A5; font-size: 0.9rem;"></div>
-        
-        <div id="loadingSpinner" style="display: none; margin-top: var(--le-space-3);" class="le-loading">
-            <div class="le-spinner" style="border-color: rgba(255,255,255,0.2); border-top-color: white;"></div>
-            <span style="color: rgba(255,255,255,0.7);">Joining session...</span>
-        </div>
-
-<!-- Auth Step (shown when a code is entered but the user is not signed in) -->
-        <div id="authStep" style="display: none; flex-direction: column; gap: var(--le-space-3); margin-top: var(--le-space-3);">
-            <div>
-                <h3 style="color: white; font-size: 1.1rem; margin: 0 0 4px;">Sign in to join</h3>
-                <p style="color: rgba(255,255,255,0.6); font-size: 0.9rem; margin: 0;">Choose how you'd like to sign in.</p>
-            </div>
-
-            <!-- UNILIS option -->
-            <button type="button" onclick="loginWithUnilis()"
-                    style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--le-radius-xl); border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: white; cursor: pointer; text-align: left; transition: background 0.2s;"
-                    onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
-                <span class="material-symbols-rounded" style="font-size: 24px;">account_circle</span>
-                <span>
-                    <strong style="display: block; font-size: 0.95rem;">Login with UNILIS</strong>
-                    <span style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">Use your institution account</span>
-                </span>
-            </button>
-
-            <!-- Custom details option -->
-            <button type="button" onclick="toggleCustomLogin()"
-                    style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--le-radius-xl); border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: white; cursor: pointer; text-align: left; transition: background 0.2s;"
-                    onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
-                <span class="material-symbols-rounded" style="font-size: 24px;">badge</span>
-                <span>
-                    <strong style="display: block; font-size: 0.95rem;">Join as guest</strong>
-                    <span style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">Just your name — no account needed</span>
-                </span>
-            </button>
-
-            <!-- Custom (guest) login form -->
-            <div id="customLoginForm" style="display: none; flex-direction: column; gap: var(--le-space-2);">
-                <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0;">Join instantly — no email or password required.</p>
-                <input type="text" id="guestName" placeholder="Your display name" autocomplete="name"
-                       style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: #fff; font-size: 0.95rem; outline: none;">
-                <button type="button" onclick="loginWithCustom()"
-                        class="le-btn le-btn-primary le-btn-lg"
-                        style="width: 100%; justify-content: center; padding: 14px; border-radius: var(--le-radius-xl);">Join as Guest</button>
-                <div id="guestError" style="display: none; padding: 10px 12px; background: rgba(220,38,38,0.2); border: 1px solid rgba(220,38,38,0.3); border-radius: var(--le-radius-lg); color: #FCA5A5; font-size: 0.85rem;"></div>
-                <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0; text-align: center;">
-                    Prefer an account? Use <button type="button" onclick="loginWithUnilis()" style="background:none;border:none;color:#F9A825;cursor:pointer;font-size:0.8rem;padding:0;text-decoration:underline;">Login with UNILIS</button>.
-                </p>
-            </div>
-
-            <button type="button" onclick="hideAuthStep()"
-                    style="background:none; border:none; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 0.85rem; align-self: flex-start; padding: 4px 0;">
-                &larr; Back to the code
-            </button>
-        </div>
-        <!-- Divider -->
-        <div style="display: flex; align-items: center; gap: var(--le-space-2); margin: var(--le-space-4) 0;">
-            <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
-            <span style="color: rgba(255,255,255,0.4); font-size: 0.85rem;">or</span>
-            <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
-        </div>
-
-        <a href="<?= $isAuthenticated && le_can_present() ? le_page_url('dashboard') : (le_base_url() . '/login.php?redirect=' . rawurlencode(le_page_url('join'))) ?>"
-           style="display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.6); font-size: 0.9rem; transition: color 0.2s;"
-           onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">
-            <span class="material-symbols-rounded" style="font-size: 18px;">arrow_back</span>
-            <?= $isAuthenticated && le_can_present() ? 'Back to Dashboard' : 'Sign in to UNILIS' ?>
-        </a>
-    </div>
-
-    <!-- Available Sessions (for logged-in students) -->
-    <?php
-    if ($isAuthenticated && $userId) {
-        $sessionModel = new \LE\Models\SessionModel();
-        $availableSessions = $sessionModel->getStudentAvailableSessions($userId);
-        if (!empty($availableSessions)):
-    ?>
-    <div style="position: absolute; bottom: var(--le-space-4); left: 50%; transform: translateX(-50%); width: 90%; max-width: 500px;">
-        <div class="le-card" style="background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); padding: var(--le-space-3);">
-            <div class="le-flex-between" style="margin-bottom: var(--le-space-2);">
-                <h3 style="color: white; font-size: 0.95rem; margin: 0;">Available Sessions</h3>
-                <span style="color: rgba(255,255,255,0.5); font-size: 0.8rem;"><?= count($availableSessions) ?> active</span>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto;">
-                <?php foreach (array_slice($availableSessions, 0, 5) as $session): ?>
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(255,255,255,0.06); border-radius: var(--le-radius-md); transition: background 0.2s;"
-                         onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
-                        <div>
-                            <strong style="color: white; font-size: 0.9rem;"><?= UI::escape($session['title']) ?></strong>
-                            <?php if (!empty($session['unit_name'])): ?>
-                                <span style="color: rgba(255,255,255,0.5); font-size: 0.8rem;"> - <?= UI::escape($session['unit_name']) ?></span>
-                            <?php endif; ?>
-                            <div style="display: flex; gap: 8px; margin-top: 4px;">
-                                <span class="le-badge le-badge-<?= $session['status'] ?>" style="font-size: 0.7rem; padding: 2px 8px;">
-                                    <?= $session['status'] ?>
-                                </span>
-                                <span style="font-size: 0.75rem; color: rgba(255,255,255,0.4);">
-                                    👥 <?= $session['online_count'] ?? 0 ?> online
-                                </span>
-                            </div>
-                        </div>
-                        <button class="le-btn le-btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: var(--le-radius-full); padding: 6px 16px; font-size: 0.8rem;" 
-                                onclick="joinBySessionId(<?= $session['id'] ?>)">
-                            Join
-                        </button>
-                    </div>
-                <?php endforeach; ?>
-            </div>
+                <button type="submit" class="ld-btn primary" style="width: 100%; justify-content: center; padding: 14px;" id="joinButton">
+                    <span class="material-symbols-rounded">login</span>
+                    Join Session
+                </button>
+            </form>
         </div>
     </div>
-    <?php
-        endif;
-    }
-    ?>
 </div>
 
+<div id="errorMessage" style="display: none; margin-top: 20px; padding: 12px 16px; background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: 12px; color: #FCA5A5; font-size: 14px;"></div>
+
+<div id="loadingSpinner" style="display: none; margin-top: 20px; text-align: center;">
+    <div style="width: 24px; height: 24px; border: 2px solid var(--muted); border-top-color: var(--green-2); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto;"></div>
+    <span style="color: var(--muted); margin-top: 8px; display: block;">Joining session...</span>
+</div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 
 <script>
     LiveEngagement.init();

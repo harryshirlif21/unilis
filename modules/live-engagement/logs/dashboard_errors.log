@@ -258,3 +258,66 @@
 [18-Aug-2026 14:23:11 Africa/Nairobi] Starting Layout render...
 [18-Aug-2026 14:23:11 Africa/Nairobi] Layout render started successfully
 [18-Aug-2026 14:23:11 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[05-Sep-2026 21:26:50 Europe/Berlin] === DASHBOARD PAGE LOAD START ===
+[05-Sep-2026 21:26:50 Europe/Berlin] URL: unknown
+[05-Sep-2026 21:26:50 Europe/Berlin] GET params: []
+[05-Sep-2026 21:26:50 Europe/Berlin] Session data: ["user_id","user_role","user_name","le_authenticated"]
+[05-Sep-2026 22:26:50 Africa/Nairobi] User ID: 1
+[05-Sep-2026 22:26:50 Africa/Nairobi] User Role: lecturer
+[05-Sep-2026 22:26:50 Africa/Nairobi] Loading session model...
+[05-Sep-2026 22:26:50 Africa/Nairobi] Getting active sessions for user ID: 1
+[05-Sep-2026 22:26:50 Africa/Nairobi] Dashboard session query error: Table 'unilis.live_sessions' doesn't exist
+[05-Sep-2026 22:26:50 Africa/Nairobi] Error trace: #0 C:\xampp\htdocs\unilis\modules\live-engagement\config\database_helper.php(204): mysqli->prepare('SELECT s.*, \r\n ...')
+#1 C:\xampp\htdocs\unilis\modules\live-engagement\config\database_helper.php(95): DatabaseHelper->prepareAndExecute('SELECT s.*, \r\n ...', Array, 'i')
+#2 C:\xampp\htdocs\unilis\modules\live-engagement\models\SessionModel.php(51): DatabaseHelper->select('SELECT s.*, \r\n ...', Array, 'i')
+#3 C:\xampp\htdocs\unilis\modules\live-engagement\views\dashboard.php(50): LE\Models\SessionModel->getLecturerActiveSessions(1)
+#4 C:\xampp\htdocs\unilis\modules\live-engagement\_render_test.php(13): require('C:\\xampp\\htdocs...')
+#5 {main}
+[05-Sep-2026 22:26:50 Africa/Nairobi] Getting courses for user ID: 1
+[05-Sep-2026 22:26:50 Africa/Nairobi] Courses count: 3
+[05-Sep-2026 22:26:50 Africa/Nairobi] Units count: 4
+[05-Sep-2026 22:26:50 Africa/Nairobi] Starting Layout render...
+[05-Sep-2026 22:26:50 Africa/Nairobi] Layout render started successfully
+[05-Sep-2026 22:26:50 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[05-Sep-2026 21:27:07 Europe/Berlin] === DASHBOARD PAGE LOAD START ===
+[05-Sep-2026 21:27:07 Europe/Berlin] URL: unknown
+[05-Sep-2026 21:27:07 Europe/Berlin] GET params: []
+[05-Sep-2026 21:27:07 Europe/Berlin] Session data: ["user_id","user_role","user_name","le_authenticated"]
+[05-Sep-2026 22:27:07 Africa/Nairobi] User ID: 1
+[05-Sep-2026 22:27:07 Africa/Nairobi] User Role: lecturer
+[05-Sep-2026 22:27:07 Africa/Nairobi] Loading session model...
+[05-Sep-2026 22:27:07 Africa/Nairobi] Getting active sessions for user ID: 1
+[05-Sep-2026 22:27:07 Africa/Nairobi] Dashboard session query error: Table 'unilis.live_sessions' doesn't exist
+[05-Sep-2026 22:27:07 Africa/Nairobi] Error trace: #0 C:\xampp\htdocs\unilis\modules\live-engagement\config\database_helper.php(204): mysqli->prepare('SELECT s.*, \r\n ...')
+#1 C:\xampp\htdocs\unilis\modules\live-engagement\config\database_helper.php(95): DatabaseHelper->prepareAndExecute('SELECT s.*, \r\n ...', Array, 'i')
+#2 C:\xampp\htdocs\unilis\modules\live-engagement\models\SessionModel.php(51): DatabaseHelper->select('SELECT s.*, \r\n ...', Array, 'i')
+#3 C:\xampp\htdocs\unilis\modules\live-engagement\views\dashboard.php(50): LE\Models\SessionModel->getLecturerActiveSessions(1)
+#4 C:\xampp\htdocs\unilis\modules\live-engagement\_render_test.php(13): require('C:\\xampp\\htdocs...')
+#5 {main}
+[05-Sep-2026 22:27:07 Africa/Nairobi] Getting courses for user ID: 1
+[05-Sep-2026 22:27:07 Africa/Nairobi] Courses count: 3
+[05-Sep-2026 22:27:07 Africa/Nairobi] Units count: 4
+[05-Sep-2026 22:27:07 Africa/Nairobi] Starting Layout render...
+[05-Sep-2026 22:27:07 Africa/Nairobi] Layout render started successfully
+[05-Sep-2026 22:27:07 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===
+[05-Sep-2026 21:27:25 Europe/Berlin] === DASHBOARD PAGE LOAD START ===
+[05-Sep-2026 21:27:25 Europe/Berlin] URL: unknown
+[05-Sep-2026 21:27:25 Europe/Berlin] GET params: []
+[05-Sep-2026 21:27:25 Europe/Berlin] Session data: ["user_id","user_role","user_name","le_authenticated"]
+[05-Sep-2026 22:27:25 Africa/Nairobi] User ID: 1
+[05-Sep-2026 22:27:25 Africa/Nairobi] User Role: lecturer
+[05-Sep-2026 22:27:25 Africa/Nairobi] Loading session model...
+[05-Sep-2026 22:27:25 Africa/Nairobi] Getting active sessions for user ID: 1
+[05-Sep-2026 22:27:25 Africa/Nairobi] Dashboard session query error: Table 'unilis.live_sessions' doesn't exist
+[05-Sep-2026 22:27:25 Africa/Nairobi] Error trace: #0 C:\xampp\htdocs\unilis\modules\live-engagement\config\database_helper.php(204): mysqli->prepare('SELECT s.*, \r\n ...')
+#1 C:\xampp\htdocs\unilis\modules\live-engagement\config\database_helper.php(95): DatabaseHelper->prepareAndExecute('SELECT s.*, \r\n ...', Array, 'i')
+#2 C:\xampp\htdocs\unilis\modules\live-engagement\models\SessionModel.php(51): DatabaseHelper->select('SELECT s.*, \r\n ...', Array, 'i')
+#3 C:\xampp\htdocs\unilis\modules\live-engagement\views\dashboard.php(50): LE\Models\SessionModel->getLecturerActiveSessions(1)
+#4 C:\xampp\htdocs\unilis\modules\live-engagement\_render_test.php(13): require('C:\\xampp\\htdocs...')
+#5 {main}
+[05-Sep-2026 22:27:25 Africa/Nairobi] Getting courses for user ID: 1
+[05-Sep-2026 22:27:25 Africa/Nairobi] Courses count: 3
+[05-Sep-2026 22:27:25 Africa/Nairobi] Units count: 4
+[05-Sep-2026 22:27:25 Africa/Nairobi] Starting Layout render...
+[05-Sep-2026 22:27:25 Africa/Nairobi] Layout render started successfully
+[05-Sep-2026 22:27:25 Africa/Nairobi] === DASHBOARD PAGE LOAD END ===

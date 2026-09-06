@@ -688,7 +688,15 @@
         break;
 
       case 'poll_created':
-        UNILIS_MEETING.Polls.activePolls.push(message);
+        UNILIS_MEETING.Polls.activePolls = [
+          ...UNILIS_MEETING.Polls.activePolls.filter(p => p.poll_id !== message.poll_id),
+          message,
+        ];
+        if (UNILIS_MEETING.SidebarManager.currentTab === 'polls') updatePollsUI();
+        break;
+
+      case 'poll_state':
+        UNILIS_MEETING.Polls.activePolls = message.polls || [];
         if (UNILIS_MEETING.SidebarManager.currentTab === 'polls') updatePollsUI();
         break;
 
@@ -844,9 +852,12 @@
       card.remove();
     });
     card.querySelector('[data-answer="deny"]').addEventListener('click', () => {
-      // Nothing is sent on a refusal. The asker is not told "no" explicitly,
-      // because a host who is mid-sentence and ignores a request has not made a
-      // decision worth broadcasting - and a refusal notice invites a second ask.
+      UNILIS_MEETING.signaling.send({
+        type: 'permission_response',
+        target_user_id: message.user_id,
+        capability: message.capability,
+        granted: false,
+      });
       card.remove();
     });
 
@@ -992,6 +1003,10 @@
   // ============================================================
   function updateParticipantsUI(participants) {
     const list = participants || [];
+    const local = list.find(p => p.user_id === config.user_id);
+    if (local && !local.screen_sharing && UNILIS_MEETING.MediaManager.screenSharing) {
+      UNILIS_MEETING.ScreenShare.stop();
+    }
     const inMyRoom = list.filter(p => (p.breakout_id || null) === UNILIS_MEETING.Room.breakoutId);
 
     UNILIS_MEETING.LayoutManager.updateTileCount(inMyRoom.length);

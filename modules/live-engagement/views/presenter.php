@@ -146,10 +146,11 @@ $documentFileUrl = !empty($presentation['file_path'])
     : '';
 
 Layout::start([
-    'title'     => ($presentation['title'] ?? $session['title'] ?? 'Presenting'),
-    'layout'    => 'immersive',
-    'bodyClass' => 'le-presenter-page',
+    'title' => 'Presenter',
+    'layout' => 'app',
+    'activeNav' => 'presentations',
 ]);
+
 ?>
 
 <style>

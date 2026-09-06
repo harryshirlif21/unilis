@@ -5,6 +5,11 @@
 UNILIS_MEETING.MediaManager = {
   localStream: null,
   screenStream: null,
+  processedStream: null,
+  originalVideoTrack: null,
+  privacyMode: null,
+  privacyFrame: null,
+  privacyAnimation: null,
   audioEnabled: true,
   videoEnabled: true,
   screenSharing: false,
@@ -136,8 +141,10 @@ UNILIS_MEETING.MediaManager = {
       const oldVideoTrack = this.localStream.getVideoTracks()[0];
       if (oldVideoTrack) oldVideoTrack.stop();
       const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) throw new Error('The selected camera did not provide video.');
+      if (oldVideoTrack) this.localStream.removeTrack(oldVideoTrack);
       this.localStream.addTrack(newVideoTrack);
-      this.localStream.removeTrack(oldVideoTrack);
+      newStream.getAudioTracks().forEach(track => track.stop());
       if (UNILIS_MEETING.WebRTCCore) {
         UNILIS_MEETING.WebRTCCore.replaceLocalStream(this.localStream);
       }
@@ -147,14 +154,102 @@ UNILIS_MEETING.MediaManager = {
   },
 
   /**
-   * Enable/disable background blur using CSS filter.
+   * Process the outgoing camera track. Without a segmentation model, a true
+   * person-cutout background replacement would be misleading, so image mode
+   * sends the selected image instead of the camera and blur mode blurs the
+   * complete outgoing frame. Both modes guarantee that the presenter's room
+   * cannot be seen by other participants.
    */
-  setBackgroundBlur(enabled) {
-    const videoEl = document.querySelector('video[data-local="true"]');
-    if (videoEl) {
-      videoEl.style.filter = enabled ? 'blur(8px)' : 'none';
-      videoEl.style.backdropFilter = enabled ? 'blur(8px)' : 'none';
+  async setPrivacyBackground(mode, imageFile = null) {
+    if (!this.localStream || !this.hasVideo()) {
+      throw new Error('Turn on your camera before enabling privacy background.');
     }
+
+    if (mode === 'off') {
+      this.clearPrivacyBackground();
+      return;
+    }
+
+    let image = null;
+    if (mode === 'image') {
+      if (!imageFile) throw new Error('Choose a background image first.');
+      image = await this._loadImage(imageFile);
+    }
+
+    this.clearPrivacyBackground();
+    this.originalVideoTrack = this.localStream.getVideoTracks()[0];
+    const source = document.createElement('video');
+    source.srcObject = new MediaStream([this.originalVideoTrack]);
+    source.muted = true;
+    source.playsInline = true;
+    await source.play();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280;
+    canvas.height = 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas video processing is unavailable.');
+
+    const draw = () => {
+      if (!this.originalVideoTrack || this.originalVideoTrack.readyState !== 'live') return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (mode === 'image') {
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.save();
+        ctx.filter = 'blur(18px)';
+        ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
+      this.privacyAnimation = requestAnimationFrame(draw);
+    };
+    draw();
+
+    const processedTrack = canvas.captureStream(30).getVideoTracks()[0];
+    this.processedStream = new MediaStream([processedTrack]);
+    this.localStream.removeTrack(this.originalVideoTrack);
+    this.localStream.addTrack(processedTrack);
+    this.privacyMode = mode;
+    if (UNILIS_MEETING.WebRTCCore) {
+      UNILIS_MEETING.WebRTCCore.replaceLocalStream(this.localStream);
+    }
+  },
+
+  clearPrivacyBackground() {
+    if (this.privacyAnimation) cancelAnimationFrame(this.privacyAnimation);
+    this.privacyAnimation = null;
+    if (this.processedStream) this.processedStream.getTracks().forEach(track => track.stop());
+    this.processedStream = null;
+
+    if (this.originalVideoTrack && this.localStream) {
+      const current = this.localStream.getVideoTracks()[0];
+      if (current) {
+        current.stop();
+        this.localStream.removeTrack(current);
+      }
+      this.localStream.addTrack(this.originalVideoTrack);
+      if (UNILIS_MEETING.WebRTCCore) {
+        UNILIS_MEETING.WebRTCCore.replaceLocalStream(this.localStream);
+      }
+    }
+    this.originalVideoTrack = null;
+    this.privacyMode = null;
+  },
+
+  _loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('The selected background image could not be loaded.'));
+      };
+      image.src = url;
+    });
   },
 
   /**
@@ -233,6 +328,7 @@ UNILIS_MEETING.MediaManager = {
    * Stop all media tracks.
    */
   stopAll() {
+    this.clearPrivacyBackground();
     if (this.localStream) {
       this.localStream.getTracks().forEach(t => t.stop());
       this.localStream = null;
