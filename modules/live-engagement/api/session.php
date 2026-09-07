@@ -150,7 +150,7 @@ function handleSessionGet(string $action, int $sessionId, string $code, \LE\Mode
 /**
  * Handle POST requests
  */
-function handleSessionPost(string $action, \LE\Models\SessionModel $model, int $userId, array $input): void
+function handleSessionPost(string $action, \LE\Models\SessionModel $model, ?int $userId, array $input): void
 {
     switch ($action) {
         case 'create':
@@ -163,6 +163,8 @@ function handleSessionPost(string $action, \LE\Models\SessionModel $model, int $
         case 'join':
             $code = $input['code'] ?? '';
             $displayName = $input['display_name'] ?? le_current_user_name() ?? 'Anonymous';
+            $guestId = !empty($_SESSION['le_guest_id']) ? (int) $_SESSION['le_guest_id'] : null;
+            $email = $_SESSION['le_guest_email'] ?? null;
             
             if (empty($code)) le_error_response('Session code required');
             
@@ -171,7 +173,7 @@ function handleSessionPost(string $action, \LE\Models\SessionModel $model, int $
             if ($session['status'] !== 'active') le_error_response('Session is not active', 403);
             
             $participantId = \le_join_session(
-                $session['id'], $userId, $displayName, 'participant'
+                $session['id'], $userId, $displayName, 'participant', $guestId, $email
             );
             if (!$participantId) le_error_response('Failed to join session');
             

@@ -136,6 +136,13 @@ function installLiveEngagementTables(mysqli $conn): array
             }
         } else {
             $messages[] = "Table exists (skipped): {$tableName}";
+            $columnCheck = $conn->query("SHOW COLUMNS FROM `{$tableName}` LIKE 'guest_id'");
+            if ($columnCheck && $columnCheck->num_rows === 0) {
+                if (!$conn->query("ALTER TABLE `{$tableName}` ADD `guest_id` INT UNSIGNED NULL AFTER `user_id`, ADD INDEX `idx_guest` (`guest_id`)")) {
+                    throw new Exception("Failed to add guest_id to {$tableName}: " . $conn->error);
+                }
+                $messages[] = "Added guest_id to {$tableName}";
+            }
         }
 
         // 4. live_participants
@@ -145,6 +152,7 @@ function installLiveEngagementTables(mysqli $conn): array
                 `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 `session_id` INT UNSIGNED NOT NULL,
                 `user_id` INT UNSIGNED NULL,
+                `guest_id` INT UNSIGNED NULL,
                 `display_name` VARCHAR(100) NOT NULL,
                 `email` VARCHAR(255) NULL,
                 `role` ENUM('presenter','co_presenter','participant') NOT NULL DEFAULT 'participant',
@@ -162,6 +170,7 @@ function installLiveEngagementTables(mysqli $conn): array
                 FOREIGN KEY (`session_id`) REFERENCES `live_sessions`(`id`) ON DELETE CASCADE,
                 INDEX `idx_session` (`session_id`),
                 INDEX `idx_user` (`user_id`),
+                INDEX `idx_guest` (`guest_id`),
                 INDEX `idx_online` (`is_online`),
                 INDEX `idx_hand_raised` (`hand_raised`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";

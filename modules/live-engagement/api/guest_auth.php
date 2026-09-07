@@ -117,23 +117,51 @@ switch ($action) {
     // participant so the session join API accepts them.
     case 'join_as_guest':
         $name = trim(le_post('name', ''));
+        $email = trim(strtolower(le_post('email', '')));
 
         if (strlen($name) < 2) {
             echo json_encode(['success' => false, 'errors' => ['Please enter your display name.']]);
             exit;
         }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            echo json_encode(['success' => false, 'errors' => ['Please enter a valid email address.']]);
+            exit;
+        }
 
-        // Mark this browser session as an authenticated guest participant.
-        // No le_guest_users account is created; joining just records a row in
-        // live_participants via the session join endpoint.
+        $db = le_db();
+        $guest = $db->fetchOne("SELECT id FROM le_guest_users WHERE email = ? LIMIT 1", [$email]);
+        if ($guest) {
+            $guestId = (int) $guest['id'];
+            $db->update(
+                "UPDATE le_guest_users SET name = ?, is_active = 1, last_login_at = NOW() WHERE id = ?",
+                [$name, $guestId],
+                'si'
+            );
+        } else {
+            $guestId = (int) $db->insert(
+                "INSERT INTO le_guest_users (name, email, organisation, role, password_hash)
+                 VALUES (?, ?, 'Live session guest', 'participant', ?)",
+                [$name, $email, password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT)],
+                'sss'
+            );
+        }
+        if (!$guestId) {
+            echo json_encode(['success' => false, 'errors' => ['Unable to create your guest identity. Please try again.']]);
+            exit;
+        }
+
         $_SESSION['le_guest_access']   = true;
+        $_SESSION['le_guest_id']       = $guestId;
         $_SESSION['le_guest_name']     = $name;
+        $_SESSION['le_guest_email']    = $email;
         $_SESSION['le_guest_role']     = 'guest_participant';
         $_SESSION['le_guest_joined_at'] = date('Y-m-d H:i:s');
 
         echo json_encode([
             'success' => true,
+            'guest_id' => $guestId,
             'name'    => $name,
+            'email'   => $email,
         ]);
         break;
 

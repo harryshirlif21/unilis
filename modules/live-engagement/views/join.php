@@ -168,6 +168,16 @@ Layout::start([
                            style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
                            required>
                 </div>
+                <?php if (!$isAuthenticated): ?>
+                    <div style="margin-bottom: 24px; text-align: left;">
+                        <label class="ld-join-label">Your Email</label>
+                        <input type="email" class="ld-join-input" id="guestEmail"
+                               placeholder="you@example.com" autocomplete="email"
+                               style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
+                               required>
+                        <p class="ld-join-hint">We will use this to send course content after the presentation.</p>
+                    </div>
+                <?php endif; ?>
 
                 <button type="submit" class="ld-btn primary" style="width: 100%; justify-content: center; padding: 14px;" id="joinButton">
                     <span class="material-symbols-rounded">login</span>
@@ -193,14 +203,13 @@ Layout::start([
     LiveEngagement.init();
 
     const LE_AUTHENTICATED = <?= $isAuthenticated ? 'true' : 'false' ?>;
-    const LE_LOGIN_BASE     = <?= json_encode(le_base_url() . '/login.php') ?>;
-    const LE_JOIN_URL       = <?= json_encode(le_module_url('index.php?page=join')) ?>;
-
-    let pendingCode = null;
-    let pendingName = null;
 
     function currentNode() { return document.getElementById('sessionCode').value.trim().toUpperCase(); }
     function currentName() { return document.getElementById('displayName').value.trim(); }
+    function currentEmail() {
+        const input = document.getElementById('guestEmail');
+        return input ? input.value.trim().toLowerCase() : '';
+    }
 
     function setBusy(busy) {
         document.getElementById('loadingSpinner').style.display = busy ? 'flex' : 'none';
@@ -211,31 +220,7 @@ Layout::start([
             : '<span class="material-symbols-rounded" style="font-size: 22px;">login</span> Join Session';
     }
 
-    function showAuthStep() {
-        document.getElementById('authStep').style.display = 'flex';
-        document.getElementById('errorMessage').style.display = 'none';
-    }
-    function hideAuthStep() {
-        document.getElementById('authStep').style.display = 'none';
-        document.getElementById('customLoginForm').style.display = 'none';
-    }
-    function toggleCustomLogin() {
-        const el = document.getElementById('customLoginForm');
-        const show = el.style.display !== 'flex';
-        el.style.display = show ? 'flex' : 'none';
-
-        // Prefill the guest name with whatever the user already typed above.
-        if (show) {
-            const nameInput = document.getElementById('guestName');
-            const pending  = pendingName || currentName();
-            if (pending && !nameInput.value.trim()) {
-                nameInput.value = pending;
-                nameInput.focus();
-            }
-        }
-    }
-
-    // ── Authenticated join ────────────────────────────────────────
+    // ── Join after the code and display name have been supplied ────
     async function performJoin(code, displayName) {
         document.getElementById('errorMessage').style.display = 'none';
         setBusy(true);
@@ -246,13 +231,28 @@ Layout::start([
             const result = await LiveEngagement.joinSession(code, displayName || 'Participant');
             window.location.href = '?page=session&id=' + result.session.id;
         } catch (error) {
-            if (/401|auth|sign in|log in/i.test(error.message || '')) {
-                showAuthStep();
-            } else {
-                showError(error.message || 'Failed to join session. Please try again.');
-            }
+            showError(error.message || 'Failed to join session. Please try again.');
         } finally {
             setBusy(false);
+        }
+    }
+
+    async function authenticateGuest(displayName, email) {
+        const response = await fetch('<?= le_module_url('api/guest_auth.php') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ action: 'join_as_guest', name: displayName, email: email }),
+        });
+
+        let data = {};
+        try {
+            data = await response.json();
+        } catch (error) {
+            throw new Error('The server returned an invalid response. Please try again.');
+        }
+
+        if (!response.ok || !data.success) {
+            throw new Error((data.errors && data.errors[0]) || 'Unable to prepare the session join. Please try again.');
         }
     }
 
@@ -263,17 +263,28 @@ Layout::start([
         const displayName = currentName();
 
         if (!code) { showError('Please enter a session code'); return; }
-
-        if (!LE_AUTHENTICATED) {
-            if (!displayName) { showError('Please enter your display name'); return; }
-            // Not signed in yet: remember the intent and ask how to log in.
-            pendingCode = code;
-            pendingName = displayName;
-            showAuthStep();
+        if (!displayName) {
+            showError('Please enter your display name');
+            document.getElementById('displayName').focus();
+            return;
+        }
+        const email = currentEmail();
+        if (!LE_AUTHENTICATED && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+            showError('Please enter a valid email address');
+            document.getElementById('guestEmail').focus();
             return;
         }
 
-        await performJoin(code, displayName);
+        setBusy(true);
+        try {
+            if (!LE_AUTHENTICATED) {
+                await authenticateGuest(displayName, email);
+            }
+            await performJoin(code, displayName);
+        } catch (error) {
+            showError(error.message || 'Failed to prepare the session join. Please try again.');
+            setBusy(false);
+        }
     }
 
     // ── Join from the "Available Sessions" list (logged-in users) ─
@@ -297,49 +308,6 @@ Layout::start([
         el.style.display = 'block';
     }
 
-    // ── Sign in with UNILIS ───────────────────────────────────────
-    function loginWithUnilis() {
-        const code = pendingCode || currentNode();
-        const target = LE_JOIN_URL + (code ? '&code=' + encodeURIComponent(code) : '');
-        window.location.href = LE_LOGIN_BASE + '?redirect=' + encodeURIComponent(target);
-    }
-
-    // ── Join as guest (custom details) — name only, no email or password ──
-    async function loginWithCustom() {
-        const name = document.getElementById('guestName').value.trim()
-            || pendingName || currentName();
-        const errEl = document.getElementById('guestError');
-        errEl.style.display = 'none';
-
-        if (name.length < 2) { errEl.textContent = 'Please enter your display name.'; errEl.style.display = 'block'; return; }
-
-        // Mark this browser session as an authenticated guest participant so the
-        // session join API (which requires auth) will accept the join.
-        try {
-            const resp = await fetch('<?= le_module_url('api/guest_auth.php') ?>', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ action: 'join_as_guest', name: name }),
-            });
-            let data = {};
-            try { data = await resp.json(); } catch (e) {}
-            if (!data.success) {
-                errEl.textContent = (data.errors && data.errors[0]) || 'Unable to join as a guest. Please try again.';
-                errEl.style.display = 'block';
-                return;
-            }
-        } catch (e) {
-            errEl.textContent = 'Unable to reach the server. Please try again.';
-            errEl.style.display = 'block';
-            return;
-        }
-
-        // Now authenticated as a guest — proceed with the pending join.
-        hideAuthStep();
-        const code = pendingCode || currentNode();
-        await performJoin(code, name);
-    }
-
     // ── Auto-submit on Enter ──────────────────────────────────────
     document.getElementById('sessionCode').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
@@ -355,13 +323,6 @@ Layout::start([
         }
     });
 
-    document.getElementById('guestName').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            loginWithCustom();
-        }
-    });
-
     // ── Auto-focus code input ─────────────────────────────────────
     document.getElementById('sessionCode').focus();
 
@@ -369,11 +330,9 @@ Layout::start([
     (function resumeJoinAfterLogin() {
         const params = new URLSearchParams(window.location.search);
         const code = (params.get('code') || '').trim().toUpperCase();
-        if (code && LE_AUTHENTICATED) {
+        if (code) {
             document.getElementById('sessionCode').value = code;
-            if (document.getElementById('displayName').value.trim()) {
-                performJoin(code, currentName());
-            }
+            document.getElementById('displayName').focus();
         }
     })();
 </script>

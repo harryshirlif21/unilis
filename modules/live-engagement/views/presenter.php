@@ -188,6 +188,14 @@ Layout::start([
     color: rgba(255, 255, 255, .55);
 }
 .le-rail-list { flex: 1; overflow-y: auto; padding: 0 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.le-rail .le-toolbar {
+    position: static;
+    transform: none;
+    flex-direction: column;
+    flex-shrink: 0;
+    margin: 0 12px 16px;
+    border-radius: 18px;
+}
 .le-thumb {
     position: relative;
     display: flex; gap: 10px; align-items: center;
@@ -448,10 +456,13 @@ body.le-laser-on .le-stage { cursor: none; }
     .le-stage { padding: 16px 16px 140px; }
     
     /* Google Meet style bottom navigation for mobile */
-    .le-toolbar {
+    .le-rail .le-toolbar {
+        position: fixed;
         left: 0; bottom: 0;
         transform: none;
         width: 100%;
+        margin: 0;
+        flex-direction: row;
         justify-content: space-around;
         padding: 12px 16px;
         padding-bottom: calc(12px + env(safe-area-inset-bottom));
@@ -513,6 +524,42 @@ body.le-laser-on .le-stage { cursor: none; }
             Slides
         </div>
         <div class="le-rail-list" id="slideRailList"></div>
+        <!-- Presenter controls share the slide rail instead of floating over the stage. -->
+        <div class="le-toolbar" role="toolbar" aria-label="Presenter controls">
+            <button class="le-tool" id="railBtn" title="Toggle slide rail (T)" aria-label="Toggle slide rail">
+                <span class="material-symbols-rounded">view_sidebar</span>
+            </button>
+            <span class="le-tool-sep"></span>
+            <button class="le-tool" id="prevBtn" title="Previous slide (←)" aria-label="Previous slide">
+                <span class="material-symbols-rounded">chevron_left</span>
+            </button>
+            <span class="le-tool-count" id="slideCounter">– / –</span>
+            <button class="le-tool" id="nextBtn" title="Next slide (→)" aria-label="Next slide">
+                <span class="material-symbols-rounded">chevron_right</span>
+            </button>
+            <span class="le-tool-sep"></span>
+            <button class="le-tool" id="notesBtn" title="Presenter notes (N)" aria-label="Presenter notes">
+                <span class="material-symbols-rounded">sticky_note_2</span>
+            </button>
+            <button class="le-tool" id="laserBtn" title="Laser pointer (L)" aria-label="Laser pointer">
+                <span class="material-symbols-rounded">my_location</span>
+            </button>
+            <button class="le-tool" id="pollBtn" title="Polls" aria-label="Polls">
+                <span class="material-symbols-rounded">bar_chart</span>
+            </button>
+            <button class="le-tool" id="fullscreenBtn" title="Fullscreen (F)" aria-label="Fullscreen">
+                <span class="material-symbols-rounded">fullscreen</span>
+            </button>
+            <?php if (!empty($session['meeting_id'])): ?>
+                <a class="le-tool" href="<?= UI::escape(le_base_url() . '/lecturer/meeting_host.php?meeting_id=' . (int)$session['meeting_id']) ?>" title="Open linked meeting" aria-label="Open linked meeting">
+                    <span class="material-symbols-rounded">video_camera_front</span>
+                </a>
+            <?php endif; ?>
+            <span class="le-tool-sep"></span>
+            <button class="le-tool le-tool-danger" id="endBtn" title="End session" aria-label="End session">
+                <span class="material-symbols-rounded">stop_circle</span>
+            </button>
+        </div>
     </aside>
 
     <!-- ── Stage ──────────────────────────────────────────────── -->
@@ -561,42 +608,6 @@ body.le-laser-on .le-stage { cursor: none; }
             <div class="le-notes-body" id="notesBody">No notes for this slide.</div>
         </div>
 
-        <!-- ── Floating toolbar ───────────────────────────────── -->
-        <div class="le-toolbar" role="toolbar" aria-label="Presenter controls">
-            <button class="le-tool" id="railBtn" title="Toggle slide rail (T)" aria-label="Toggle slide rail">
-                <span class="material-symbols-rounded">view_sidebar</span>
-            </button>
-            <span class="le-tool-sep"></span>
-            <button class="le-tool" id="prevBtn" title="Previous slide (←)" aria-label="Previous slide">
-                <span class="material-symbols-rounded">chevron_left</span>
-            </button>
-            <span class="le-tool-count" id="slideCounter">– / –</span>
-            <button class="le-tool" id="nextBtn" title="Next slide (→)" aria-label="Next slide">
-                <span class="material-symbols-rounded">chevron_right</span>
-            </button>
-            <span class="le-tool-sep"></span>
-            <button class="le-tool" id="notesBtn" title="Presenter notes (N)" aria-label="Presenter notes">
-                <span class="material-symbols-rounded">sticky_note_2</span>
-            </button>
-            <button class="le-tool" id="laserBtn" title="Laser pointer (L)" aria-label="Laser pointer">
-                <span class="material-symbols-rounded">my_location</span>
-            </button>
-            <button class="le-tool" id="pollBtn" title="Polls" aria-label="Polls">
-                <span class="material-symbols-rounded">bar_chart</span>
-            </button>
-            <button class="le-tool" id="fullscreenBtn" title="Fullscreen (F)" aria-label="Fullscreen">
-                <span class="material-symbols-rounded">fullscreen</span>
-            </button>
-            <?php if (!empty($session['meeting_id'])): ?>
-                <a class="le-tool" href="<?= UI::escape(le_base_url() . '/lecturer/meeting_host.php?meeting_id=' . (int)$session['meeting_id']) ?>" title="Open linked meeting" aria-label="Open linked meeting">
-                    <span class="material-symbols-rounded">video_camera_front</span>
-                </a>
-            <?php endif; ?>
-            <span class="le-tool-sep"></span>
-            <button class="le-tool le-tool-danger" id="endBtn" title="End session" aria-label="End session">
-                <span class="material-symbols-rounded">stop_circle</span>
-            </button>
-        </div>
     </div>
 </div>
 

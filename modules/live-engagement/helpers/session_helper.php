@@ -128,7 +128,7 @@ function le_get_participants(int $sessionId, bool $onlyOnline = false): array
  * @param string $role
  * @return int|false Participant ID or false
  */
-function le_join_session(int $sessionId, ?int $userId, string $displayName, string $role = 'participant')
+function le_join_session(int $sessionId, ?int $userId, string $displayName, string $role = 'participant', ?int $guestId = null, ?string $email = null)
 {
     $db = le_db();
     
@@ -150,9 +150,19 @@ function le_join_session(int $sessionId, ?int $userId, string $displayName, stri
         return (int)$existing['id'];
     }
     
-    // Create new participant record
+    // Guest participants do not have a UNILIS user id. Insert SQL NULL rather
+    // than binding 0, which can violate the optional user relationship.
+    if (!$userId) {
+        return $db->insert(
+            "INSERT INTO live_participants (session_id, user_id, guest_id, display_name, email, role, joined_at, is_online, ip_address)
+             VALUES (?, NULL, ?, ?, ?, ?, NOW(), 1, ?)",
+            [$sessionId, $guestId, $displayName, $email, $role, $_SERVER['REMOTE_ADDR'] ?? ''],
+            'iisssss'
+        );
+    }
+
     return $db->insert(
-        "INSERT INTO live_participants (session_id, user_id, display_name, role, joined_at, is_online, ip_address) 
+        "INSERT INTO live_participants (session_id, user_id, display_name, role, joined_at, is_online, ip_address)
          VALUES (?, ?, ?, ?, NOW(), 1, ?)",
         [$sessionId, $userId, $displayName, $role, $_SERVER['REMOTE_ADDR'] ?? ''],
         'iisss'

@@ -163,7 +163,7 @@ function le_current_user_name(): ?string
  */
 function le_current_user_email(): ?string
 {
-    return $_SESSION['email'] ?? null;
+    return $_SESSION['email'] ?? $_SESSION['le_guest_email'] ?? null;
 }
 
 /**
