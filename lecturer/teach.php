@@ -272,7 +272,11 @@ iframe.content-frame { width: 100%; height: 640px; border: 0; border-radius: var
 <body>
 <header class="topbar">
     <div class="topbar-brand">UNILIS <span>Teach — Preview Mode</span></div>
-    <a href="catalogue.php" class="btn-nav"><i class="fas fa-arrow-left"></i> Back to Short Courses</a>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        <a href="meetings.php" class="btn-nav"><i class="fas fa-video"></i> Meetings</a>
+        <a href="../modules/live-engagement/index.php?page=presentations" class="btn-nav"><i class="fas fa-presentation"></i> Live Presentations</a>
+        <a href="catalogue.php" class="btn-nav"><i class="fas fa-arrow-left"></i> Back to Short Courses</a>
+    </div>
 </header>
 
 <div class="layout">

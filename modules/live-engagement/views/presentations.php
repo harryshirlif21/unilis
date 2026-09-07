@@ -316,6 +316,11 @@ Layout::start([
                     <!-- Actions -->
                     <div style="padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap;">
                         <button class="ld-small-btn open" onclick="presentPresentation(<?= $pres['id'] ?>)">Present</button>
+                        <?php if (!empty($pres['meeting_id'])): ?>
+                            <a class="ld-small-btn" href="<?= le_esc(le_base_url() . '/lecturer/meeting_host.php?meeting_id=' . (int)$pres['meeting_id']) ?>">
+                                Meeting
+                            </a>
+                        <?php endif; ?>
                         <button class="ld-small-btn" onclick="sharePresentation(<?= $pres['id'] ?>, '<?= le_esc($pres['title']) ?>')">Share</button>
                         <button class="ld-small-btn ld-icon-only" onclick="editPresentation(<?= $pres['id'] ?>)" title="Edit">
                             <span class="material-symbols-rounded">edit</span>

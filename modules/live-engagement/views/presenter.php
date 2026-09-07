@@ -487,6 +487,11 @@ body.le-laser-on .le-stage { cursor: none; }
             <button class="le-tool" id="fullscreenBtn" title="Fullscreen (F)" aria-label="Fullscreen">
                 <span class="material-symbols-rounded">fullscreen</span>
             </button>
+            <?php if (!empty($session['meeting_id'])): ?>
+                <a class="le-tool" href="<?= UI::escape(le_base_url() . '/lecturer/meeting_host.php?meeting_id=' . (int)$session['meeting_id']) ?>" title="Open linked meeting" aria-label="Open linked meeting">
+                    <span class="material-symbols-rounded">video_camera_front</span>
+                </a>
+            <?php endif; ?>
             <span class="le-tool-sep"></span>
             <button class="le-tool le-tool-danger" id="endBtn" title="End session" aria-label="End session">
                 <span class="material-symbols-rounded">stop_circle</span>

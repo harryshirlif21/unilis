@@ -590,6 +590,8 @@ html, body {
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
+  z-index: 200;
   transition: width var(--transition-normal), opacity var(--transition-normal);
 }
 

@@ -171,7 +171,7 @@ class PresentationModel extends BaseModel
         $offset = ($page - 1) * $perPage;
         $whereSql = implode(' AND ', $where);
 
-        $sql = "SELECT p.*, s.course_id, c.name AS course_name,
+        $sql = "SELECT p.*, s.course_id, s.meeting_id, c.name AS course_name,
                        0 AS views, 1 AS version, 'private' AS visibility,
                        NULL AS thumbnail_path
                 FROM live_presentations p

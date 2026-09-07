@@ -809,6 +809,9 @@ Layout::start([
                             </div>
                             <div class="le-dashboard-card-actions">
                                 <button class="primary" type="button" data-le-session-action="open" data-session-id="<?= (int)$session['id'] ?>">Open session</button>
+                                <?php if (!empty($session['meeting_id'])): ?>
+                                    <a class="le-dashboard-outline-button" href="<?= le_dashboard_escape(le_base_url() . '/lecturer/meeting_host.php?meeting_id=' . (int)$session['meeting_id']) ?>">Meeting</a>
+                                <?php endif; ?>
                                 <button type="button" data-le-session-action="edit" data-session-id="<?= (int)$session['id'] ?>" aria-label="Edit session" title="Edit session"><span class="material-symbols-rounded">edit</span></button>
                                 <button type="button" data-le-session-action="delete" data-session-id="<?= (int)$session['id'] ?>" aria-label="Delete session" title="Delete session"><span class="material-symbols-rounded">delete</span></button>
                             </div>
@@ -841,6 +844,9 @@ Layout::start([
                             </div>
                             <div class="le-dashboard-card-actions">
                                 <button class="primary" type="button" data-le-session-action="open" data-session-id="<?= (int)$session['id'] ?>">Open session</button>
+                                <?php if (!empty($session['meeting_id'])): ?>
+                                    <a class="le-dashboard-outline-button" href="<?= le_dashboard_escape(le_base_url() . '/lecturer/meeting_host.php?meeting_id=' . (int)$session['meeting_id']) ?>">Meeting</a>
+                                <?php endif; ?>
                                 <button type="button" data-le-session-action="edit" data-session-id="<?= (int)$session['id'] ?>" aria-label="Edit session" title="Edit session"><span class="material-symbols-rounded">edit</span></button>
                                 <button type="button" data-le-session-action="delete" data-session-id="<?= (int)$session['id'] ?>" aria-label="Delete session" title="Delete session"><span class="material-symbols-rounded">delete</span></button>
                             </div>

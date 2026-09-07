@@ -1264,32 +1264,33 @@
     const stage = document.getElementById('screenStage');
     const grid = document.getElementById('videoGrid');
     const video = document.getElementById('stageVideo');
-    if (!stage || !grid || !video) return;
+    const container = document.getElementById('videoContainer');
+    if (!stage || !grid || !video || !container) return;
 
     const sharer = currentSharer();
 
-    // A remote share is announced over signaling before the track itself
-    // arrives. Staying on the grid until there is something to show avoids a
-    // black rectangle in the gap.
-    const stream = sharer && sharer.isLocal
-      ? UNILIS_MEETING.MediaManager.screenStream
-      : sharer
-        ? (document.getElementById(`remoteVideo-${sharer.userId}`) || {}).srcObject
-        : null;
-
-    if (!sharer || !stream) {
-      if (!stage.hidden) {
-        stage.hidden = true;
-        video.srcObject = null;
-        grid.style.display = '';
-        document.getElementById('videoContainer').classList.remove('is-presenting');
-      }
+    if (!sharer) {
+      stage.hidden = true;
+      video.srcObject = null;
+      grid.style.display = '';
+      container.classList.remove('is-presenting');
       return;
+    }
+
+    // The roster update can arrive before the replacement video track. Enter
+    // presentation mode immediately, then attach the stream as soon as WebRTC
+    // delivers it instead of briefly falling back to the participant grid.
+    let stream = sharer.isLocal
+      ? UNILIS_MEETING.MediaManager.screenStream
+      : (UNILIS_MEETING.WebRTCCore.peerConnections.get(sharer.userId) || {}).stream;
+
+    if (!stream) {
+      stream = (document.getElementById(`remoteVideo-${sharer.userId}`) || {}).srcObject;
     }
 
     // Never play your own captured audio back: it would loop into the room.
     video.muted = sharer.isLocal;
-    if (video.srcObject !== stream) video.srcObject = stream;
+    if (video.srcObject !== stream) video.srcObject = stream || null;
 
     document.getElementById('stageLabel').textContent = sharer.isLocal
       ? 'You are presenting'
@@ -1298,7 +1299,7 @@
 
     stage.hidden = false;
     grid.style.display = 'none';
-    document.getElementById('videoContainer').classList.add('is-presenting');
+    container.classList.add('is-presenting');
   }
 
   function toggleHand() {

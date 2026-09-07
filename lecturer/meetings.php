@@ -3,6 +3,7 @@ session_start();
 require_once '../config/db.php';
 require_once __DIR__ . '/../config/meeting.php';
 require_once __DIR__ . '/../config/meeting_guests.php';
+require_once __DIR__ . '/../modules/live-engagement/bootstrap.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
@@ -11,6 +12,53 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 
 $lecturer_id = $_SESSION['user_id'];
 $lecturer_name = $_SESSION['user_name'];
+$meetingLinkToken = $_SESSION['meeting_live_link_token'] ??= bin2hex(random_bytes(32));
+
+// A meeting can open a matching Live Engagement workspace. Reuse it when it
+// already exists so repeated clicks never create duplicate live sessions.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'link_live') {
+    $linkMeetingId = (int)($_POST['meeting_id'] ?? 0);
+    if (!hash_equals($meetingLinkToken, (string)($_POST['token'] ?? ''))) {
+        $_SESSION['meeting_error'] = 'That link request expired. Please try again.';
+        header('Location: meetings.php');
+        exit;
+    }
+    $linkStmt = $conn->prepare(
+        'SELECT m.*, u.course_id
+         FROM meetings m
+         LEFT JOIN units u ON u.id = m.unit_id
+         WHERE m.id = ? AND m.lecturer_id = ? LIMIT 1'
+    );
+    $linkStmt->bind_param('ii', $linkMeetingId, $lecturer_id);
+    $linkStmt->execute();
+    $linkMeeting = $linkStmt->get_result()->fetch_assoc();
+    $linkStmt->close();
+
+    if (!$linkMeeting) {
+        $_SESSION['meeting_error'] = 'Meeting not found or access denied.';
+        header('Location: meetings.php');
+        exit;
+    }
+
+    try {
+        $liveSessionModel = new \LE\Models\SessionModel();
+        $liveSession = $liveSessionModel->getByMeeting($linkMeetingId);
+        if (!$liveSession) {
+            $liveSessionId = $liveSessionModel->createFromMeeting($linkMeeting);
+            if (!$liveSessionId) {
+                throw new RuntimeException('The live workspace could not be created.');
+            }
+            $liveSession = ['id' => $liveSessionId];
+        }
+        header('Location: ../modules/live-engagement/index.php?page=presentations&session_id=' . (int)$liveSession['id']);
+        exit;
+    } catch (Throwable $e) {
+        error_log('Meeting live workspace link failed: ' . $e->getMessage());
+        $_SESSION['meeting_error'] = 'The live workspace could not be linked.';
+        header('Location: meetings.php');
+        exit;
+    }
+}
 
 // Fetch units
 $unitQuery = $conn->prepare("
@@ -27,9 +75,11 @@ $unitQuery->close();
 
 // Fetch meetings
 $meetingQuery = $conn->prepare("
-    SELECT m.id, m.unit_id, m.title, m.scheduled_time, m.duration, m.meeting_link, u.name AS unit_name 
+    SELECT m.id, m.unit_id, m.title, m.scheduled_time, m.duration, m.meeting_link,
+           u.name AS unit_name, ls.id AS live_session_id
     FROM meetings m 
     JOIN units u ON m.unit_id = u.id 
+    LEFT JOIN live_sessions ls ON ls.meeting_id = m.id
     WHERE m.lecturer_id = ? 
     ORDER BY m.scheduled_time DESC
 ");
@@ -129,6 +179,16 @@ if (isset($_SESSION['meeting_error'])) {
         <td><?= date('d M Y, h:i A', strtotime($meeting['scheduled_time'])) ?></td>
         <td>
             <a class="btn" href="meeting_host.php?meeting_id=<?= $meeting['id'] ?>">🔗 Join Meeting</a>
+            <?php if (!empty($meeting['live_session_id'])): ?>
+                <a class="btn" href="../modules/live-engagement/index.php?page=presentations&session_id=<?= (int)$meeting['live_session_id'] ?>">📊 Live Presentation</a>
+            <?php else: ?>
+                <form method="post" style="display:inline;margin:0;padding:0;background:none;box-shadow:none;">
+                    <input type="hidden" name="action" value="link_live">
+                    <input type="hidden" name="meeting_id" value="<?= (int)$meeting['id'] ?>">
+                    <input type="hidden" name="token" value="<?= htmlspecialchars($meetingLinkToken, ENT_QUOTES, 'UTF-8') ?>">
+                    <button class="btn" type="submit">🔗 Link Live Presentation</button>
+                </form>
+            <?php endif; ?>
             <?php if ($guestsReady): ?>
                 <a class="btn" href="meeting_access.php?meeting_id=<?= $meeting['id'] ?>"
                    title="Let people without a UNILIS account join">👥 Guests</a>
