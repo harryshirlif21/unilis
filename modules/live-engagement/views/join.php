@@ -197,10 +197,10 @@ Layout::start([
 
             <form id="joinForm" onsubmit="joinSession(event)">
                 <?php if ($hasJoinCode): ?>
-                    <input type="hidden" id="sessionCode" value="<?= le_esc($joinCode) ?>">
+                    <input type="hidden" id="sessionCode" value="<?= UI::escape($joinCode) ?>">
                     <div class="ld-join-code-confirmed">
                         <span class="material-symbols-rounded" style="font-size:17px;">check_circle</span>
-                        <?= le_esc($joinCode) ?>
+                        <?= UI::escape($joinCode) ?>
                     </div>
                 <?php else: ?>
                     <div style="margin-bottom: 20px;">
@@ -219,7 +219,7 @@ Layout::start([
                     <div style="margin-bottom: 18px;">
                         <label class="ld-join-label" for="displayName">Your name</label>
                         <input type="text" class="ld-join-input" id="displayName"
-                               value="<?= le_esc($userName) ?>"
+                               value="<?= UI::escape($userName) ?>"
                                placeholder="Enter your name"
                                autocomplete="name"
                                style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
@@ -228,7 +228,7 @@ Layout::start([
                     <div style="margin-bottom: 18px;">
                         <label class="ld-join-label" for="guestEmail">Your email</label>
                         <input type="email" class="ld-join-input" id="guestEmail"
-                               value="<?= le_esc($userEmail) ?>"
+                               value="<?= UI::escape($userEmail) ?>"
                                placeholder="you@example.com" autocomplete="email"
                                style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
                                required>
