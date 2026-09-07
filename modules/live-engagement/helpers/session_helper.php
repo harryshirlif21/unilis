@@ -153,21 +153,46 @@ function le_join_session(int $sessionId, ?int $userId, string $displayName, stri
     // Guest participants do not have a UNILIS user id. Insert SQL NULL rather
     // than binding 0, which can violate the optional user relationship.
     if (!$userId) {
-        $guestColumn = $db->getConnection()->query("SHOW COLUMNS FROM live_participants LIKE 'guest_id'");
-        if (!$guestColumn || $guestColumn->num_rows === 0) {
-            return $db->insert(
-                "INSERT INTO live_participants (session_id, user_id, display_name, email, role, joined_at, is_online, ip_address)
-                 VALUES (?, NULL, ?, ?, ?, NOW(), 1, ?)",
-                [$sessionId, $displayName, $email, $role, $_SERVER['REMOTE_ADDR'] ?? ''],
-                'issss'
-            );
+        $columns = [];
+        $columnResult = $db->getConnection()->query("SHOW COLUMNS FROM live_participants");
+        if ($columnResult) {
+            while ($column = $columnResult->fetch_assoc()) {
+                $columns[$column['Field']] = true;
+            }
+            $columnResult->free();
+        }
+
+        // Email and guest_id were added after the original participant schema.
+        // Only include optional columns that exist on the current deployment.
+        $insertColumns = ['session_id', 'user_id', 'display_name', 'role', 'joined_at', 'is_online'];
+        $insertValues = ['?', 'NULL', '?', '?', 'NOW()', '1'];
+        $params = [$sessionId, $displayName, $role];
+        $types = 'iss';
+
+        if (isset($columns['guest_id'])) {
+            $insertColumns[] = 'guest_id';
+            $insertValues[] = '?';
+            $params[] = $guestId;
+            $types .= 'i';
+        }
+        if (isset($columns['email'])) {
+            $insertColumns[] = 'email';
+            $insertValues[] = '?';
+            $params[] = $email;
+            $types .= 's';
+        }
+        if (isset($columns['ip_address'])) {
+            $insertColumns[] = 'ip_address';
+            $insertValues[] = '?';
+            $params[] = $_SERVER['REMOTE_ADDR'] ?? '';
+            $types .= 's';
         }
 
         return $db->insert(
-            "INSERT INTO live_participants (session_id, user_id, guest_id, display_name, email, role, joined_at, is_online, ip_address)
-             VALUES (?, NULL, ?, ?, ?, ?, NOW(), 1, ?)",
-            [$sessionId, $guestId, $displayName, $email, $role, $_SERVER['REMOTE_ADDR'] ?? ''],
-            'iissss'
+            'INSERT INTO live_participants (' . implode(', ', $insertColumns) . ')
+             VALUES (' . implode(', ', $insertValues) . ')',
+            $params,
+            $types
         );
     }
 

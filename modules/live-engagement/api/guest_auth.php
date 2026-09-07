@@ -128,46 +128,49 @@ switch ($action) {
             exit;
         }
 
-        $db = le_db();
+        $guestId = null;
+        try {
+            $db = le_db();
 
-        // Older deployments may have the Live Engagement tables but not the
-        // guest identity table. Keep joining self-healing instead of failing
-        // with a database exception and a generic HTTP 500.
-        $db->getConnection()->query(
-            "CREATE TABLE IF NOT EXISTS `le_guest_users` (
-                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                `name` VARCHAR(150) NOT NULL,
-                `email` VARCHAR(255) NOT NULL,
-                `organisation` VARCHAR(255) NOT NULL DEFAULT 'Live session guest',
-                `role` VARCHAR(100) NOT NULL DEFAULT 'participant',
-                `password_hash` VARCHAR(255) NOT NULL,
-                `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-                `last_login_at` DATETIME NULL,
-                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY `uq_le_guest_users_email` (`email`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-        );
+            // Older deployments may have the Live Engagement tables but not
+            // the guest identity table. Create it when database permissions
+            // allow; otherwise continue with a session-only guest identity so
+            // joining is not blocked by an optional persistence table.
+            $db->rawQuery(
+                "CREATE TABLE IF NOT EXISTS `le_guest_users` (
+                    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(150) NOT NULL,
+                    `email` VARCHAR(255) NOT NULL,
+                    `organisation` VARCHAR(255) NOT NULL DEFAULT 'Live session guest',
+                    `role` VARCHAR(100) NOT NULL DEFAULT 'participant',
+                    `password_hash` VARCHAR(255) NOT NULL,
+                    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+                    `last_login_at` DATETIME NULL,
+                    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uq_le_guest_users_email` (`email`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            );
 
-        $guest = $db->fetchOne("SELECT id FROM le_guest_users WHERE email = ? LIMIT 1", [$email]);
-        if ($guest) {
-            $guestId = (int) $guest['id'];
-            $db->update(
-                "UPDATE le_guest_users SET name = ?, is_active = 1, last_login_at = NOW() WHERE id = ?",
-                [$name, $guestId],
-                'si'
-            );
-        } else {
-            $guestId = (int) $db->insert(
-                "INSERT INTO le_guest_users (name, email, organisation, role, password_hash)
-                 VALUES (?, ?, 'Live session guest', 'participant', ?)",
-                [$name, $email, password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT)],
-                'sss'
-            );
-        }
-        if (!$guestId) {
-            echo json_encode(['success' => false, 'errors' => ['Unable to create your guest identity. Please try again.']]);
-            exit;
+            $guest = $db->fetchOne("SELECT id FROM le_guest_users WHERE email = ? LIMIT 1", [$email]);
+            if ($guest) {
+                $guestId = (int) $guest['id'];
+                $db->update(
+                    "UPDATE le_guest_users SET name = ?, is_active = 1, last_login_at = NOW() WHERE id = ?",
+                    [$name, $guestId],
+                    'si'
+                );
+            } else {
+                $guestId = (int) $db->insert(
+                    "INSERT INTO le_guest_users (name, email, organisation, role, password_hash)
+                     VALUES (?, ?, 'Live session guest', 'participant', ?)",
+                    [$name, $email, password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT)],
+                    'sss'
+                );
+            }
+        } catch (Throwable $e) {
+            error_log('Live Engagement guest persistence failed: ' . $e->getMessage());
+            error_log($e->getTraceAsString());
         }
 
         $_SESSION['le_guest_access']   = true;
