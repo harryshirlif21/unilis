@@ -129,6 +129,26 @@ switch ($action) {
         }
 
         $db = le_db();
+
+        // Older deployments may have the Live Engagement tables but not the
+        // guest identity table. Keep joining self-healing instead of failing
+        // with a database exception and a generic HTTP 500.
+        $db->getConnection()->query(
+            "CREATE TABLE IF NOT EXISTS `le_guest_users` (
+                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `name` VARCHAR(150) NOT NULL,
+                `email` VARCHAR(255) NOT NULL,
+                `organisation` VARCHAR(255) NOT NULL DEFAULT 'Live session guest',
+                `role` VARCHAR(100) NOT NULL DEFAULT 'participant',
+                `password_hash` VARCHAR(255) NOT NULL,
+                `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+                `last_login_at` DATETIME NULL,
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_le_guest_users_email` (`email`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+
         $guest = $db->fetchOne("SELECT id FROM le_guest_users WHERE email = ? LIMIT 1", [$email]);
         if ($guest) {
             $guestId = (int) $guest['id'];
