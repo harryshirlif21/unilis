@@ -84,7 +84,7 @@ try {
         le_error_response('File too large. Maximum size is 50MB.');
     }
 
-    $uploadDir = __DIR__ . '/../uploads/presentations/';
+    $uploadDir = rtrim((string) le_config('uploads.presentations', ''), "/\\") . DIRECTORY_SEPARATOR;
     if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
         le_error_response('Upload directory is not writable', 500);
     }

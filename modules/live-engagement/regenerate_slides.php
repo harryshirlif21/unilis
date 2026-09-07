@@ -40,9 +40,9 @@ $done = 0;
 while ($row = $result->fetch_assoc()) {
     $pid = (int) $row['id'];
     $filePath = (string) ($row['file_path'] ?? '');
-    $stored = __DIR__ . '/uploads/presentations/' . basename($filePath);
+    $stored = le_presentation_file_path($filePath);
 
-    if ($filePath === '' || !is_file($stored)) {
+    if ($filePath === '' || $stored === null || !is_file($stored)) {
         echo "  skip #{$pid}: file not found ({$filePath})\n";
         continue;
     }

@@ -287,6 +287,90 @@ Layout::start([
     box-shadow: 0 16px 46px rgba(0, 0, 0, .48);
     z-index: 20;
 }
+.le-session-qr {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 30;
+    width: 190px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 16px;
+    background: rgba(8, 25, 12, .88);
+    box-shadow: 0 16px 42px rgba(0, 0, 0, .35);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    text-align: center;
+}
+.le-session-qr-code {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 130px;
+    height: 130px;
+    margin: 0 auto 8px;
+    padding: 6px;
+    border-radius: 10px;
+    background: #fff;
+}
+.le-session-qr-code img,
+.le-session-qr-code canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+.le-session-qr-label {
+    color: rgba(255, 255, 255, .82);
+    font-size: 11px;
+    line-height: 1.35;
+}
+.le-session-share {
+    display: flex;
+    gap: 5px;
+    margin-top: 9px;
+}
+.le-session-share input {
+    min-width: 0;
+    flex: 1;
+    padding: 6px 7px;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, .08);
+    color: #fff;
+    font-size: 9px;
+    outline: none;
+}
+.le-session-share button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 30px;
+    border: 0;
+    border-radius: 7px;
+    background: #f9a825;
+    color: #17251a;
+    cursor: pointer;
+}
+.le-session-share button:hover {
+    background: #fdd835;
+}
+.le-session-share button .material-symbols-rounded {
+    font-size: 17px;
+}
+.le-session-qr-code-fallback {
+    color: #17251a;
+    font-size: 11px;
+    font-weight: 700;
+    word-break: break-word;
+}
+@media (max-width: 700px) {
+    .le-session-qr {
+        right: 12px;
+        bottom: 78px;
+        transform: scale(.82);
+        transform-origin: bottom right;
+    }
+}
 .le-tool {
     position: relative;
     width: 44px; height: 44px;
@@ -455,6 +539,22 @@ body.le-laser-on .le-stage { cursor: none; }
 
         <div class="le-reaction-layer" id="reactionLayer"></div>
 
+        <?php if (!empty($session['session_code'])): ?>
+            <?php $sessionJoinUrl = le_module_url('index.php?page=join&code=' . rawurlencode((string) $session['session_code'])); ?>
+            <div class="le-session-qr" aria-label="QR code for joining this session">
+                <div class="le-session-qr-code" id="sessionQrCode">
+                    <span class="le-session-qr-code-fallback"><?= UI::escape((string) $session['session_code']) ?></span>
+                </div>
+                <div class="le-session-qr-label">Scan to join<br>Code: <?= UI::escape((string) $session['session_code']) ?></div>
+                <div class="le-session-share">
+                    <input id="sessionJoinLink" type="text" value="<?= UI::escape($sessionJoinUrl) ?>" readonly aria-label="Shareable session join link">
+                    <button type="button" id="copySessionJoinLink" title="Copy shareable join link" aria-label="Copy shareable join link">
+                        <span class="material-symbols-rounded">content_copy</span>
+                    </button>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- ── Notes ──────────────────────────────────────────── -->
         <div class="le-notes" id="notesPanel" hidden>
             <h4>Presenter notes</h4>
@@ -501,6 +601,56 @@ body.le-laser-on .le-stage { cursor: none; }
 </div>
 
 <div class="le-laser" id="laserDot" hidden></div>
+
+<?php if (!empty($session['session_code'])): ?>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+(function () {
+    const target = document.getElementById('sessionQrCode');
+    if (!target) {
+        return;
+    }
+
+    const joinUrl = <?= json_encode($sessionJoinUrl, JSON_UNESCAPED_SLASHES) ?>;
+    if (typeof QRCode !== 'undefined') {
+        target.textContent = '';
+        new QRCode(target, {
+            text: joinUrl,
+            width: 118,
+            height: 118,
+            colorDark: '#17251a',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    }
+
+    const copyButton = document.getElementById('copySessionJoinLink');
+    const linkInput = document.getElementById('sessionJoinLink');
+    if (copyButton && linkInput) {
+        copyButton.addEventListener('click', async function () {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(linkInput.value);
+                } else {
+                    linkInput.focus();
+                    linkInput.select();
+                    document.execCommand('copy');
+                }
+                copyButton.innerHTML = '<span class="material-symbols-rounded">check</span>';
+                copyButton.title = 'Copied';
+                setTimeout(function () {
+                    copyButton.innerHTML = '<span class="material-symbols-rounded">content_copy</span>';
+                    copyButton.title = 'Copy shareable join link';
+                }, 1600);
+            } catch (error) {
+                linkInput.focus();
+                linkInput.select();
+            }
+        });
+    }
+})();
+</script>
+<?php endif; ?>
 
 <?php if ($documentFileType === 'pdf' && $documentFileUrl): ?>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs" type="module"></script>

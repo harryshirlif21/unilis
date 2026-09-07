@@ -50,6 +50,38 @@ function le_presentation_file_url(int $presentationId): string
 }
 
 /**
+ * Resolve a stored presentation filename from the persistent root upload
+ * directory, with a legacy fallback for files uploaded before this path was
+ * moved out of the module directory.
+ */
+function le_presentation_file_path(string $storedFilename): ?string
+{
+    $filename = basename($storedFilename);
+    if ($filename === '' || $filename === '.' || $filename === '..') {
+        return null;
+    }
+
+    $directories = [
+        (string) le_config('uploads.presentations', ''),
+        LE_MODULE_PATH . '/uploads/presentations',
+    ];
+
+    foreach ($directories as $directory) {
+        $realDirectory = realpath($directory);
+        $realFile = realpath(rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename);
+
+        if ($realDirectory !== false
+            && $realFile !== false
+            && str_starts_with($realFile, $realDirectory . DIRECTORY_SEPARATOR)
+        ) {
+            return $realFile;
+        }
+    }
+
+    return null;
+}
+
+/**
  * Best-effort page / slide count for uploaded documents.
  */
 function le_count_document_pages(string $path, string $fileType): int

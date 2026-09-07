@@ -17,6 +17,7 @@ if (!defined('UNILIS_ACCESS')) {
 // Module base path
 define('LE_MODULE_PATH', __DIR__);
 define('LE_MODULE_URL', 'modules/live-engagement');
+define('UNILIS_ROOT_PATH', dirname(__DIR__, 2));
 
 // Load root database configuration first
 try {

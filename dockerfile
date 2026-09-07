@@ -71,7 +71,9 @@ RUN mkdir -p /var/www/html/assets/uploads \
     /var/www/html/assets/meetings \
     /var/www/html/assets/requested_files \
     /var/www/html/uploads\
-    /var/www/html/uploads/short_courses
+    /var/www/html/uploads/short_courses \
+    /var/www/html/uploads/live_presentations \
+    /var/www/html/uploads/live_presentations/temp
 
 # Set ownership to www-data for everything
 RUN chown -R www-data:www-data /var/www/html
@@ -86,7 +88,8 @@ RUN chmod -R 775 /var/www/html/assets/uploads \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
     /var/www/html/assets/requested_files \
-    /var/www/html/uploads
+    /var/www/html/uploads \
+    /var/www/html/uploads/live_presentations
 
 # Server-level hardening. ServerTokens is only valid in server config context,
 # so it cannot live in the vhost file above.

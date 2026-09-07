@@ -55,10 +55,8 @@ if (!$ownsPresentation && !$participantAllowed) {
     exit('Unauthorized');
 }
 
-$uploadDir = realpath(__DIR__ . '/../uploads/presentations');
-$filePath = realpath(__DIR__ . '/../uploads/presentations/' . basename($presentation['file_path']));
-
-if ($uploadDir === false || $filePath === false || !str_starts_with($filePath, $uploadDir . DIRECTORY_SEPARATOR)) {
+$filePath = le_presentation_file_path((string) $presentation['file_path']);
+if ($filePath === null) {
     http_response_code(404);
     exit('File missing on disk');
 }

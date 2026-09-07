@@ -96,8 +96,10 @@ return [
 
     // Upload paths
     'uploads' => [
-        'presentations' => __DIR__ . '/../uploads/presentations/',
-        'temp' => __DIR__ . '/../uploads/temp/',
+        // Keep presentation files under the root uploads directory because
+        // Docker persists /var/www/html/uploads as a host-mounted volume.
+        'presentations' => UNILIS_ROOT_PATH . '/uploads/live_presentations/',
+        'temp' => UNILIS_ROOT_PATH . '/uploads/live_presentations/temp/',
         'max_file_size' => 52428800, // 50MB
         'allowed_mime_types' => [
             'application/pdf',
