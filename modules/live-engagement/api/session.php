@@ -164,9 +164,10 @@ function handleSessionPost(string $action, \LE\Models\SessionModel $model, ?int 
             $code = $input['code'] ?? '';
             $displayName = $input['display_name'] ?? le_current_user_name() ?? 'Anonymous';
             $guestId = !empty($_SESSION['le_guest_id']) ? (int) $_SESSION['le_guest_id'] : null;
-            $email = $_SESSION['le_guest_email'] ?? null;
+            $email = trim(strtolower((string) ($input['email'] ?? $_SESSION['le_guest_email'] ?? le_current_user_email() ?? '')));
             
             if (empty($code)) le_error_response('Session code required');
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) le_error_response('A valid email address is required');
             
             $session = $model->findByCode($code);
             if (!$session) le_error_response('Session not found', 404);

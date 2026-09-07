@@ -18,6 +18,8 @@ $userId = le_current_user_id();
 $userName = le_current_user_name() ?? '';
 $userEmail = le_current_user_email() ?? '';
 $isAuthenticated = le_is_authenticated();
+$joinCode = strtoupper(trim((string) le_get('code', '')));
+$hasJoinCode = $joinCode !== '';
 
 // Check if accessing via public presentation link
 $presentationId = (int) le_get('presentation_id', 0, true);
@@ -142,6 +144,19 @@ Layout::start([
     color: var(--muted);
     margin-top: 8px;
 }
+.ld-join-code-confirmed {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 auto 22px;
+    padding: 7px 12px;
+    border: 1px solid rgba(102,242,154,.25);
+    border-radius: 999px;
+    color: var(--green-2);
+    background: rgba(102,242,154,.08);
+    font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .1em;
+}
 </style>
 
 <div class="ld">
@@ -151,15 +166,25 @@ Layout::start([
                 <span class="material-symbols-rounded">vpn_key</span>
             </div>
             <h1 class="ld-join-title">Join Live Session</h1>
-            <p class="ld-join-subtitle">Enter the session code provided by your lecturer</p>
+            <p class="ld-join-subtitle">
+                <?= $hasJoinCode ? 'Enter your details to join this live session' : 'Enter the session code provided by your lecturer' ?>
+            </p>
 
             <form id="joinForm" onsubmit="joinSession(event)">
-                <div style="margin-bottom: 20px;">
-                    <input type="text" class="ld-join-input" id="sessionCode"
-                           placeholder="ENTER CODE"
-                           maxlength="10" required autocomplete="off" autofocus>
-                    <p class="ld-join-hint">e.g. ABC12345</p>
-                </div>
+                <?php if ($hasJoinCode): ?>
+                    <input type="hidden" id="sessionCode" value="<?= le_esc($joinCode) ?>">
+                    <div class="ld-join-code-confirmed">
+                        <span class="material-symbols-rounded" style="font-size:17px;">check_circle</span>
+                        <?= le_esc($joinCode) ?>
+                    </div>
+                <?php else: ?>
+                    <div style="margin-bottom: 20px;">
+                        <input type="text" class="ld-join-input" id="sessionCode"
+                               placeholder="ENTER CODE"
+                               maxlength="10" required autocomplete="off" autofocus>
+                        <p class="ld-join-hint">e.g. ABC12345</p>
+                    </div>
+                <?php endif; ?>
 
                 <div style="margin-bottom: 24px; text-align: left;">
                     <label class="ld-join-label">Your Display Name</label>
@@ -168,16 +193,15 @@ Layout::start([
                            style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
                            required>
                 </div>
-                <?php if (!$isAuthenticated): ?>
-                    <div style="margin-bottom: 24px; text-align: left;">
-                        <label class="ld-join-label">Your Email</label>
-                        <input type="email" class="ld-join-input" id="guestEmail"
-                               placeholder="you@example.com" autocomplete="email"
-                               style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
-                               required>
-                        <p class="ld-join-hint">We will use this to send course content after the presentation.</p>
-                    </div>
-                <?php endif; ?>
+                <div style="margin-bottom: 24px; text-align: left;">
+                    <label class="ld-join-label">Your Email</label>
+                    <input type="email" class="ld-join-input" id="guestEmail"
+                           value="<?= le_esc($userEmail) ?>"
+                           placeholder="you@example.com" autocomplete="email"
+                           style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
+                           required>
+                    <p class="ld-join-hint">We will use this to send course content after the presentation.</p>
+                </div>
 
                 <button type="submit" class="ld-btn primary" style="width: 100%; justify-content: center; padding: 14px;" id="joinButton">
                     <span class="material-symbols-rounded">login</span>
@@ -221,14 +245,14 @@ Layout::start([
     }
 
     // ── Join after the code and display name have been supplied ────
-    async function performJoin(code, displayName) {
+    async function performJoin(code, displayName, email) {
         document.getElementById('errorMessage').style.display = 'none';
         setBusy(true);
         try {
             const check = await LiveEngagement.checkSessionCode(code);
             if (!check.exists) { showError('Session not found. Please check the code and try again.'); return; }
             if (!check.active) { showError('This session is not currently active.'); return; }
-            const result = await LiveEngagement.joinSession(code, displayName || 'Participant');
+            const result = await LiveEngagement.joinSession(code, displayName || 'Participant', email);
             window.location.href = '?page=session&id=' + result.session.id;
         } catch (error) {
             showError(error.message || 'Failed to join session. Please try again.');
@@ -269,7 +293,7 @@ Layout::start([
             return;
         }
         const email = currentEmail();
-        if (!LE_AUTHENTICATED && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             showError('Please enter a valid email address');
             document.getElementById('guestEmail').focus();
             return;
@@ -280,7 +304,7 @@ Layout::start([
             if (!LE_AUTHENTICATED) {
                 await authenticateGuest(displayName, email);
             }
-            await performJoin(code, displayName);
+            await performJoin(code, displayName, email);
         } catch (error) {
             showError(error.message || 'Failed to prepare the session join. Please try again.');
             setBusy(false);
@@ -324,13 +348,17 @@ Layout::start([
     });
 
     // ── Auto-focus code input ─────────────────────────────────────
+    <?php if (!$hasJoinCode): ?>
     document.getElementById('sessionCode').focus();
+    <?php else: ?>
+    document.getElementById('displayName').focus();
+    <?php endif; ?>
 
     // ── Resume a join after returning from the UNILIS login ───────
     (function resumeJoinAfterLogin() {
         const params = new URLSearchParams(window.location.search);
         const code = (params.get('code') || '').trim().toUpperCase();
-        if (code) {
+        if (code && !document.getElementById('sessionCode').value) {
             document.getElementById('sessionCode').value = code;
             document.getElementById('displayName').focus();
         }

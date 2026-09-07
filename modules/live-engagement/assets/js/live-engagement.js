@@ -861,10 +861,10 @@ const LiveEngagement = (function() {
         return result.data;
     }
 
-    async function joinSession(code, displayName = '') {
+    async function joinSession(code, displayName = '', email = '') {
         const result = await apiRequest('session.php', {
             method: 'POST',
-            body: { action: 'join', code, display_name: displayName },
+            body: { action: 'join', code, display_name: displayName, email },
         });
         
         state.sessionId = result.data.session.id;
