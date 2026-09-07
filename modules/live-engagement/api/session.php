@@ -57,6 +57,29 @@ try {
     }
 } catch (Throwable $e) {
     error_log("Session API error: " . $e->getMessage());
+    try {
+        $logDir = LE_MODULE_PATH . '/logs';
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        error_log(
+            sprintf(
+                "[%s] %s in %s on line %d\nRequest: %s\nSession ID: %s | Code: %s\nTrace:\n%s\n",
+                date('Y-m-d H:i:s'),
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine(),
+                $_SERVER['REQUEST_URI'] ?? 'unknown',
+                $sessionId,
+                $code,
+                $e->getTraceAsString()
+            ),
+            3,
+            $logDir . '/api_errors.log'
+        );
+    } catch (Throwable $logErr) {
+        error_log("Session API log write failed: " . $logErr->getMessage());
+    }
     le_error_response('Internal server error', 500);
 }
 
