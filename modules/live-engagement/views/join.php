@@ -157,6 +157,31 @@ Layout::start([
     font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace;
     letter-spacing: .1em;
 }
+.ld-participant-details {
+    margin-top: 8px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255,255,255,.03);
+    text-align: left;
+}
+.ld-participant-details-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+}
+.ld-participant-details-title .material-symbols-rounded {
+    color: var(--green-2);
+    font-size: 20px;
+}
+.ld-participant-submit {
+    min-height: 50px;
+    font-size: 15px;
+}
 </style>
 
 <div class="ld">
@@ -186,27 +211,34 @@ Layout::start([
                     </div>
                 <?php endif; ?>
 
-                <div style="margin-bottom: 24px; text-align: left;">
-                    <label class="ld-join-label">Your Display Name</label>
-                    <input type="text" class="ld-join-input" id="displayName"
-                           value="<?= le_esc($userName) ?>"
-                           style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
-                           required>
+                <div class="ld-participant-details">
+                    <div class="ld-participant-details-title">
+                        <span class="material-symbols-rounded">person_add</span>
+                        Participant details
+                    </div>
+                    <div style="margin-bottom: 18px;">
+                        <label class="ld-join-label" for="displayName">Your name</label>
+                        <input type="text" class="ld-join-input" id="displayName"
+                               value="<?= le_esc($userName) ?>"
+                               placeholder="Enter your name"
+                               autocomplete="name"
+                               style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
+                               required>
+                    </div>
+                    <div style="margin-bottom: 18px;">
+                        <label class="ld-join-label" for="guestEmail">Your email</label>
+                        <input type="email" class="ld-join-input" id="guestEmail"
+                               value="<?= le_esc($userEmail) ?>"
+                               placeholder="you@example.com" autocomplete="email"
+                               style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
+                               required>
+                        <p class="ld-join-hint">We will use this to send course content after the presentation.</p>
+                    </div>
+                    <button type="submit" class="ld-btn primary ld-participant-submit" style="width: 100%; justify-content: center; padding: 14px;" id="joinButton">
+                        <span class="material-symbols-rounded">login</span>
+                        Submit and Join Session
+                    </button>
                 </div>
-                <div style="margin-bottom: 24px; text-align: left;">
-                    <label class="ld-join-label">Your Email</label>
-                    <input type="email" class="ld-join-input" id="guestEmail"
-                           value="<?= le_esc($userEmail) ?>"
-                           placeholder="you@example.com" autocomplete="email"
-                           style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
-                           required>
-                    <p class="ld-join-hint">We will use this to send course content after the presentation.</p>
-                </div>
-
-                <button type="submit" class="ld-btn primary" style="width: 100%; justify-content: center; padding: 14px;" id="joinButton">
-                    <span class="material-symbols-rounded">login</span>
-                    Join Session
-                </button>
             </form>
         </div>
     </div>
