@@ -55,7 +55,7 @@ try {
         default:
             le_error_response('Method not allowed', 405);
     }
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log("Session API error: " . $e->getMessage());
     le_error_response('Internal server error', 500);
 }
