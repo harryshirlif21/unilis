@@ -476,13 +476,7 @@ Layout::start([
                     <label class="le-label le-label-required">Session</label>
                     <select class="le-select" name="session_id" required>
                         <option value="">Select a session</option>
-                        <?php
-                        // Get lecturer's sessions for the dropdown
-                        $sessionModel = new \LE\Models\SessionModel();
-                        $sessions = $sessionModel->getLecturerActiveSessions($userId);
-                        $sessions = array_merge($sessions, $sessionModel->getLecturerScheduledSessions($userId));
-                        foreach ($sessions as $s):
-                        ?>
+                        <?php foreach ($uploadSessions as $s): ?>
                         <option value="<?= (int)$s['id'] ?>" <?= ((int)le_get('session_id', 0, true) === (int)$s['id']) ? 'selected' : '' ?>>
                             <?= UI::escape($s['title']) ?> (<?= UI::escape($s['session_code']) ?>)
                         </option>
@@ -547,7 +541,13 @@ Layout::start([
             status.style.color = 'var(--le-success)';
             status.hidden = false;
             LiveEngagement.showToast('Presentation created', 'success');
-            setTimeout(() => window.location.reload(), 1000);
+            const presentationId = result.data?.id || result.data?.presentation_id;
+            if (!presentationId) {
+                throw new Error('Presentation was created without an id');
+            }
+            setTimeout(() => {
+                window.location.href = '<?= le_page_url('edit_presentation') ?>&id=' + encodeURIComponent(presentationId);
+            }, 500);
         } catch (error) {
             status.textContent = error.message || 'Unable to create presentation.';
             status.style.color = 'var(--le-danger)';
@@ -564,7 +564,15 @@ Layout::start([
     }
 
     function showCreateModal() {
-        window.location.href = '<?= le_page_url('create_presentation') ?>' + (<?= json_encode($selectedSessionId ?: 0) ?> ? '&session_id=' + <?= json_encode($selectedSessionId ?: 0) ?> : '');
+        const modal = document.getElementById('createPresModal');
+        if (!modal) return;
+
+        const sessionSelect = modal.querySelector('select[name="session_id"]');
+        if (sessionSelect && <?= (int) $selectedSessionId ?> > 0) {
+            sessionSelect.value = '<?= (int) $selectedSessionId ?>';
+        }
+        modal.style.display = 'flex';
+        modal.querySelector('input[name="title"]')?.focus();
     }
 
     function closeModal(id) {

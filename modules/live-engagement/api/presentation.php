@@ -198,6 +198,29 @@ try {
                     if (empty($requestInput['title']) || empty($requestInput['session_id'])) {
                         le_error_response('Title and session_id required');
                     }
+
+                    $sessionId = (int) $requestInput['session_id'];
+                    $sessionModel = new \LE\Models\SessionModel();
+                    $session = $sessionModel->find($sessionId);
+                    if (!$session) {
+                        le_error_response('Session not found', 404);
+                    }
+                    if ($role !== 'admin' && !in_array($role, ['lecturer', 'department_admin'], true)) {
+                        le_error_response('Unauthorized', 403);
+                    }
+                    if ($role !== 'admin' && (int) $session['lecturer_id'] !== $userId) {
+                        le_error_response('Unauthorized for this session', 403);
+                    }
+
+                    $totalSlides = max(1, min(100, (int) ($requestInput['total_slides'] ?? 5)));
+                    $slideDuration = max(5, min(600, (int) ($requestInput['slide_duration'] ?? 30)));
+                    $requestInput['session_id'] = $sessionId;
+                    $requestInput['total_slides'] = $totalSlides;
+                    $requestInput['current_slide'] = 0;
+                    $requestInput['is_active'] = 0;
+                    $requestInput['allow_download'] = 1;
+                    $requestInput['allow_annotations'] = 1;
+                    $requestInput['file_type'] = 'blank';
                     
                     $requestInput['created_by'] = $userId;
                     
@@ -211,6 +234,19 @@ try {
                     }
                     
                     if (!$presId) le_error_response('Failed to create presentation');
+
+                    $slideModel = new \LE\Models\SlideModel();
+                    for ($slideNumber = 1; $slideNumber <= $totalSlides; $slideNumber++) {
+                        if (!$slideModel->create([
+                            'presentation_id' => $presId,
+                            'slide_number' => $slideNumber,
+                            'content_html' => '<h2>Slide ' . $slideNumber . '</h2><p>Add your content here...</p>',
+                            'duration_seconds' => $slideDuration,
+                        ])) {
+                            le_error_response('Failed to create presentation slides', 500);
+                        }
+                    }
+
                     le_success_response($presModel->find($presId), 'Presentation created');
                     break;
 
