@@ -1,275 +1,8 @@
-<?php
-/**
- * Live Engagement Module - Join Session Page (Premium 2025/2026)
- * 
- * Beautiful glassmorphism join page with animated background.
- * Students use this page to join a live session by code.
- * 
- * @package UNILIS\LiveEngagement\Views
- * @version 2.0.0
- */
+LiveEngagement.shim={};
 
-require_once __DIR__ . '/../bootstrap.php';
-
-use LE\Components\Layout;
-use LE\Components\UI;
-
-$userId = le_current_user_id();
-$userName = le_current_user_name() ?? '';
-$userEmail = le_current_user_email() ?? '';
-$isAuthenticated = le_is_authenticated();
-$joinCode = strtoupper(trim((string) le_get('code', '')));
-$hasJoinCode = $joinCode !== '';
-
-// Check if accessing via public presentation link
-$presentationId = (int) le_get('presentation_id', 0, true);
-$publicPresentation = null;
-
-if ($presentationId) {
-    try {
-        $db = le_db();
-        // Check if presentation is marked as public
-        $publicPresentation = $db->fetchOne(
-            "SELECT p.*, pp.share_token, pp.expires_at 
-             FROM live_presentations p
-             LEFT JOIN public_presentations pp ON p.id = pp.presentation_id
-             WHERE p.id = ? AND (p.is_public = 1 OR pp.share_token IS NOT NULL)",
-            [$presentationId],
-            'i'
-        );
-        
-        // Check if public link has expired
-        if ($publicPresentation && !empty($publicPresentation['expires_at'])) {
-            $expiresAt = strtotime($publicPresentation['expires_at']);
-            if ($expiresAt < time()) {
-                $publicPresentation = null;
-            }
-        }
-        
-        // If valid public presentation, redirect to presenter view
-        if ($publicPresentation) {
-            // For public presentations, allow guest access without authentication
-            if (!$isAuthenticated) {
-                // Create a temporary guest session
-                $_SESSION['le_guest_access'] = true;
-                $_SESSION['le_guest_presentation_id'] = $presentationId;
-                $_SESSION['le_guest_token'] = $publicPresentation['share_token'] ?? '';
-            }
-            // Redirect to presenter view
-            header('Location: ?page=presenter&presentation_id=' . $presentationId);
-            exit;
-        }
-    } catch (Exception $e) {
-        error_log("Public presentation check error: " . $e->getMessage());
-    }
-}
-
-Layout::start([
-    'title' => 'Join Session',
-    'layout' => 'app',
-    'activeNav' => 'join',
-]);
-?>
-
-<style>
-/* Join page specific styles using live-dash.css variables */
-.ld-join-container {
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 40px 20px;
-}
-.ld-join-card {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 26px;
-    padding: 32px;
-    backdrop-filter: blur(24px);
-    box-shadow: var(--shadow);
-    text-align: center;
-}
-.ld-join-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 16px;
-    background: rgba(102,242,154,.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 20px;
-}
-.ld-join-icon .material-symbols-rounded {
-    font-size: 32px;
-    color: var(--green-2);
-}
-.ld-join-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 8px;
-}
-.ld-join-subtitle {
-    font-size: 14px;
-    color: var(--muted);
-    margin-bottom: 24px;
-}
-.ld-join-input {
-    width: 100%;
-    padding: 14px 16px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    color: var(--text);
-    font-size: 16px;
-    text-align: center;
-    font-family: monospace;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    outline: none;
-    transition: all 0.2s ease;
-}
-.ld-join-input:focus {
-    border-color: var(--green-2);
-    box-shadow: 0 0 0 3px rgba(102,242,154,.12);
-}
-.ld-join-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
-    margin-bottom: 8px;
-    text-align: left;
-}
-.ld-join-hint {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 8px;
-}
-.ld-join-code-confirmed {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0 auto 22px;
-    padding: 7px 12px;
-    border: 1px solid rgba(102,242,154,.25);
-    border-radius: 999px;
-    color: var(--green-2);
-    background: rgba(102,242,154,.08);
-    font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace;
-    letter-spacing: .1em;
-}
-.ld-participant-details {
-    margin-top: 8px;
-    padding: 18px;
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    background: rgba(255,255,255,.03);
-    text-align: left;
-}
-.ld-participant-details-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 16px;
-    color: var(--text);
-    font-size: 14px;
-    font-weight: 700;
-}
-.ld-participant-details-title .material-symbols-rounded {
-    color: var(--green-2);
-    font-size: 20px;
-}
-.ld-participant-submit {
-    min-height: 50px;
-    font-size: 15px;
-}
-</style>
-
-<div class="ld">
-    <div class="ld-join-container">
-        <div class="ld-join-card">
-            <div class="ld-join-icon">
-                <span class="material-symbols-rounded">vpn_key</span>
-            </div>
-            <h1 class="ld-join-title">Join Live Session</h1>
-            <p class="ld-join-subtitle">
-                <?= $hasJoinCode ? 'Enter your details to join this live session' : 'Enter the session code provided by your lecturer' ?>
-            </p>
-
-            <form id="joinForm" onsubmit="joinSession(event)">
-                <?php if ($hasJoinCode): ?>
-                    <input type="hidden" id="sessionCode" value="<?= UI::escape($joinCode) ?>">
-                    <div class="ld-join-code-confirmed">
-                        <span class="material-symbols-rounded" style="font-size:17px;">check_circle</span>
-                        <?= UI::escape($joinCode) ?>
-                    </div>
-                <?php else: ?>
-                    <div style="margin-bottom: 20px;">
-                        <input type="text" class="ld-join-input" id="sessionCode"
-                               placeholder="ENTER CODE"
-                               maxlength="10" required autocomplete="off" autofocus>
-                        <p class="ld-join-hint">e.g. ABC12345</p>
-                    </div>
-                <?php endif; ?>
-
-                <div class="ld-participant-details">
-                    <div class="ld-participant-details-title">
-                        <span class="material-symbols-rounded">person_add</span>
-                        Participant details
-                    </div>
-                    <div style="margin-bottom: 18px;">
-                        <label class="ld-join-label" for="displayName">Your name</label>
-                        <input type="text" class="ld-join-input" id="displayName"
-                               value="<?= UI::escape($userName) ?>"
-                               placeholder="Enter your name"
-                               autocomplete="name"
-                               style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
-                               required>
-                    </div>
-                    <div style="margin-bottom: 18px;">
-                        <label class="ld-join-label" for="guestEmail">Your email</label>
-                        <input type="email" class="ld-join-input" id="guestEmail"
-                               value="<?= UI::escape($userEmail) ?>"
-                               placeholder="you@example.com" autocomplete="email"
-                               style="text-align: left; letter-spacing: normal; text-transform: none; font-family: inherit;"
-                               required>
-                        <p class="ld-join-hint">We will use this to send course content after the presentation.</p>
-                    </div>
-                    <button type="submit" class="ld-btn primary ld-participant-submit" style="width: 100%; justify-content: center; padding: 14px;" id="joinButton">
-                        <span class="material-symbols-rounded">login</span>
-                        Submit and Join Session
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<div id="errorMessage" style="display: none; margin-top: 20px; padding: 14px 16px; background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(220, 38, 38, 0.35); border-radius: 12px; font-size: 14px; text-align: left;">
-    <strong style="color: #FCA5A5; display: flex; align-items: center; gap: 8px;">
-        <span class="material-symbols-rounded" style="font-size: 18px;">error</span>
-        <span>Unable to join the session</span>
-    </strong>
-    <div id="errorMessageText" style="color: #FCA5A5; margin-top: 6px; line-height: 1.5;">&nbsp;</div>
-    <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-        <button type="button" id="errorDetailsToggle" style="display: none; color: #FCA5A5; background: rgba(255,255,255,.06); border: 1px solid rgba(252,165,165,.25); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;">Show technical details</button>
-        <button type="button" id="errorDetailsCopy" style="display: none; color: #FCA5A5; background: rgba(255,255,255,.06); border: 1px solid rgba(252,165,165,.25); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;">Copy details</button>
-    </div>
-    <pre id="errorDetails" style="display: none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,.3); border-radius: 8px; color: #FECACA; font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;"></pre>
-</div>
-
-<div id="loadingSpinner" style="display: none; margin-top: 20px; text-align: center;">
-    <div style="width: 24px; height: 24px; border: 2px solid var(--muted); border-top-color: var(--green-2); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto;"></div>
-    <span style="color: var(--muted); margin-top: 8px; display: block;">Joining session...</span>
-</div>
-
-<style>
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>
-
-<script>
     LiveEngagement.init();
 
-    const LE_AUTHENTICATED = <?= $isAuthenticated ? 'true' : 'false' ?>;
+    const LE_AUTHENTICATED = ;
 
     function currentNode() { return document.getElementById('sessionCode').value.trim().toUpperCase(); }
     function currentName() { return document.getElementById('displayName').value.trim(); }
@@ -319,7 +52,7 @@ Layout::start([
     async function authenticateGuest(displayName, email) {
         let response;
         try {
-            response = await fetch('<?= le_module_url('api/guest_auth.php') ?>', {
+            response = await fetch('', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({ action: 'join_as_guest', name: displayName, email: email }),
@@ -400,7 +133,7 @@ Layout::start([
         try {
             const session = await LiveEngagement.getSession(sessionId);
             if (session.status === 'active') {
-                const result = await LiveEngagement.joinSession(session.session_code, '<?= UI::escape($userName) ?>');
+                const result = await LiveEngagement.joinSession(session.session_code, '');
                 window.location.href = '?page=session&id=' + result.session.id;
             } else {
                 showError('Session is not active', {
@@ -493,11 +226,11 @@ Layout::start([
         }
     });
     // ── Auto-focus code input ─────────────────────────────────────
-    <?php if (!$hasJoinCode): ?>
+    
     document.getElementById('sessionCode').focus();
-    <?php else: ?>
+    
     document.getElementById('displayName').focus();
-    <?php endif; ?>
+    
 
     // ── Resume a join after returning from the UNILIS login ───────
     (function resumeJoinAfterLogin() {
@@ -508,7 +241,3 @@ Layout::start([
             document.getElementById('displayName').focus();
         }
     })();
-</script>
-
-<?php
-Layout::end();

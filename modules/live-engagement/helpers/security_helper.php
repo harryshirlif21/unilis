@@ -304,6 +304,85 @@ function le_error_response(string $message, int $statusCode = 400, array $extra 
 }
 
 /**
+ * Generate the structured field envelope used by every LE API so the join page
+ * (and any front end) can surface the exact failure.
+ *
+ * Returns an array containing a stable `code`, the failing `step`, a
+ * `request_id` correlation value and - when debug mode is on - the precise
+ * `detail` (exception message + file:line). The full stack trace is always
+ * left server-side by the caller's error_log call.
+ *
+ * @param string $code Stable machine-readable error code
+ * @param string $step Which part of the flow failed (e.g. 'guest_auth', 'join')
+ * @param string $detail Technical detail string (may be a throwable description)
+ * @return array<string,mixed>
+ */
+function le_error_payload(string $code, string $step, string $detail = ''): array
+{
+    $debug = (bool) le_config('debug.enabled', false);
+    $requestId = substr(bin2hex(random_bytes(8)), 0, 12);
+
+    $payload = [
+        'code' => $code,
+        'step' => $step,
+        'request_id' => $requestId,
+    ];
+
+    if ($debug) {
+        $payload['detail'] = $detail;
+    }
+
+    return $payload;
+}
+
+/**
+ * Build a detailed error payload from a Throwable (logs the full trace server->
+ * side to the module log) and returns the extra detail fields for
+ * le_error_response().
+ *
+ * @param Throwable $e The caught exception
+ * @param string $code Stable machine-readable error code
+ * @param string $step Which backend step failed
+ * @return array<string,mixed> Extra fields to pass to le_error_response()
+ */
+function le_exception_payload(Throwable $e, string $code, string $step): array
+{
+    $payload = le_error_payload(
+        $code,
+        $step,
+        $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()
+    );
+
+    // Always persist the full trace server-side so it can be diagnosed even
+    // when debug mode is off for end users.
+    try {
+        $logDir = LE_MODULE_PATH . '/logs';
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        error_log(
+            sprintf(
+                "[%s] %s [%s] %s in %s on line %d\nRequest: %s\nTrace:\n%s\n\n",
+                date('Y-m-d H:i:s'),
+                $step,
+                $code,
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine(),
+                $_SERVER['REQUEST_URI'] ?? 'unknown',
+                $e->getTraceAsString()
+            ),
+            3,
+            $logDir . '/api_errors.log'
+        );
+    } catch (Throwable $logErr) {
+        error_log('Live Engagement: failed to write api_errors.log: ' . $logErr->getMessage());
+    }
+
+    return $payload;
+}
+
+/**
  * Send a success JSON response
  * 
  * @param mixed $data Response data

@@ -815,7 +815,20 @@ const LiveEngagement = (function() {
             }
             
             if (!response.ok) {
-                throw new Error(data.error || `HTTP ${response.status}`);
+                const err = new Error(
+                    data.error
+                    || (Array.isArray(data.errors) && data.errors[0])
+                    || `HTTP ${response.status}`
+                );
+                // Attach the structured detail so callers can surface the exact
+                // failure rather than a generic message.
+                err.detail = data.detail || '';
+                err.code = data.code || '';
+                err.step = data.step || '';
+                err.requestId = data.request_id || '';
+                err.status = response.status;
+                err.data = data;
+                throw err;
             }
 
             // Optimistic UI: dispatch success event

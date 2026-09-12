@@ -3,6 +3,25 @@ require_once __DIR__ . '/../bootstrap.php';
 
 header('Content-Type: application/json');
 
+/**
+ * Emit a structured, detailed error for the guest-auth/join flow.
+ *
+ * @param string $message User-facing message
+ * @param string $code Stable machine-readable error code
+ * @param string $step Which backend step failed
+ * @param int $status HTTP status
+ * @param string $detail Technical detail (only surfaced when debug is on)
+ */
+function le_guest_error(string $message, string $code = 'LE_GUEST_ERROR', string $step = 'guest_auth', int $status = 400, string $detail = ''): void
+{
+    http_response_code($status);
+    echo json_encode(array_merge(
+        ['success' => false, 'error' => $message, 'errors' => [$message]],
+        \le_error_payload($code, $step, $detail !== '' ? $detail : $message)
+    ));
+    exit;
+}
+
 $action = le_post('action', '');
 
 // Generate auth token for UNILIS SSO
@@ -61,6 +80,7 @@ if ($action === 'validate_unilis_token') {
     exit;
 }
 
+try {
 switch ($action) {
 
     // ----------------------------------------------------------
@@ -120,15 +140,26 @@ switch ($action) {
         $email = trim(strtolower(le_post('email', '')));
 
         if (strlen($name) < 2) {
-            echo json_encode(['success' => false, 'errors' => ['Please enter your display name.']]);
-            exit;
+            le_guest_error(
+                'Please enter your display name.',
+                'LE_NAME_REQUIRED',
+                'guest_auth',
+                400,
+                'The supplied join name was empty or too short.'
+            );
         }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            echo json_encode(['success' => false, 'errors' => ['Please enter a valid email address.']]);
-            exit;
+            le_guest_error(
+                'Please enter a valid email address.',
+                'LE_EMAIL_REQUIRED',
+                'guest_auth',
+                400,
+                'The supplied email address failed validation.'
+            );
         }
 
         $guestId = null;
+        $guestPersistenceError = '';
         try {
             $db = le_db();
 
@@ -171,6 +202,7 @@ switch ($action) {
         } catch (Throwable $e) {
             error_log('Live Engagement guest persistence failed: ' . $e->getMessage());
             error_log($e->getTraceAsString());
+            $guestPersistenceError = $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
         }
 
         $_SESSION['le_guest_access']   = true;
@@ -180,12 +212,22 @@ switch ($action) {
         $_SESSION['le_guest_role']     = 'guest_participant';
         $_SESSION['le_guest_joined_at'] = date('Y-m-d H:i:s');
 
-        echo json_encode([
+        $guestSuccess = [
             'success' => true,
             'guest_id' => $guestId,
             'name'    => $name,
             'email'   => $email,
-        ]);
+        ];
+
+        // If guest identity persistence failed we still let the user join in
+        // session-only mode, but surface the root cause when debug is enabled.
+        if ($guestPersistenceError !== '' && (bool) le_config('debug.enabled', false)) {
+            $guestSuccess['step'] = 'guest_auth';
+            $guestSuccess['code'] = 'LE_GUEST_PERSIST_WARN';
+            $guestSuccess['detail'] = 'Guest identity was not persisted: ' . $guestPersistenceError;
+        }
+
+        echo json_encode($guestSuccess);
         break;
 
     // ----------------------------------------------------------
@@ -217,6 +259,17 @@ switch ($action) {
         break;
 
     default:
-        http_response_code(400);
-        echo json_encode(['success' => false, 'errors' => ['Invalid action.']]);
+        le_guest_error('Invalid action.', 'LE_INVALID_ACTION', 'guest_auth', 400);
+    }
+} catch (Throwable $e) {
+    // Surface the exact failure (when debug is enabled) and log the full trace.
+    error_log('Live Engagement guest_auth exception: ' . $e->getMessage());
+    error_log($e->getTraceAsString());
+    le_guest_error(
+        'An unexpected error occurred while preparing your join. Please try again.',
+        'LE_GUEST_EXCEPTION',
+        'guest_auth',
+        500,
+        $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()
+    );
 }

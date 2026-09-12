@@ -27,6 +27,16 @@ return [
         'dependencies' => ['Authentication', 'Courses'],
     ],
 
+    // Debugging
+    //
+    // When enabled, API error responses include the exact exception message,
+    // file and line under "detail" so the join page can surface the precise
+    // failure. Disable in production; the server still logs the full stack
+    // trace to modules/live-engagement/logs/api_errors.log regardless.
+    'debug' => [
+        'enabled' => true,
+    ],
+
     // Session configuration
     'session' => [
         'code_length' => 8,
