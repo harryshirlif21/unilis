@@ -215,7 +215,7 @@ Layout::start([
                 <label style="display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px;">Search</label>
                 <div style="position: relative;">
                     <span class="material-symbols-rounded" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 20px;">search</span>
-                    <input type="text" name="search" value="<?= le_esc($search) ?>" placeholder="Search presentations..." 
+                    <input type="text" name="search" value="<?= le_escape($search) ?>" placeholder="Search presentations..." 
                            style="width: 100%; padding: 12px 12px 12px 40px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; color: var(--text); font-size: 14px;">
                 </div>
             </div>
@@ -226,7 +226,7 @@ Layout::start([
                     <option value="">All Courses</option>
                     <?php foreach ($courses as $course): ?>
                         <option value="<?= $course['id'] ?>" <?= $courseFilter === (int)$course['id'] ? 'selected' : '' ?>>
-                            <?= le_esc($course['name']) ?>
+                            <?= le_escape($course['name']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -274,7 +274,7 @@ Layout::start([
                     <!-- Thumbnail -->
                     <div class="ld-presentation-thumbnail">
                         <?php if (!empty($pres['thumbnail_path'])): ?>
-                            <img src="<?= le_esc($pres['thumbnail_path']) ?>" alt="" style="width: 100%; height: 100%; object-fit: cover;">
+                            <img src="<?= le_escape($pres['thumbnail_path']) ?>" alt="" style="width: 100%; height: 100%; object-fit: cover;">
                         <?php else: ?>
                             <span class="material-symbols-rounded">description</span>
                         <?php endif; ?>
@@ -291,17 +291,17 @@ Layout::start([
                     <!-- Content -->
                     <div style="padding: 20px; flex: 1; display: flex; flex-direction: column;">
                         <h3 style="font-size: 16px; font-weight: 600; margin: 0 0 8px; line-height: 1.3; color: var(--text);">
-                            <?= le_esc($pres['title']) ?>
+                            <?= le_escape($pres['title']) ?>
                         </h3>
                         <?php if (!empty($pres['description'])): ?>
                             <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                                <?= le_esc($pres['description']) ?>
+                                <?= le_escape($pres['description']) ?>
                             </p>
                         <?php endif; ?>
                         
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
                             <?php if (!empty($pres['course_name'])): ?>
-                                <span style="font-size: 11px; padding: 4px 10px; background: var(--panel-2); color: var(--muted); border-radius: 99px;"><?= le_esc($pres['course_name']) ?></span>
+                                <span style="font-size: 11px; padding: 4px 10px; background: var(--panel-2); color: var(--muted); border-radius: 99px;"><?= le_escape($pres['course_name']) ?></span>
                             <?php endif; ?>
                             <span style="font-size: 11px; padding: 4px 10px; background: var(--panel-2); color: var(--muted); border-radius: 99px;"><?= $pres['total_slides'] ?? 0 ?> slides</span>
                             <span style="font-size: 11px; padding: 4px 10px; background: var(--panel-2); color: var(--muted); border-radius: 99px;"><?= $pres['views'] ?? 0 ?> views</span>
@@ -317,11 +317,11 @@ Layout::start([
                     <div style="padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap;">
                         <button class="ld-small-btn open" onclick="presentPresentation(<?= $pres['id'] ?>)">Present</button>
                         <?php if (!empty($pres['meeting_id'])): ?>
-                            <a class="ld-small-btn" href="<?= le_esc(le_base_url() . '/lecturer/meeting_host.php?meeting_id=' . (int)$pres['meeting_id']) ?>">
+                            <a class="ld-small-btn" href="<?= le_escape(le_base_url() . '/lecturer/meeting_host.php?meeting_id=' . (int)$pres['meeting_id']) ?>">
                                 Meeting
                             </a>
                         <?php endif; ?>
-                        <button class="ld-small-btn" onclick="sharePresentation(<?= $pres['id'] ?>, '<?= le_esc($pres['title']) ?>')">Share</button>
+                        <button class="ld-small-btn" onclick="sharePresentation(<?= $pres['id'] ?>, '<?= le_escape($pres['title']) ?>')">Share</button>
                         <button class="ld-small-btn ld-icon-only" onclick="editPresentation(<?= $pres['id'] ?>)" title="Edit">
                             <span class="material-symbols-rounded">edit</span>
                         </button>

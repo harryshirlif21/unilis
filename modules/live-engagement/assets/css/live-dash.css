@@ -37,20 +37,22 @@
 body.le-standalone { background: var(--bg); color: var(--text); }
 [data-theme="dark"] body.le-standalone { background: var(--bg); }
 
-.ld-shell { display: grid; grid-template-columns: 0 1fr; min-height: 100vh; width: 100%; }
+.ld-shell { display: grid; grid-template-columns: 98px 1fr; min-height: 100vh; width: 100%; }
 .ld-main { grid-column: 2; padding: 14px 28px 42px; width: 100%; max-width: none; }
 .ld-main .le-container { max-width: none; width: 100%; }
 .le-app-main { width: 100%; max-width: none; }
 .ld { width: 100%; max-width: none; }
 .le-container { max-width: none !important; width: 100% !important; }
 
-/* Floating rail */
+/* Integrated left rail - in-flow sidebar that is part of the page layout.
+   It takes its own grid column instead of floating over the content, and
+   sticks to the top so it stays visible as the page scrolls. */
 .ld-rail {
-  position: fixed; inset: 14px auto 14px 14px; width: 74px;
-  border: 1px solid var(--line); background: var(--panel);
-  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
-  border-radius: 26px; display: flex; flex-direction: column; align-items: center;
-  padding: 14px 10px; z-index: 40; box-shadow: var(--shadow);
+  position: sticky; top: 0; height: 100vh; align-self: start;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 18px 10px; z-index: 30;
 }
 .ld-brand {
   width: 46px; height: 46px; border-radius: 15px; display: grid; place-items: center;
