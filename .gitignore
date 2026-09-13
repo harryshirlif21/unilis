@@ -17,3 +17,9 @@ __pycache__/
 # Uploaded files - stored in persistent Docker volume on server
 uploads/**/*
 !uploads/**/.gitkeep
+
+# Local-only DevContainers/Compose override (bind-mounts repo for hot-reload).
+# Do NOT deploy to production - production must use the baked image.
+docker-compose.override.yml
+compose.override.yml
+
