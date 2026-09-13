@@ -179,6 +179,107 @@ $stmt->close();
             padding: 40px 20px;
             font-size: 15px;
         }
+        /* ---------- Assignments sent tiles ---------- */
+        .assignment-sent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+        }
+        .assignment-sent-card {
+            position: relative;
+            min-height: 150px;
+            padding: 20px;
+            border: 1px solid #dbe4f0;
+            border-radius: 14px;
+            background: linear-gradient(145deg, #ffffff, #f4f8ff);
+            box-shadow: 0 3px 10px rgba(30, 64, 175, 0.08);
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+        .assignment-sent-card:hover,
+        .assignment-sent-card:focus-within {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 24px rgba(30, 64, 175, 0.16);
+        }
+        .assignment-sent-card a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .assignment-sent-card button {
+            width: 100%;
+            border: 0;
+            padding: 0;
+            text-align: left;
+            color: inherit;
+            background: transparent;
+            cursor: pointer;
+            font: inherit;
+        }
+        .assignment-sent-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .assignment-sent-header h4 {
+            margin: 0;
+            color: #172554;
+            font-size: 17px;
+        }
+        .assignment-sent-count {
+            flex: 0 0 auto;
+            padding: 4px 9px;
+            border-radius: 999px;
+            color: #1d4ed8;
+            background: #dbeafe;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .assignment-sent-stats {
+            display: flex;
+            gap: 8px;
+            margin-top: 20px;
+            color: #475569;
+            font-size: 12px;
+        }
+        .assignment-sent-list {
+            position: absolute;
+            z-index: 5;
+            left: 0;
+            right: 0;
+            top: calc(100% - 8px);
+            display: none;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 0 0 12px 12px;
+            background: #fff;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, .14);
+        }
+        .assignment-sent-card:hover .assignment-sent-list,
+        .assignment-sent-card:focus-within .assignment-sent-list {
+            display: block;
+        }
+        .assignment-sent-item {
+            display: block;
+            padding: 9px 4px;
+            border-bottom: 1px solid #eef2f7;
+            font-size: 13px;
+        }
+        .assignment-sent-item:last-child { border-bottom: 0; }
+        .asg-title {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            color: #1e3a8a;
+            font-weight: 600;
+        }
+        .asg-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 5px;
+            color: #64748b;
+            font-size: 11px;
+        }
         /* Notes detail modal (reuse existing) */
         #notesSentModal .modal-content {
             max-width: 700px;
@@ -808,12 +909,18 @@ $stmt->close();
                 <?php
                 $assignmentUnits = [];
                 $stmt = $conn->prepare("
-                    SELECT a.id, a.title, a.deadline, a.file_path,
-                           u.id AS unit_id, u.name AS unit_name
+                    SELECT a.id, a.title, a.description, a.created_at, a.deadline, a.file_path,
+                           u.id AS unit_id, u.name AS unit_name, u.code AS unit_code,
+                           c.name AS course_name,
+                           COUNT(DISTINCT s.student_id) AS submissions_count
                     FROM assignments a
                     JOIN units u ON a.unit_id = u.id
+                    LEFT JOIN courses c ON c.id = u.course_id
                     JOIN lecturer_units lu ON lu.unit_id = a.unit_id
+                    LEFT JOIN submissions s ON s.assignment_id = a.id
                     WHERE lu.lecturer_id = ?
+                    GROUP BY a.id, a.title, a.description, a.created_at, a.deadline, a.file_path,
+                             u.id, u.name, u.code, c.name
                     ORDER BY u.name ASC, a.deadline DESC
                 ");
                 if ($stmt) {
@@ -839,7 +946,8 @@ $stmt->close();
                                 (new DateTime($asg['deadline'])) > $now ? $open++ : $closed++;
                             }
                         ?>
-                            <div class="assignment-sent-card">
+                            <button type="button" class="assignment-sent-card assignment-unit-tile"
+                                    data-unit-id="<?= (int)$unitId ?>">
                                 <div class="assignment-sent-header">
                                     <h4><?= htmlspecialchars($unitData['name']) ?></h4>
                                     <span class="assignment-sent-count"><?= $total ?> Sent</span>
@@ -849,26 +957,7 @@ $stmt->close();
                                     <span class="asg-stat open"><?= $open ?> Open</span>
                                     <span class="asg-stat closed"><?= $closed ?> Closed</span>
                                 </div>
-                                <div class="assignment-sent-list">
-                                    <?php foreach ($unitData['assignments'] as $asg): ?>
-                                        <div class="assignment-sent-item">
-                                            <div class="asg-title">
-                                                <i class="fas fa-file-alt"></i>
-                                                <span><?= htmlspecialchars($asg['title']) ?></span>
-                                            </div>
-                                            <div class="asg-meta">
-                                                <span class="asg-meta-col">
-                                                    <i class="fas fa-calendar-alt"></i>
-                                                    Due <?= date('d M Y, h:i A', strtotime($asg['deadline'])) ?>
-                                                </span>
-                                                <span class="asg-file">
-                                                    <?= !empty($asg['file_path']) ? '<i class="fas fa-paperclip"></i> File attached' : '<em>No file</em>' ?>
-                                                </span>
-                                            </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
+                            </button>
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
@@ -876,6 +965,27 @@ $stmt->close();
 
             <div id="submissions-section" class="hidden">
                 <!-- Your submissions table PHP here -->
+            </div>
+
+            <!-- Sent assignments modal -->
+            <div id="sentAssignmentsModal" class="modal hidden">
+                <div class="modal-content" style="max-width:820px;max-height:85vh;overflow-y:auto;padding:0;border-radius:14px;background:#fff;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+                        <h3 id="sentAssignmentsModalTitle" style="margin:0;color:#111827;">Assignments</h3>
+                        <span class="close" style="font-size:28px;font-weight:700;cursor:pointer;color:#6b7280;">&times;</span>
+                    </div>
+                    <div id="sentAssignmentsModalBody" style="padding:24px;"></div>
+                </div>
+            </div>
+
+            <div id="sentAssignmentDetailsModal" class="modal hidden">
+                <div class="modal-content" style="max-width:760px;max-height:85vh;overflow-y:auto;padding:0;border-radius:14px;background:#fff;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+                        <h3 id="sentAssignmentDetailsTitle" style="margin:0;color:#111827;">Assignment details</h3>
+                        <span class="close" style="font-size:28px;font-weight:700;cursor:pointer;color:#6b7280;">&times;</span>
+                    </div>
+                    <div id="sentAssignmentDetailsBody" style="padding:24px;"></div>
+                </div>
             </div>
         </div>
 
@@ -2580,6 +2690,79 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.style.overflow = '';
         }
     };
+
+    // Sent assignments: unit tiles open a modal, then each assignment opens its details.
+    const sentAssignmentUnits = <?= json_encode($assignmentUnits, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const sentAssignmentsModalBody = document.getElementById('sentAssignmentsModalBody');
+    const sentAssignmentDetailsBody = document.getElementById('sentAssignmentDetailsBody');
+    const sentAssignmentsModalTitle = document.getElementById('sentAssignmentsModalTitle');
+    const sentAssignmentDetailsTitle = document.getElementById('sentAssignmentDetailsTitle');
+
+    function escapeSentAssignmentHtml(value) {
+        const node = document.createElement('span');
+        node.textContent = value == null ? '' : String(value);
+        return node.innerHTML;
+    }
+
+    function showSentAssignments(unitId) {
+        const unit = sentAssignmentUnits[String(unitId)];
+        if (!unit) return;
+        sentAssignmentsModalTitle.textContent = unit.name + ' - Assignments';
+        sentAssignmentsModalBody.innerHTML = unit.assignments.length
+            ? unit.assignments.map(assignment => `
+                <button type="button" class="sent-assignment-row" data-assignment-id="${Number(assignment.id)}"
+                        aria-label="Open details for ${escapeSentAssignmentHtml(assignment.title)}"
+                        style="display:block;width:100%;padding:14px 4px;text-align:left;border:0;border-bottom:1px solid #e5e7eb;background:#fff;cursor:pointer;">
+                    <strong class="sent-assignment-title" style="display:block;color:#1e3a8a;text-decoration:underline;text-underline-offset:3px;">${escapeSentAssignmentHtml(assignment.title)}</strong>
+                    <span style="display:flex;justify-content:space-between;gap:10px;margin-top:6px;color:#64748b;font-size:13px;">
+                        <span>Due ${escapeSentAssignmentHtml(assignment.deadline)}</span>
+                        <span>${Number(assignment.submissions_count)} submitted</span>
+                    </span>
+                </button>
+            `).join('')
+            : '<p style="color:#64748b;">No assignments have been sent for this unit.</p>';
+        showModal('sentAssignmentsModal');
+    }
+
+    function showSentAssignmentDetails(assignmentId) {
+        let assignment = null;
+        Object.values(sentAssignmentUnits).some(unit => {
+            assignment = unit.assignments.find(item => Number(item.id) === Number(assignmentId));
+            return Boolean(assignment);
+        });
+        if (!assignment) return;
+
+        sentAssignmentDetailsTitle.textContent = assignment.title;
+        const fileHtml = assignment.file_path
+            ? `<a href="../assets/uploads/assignments/${encodeURIComponent(assignment.file_path)}" target="_blank" rel="noopener">View assignment file</a>`
+            : '<span style="color:#64748b;">No file attached</span>';
+        const description = assignment.description
+            ? `<p><strong>Instructions</strong><br>${escapeSentAssignmentHtml(assignment.description).replace(/\n/g, '<br>')}</p>`
+            : '';
+        sentAssignmentDetailsBody.innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px;">
+                <div><strong>Course</strong><br>${escapeSentAssignmentHtml(assignment.course_name || 'Not specified')}</div>
+                <div><strong>Unit</strong><br>${escapeSentAssignmentHtml(assignment.unit_name)} (${escapeSentAssignmentHtml(assignment.unit_code)})</div>
+                <div><strong>Sent</strong><br>${escapeSentAssignmentHtml(assignment.created_at)}</div>
+                <div><strong>Deadline</strong><br>${escapeSentAssignmentHtml(assignment.deadline)}</div>
+                <div><strong>Students submitted</strong><br>${Number(assignment.submissions_count)}</div>
+            </div>
+            ${description}
+            <p>${fileHtml}</p>
+            <a class="btn-primary" href="assignment_details.php?assignment_id=${Number(assignment.id)}" style="display:inline-block;text-decoration:none;margin-right:8px;">View submissions</a>
+            <a class="btn-secondary" href="assignment_submissions_pdf.php?assignment_id=${Number(assignment.id)}" style="display:inline-block;text-decoration:none;">Download submissions</a>
+        `;
+        hideModal('sentAssignmentsModal');
+        showModal('sentAssignmentDetailsModal');
+    }
+
+    document.querySelectorAll('.assignment-unit-tile').forEach(tile => {
+        tile.addEventListener('click', () => showSentAssignments(tile.dataset.unitId));
+    });
+    sentAssignmentsModalBody?.addEventListener('click', event => {
+        const row = event.target.closest('.sent-assignment-row');
+        if (row) showSentAssignmentDetails(row.dataset.assignmentId);
+    });
 
     // Department → Course → Units selection for Add Unit modal
     const departmentSelect = document.getElementById('departmentSelect');

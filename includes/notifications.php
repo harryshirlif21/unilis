@@ -52,6 +52,31 @@ function notifications_support_user_scope($conn) {
 }
 
 /**
+ * Older installations store notification text only and do not have an
+ * assignment_id column. Keep assignment notifications compatible with both
+ * schemas; the assignment remains reachable through the notification link.
+ */
+function notifications_support_assignment_reference($conn) {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    try {
+        $result = $conn->query("SHOW COLUMNS FROM notifications LIKE 'assignment_id'");
+        $cached = $result && $result->num_rows > 0;
+        if ($result) {
+            $result->close();
+        }
+    } catch (Exception $e) {
+        error_log("notifications_support_assignment_reference check failed: " . $e->getMessage());
+        $cached = false;
+    }
+
+    return $cached;
+}
+
+/**
  * Send notification and email to specific student on assignment submission
  */
 function notify_student_assignment_submitted($conn, $student_id, $assignment_id, $student_name, $student_email) {
@@ -74,9 +99,20 @@ function notify_student_assignment_submitted($conn, $student_id, $assignment_id,
         $message = "You have successfully submitted the assignment: {$assignment['title']}";
         $link = "student/dashboard.php?view=assignments";
 
-        // Create notification record
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
-        $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+        // Create a notification record, allowing legacy schemas without assignment_id.
+        if (notifications_support_user_scope($conn) && notifications_support_assignment_reference($conn)) {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())");
+            $notif_stmt->bind_param("isssi", $student_id, $title, $message, $link, $assignment_id);
+        } elseif (notifications_support_user_scope($conn)) {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, is_read, created_at) VALUES (?, 'student', ?, ?, ?, 0, NOW())");
+            $notif_stmt->bind_param("isss", $student_id, $title, $message, $link);
+        } elseif (notifications_support_assignment_reference($conn)) {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+            $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+        } else {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, is_read, created_at) VALUES (?, ?, ?, 0, NOW())");
+            $notif_stmt->bind_param("sss", $title, $message, $link);
+        }
         $notif_stmt->execute();
         $notif_stmt->close();
 
@@ -109,12 +145,18 @@ function notify_lecturer_assignment_submitted($conn, $lecturer_id, $student_name
         $link = "lecturer/review_assignments.php?assignment_id={$assignment_id}";
 
         // Create notification record (scoped if columns exist, otherwise legacy global row)
-        if (notifications_support_user_scope($conn)) {
+        if (notifications_support_user_scope($conn) && notifications_support_assignment_reference($conn)) {
             $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'lecturer', ?, ?, ?, ?, 0, NOW())");
             $notif_stmt->bind_param("isssi", $lecturer_id, $title, $message, $link, $assignment_id);
-        } else {
+        } elseif (notifications_support_user_scope($conn)) {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, is_read, created_at) VALUES (?, 'lecturer', ?, ?, ?, 0, NOW())");
+            $notif_stmt->bind_param("isss", $lecturer_id, $title, $message, $link);
+        } elseif (notifications_support_assignment_reference($conn)) {
             $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
             $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+        } else {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, is_read, created_at) VALUES (?, ?, ?, 0, NOW())");
+            $notif_stmt->bind_param("sss", $title, $message, $link);
         }
         $notif_stmt->execute();
         $notif_stmt->close();
@@ -255,6 +297,10 @@ function notify_students_notes_uploaded($conn, $unit_id, $lecturer_id, $notes_ti
 function send_notes_email_with_attachment($email, $student_name, $lecturer_name, $unit_code, $notes_title, $file_path, $link) {
     try {
         $mail = getConfiguredMailer();
+        if (trim($lecturer_name) !== '') {
+            $mail->setFrom(EMAIL_FROM_ADDRESS, $lecturer_name);
+            $mail->addReplyTo(EMAIL_FROM_ADDRESS, $lecturer_name);
+        }
         $mail->addAddress($email);
 
         $mail->isHTML(true);
@@ -309,7 +355,7 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
     try {
         // Get unit and course info
         $stmt = $conn->prepare("
-            SELECT name, course_id FROM units WHERE id = ?
+            SELECT name, code, course_id FROM units WHERE id = ?
         ");
         $stmt->bind_param("i", $unit_id);
         $stmt->execute();
@@ -317,6 +363,18 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
         $stmt->close();
 
         if (!$unit) return false;
+
+        $stmt = $conn->prepare("
+            SELECT l.name AS lecturer_name, a.file_path, a.description
+            FROM assignments a
+            JOIN lecturers l ON l.id = a.lecturer_id
+            WHERE a.id = ?
+        ");
+        $stmt->bind_param("i", $assignment_id);
+        $stmt->execute();
+        $assignment = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$assignment) return false;
 
         // Get all students enrolled in this specific unit
         $stmt = $conn->prepare("
@@ -337,24 +395,37 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
         if (empty($students)) return false;
 
         $title = "New Assignment Posted";
-        $message = "A new assignment has been posted for {$unit['name']}: {$assignment_title}";
+        $formattedDeadline = date('F j, Y \a\t g:i A', strtotime($deadline));
+        $instructions = trim((string)($assignment['description'] ?? ''));
+        $message = "A new assignment has been posted for {$unit['name']}: {$assignment_title}"
+            . "<br><strong>Deadline:</strong> " . htmlspecialchars($formattedDeadline, ENT_QUOTES, 'UTF-8')
+            . "<br><strong>Instructions:</strong><br>"
+            . nl2br(htmlspecialchars($instructions !== '' ? $instructions : 'No additional instructions provided.', ENT_QUOTES, 'UTF-8'));
         $link = "student/dashboard.php?view=assignments";
 
         // Create individual notification rows (scoped if supported)
-        if (notifications_support_user_scope($conn)) {
+        if (notifications_support_user_scope($conn) && notifications_support_assignment_reference($conn)) {
             $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, assignment_id, is_read, created_at) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())");
-        } else {
+        } elseif (notifications_support_user_scope($conn)) {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, user_role, title, message, link, is_read, created_at) VALUES (?, 'student', ?, ?, ?, 0, NOW())");
+        } elseif (notifications_support_assignment_reference($conn)) {
             $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, assignment_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+        } else {
+            $notif_stmt = $conn->prepare("INSERT INTO notifications (title, message, link, is_read, created_at) VALUES (?, ?, ?, 0, NOW())");
         }
         
         // Prepare recipients for bulk email
         $recipients = [];
         
         foreach ($students as $student) {
-            if (notifications_support_user_scope($conn)) {
+            if (notifications_support_user_scope($conn) && notifications_support_assignment_reference($conn)) {
                 $notif_stmt->bind_param("isssi", $student['id'], $title, $message, $link, $assignment_id);
-            } else {
+            } elseif (notifications_support_user_scope($conn)) {
+                $notif_stmt->bind_param("isss", $student['id'], $title, $message, $link);
+            } elseif (notifications_support_assignment_reference($conn)) {
                 $notif_stmt->bind_param("sssi", $title, $message, $link, $assignment_id);
+            } else {
+                $notif_stmt->bind_param("sss", $title, $message, $link);
             }
             $notif_stmt->execute();
             
@@ -368,13 +439,77 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
         
         // Send bulk email notifications
         $email_subject = "✏️ New Assignment Posted: {$assignment_title}";
-        send_bulk_notification_emails($recipients, $email_subject, $title, $message, $link, 'assignment');
+        $attachmentPath = null;
+        if (!empty($assignment['file_path'])) {
+            $attachmentPath = __DIR__ . '/../assets/uploads/assignments/' . basename($assignment['file_path']);
+        }
+        $calendarAttachment = build_assignment_calendar_attachment(
+            $assignment_title,
+            $unit['name'],
+            $deadline,
+            $link,
+            $assignment['description'] ?? ''
+        );
+        send_bulk_notification_emails(
+            $recipients,
+            $email_subject,
+            $title,
+            $message,
+            $link,
+            'assignment',
+            $assignment['lecturer_name'] ?? null,
+            $attachmentPath,
+            $calendarAttachment
+        );
 
         return true;
     } catch (Exception $e) {
         error_log("Error notifying assignment posted: " . $e->getMessage());
         return false;
     }
+
+}
+
+/**
+ * Create an importable Google Calendar event with reminders 24, 18, 12 and
+ * 6 hours before the assignment deadline.
+ */
+function build_assignment_calendar_attachment($title, $unitName, $deadline, $link, $description = '') {
+    $deadlineTimestamp = strtotime($deadline);
+    if (!$deadlineTimestamp) {
+        return null;
+    }
+
+    $uid = 'assignment-' . sha1($title . '|' . $deadline . '|' . $link) . '@unilis.jhubafrica.com';
+    $icalEscape = static function ($value) {
+        return str_replace(["\\", ";", ",", "\r", "\n"], ["\\\\", "\;", "\,", '', '\\n'], (string)$value);
+    };
+    $now = gmdate('Ymd\THis\Z');
+    $deadlineUtc = gmdate('Ymd\THis\Z', $deadlineTimestamp);
+    $eventDescription = $icalEscape(trim($description) . "\n\nSubmit: " . $link);
+
+    return "BEGIN:VCALENDAR\r\n"
+        . "VERSION:2.0\r\n"
+        . "PRODID:-//UNILIS//Assignment Reminders//EN\r\n"
+        . "CALSCALE:GREGORIAN\r\n"
+        . "METHOD:PUBLISH\r\n"
+        . "BEGIN:VEVENT\r\n"
+        . "UID:" . $uid . "\r\n"
+        . "DTSTAMP:" . $now . "\r\n"
+        . "DTSTART:" . $deadlineUtc . "\r\n"
+        . "DTEND:" . $deadlineUtc . "\r\n"
+        . "SUMMARY:" . $icalEscape($title . ' - ' . $unitName . ' deadline') . "\r\n"
+        . "DESCRIPTION:" . $eventDescription . "\r\n"
+        . "URL:" . $icalEscape($link) . "\r\n"
+        . "BEGIN:VALARM\r\n"
+        . "ACTION:DISPLAY\r\n"
+        . "DESCRIPTION:Assignment deadline reminder\r\n"
+        . "TRIGGER:-P1D\r\n"
+        . "DURATION:PT6H\r\n"
+        . "REPEAT:3\r\n"
+        . "END:VALARM\r\n"
+        . "END:VEVENT\r\n"
+        . "END:VCALENDAR\r\n";
 }
 
 /**

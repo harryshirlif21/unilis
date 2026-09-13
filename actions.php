@@ -1367,14 +1367,49 @@ if ($action === 'create_assignment') {
 
     $filename = null;
     if (!empty($_FILES['assignment_file']['name'])) {
-        $upload_dir = "assets/uploads/assignments/";
-        if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+        $upload_dir = __DIR__ . DIRECTORY_SEPARATOR . "assets" . DIRECTORY_SEPARATOR . "uploads" . DIRECTORY_SEPARATOR . "assignments";
+        if (!is_dir($upload_dir)) {
+            if (!mkdir($upload_dir, 0755, true) && !is_dir($upload_dir)) {
+                $_SESSION['assignment_error'] = "The assignment upload directory could not be created. Check that assets/uploads is writable by the web server.";
+                header("Location: lecturer/dashboard.php");
+                exit;
+            }
+        }
+        if (!is_dir($upload_dir)) {
+            $_SESSION['assignment_error'] = "The assignment upload directory is unavailable: " . $upload_dir;
+            header("Location: lecturer/dashboard.php");
+            exit;
+        }
+        if (!is_writable($upload_dir)) {
+            $_SESSION['assignment_error'] = "The assignment upload directory is not writable: " . $upload_dir;
+            header("Location: lecturer/dashboard.php");
+            exit;
+        }
 
-        $filename = time() . "_" . basename($_FILES['assignment_file']['name']);
-        $target_path = $upload_dir . $filename;
+        $upload_error = (int)($_FILES['assignment_file']['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($upload_error !== UPLOAD_ERR_OK) {
+            $upload_errors = [
+                UPLOAD_ERR_INI_SIZE => 'The selected file is larger than the server upload limit.',
+                UPLOAD_ERR_FORM_SIZE => 'The selected file is larger than the form upload limit.',
+                UPLOAD_ERR_PARTIAL => 'The file upload was interrupted. Please try again.',
+                UPLOAD_ERR_NO_FILE => 'No assignment file was selected.',
+                UPLOAD_ERR_NO_TMP_DIR => 'The server temporary upload directory is missing.',
+                UPLOAD_ERR_CANT_WRITE => 'The server could not write the uploaded file.',
+                UPLOAD_ERR_EXTENSION => 'A server extension stopped the file upload.',
+            ];
+            $_SESSION['assignment_error'] = $upload_errors[$upload_error] ?? 'The assignment file could not be uploaded.';
+            header("Location: lecturer/dashboard.php");
+            exit;
+        }
+
+        $original_name = basename((string)$_FILES['assignment_file']['name']);
+        $safe_name = preg_replace('/[^A-Za-z0-9._-]/', '_', $original_name);
+        $safe_name = $safe_name !== '' ? $safe_name : 'assignment_file';
+        $filename = time() . "_" . bin2hex(random_bytes(4)) . "_" . $safe_name;
+        $target_path = $upload_dir . DIRECTORY_SEPARATOR . $filename;
 
         if (!move_uploaded_file($_FILES['assignment_file']['tmp_name'], $target_path)) {
-            $_SESSION['assignment_error'] = "File upload failed.";
+            $_SESSION['assignment_error'] = "The uploaded assignment could not be saved on the server.";
             header("Location: lecturer/dashboard.php");
             exit;
         }

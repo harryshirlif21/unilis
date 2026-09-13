@@ -21,8 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['assignment_id']) || 
 $assignment_id = intval($_POST['assignment_id']);
 $file = $_FILES['file'];
 
+$upload_error_messages = [
+    UPLOAD_ERR_INI_SIZE => 'The selected file is larger than the server upload limit.',
+    UPLOAD_ERR_FORM_SIZE => 'The selected file is larger than the form upload limit.',
+    UPLOAD_ERR_PARTIAL => 'The file upload was interrupted. Please try again.',
+    UPLOAD_ERR_NO_FILE => 'No file was selected.',
+    UPLOAD_ERR_NO_TMP_DIR => 'The server temporary upload directory is missing.',
+    UPLOAD_ERR_CANT_WRITE => 'The server could not write the uploaded file.',
+    UPLOAD_ERR_EXTENSION => 'A server extension stopped the file upload.',
+];
 if ($file['error'] !== UPLOAD_ERR_OK) {
-    $_SESSION['submission_error'] = "File upload error. Please try again.";
+    $_SESSION['submission_error'] = $upload_error_messages[$file['error']] ?? "File upload error. Please try again.";
     header("Location: take_assignment.php");
     exit;
 }
@@ -59,13 +68,25 @@ if ($is_late && !(int)$assignment['allow_late_submission']) {
     exit;
 }
 
-$upload_dir = "../assets/uploads/submissions/";
+$upload_dir = dirname(__DIR__) . DIRECTORY_SEPARATOR . "assets" . DIRECTORY_SEPARATOR . "uploads" . DIRECTORY_SEPARATOR . "submissions";
 if (!is_dir($upload_dir)) {
-    mkdir($upload_dir, 0777, true);
+    if (!mkdir($upload_dir, 0755, true) && !is_dir($upload_dir)) {
+        $_SESSION['submission_error'] = "The submission upload directory could not be created. Check that assets/uploads is writable by the web server.";
+        header("Location: take_assignment.php");
+        exit;
+    }
+}
+if (!is_writable($upload_dir)) {
+    $_SESSION['submission_error'] = "The submission upload directory is not writable.";
+    header("Location: take_assignment.php");
+    exit;
 }
 
-$filename = time() . "_" . basename($file['name']);
-$target_path = $upload_dir . $filename;
+$original_name = basename((string)$file['name']);
+$safe_name = preg_replace('/[^A-Za-z0-9._-]/', '_', $original_name);
+$safe_name = $safe_name !== '' ? $safe_name : 'submission_file';
+$filename = time() . "_" . bin2hex(random_bytes(4)) . "_" . $safe_name;
+$target_path = $upload_dir . DIRECTORY_SEPARATOR . $filename;
 
 if (!move_uploaded_file($file['tmp_name'], $target_path)) {
     $_SESSION['submission_error'] = "File upload failed.";

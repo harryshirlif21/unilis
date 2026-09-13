@@ -21,10 +21,20 @@ use PHPMailer\PHPMailer\Exception;
  * @param string $type Type of notification (notes, assignment, attendance, etc.)
  * @return bool Success status
  */
-function send_notification_email($email, $user_name, $subject, $title, $message, $link = '', $type = 'general', &$errorMessage = null) {
+function send_notification_email($email, $user_name, $subject, $title, $message, $link = '', $type = 'general', &$errorMessage = null, $senderName = null, $attachmentPath = null, $calendarAttachment = null) {
     try {
         $mail = getConfiguredMailer();
+        if ($senderName !== null && trim($senderName) !== '') {
+            $mail->setFrom(EMAIL_FROM_ADDRESS, $senderName);
+            $mail->addReplyTo(EMAIL_FROM_ADDRESS, $senderName);
+        }
         $mail->addAddress($email);
+        if ($attachmentPath && is_file($attachmentPath)) {
+            $mail->addAttachment($attachmentPath);
+        }
+        if ($calendarAttachment) {
+            $mail->addStringAttachment($calendarAttachment, 'assignment-deadline-reminder.ics', PHPMailer::ENCODING_BASE64, 'text/calendar; charset=UTF-8; method=REQUEST');
+        }
 
         $mail->isHTML(true);
         $mail->Subject = $subject;
@@ -258,12 +268,12 @@ function get_email_template($type, $title, $message, $link, $user_name) {
  * @param string $type Notification type
  * @return array Results with success/failure counts
  */
-function send_bulk_notification_emails($recipients, $subject, $title, $message, $link = '', $type = 'general') {
+function send_bulk_notification_emails($recipients, $subject, $title, $message, $link = '', $type = 'general', $senderName = null, $attachmentPath = null, $calendarAttachment = null) {
     $results = ['success' => 0, 'failed' => 0, 'errors' => []];
     
     foreach ($recipients as $recipient) {
         if (empty($recipient['email'])) continue;
-        
+        $errorMessage = null;
         $success = send_notification_email(
             $recipient['email'], 
             $recipient['name'] ?? 'Student', 
@@ -271,7 +281,11 @@ function send_bulk_notification_emails($recipients, $subject, $title, $message, 
             $title, 
             $message, 
             $link, 
-            $type
+            $type,
+            $errorMessage,
+            $senderName,
+            $attachmentPath,
+            $calendarAttachment
         );
         
         if ($success) {

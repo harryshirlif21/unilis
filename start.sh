@@ -19,6 +19,18 @@ fi
 
 echo "[unilis] Meeting proxy upstream: ${PROXY_HOST}:${PROXY_PORT}"
 
+# These folders are bind-mounted in Docker Compose, so the permissions configured
+# while the image is built do not apply to the mounted host directories. Create
+# the assignment folders after mounts are available and give Apache write access.
+for upload_dir in \
+	/var/www/html/assets/uploads \
+	/var/www/html/assets/uploads/assignments \
+	/var/www/html/assets/uploads/submissions; do
+	mkdir -p "$upload_dir"
+	chown www-data:www-data "$upload_dir" || echo "[unilis] Could not change owner for $upload_dir"
+	chmod 775 "$upload_dir" || echo "[unilis] Could not change permissions for $upload_dir"
+done
+
 if [ -f /etc/apache2/sites-available/000-default.conf.template ]; then
 	sed \
 		-e "s/__MEETING_PROXY_HOST__/${PROXY_HOST}/g" \

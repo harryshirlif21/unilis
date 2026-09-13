@@ -67,6 +67,8 @@ RUN composer dump-autoload --optimize --classmap-authoritative || true
 # must live elsewhere (e.g. assets/meeting-app/).
 RUN mkdir -p /var/www/html/assets/uploads \
     /var/www/html/assets/uploads/short_courses \
+    /var/www/html/assets/uploads/assignments \
+    /var/www/html/assets/uploads/submissions \
     /var/www/html/assets/assignments \
     /var/www/html/assets/meetings \
     /var/www/html/assets/requested_files \
