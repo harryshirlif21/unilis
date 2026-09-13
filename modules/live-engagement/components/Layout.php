@@ -20,7 +20,8 @@ class Layout
      *   layout?: 'app'|'minimal'|'immersive',
      *   bodyClass?: string,
      *   activeNav?: string,
-     *   includeJs?: bool
+     *   includeJs?: bool,
+     *   hideRail?: bool
      * } $options
      */
     public static function start(array $options = []): void
@@ -30,6 +31,10 @@ class Layout
         $bodyClass = trim('le-standalone ld ' . ($options['bodyClass'] ?? ''));
         $activeNav = $options['activeNav'] ?? '';
         $includeJs = $options['includeJs'] ?? true;
+        $hideRail = (bool)($options['hideRail'] ?? false);
+        if ($hideRail) {
+            $bodyClass = trim($bodyClass . ' no-rail');
+        }
 
         $fullTitle = str_contains($title, 'Live Engagement')
             ? $title
@@ -69,7 +74,7 @@ class Layout
         if ($layout === 'app') {
             $GLOBALS['le_layout_app'] = true;
             echo '<div class="ld-shell">' . "\n";
-            echo self::renderRail($activeNav);
+            echo $hideRail ? '' : self::renderRail($activeNav);
             echo '<div class="ld-main">' . "\n";
             echo self::renderTopBar($activeNav);
             echo '<main class="le-app-main" role="main">' . "\n";

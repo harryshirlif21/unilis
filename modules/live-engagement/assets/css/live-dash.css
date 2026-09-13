@@ -39,6 +39,10 @@ body.le-standalone { background: var(--bg); color: var(--text); }
 
 .ld-shell { display: grid; grid-template-columns: 98px 1fr; min-height: 100vh; width: 100%; }
 .ld-main { grid-column: 2; padding: 14px 28px 42px; width: 100%; max-width: none; }
+
+/* Pages that opt out of the left rail (see Layout::start 'hideRail' option). */
+body.no-rail .ld-shell { grid-template-columns: 1fr; }
+body.no-rail .ld-main { grid-column: 1; }
 .ld-main .le-container { max-width: none; width: 100%; }
 .le-app-main { width: 100%; max-width: none; }
 .ld { width: 100%; max-width: none; }

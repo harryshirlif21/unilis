@@ -67,6 +67,7 @@ Layout::start([
     'title' => 'Presentations',
     'layout' => 'app',
     'activeNav' => 'presentations',
+    'hideRail' => true,
 ]);
 ?>
 
