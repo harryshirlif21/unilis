@@ -66,7 +66,7 @@ try {
 /**
  * Handle GET requests
  */
-function handleSessionGet(string $action, int $sessionId, string $code, \LE\Models\SessionModel $model, int $userId, ?string $role): void
+function handleSessionGet(string $action, int $sessionId, string $code, \LE\Models\SessionModel $model, ?int $userId, ?string $role): void
 {
     switch ($action) {
         case 'list':
@@ -263,7 +263,7 @@ function handleSessionPost(string $action, \LE\Models\SessionModel $model, ?int 
 /**
  * Handle PUT requests
  */
-function handleSessionPut(string $action, int $sessionId, \LE\Models\SessionModel $model, int $userId, ?string $role, array $input): void
+function handleSessionPut(string $action, int $sessionId, \LE\Models\SessionModel $model, ?int $userId, ?string $role, array $input): void
 {
     switch ($action) {
         case 'update':
@@ -299,7 +299,7 @@ function handleSessionPut(string $action, int $sessionId, \LE\Models\SessionMode
 /**
  * Handle DELETE requests
  */
-function handleSessionDelete(string $action, int $sessionId, \LE\Models\SessionModel $model, int $userId, ?string $role): void
+function handleSessionDelete(string $action, int $sessionId, \LE\Models\SessionModel $model, ?int $userId, ?string $role): void
 {
     switch ($action) {
         case 'delete':
