@@ -78,7 +78,7 @@ jobs:
 
       - name: Validate Docker Compose configuration
         run: |
-          docker compose -f docker-compose.yml config -q
+          docker-compose -f docker-compose.yml config -q
           echo "docker-compose.yml is valid."
 
   # ---------------------------------------------------------------------------
