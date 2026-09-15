@@ -150,10 +150,21 @@ jobs:
     steps:
       - name: Setup SSH for ${{ matrix.name }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets[matrix.ssh_key_secret] }}" > ~/.ssh/id_ed25519
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets[matrix.ssh_key_secret] }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -T 10 ${{ secrets[matrix.host_secret] }} >> ~/.ssh/known_hosts
+
+          # Verify the private key is actually loadable before attempting SSH.
+          # This turns cryptic "error in libcrypto" auth failures into a clear
+          # message (malformed / wrong-format / passphrase-protected key).
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "::error:: Secret '${{ matrix.ssh_key_secret }}' is not a valid loadable private key (libcrypto/format/passphrase issue). Store a multi-line key with BEGIN/END lines, LF endings, no passphrase."
+            exit 1
+          fi
+
+          printf '%s %s\n' "${{ matrix.name }}" "${{ secrets[matrix.host_secret] }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -T 10 ${{ secrets[matrix.host_secret] }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy to ${{ matrix.name }} (commit ${{ github.sha }})
         run: |
