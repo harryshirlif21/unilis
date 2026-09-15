@@ -51,7 +51,7 @@ jobs:
 
       - name: Verify required deployment files exist
         run: |
-          for f in docker compose.yml dockerfile apache.conf start.sh meeting-server/Dockerfile .env.docker.example; do
+          for f in docker-compose.yml dockerfile apache.conf start.sh meeting-server/Dockerfile .env.docker.example; do
             if [ ! -f "$f" ]; then
               echo "::error:: Missing required file: $f"
               exit 1
@@ -78,7 +78,7 @@ jobs:
 
       - name: Validate Docker Compose configuration
         run: |
-          docker-compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.yml config -q
           echo "docker-compose.yml is valid."
 
   # ---------------------------------------------------------------------------
@@ -120,90 +120,3 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:main-${{ github.sha }}
             ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:latest
-# ---------------------------------------------------------------------------
-  # 3) Deploy the SAME images/commit to BOTH servers independently.
-  #    Each matrix entry is a separate job, so a failure on one server is
-  #    reported clearly and never silently swallowed (fail-fast disabled).
-  # ---------------------------------------------------------------------------
-  deploy:
-    name: Deploy to ${{ matrix.name }}
-    runs-on: ubuntu-latest
-    needs: build-push
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Server 1 - Jhub
-          - name: "Server 1 (Jhub)"
-            ssh_key_secret: DEPLOY_KEY
-            host_secret: SERVER_IP
-            user_secret: SERVER_BOT
-            path_secret: DEPLOY_PATH
-          # Server 2 - AWS
-          - name: "Server 2 (AWS)"
-            ssh_key_secret: AWS_DEPLOY_KEY
-            host_secret: AWS_SERVER_IP
-            user_secret: AWS_SERVER_BOT
-            path_secret: AWS_DEPLOY_PATH
-    steps:
-      - name: Setup SSH for ${{ matrix.name }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets[matrix.ssh_key_secret] }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -T 10 ${{ secrets[matrix.host_secret] }} >> ~/.ssh/known_hosts
-
-      - name: Deploy to ${{ matrix.name }} (commit ${{ github.sha }})
-        run: |
-          ssh ${{ secrets[matrix.user_secret] }}@${{ secrets[matrix.host_secret] }} << 'EOF'
-            set -euo pipefail
-
-            DEPLOY_PATH="${{ secrets[matrix.path_secret] }}"
-            if [ -z "$DEPLOY_PATH" ]; then
-              echo "[:] Deploy path secret is empty for ${{ matrix.name }}."
-              exit 1
-            fi
-            if [ ! -d "$DEPLOY_PATH/.git" ] || [ ! -f "$DEPLOY_PATH/docker-compose.yml" ]; then
-              echo "[:] Deploy path '$DEPLOY_PATH' is not a valid git checkout for ${{ matrix.name }}."
-              exit 1
-            fi
-            cd "$DEPLOY_PATH"
-
-            echo "[${{ matrix.name }}] Deploying commit ${{ github.sha }} at $(date -u)"
-
-            # Pin the checkout to the exact commit we just built & pushed.
-            git fetch --all --prune
-            git checkout -B main origin/main
-            git pull --ff-only origin main
-
-            # Persistent, bind-mounted upload directories. These are host
-            # volumes (not recreated on deploy) - just ensure they exist with
-            # write access so Apache can save uploads.
-            for d in \
-              /srv/unilis-uploads/uploads/short_courses/sponsors \
-              /srv/unilis-uploads/uploads/course_images \
-              /srv/unilis-uploads/uploads/course_pdfs \
-              /srv/unilis-uploads/uploads/course_videos \
-              /srv/unilis-uploads/uploads/course_audio \
-              /srv/unilis-uploads/uploads/course_presentations \
-              /srv/unilis-uploads/uploads/course_diagrams \
-              /srv/unilis-uploads/uploads/chat \
-              /srv/unilis-uploads/uploads/answers \
-              /srv/unilis-uploads/assets/uploads \
-              /srv/unilis-uploads/assets/assignments \
-              /srv/unilis-uploads/assets/meetings \
-              /srv/unilis-uploads/assets/requested_files; do
-              mkdir -p "$d" || true
-            done
-            chmod -R 775 /srv/unilis-uploads 2>/dev/null || true
-
-            # Pull the exact images built & pushed earlier in THIS pipeline so
-            # both servers run identical artifacts.
-            docker compose pull
-
-            # Recreate containers WITHOUT touching named volumes (db_data,
-            # smart_labs_data) or bind mounts (.env and uploads are preserved).
-            docker-compose up -d --remove-orphans
-
-            docker compose ps
-          EOF
