@@ -51,7 +51,7 @@ jobs:
 
       - name: Verify required deployment files exist
         run: |
-          for f in docker-compose.yml dockerfile apache.conf start.sh meeting-server/Dockerfile .env.docker.example; do
+          for f in docker compose.yml dockerfile apache.conf start.sh meeting-server/Dockerfile .env.docker.example; do
             if [ ! -f "$f" ]; then
               echo "::error:: Missing required file: $f"
               exit 1
@@ -203,7 +203,7 @@ jobs:
 
             # Recreate containers WITHOUT touching named volumes (db_data,
             # smart_labs_data) or bind mounts (.env and uploads are preserved).
-            docker compose up -d --remove-orphans
+            docker-compose up -d --remove-orphans
 
             docker compose ps
           EOF
