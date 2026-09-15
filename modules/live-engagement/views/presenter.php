@@ -414,6 +414,78 @@ Layout::start([
 .le-tool:active::after { animation: leRipple 420ms ease-out; }
 @keyframes leRipple { from { opacity: .35; transform: scale(.4); } to { opacity: 0; transform: scale(1.35); } }
 
+/* ── Participants roster panel ─────────────────────────────────────────────── */
+.le-participants {
+    position: absolute; top: 76px; right: 22px; width: 276px; max-height: 62%;
+    background: rgba(10, 26, 13, .92);
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 14px;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, .4);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    z-index: 18; overflow: hidden;
+}
+.le-participants:not([hidden]) { display: flex; flex-direction: column; }
+.le-participants h4 {
+    margin: 0; padding: 12px 14px;
+    font-size: 13px; font-weight: 700; letter-spacing: .02em;
+    color: rgba(255, 255, 255, .92);
+    border-bottom: 1px solid rgba(255, 255, 255, .1);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.le-participants-count { font-weight: 700; font-size: 12px; color: var(--le-secondary, #F9A825); font-variant-numeric: tabular-nums; }
+.le-participants-list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.le-participant-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 9px; border-radius: 10px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid transparent;
+}
+.le-participant-row.is-online { border-color: rgba(66, 226, 176, .28); }
+.le-participant-avatar {
+    flex: 0 0 26px; width: 26px; height: 26px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: linear-gradient(135deg, #1b5e20, #2e7d32);
+    color: #fff; font-size: 12px; font-weight: 700;
+}
+.le-participant-row.is-online .le-participant-avatar { background: linear-gradient(135deg, #2e7d32, #43a047); }
+.le-participant-name {
+    flex: 1; min-width: 0; font-size: 13px; font-weight: 500;
+    color: rgba(255, 255, 255, .92);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.le-participant-hand { font-size: 14px; color: var(--le-secondary, #F9A825); }
+.le-participants-empty { padding: 16px 14px; color: rgba(255, 255, 255, .5); font-size: 12px; line-height: 1.4; text-align: center; }
+
+/* ── Raised hands panel ───────────────────────────────────────────────────── */
+.le-raisehand {
+    position: absolute; top: 76px; right: 22px; min-width: 220px; max-width: 300px;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, rgba(249, 168, 37, .18), rgba(249, 168, 37, .06));
+    border: 1px solid rgba(249, 168, 37, .5);
+    border-radius: 14px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, .35);
+    z-index: 24; animation: raisePulse 1.6s infinite;
+}
+.le-raisehand-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; color: #F9A825; letter-spacing: .05em; text-transform: uppercase;
+    margin-bottom: 6px;
+}
+.le-raisehand-head .material-symbols-rounded { font-size: 16px; }
+.le-raisehand-list { display: flex; flex-direction: column; gap: 5px; }
+.le-raisehand-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, .95);
+    background: rgba(255, 255, 255, .06);
+    padding: 6px 8px; border-radius: 8px;
+}
+.le-raisehand-icon { font-size: 14px; color: #F9A825; }
+@keyframes raisePulse {
+    0%, 100% { box-shadow: 0 14px 40px rgba(0, 0, 0, .35), 0 0 0 0 rgba(249, 168, 37, .5); }
+    50% { box-shadow: 0 14px 40px rgba(0, 0, 0, .35), 0 0 0 9px rgba(249, 168, 37, 0); }
+}
+
 /* ── Notes panel ────────────────────────────────────────────── */
 .le-notes {
     position: absolute;
@@ -545,6 +617,9 @@ body.le-laser-on .le-stage { cursor: none; }
             <button class="le-tool" id="notesBtn" title="Presenter notes (N)" aria-label="Presenter notes">
                 <span class="material-symbols-rounded">sticky_note_2</span>
             </button>
+            <button class="le-tool" id="participantsBtn" title="Participants (P)" aria-label="Participants">
+                <span class="material-symbols-rounded">group</span>
+            </button>
             <button class="le-tool" id="laserBtn" title="Laser pointer (L)" aria-label="Laser pointer">
                 <span class="material-symbols-rounded">my_location</span>
             </button>
@@ -610,6 +685,19 @@ body.le-laser-on .le-stage { cursor: none; }
         <div class="le-notes" id="notesPanel" hidden>
             <h4>Presenter notes</h4>
             <div class="le-notes-body" id="notesBody">No notes for this slide.</div>
+        </div>
+
+        <!-- Participants roster (auto-updating) -->
+        <div class="le-participants" id="participantsPanel" hidden>
+            <h4>Participants <span id="participantListCount" class="le-participants-count">0</span></h4>
+            <div class="le-participants-list" id="participantsList"></div>
+            <div class="le-participants-empty" id="participantsEmpty">No participants yet. Share the code above or the QR code to let them join.</div>
+        </div>
+
+        <!-- Raised hands (auto-appears) -->
+        <div class="le-raisehand" id="raiseHandPanel" hidden>
+            <div class="le-raisehand-head"><span class="material-symbols-rounded">front_hand</span> Raised hands</div>
+            <div class="le-raisehand-list" id="raiseHandList"></div>
         </div>
 
     </div>
@@ -746,6 +834,13 @@ body.le-laser-on .le-stage { cursor: none; }
         timer:      document.getElementById('sessionTimer'),
         count:      document.getElementById('participantCount'),
         reactions:  document.getElementById('reactionLayer'),
+        participantsBtn:     document.getElementById('participantsBtn'),
+        participants:        document.getElementById('participantsPanel'),
+        participantsList:    document.getElementById('participantsList'),
+        participantsEmpty:   document.getElementById('participantsEmpty'),
+        participantListCount: document.getElementById('participantListCount'),
+        raiseHandPanel:      document.getElementById('raiseHandPanel'),
+        raiseHandList:       document.getElementById('raiseHandList'),
     };
 
     function toast(msg, kind) {
@@ -899,6 +994,11 @@ body.le-laser-on .le-stage { cursor: none; }
         e.currentTarget.classList.toggle('is-on', !el.notes.hidden);
     });
 
+    document.getElementById('participantsBtn').addEventListener('click', (e) => {
+        el.participants.hidden = !el.participants.hidden;
+        e.currentTarget.classList.toggle('is-on', !el.participants.hidden);
+    });
+
     document.getElementById('laserBtn').addEventListener('click', (e) => {
         laserOn = !laserOn;
         e.currentTarget.classList.toggle('is-on', laserOn);
@@ -950,6 +1050,7 @@ body.le-laser-on .le-stage { cursor: none; }
             case 'End':                                   e.preventDefault(); goTo(SLIDES.length); break;
             case 't': case 'T': document.getElementById('railBtn').click(); break;
             case 'n': case 'N': document.getElementById('notesBtn').click(); break;
+            case 'p': case 'P': document.getElementById('participantsBtn').click(); break;
             case 'l': case 'L': document.getElementById('laserBtn').click(); break;
             case 'f': case 'F': document.getElementById('fullscreenBtn').click(); break;
         }
@@ -970,12 +1071,91 @@ body.le-laser-on .le-stage { cursor: none; }
     const REACTION_GLYPHS = { like: '👍', love: '❤️', laugh: '😂', wow: '😮', clap: '👏' };
     let lastReactionTotal = null;
 
+    // Auto-updating roster / raised hands. participantsReady prevents a toast
+    // burst for every participant who was already joined on the first poll.
+    let participantsReady = false;
+    let knownParticipants = {};
+    let knownRaised = {};
+
+    function renderParticipants(list) {
+        const array = Array.isArray(list) ? list : [];
+
+        // "X joined" pill in the stage top bar.
+        el.count.textContent = array.length;
+
+        // Roster panel (Participants button).
+        el.participantListCount.textContent = array.length;
+        el.participantsList.textContent = '';
+        el.participantsEmpty.hidden = array.length > 0;
+        array.forEach((p) => {
+            const row = document.createElement('div');
+            row.className = 'le-participant-row' + (Number(p.is_online) === 1 ? ' is-online' : '');
+            const avatar = document.createElement('span');
+            avatar.className = 'le-participant-avatar';
+            avatar.textContent = (String(p.display_name || 'G')).trim().charAt(0).toUpperCase() || 'G';
+            const name = document.createElement('span');
+            name.className = 'le-participant-name';
+            const displayName = p.display_name || 'Guest';
+            name.textContent = displayName;
+            name.title = displayName;
+            row.appendChild(avatar);
+            row.appendChild(name);
+            if (Number(p.hand_raised) === 1) {
+                const hand = document.createElement('span');
+                hand.className = 'le-participant-hand';
+                hand.title = 'Hand raised';
+                hand.textContent = '✋';
+                row.appendChild(hand);
+            }
+            el.participantsList.appendChild(row);
+        });
+
+        // Floating "Raised hands" panel — appears automatically while anyone
+        // has their hand up so the presenter notices instantly.
+        const raised = array.filter((p) => Number(p.hand_raised) === 1);
+        el.raiseHandPanel.hidden = raised.length === 0;
+        el.raiseHandList.textContent = '';
+        raised.forEach((p) => {
+            const row = document.createElement('div');
+            row.className = 'le-raisehand-row';
+            const hand = document.createElement('span');
+            hand.className = 'le-raisehand-icon';
+            hand.textContent = '✋';
+            const name = document.createElement('span');
+            name.textContent = p.display_name || 'A participant';
+            row.appendChild(hand);
+            row.appendChild(name);
+            el.raiseHandList.appendChild(row);
+        });
+
+        // Notifications for fresh joins and new raised hands.
+        const seen = new Set();
+        array.forEach((p) => {
+            const key = String(p.id ?? p.user_id ?? 'anon');
+            seen.add(key);
+            const name = p.display_name || 'A participant';
+            const isRaised = Number(p.hand_raised) === 1;
+            if (participantsReady && !(key in knownParticipants)) {
+                toast(name + ' joined', 'info');
+            }
+            knownParticipants[key] = p;
+            if (participantsReady && isRaised && !knownRaised[key]) {
+                toast('Raised hand: ' + name, 'success');
+            }
+            if (isRaised) knownRaised[key] = true;
+            else delete knownRaised[key];
+        });
+        // Drop participants who are no longer returned (left / went offline).
+        Object.keys(knownParticipants).forEach((k) => { if (!seen.has(k)) delete knownParticipants[k]; });
+        participantsReady = true;
+    }
+
     async function pollRoom() {
         if (document.hidden) return;
         try {
             const p = await api('session.php?action=participants&id=' + SESSION_ID);
-            if (p && p.participants) el.count.textContent = p.participants.length;
-        } catch (e) { /* transient: the counter simply holds its last value */ }
+            renderParticipants(p);
+        } catch (e) { /* transient: the roster simply holds its last value */ }
 
         try {
             const r = await api('session.php?action=reactions&id=' + SESSION_ID);
