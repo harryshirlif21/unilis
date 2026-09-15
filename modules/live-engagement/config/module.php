@@ -106,10 +106,12 @@ return [
 
     // Upload paths
     'uploads' => [
-        // Keep presentation files under the root uploads directory because
-        // Docker persists /var/www/html/uploads as a host-mounted volume.
-        'presentations' => UNILIS_ROOT_PATH . '/uploads/live_presentations/',
-        'temp' => UNILIS_ROOT_PATH . '/uploads/live_presentations/temp/',
+        // Store presentation files under assets/uploads (writable by www-data on
+        // production). The old /var/www/html/uploads directory is root-owned on
+        // the server so it is not writable by the web process; assets/uploads is
+        // created and chmod 775'd in the Dockerfile, so it is safe to write to.
+        'presentations' => UNILIS_ROOT_PATH . '/assets/uploads/live_presentations/',
+        'temp' => UNILIS_ROOT_PATH . '/assets/uploads/live_presentations/temp/',
         'max_file_size' => 52428800, // 50MB
         'allowed_mime_types' => [
             'application/pdf',

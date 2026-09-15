@@ -120,8 +120,8 @@ The installer is **safe to run multiple times**. It checks if tables exist befor
 ### 2. Directory Permissions
 
 Ensure the following directories are writable by the web server:
-- `uploads/live_presentations/`
-- `uploads/live_presentations/temp/`
+- `assets/uploads/live_presentations/`
+- `assets/uploads/live_presentations/temp/`
 - `modules/live-engagement/storage/`
 
 ### 3. Integration

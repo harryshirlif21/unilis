@@ -85,8 +85,8 @@
     {
       "scenario": "Directory permissions",
       "directories": [
-        "uploads/live_presentations/",
-        "uploads/live_presentations/temp/",
+        "assets/uploads/live_presentations/",
+        "assets/uploads/live_presentations/temp/",
         "modules/live-engagement/storage/"
       ],
       "cause": "Web server cannot write to upload directories",
