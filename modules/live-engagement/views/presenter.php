@@ -149,6 +149,10 @@ Layout::start([
     'title' => 'Presenter',
     'layout' => 'app',
     'activeNav' => 'presentations',
+    // The presenter is a full-screen immersive stage with its own slide rail.
+    // Suppress the app's left navigation rail here - it is sticky with z-index
+    // 30 and would otherwise render on top of the stage's thumbnail rail.
+    'hideRail' => true,
 ]);
 
 ?>
