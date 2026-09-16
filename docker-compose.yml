@@ -13,6 +13,7 @@ services:
       - /srv/unilis-uploads/assets/assignments:/var/www/html/assets/assignments
       - /srv/unilis-uploads/assets/meetings:/var/www/html/assets/meetings
       - /srv/unilis-uploads/assets/requested_files:/var/www/html/assets/requested_files
+      - /srv/unilis-uploads/smart-lab/uploads:/var/www/html/smart-lab/public/uploads
       # Server configurations
       - ./apache.conf:/etc/apache2/sites-available/000-default.conf.template
     depends_on:
@@ -23,16 +24,21 @@ services:
       meeting-server:
         condition: service_healthy
     environment:
+      APP_ENV: ${APP_ENV:-production}
       DB_HOST: db
       SMARTLAB_DB_HOST: smart-labs-db
       MYSQL_USER: unilisuser
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-unilispass}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: unilis
+      # The embedded Smart Lab module uses these names, not MYSQL_PASSWORD.
+      DB_NAME: unilis_smartlab
+      DB_USER: lab_admin
+      DB_PASS: ${SMARTLAB_MYSQL_PASSWORD:?Set SMARTLAB_MYSQL_PASSWORD in .env}
       MEETING_PROXY_HOST: meeting-server
       MEETING_PROXY_PORT: "8765"
-      MEETING_PYTHON_APP_URL: https://unilis.jhubafrica.com
+      MEETING_PYTHON_APP_URL: ${MEETING_PYTHON_APP_URL:?Set MEETING_PYTHON_APP_URL in .env}
       MEETING_MEDIA_PORT: "8765"
-      MEETING_MEDIA_WS_URL: wss://unilis.jhubafrica.com/ws/media
+      MEETING_MEDIA_WS_URL: ${MEETING_MEDIA_WS_URL:?Set MEETING_MEDIA_WS_URL in .env}
 
   meeting-server:
     build:
@@ -42,12 +48,12 @@ services:
     container_name: unilis-meeting-media
     restart: unless-stopped
     ports:
-      - "8765:8765"
+      - "127.0.0.1:8765:8765"
     environment:
       HOST: 0.0.0.0
       PORT: "8765"
-      MEETING_API_KEY: ${MEETING_API_KEY:-}
-      MEETING_ALLOWED_ORIGINS: ${MEETING_ALLOWED_ORIGINS:-*}
+      MEETING_API_KEY: ${MEETING_API_KEY:?Set MEETING_API_KEY in .env}
+      MEETING_ALLOWED_ORIGINS: ${MEETING_ALLOWED_ORIGINS:?Set MEETING_ALLOWED_ORIGINS in .env}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"]
       interval: 15s
@@ -62,10 +68,10 @@ services:
     ports:
       - "127.0.0.1:3308:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_DATABASE: unilis
       MYSQL_USER: unilisuser
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-unilispass}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
     volumes:
       - db_data:/var/lib/mysql
 
@@ -76,10 +82,10 @@ services:
     ports:
       - "127.0.0.1:3309:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_DATABASE: unilis_smartlab
       MYSQL_USER: lab_admin
-      MYSQL_PASSWORD: ${SMARTLAB_MYSQL_PASSWORD:-lab_password}
+      MYSQL_PASSWORD: ${SMARTLAB_MYSQL_PASSWORD:?Set SMARTLAB_MYSQL_PASSWORD in .env}
     volumes:
       - smart_labs_data:/var/lib/mysql
 
@@ -91,7 +97,7 @@ services:
       - "127.0.0.1:8081:80"
     environment:
       PMA_HOSTS: db,smart-labs-db
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
 
 volumes:
   db_data:

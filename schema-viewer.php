@@ -5,6 +5,21 @@ if (!isset($conn) || !($conn instanceof mysqli)) {
     die('Database connection not available.');
 }
 
+// ── Access control ───────────────────────────────────────────────────────────
+// This tool can dump your entire database (including password hashes), so it
+// is gated behind a simple shared-secret key. Set SCHEMA_VIEWER_KEY as an
+// environment variable (e.g. in docker-compose.yml or .env) to a long random
+// string, then visit this page as:
+//   schema-viewer.php?key=YOUR_SECRET
+// Change the fallback below immediately — it is NOT safe to leave as-is.
+$expectedKey = getenv('SCHEMA_VIEWER_KEY') ?: 'change-me-immediately';
+$providedKey = $_GET['key'] ?? '';
+
+if (!hash_equals($expectedKey, (string)$providedKey)) {
+    http_response_code(403);
+    die('Access denied. Provide ?key=YOUR_SECRET.');
+}
+
 function escape(string $v): string
 {
     return htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -144,6 +159,53 @@ function formatBytes(?string $bytes): string
     return $b . ' B';
 }
 
+// ── SQL Export ────────────────────────────────────────────────────────────
+
+function generateSqlDump(mysqli $conn): string
+{
+    $dbName = getDbName($conn);
+    $out = "-- UNILIS database export\n";
+    $out .= "-- Generated: " . date('Y-m-d H:i:s') . "\n";
+    $out .= "-- Database: {$dbName}\n\n";
+    $out .= "SET FOREIGN_KEY_CHECKS=0;\n";
+    $out .= "SET NAMES utf8mb4;\n\n";
+
+    $tables = getAllTables($conn);
+
+    foreach ($tables as $t) {
+        $table = $t['Name'];
+
+        // --- Schema ---
+        $out .= "-- ----------------------------\n-- Table structure for `{$table}`\n-- ----------------------------\n";
+        $out .= "DROP TABLE IF EXISTS `{$table}`;\n";
+
+        $res = $conn->query("SHOW CREATE TABLE `{$table}`");
+        $row = $res->fetch_assoc();
+        $out .= $row['Create Table'] . ";\n\n";
+
+        // --- Data ---
+        $dataRes = $conn->query("SELECT * FROM `{$table}`");
+        if ($dataRes->num_rows > 0) {
+            $out .= "-- Data for `{$table}`\n";
+            $fields = $dataRes->fetch_fields();
+            $colNames = array_map(fn($f) => "`{$f->name}`", $fields);
+            $colList = implode(', ', $colNames);
+
+            while ($row = $dataRes->fetch_assoc()) {
+                $vals = array_map(function ($v) use ($conn) {
+                    if ($v === null) return 'NULL';
+                    return "'" . $conn->real_escape_string((string)$v) . "'";
+                }, array_values($row));
+                $out .= "INSERT INTO `{$table}` ({$colList}) VALUES (" . implode(', ', $vals) . ");\n";
+            }
+            $out .= "\n";
+        }
+    }
+
+    $out .= "SET FOREIGN_KEY_CHECKS=1;\n";
+    return $out;
+}
+
 // ── HTML ──────────────────────────────────────────────────────────────────────
 
 function page(string $body): void
@@ -197,6 +259,9 @@ function page(string $body): void
             .rule-badge{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:5px;background:#f3f4f6;color:#4b5563;}
             .rule-cascade{background:#fee2e2;color:#b91c1c;}
             .empty-note{color:#9ca3af;font-size:12px;font-style:italic;padding:4px 0;}
+            .download-btn{display:inline-block;background:#1e3a5f;color:#fff !important;padding:9px 18px;border-radius:6px;
+                           text-decoration:none;font-weight:600;font-size:13px;}
+            .download-btn:hover{background:#15293f;}
         </style>
     </head><body>
     <div class="container">
@@ -383,13 +448,30 @@ function schemaPage(mysqli $conn): string
         <div class="summary-card"><div class="num">' . formatBytes((string)$totalSize) . '</div><div class="lbl">Data + Index</div></div>
     </div>';
 
-    $html = $summaryGrid;
+    $downloadKey = $_GET['key'] ?? '';
+    $downloadLink = '<div class="box" style="text-align:right;">
+        <a class="download-btn" href="?key=' . urlencode($downloadKey) . '&download=1">⬇ Download Full SQL Backup</a>
+    </div>';
+
+    $html = $downloadLink;
+    $html .= $summaryGrid;
     $html .= fkOverviewTable($fks['flat']);
     $html .= $tableCards;
     return $html;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+
+if (isset($_GET['download'])) {
+    $dbName = getDbName($conn);
+    $filename = $dbName . '_backup_' . date('Y-m-d_His') . '.sql';
+
+    header('Content-Type: application/sql');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+    echo generateSqlDump($conn);
+    exit;
+}
 
 $body = schemaPage($conn);
 page($body);
