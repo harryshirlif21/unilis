@@ -1024,7 +1024,7 @@ if ($teamTablesExist) {
         <div class="modal-content">
             <span class="close" onclick="closeModal('departmentModal')">×</span>
             <h3>Add Department</h3>
-            <form id="departmentForm" onsubmit="submitDepartmentForm(event)">
+            <form id="departmentForm" method="POST" action="../actions.php" onsubmit="submitDepartmentForm(event)">
                 <input type="hidden" name="action" value="add_department">
                 <div class="form-group">
                     <label>Department Name:</label>
@@ -2011,7 +2011,8 @@ function downloadRegistrationPDF() {
 
 function submitDepartmentForm(event) {
     event.preventDefault();
-    fetch('../actions.php', { method:'POST', body: new FormData(event.target) })
+    const form = event.currentTarget;
+    fetch(form.action, { method:'POST', body: new FormData(form) })
     .then(r => r.text()).then(text => {
         let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
         if (data?.status === 'success') { showFloatingMessage(data.message, 'success'); closeModal('departmentModal'); setTimeout(() => location.reload(), 1200); }

@@ -591,8 +591,10 @@ if ($action === 'add_university') {
 if ($action === 'add_department') {
     try {
         $response = array();
-        $name = trim($_POST['department_name']);
-        $university_id = intval($_POST['university_id']);
+        // Accept the current field names and the legacy names used by older
+        // dashboard deployments so online and local forms behave consistently.
+        $name = trim((string)($_POST['department_name'] ?? $_POST['name'] ?? ''));
+        $university_id = (int)($_POST['university_id'] ?? $_POST['university'] ?? 0);
 
         if (empty($name) || $university_id <= 0) {
             $response['status'] = 'error';
