@@ -552,19 +552,28 @@ if ($action === 'add_university') {
         }
 
         // Check if exists
-        $stmt = $pdo->prepare("SELECT id FROM universities WHERE name = :name");
+        $stmt = $conn->prepare("SELECT id FROM universities WHERE name = ?");
         if (!$stmt) {
-            throw new Exception("Database error preparing university check: " . print_r($pdo->errorInfo(), true));
+            throw new Exception("Database error preparing university check: " . $conn->error);
         }
-        $stmt->execute(['name' => $name]);
-        if ($stmt->rowCount() > 0) {
+        $stmt->bind_param("s", $name);
+        if (!$stmt->execute()) {
+            throw new Exception("Database error checking university: " . $stmt->error);
+        }
+        $result = $stmt->get_result();
+        $stmt->close();
+        if ($result->num_rows > 0) {
             $_SESSION['university_error'] = "University already exists.";
         } else {
-            $stmt = $pdo->prepare("INSERT INTO universities (name) VALUES (:name)");
+            $stmt = $conn->prepare("INSERT INTO universities (name) VALUES (?)");
             if (!$stmt) {
-                throw new Exception("Database error preparing university insert: " . print_r($pdo->errorInfo(), true));
+                throw new Exception("Database error preparing university insert: " . $conn->error);
             }
-            $stmt->execute(['name' => $name]);
+            $stmt->bind_param("s", $name);
+            if (!$stmt->execute()) {
+                throw new Exception("Database error adding university: " . $stmt->error);
+            }
+            $stmt->close();
             $_SESSION['university_success'] = "University added.";
         }
 

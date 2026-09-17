@@ -30,11 +30,15 @@ $verify_success = $_SESSION['verify_success'] ?? '';
 $verify_error   = $_SESSION['verify_error'] ?? '';
 $admin_success  = $_SESSION['admin_success'] ?? '';
 $admin_error    = $_SESSION['admin_error'] ?? '';
+$university_success = $_SESSION['university_success'] ?? '';
+$university_error = $_SESSION['university_error'] ?? '';
 
 unset($_SESSION['verify_success']);
 unset($_SESSION['verify_error']);
 unset($_SESSION['admin_success']);
 unset($_SESSION['admin_error']);
+unset($_SESSION['university_success']);
+unset($_SESSION['university_error']);
 
 function ensure_academic_year_settings_table(mysqli $conn): void
 {
@@ -533,6 +537,16 @@ if ($teamTablesExist) {
             <i class="fas fa-exclamation-circle"></i> <?= htmlspecialchars($admin_error) ?>
         </div>
     <?php endif; ?>
+    <?php if (!empty($university_success)): ?>
+        <div class="alert alert-success" style="background:#dcfce7; color:#166534; padding:12px 16px; border-radius:6px; margin-bottom:16px; border:1px solid #86efac;">
+            <i class="fas fa-check-circle"></i> <?= htmlspecialchars($university_success) ?>
+        </div>
+    <?php endif; ?>
+    <?php if (!empty($university_error)): ?>
+        <div class="alert alert-error" style="background:#fee2e2; color:#dc2626; padding:12px 16px; border-radius:6px; margin-bottom:16px; border:1px solid #fca5a5;">
+            <i class="fas fa-exclamation-circle"></i> <?= htmlspecialchars($university_error) ?>
+        </div>
+    <?php endif; ?>
     <h2>System Overview</h2>
 
     <?php
@@ -574,6 +588,33 @@ if ($teamTablesExist) {
             </div>
         </div>
     </div>
+
+    <section class="supervised-section" aria-labelledby="registered-universities-heading">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:14px;">
+            <div>
+                <h3 id="registered-universities-heading" style="margin:0;">Registered Universities</h3>
+                <p style="margin:4px 0 0; color:#6b7280;">Universities currently registered in the system.</p>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="openModal('universityModal')">
+                <i class="fas fa-plus"></i> Add University
+            </button>
+        </div>
+        <?php
+        $registeredUniversities = $conn->query("SELECT id, name FROM universities ORDER BY name ASC");
+        ?>
+        <?php if ($registeredUniversities && $registeredUniversities->num_rows > 0): ?>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                <?php while ($university = $registeredUniversities->fetch_assoc()): ?>
+                    <div style="display:flex; align-items:center; gap:10px; padding:14px; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb;">
+                        <i class="fas fa-university" style="color:#1e3a8a;"></i>
+                        <span><?= htmlspecialchars($university['name']) ?></span>
+                    </div>
+                <?php endwhile; ?>
+            </div>
+        <?php else: ?>
+            <p style="margin:0; color:#6b7280;">No universities have been registered yet.</p>
+        <?php endif; ?>
+    </section>
 
     <?php
     $mpesaEnvironment = strtolower((string)(getenv('MPESA_ENVIRONMENT') ?: 'sandbox'));
