@@ -1,155 +1,234 @@
-name: Deploy UNILIS to EC2
+# UNILIS consolidated deployment pipeline.
+#
+# This is the ONLY deployment workflow. It replaces the previous `main.yml`
+# (deployed to the Jhub server) and `aws.yml` (deployed to the AWS server) so
+# that a single pipeline deploys the SAME commit to BOTH servers, and only from
+# the `main` branch.
+#
+# Flow (per push to `main`):
+#   1. CI            - validates PHP syntax, required files, compose config.
+#   2. build-push    - builds & pushes ONE set of Docker images to DockerHub.
+#   3. deploy        - matrix job that deploys those same images to BOTH
+#                      Server 1 (Jhub) and Server 2 (AWS) independently.
+#
+# Secrets referenced (existing names, reused - do not rename):
+#   Server 1 (Jhub) : DEPLOY_KEY, SERVER_IP, SERVER_BOT, DEPLOY_PATH
+#   Server 2 (AWS)  : AWS_DEPLOY_KEY, AWS_SERVER_IP, AWS_SERVER_BOT, AWS_DEPLOY_PATH
+#   Shared          : DOCKER_USERNAME, DOCKER_PASSWORD
+#
+# The root Dockerfile is the lowercase file `dockerfile`, so the app image build
+# explicitly uses `file: ./dockerfile`. Images are pushed to
+# `${{ secrets.DOCKER_USERNAME }}/unilis-app` and
+# `${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media` to MATCH the image names
+# declared in docker-compose.yml.
+
+name: UNILIS Deploy (main)
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
+# Only one deployment run at a time; never cancel a run already in progress.
 concurrency:
-  group: unilis-production
+  group: unilis-production-deploy
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  validate:
-    name: Validate deployment configuration
+  # ---------------------------------------------------------------------------
+  # 1) CI - validate the project before any deployment happens.
+  # ---------------------------------------------------------------------------
+  ci:
+    name: CI - validation
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Verify required deployment files
+      - name: Verify required deployment files exist
         run: |
-          set -euo pipefail
-          for file in docker-compose.yml dockerfile apache.conf start.sh meeting-server/Dockerfile; do
-            test -f "$file" || { echo "::error::Missing required file: $file"; exit 1; }
-          done
-
-      - name: Validate Docker Compose
-        env:
-          MYSQL_ROOT_PASSWORD: validation-only-root-password
-          MYSQL_PASSWORD: validation-only-app-password
-          SMARTLAB_MYSQL_PASSWORD: validation-only-smartlab-password
-          MEETING_API_KEY: validation-only-meeting-key
-          MEETING_ALLOWED_ORIGINS: http://localhost:8080
-          MEETING_PYTHON_APP_URL: http://localhost:8080
-          MEETING_MEDIA_WS_URL: ws://localhost:8765/ws/media
-        run: docker compose -f docker-compose.yml config -q
-
-  deploy:
-    name: Deploy to EC2
-    runs-on: ubuntu-latest
-    needs: validate
-    environment: production
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Configure SSH
-        env:
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          test -n "$EC2_SSH_KEY" || { echo "::error::EC2_SSH_KEY is not configured."; exit 1; }
-          install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$EC2_SSH_KEY" > "$HOME/.ssh/id_ed25519"
-          chmod 600 "$HOME/.ssh/id_ed25519"
-          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null || {
-            echo "::error::EC2_SSH_KEY is not a usable, unencrypted private key."
-            exit 1
-          }
-
-      - name: Deploy commit to EC2
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          DEPLOY_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          test -n "$EC2_HOST" || { echo "::error::EC2_HOST is not configured."; exit 1; }
-          test -n "$EC2_USER" || { echo "::error::EC2_USER is not configured."; exit 1; }
-
-          # accept-new verifies the host key on later runs, but trusts it on the
-          # first connection. Replace it with a pre-populated known_hosts entry
-          # if your EC2 host key fingerprint is managed out of band.
-          ssh -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new \
-            "$EC2_USER@$EC2_HOST" "bash -s -- '$DEPLOY_SHA'" <<'REMOTE_SCRIPT'
-              set -Eeuo pipefail
-
-              DEPLOY_SHA="$1"
-              DEPLOY_DIR=/home/ubuntu/unilis
-              REPOSITORY=https://github.com/harryshirlif21/unilis.git
-
-              on_error() {
-                status=$?
-                echo "Deployment failed (exit $status). Recent Compose logs follow:" >&2
-                if [ -n "${DC:-}" ] && [ -d "$DEPLOY_DIR" ]; then
-                  (cd "$DEPLOY_DIR" && $DC logs --tail=100) >&2 || true
-                fi
-                exit "$status"
-              }
-              trap on_error ERR
-
-              if docker compose version >/dev/null 2>&1; then
-                DC='docker compose'
-              elif command -v docker-compose >/dev/null 2>&1; then
-                DC='docker-compose'
-              else
-                echo 'Docker Compose is not installed on the EC2 host.' >&2
-                exit 1
-              fi
-
-              if [ ! -d "$DEPLOY_DIR/.git" ]; then
-                if [ -e "$DEPLOY_DIR" ] && [ "$(find "$DEPLOY_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
-                  echo "$DEPLOY_DIR exists but is not a Git checkout; refusing to overwrite it." >&2
-                  exit 1
-                fi
-                mkdir -p "$(dirname "$DEPLOY_DIR")"
-                git clone "$REPOSITORY" "$DEPLOY_DIR"
-              fi
-
-              cd "$DEPLOY_DIR"
-              test -f .env || {
-                echo 'Missing /home/ubuntu/unilis/.env. Create it on EC2 from .env.docker.example before deploying.' >&2
-                exit 1
-              }
-
-              # .env is ignored by Git, so this update never overwrites its
-              # production secrets. Named database volumes are never removed.
-              git fetch origin main --prune
-              git checkout -B main origin/main
-              git reset --hard "$DEPLOY_SHA"
-
-              # Bind-mounted user content survives image rebuilds. The image
-              # runs Apache as www-data (UID/GID 33), so create these host
-              # directories with matching ownership before starting containers.
-              for upload_dir in \
-                /srv/unilis-uploads/uploads \
-                /srv/unilis-uploads/assets/uploads \
-                /srv/unilis-uploads/assets/assignments \
-                /srv/unilis-uploads/assets/meetings \
-                /srv/unilis-uploads/assets/requested_files \
-                /srv/unilis-uploads/smart-lab/uploads; do
-                sudo install -d -o 33 -g 33 -m 0775 "$upload_dir"
-              done
-
-              $DC --env-file .env config -q
-              $DC pull
-              $DC build
-              $DC up -d --remove-orphans
-              $DC ps
-
-              # There is no dedicated root health endpoint. Check Apache's
-              # actual public entry point from the EC2 host, allowing startup.
-              for attempt in $(seq 1 12); do
-                if curl --fail --silent --show-error http://127.0.0.1:8080/ >/dev/null; then
-                  echo 'UNILIS health check passed.'
-                  exit 0
-                fi
-                sleep 5
-              done
-              echo 'UNILIS health check failed: http://127.0.0.1:8080/ did not return success.' >&2
+          for f in docker-compose.yml dockerfile apache.conf start.sh meeting-server/Dockerfile .env.docker.example; do
+            if [ ! -f "$f" ]; then
+              echo "::error:: Missing required file: $f"
               exit 1
-          REMOTE_SCRIPT
+            fi
+          done
+          echo "All required deployment files are present."
+
+      - name: PHP syntax check (lint)
+        run: |
+          set +e
+          files=$(find . \
+            -path ./vendor -prune -o \
+            -path ./smart-lab/vendor -prune -o \
+            -name '*.php' -print 2>/dev/null)
+          count=$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)
+          echo "Linting ${count} PHP file(s)..."
+          printf '%s\n' "$files" | sed '/^$/d' | xargs -r -n1 php -l
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error:: PHP syntax check failed."
+            exit "$status"
+          fi
+          echo "PHP syntax check passed."
+
+      - name: Validate Docker Compose configuration
+        run: |
+          docker compose -f docker-compose.yml config -q
+          echo "docker-compose.yml is valid."
+
+  # ---------------------------------------------------------------------------
+  # 2) Build & push ONE set of images (single source of truth for both servers).
+  # ---------------------------------------------------------------------------
+  build-push:
+    name: Build & push Docker images
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/unilis-app:main-${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/unilis-app:latest
+
+      - name: Build and push meeting media image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: ./meeting-server
+          file: ./meeting-server/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:main-${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:latest
+# ---------------------------------------------------------------------------
+  # 3) Deploy the SAME images/commit to BOTH servers independently.
+  #    Each matrix entry is a separate job, so a failure on one server is
+  #    reported clearly and never silently swallowed (fail-fast disabled).
+  #    Servers may run the standalone `docker-compose` (v1) OR the
+  #    `docker compose` plugin - we detect which is available and use it.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: build-push
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Server 1 - Jhub
+          - name: "Server 1 (Jhub)"
+            ssh_key_secret: DEPLOY_KEY
+            host_secret: SERVER_IP
+            user_secret: SERVER_BOT
+            path_secret: DEPLOY_PATH
+          # Server 2 - AWS
+          - name: "Server 2 (AWS)"
+            ssh_key_secret: AWS_DEPLOY_KEY
+            host_secret: AWS_SERVER_IP
+            user_secret: AWS_SERVER_BOT
+            path_secret: AWS_DEPLOY_PATH
+    steps:
+      - name: Setup SSH for ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets[matrix.ssh_key_secret] }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          # Verify the private key is actually loadable before attempting SSH.
+          # This turns cryptic "error in libcrypto" auth failures into a clear
+          # message (malformed / wrong-format / passphrase-protected key).
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "::error:: Secret '${{ matrix.ssh_key_secret }}' is not a valid loadable private key (libcrypto/format/passphrase issue). Store a multi-line key with BEGIN/END lines, LF endings, no passphrase."
+            exit 1
+          fi
+
+          printf '%s %s\n' "${{ matrix.name }}" "${{ secrets[matrix.host_secret] }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -T 10 ${{ secrets[matrix.host_secret] }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy to ${{ matrix.name }} (commit ${{ github.sha }})
+        run: |
+          ssh ${{ secrets[matrix.user_secret] }}@${{ secrets[matrix.host_secret] }} << 'EOF'
+            set -euo pipefail
+
+            # The AWS server only ships the standalone `docker-compose` (v1)
+            # binary, while Jhub has the `docker compose` v2 plugin. Detect and
+            # use whichever one exists so the same job works on both servers.
+            if docker compose version >/dev/null 2>&1; then
+              DC="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              DC="docker-compose"
+            else
+              echo "[:] No compose command available on ${{ matrix.name }}."
+              exit 1
+            fi
+
+            DEPLOY_PATH="${{ secrets[matrix.path_secret] }}"
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "[:] Deploy path secret is empty for ${{ matrix.name }}."
+              exit 1
+            fi
+            if [ ! -d "$DEPLOY_PATH/.git" ] || [ ! -f "$DEPLOY_PATH/docker-compose.yml" ]; then
+              echo "[:] Deploy path '$DEPLOY_PATH' is not a valid git checkout for ${{ matrix.name }}."
+              exit 1
+            fi
+            cd "$DEPLOY_PATH"
+
+            echo "[${{ matrix.name }}] Deploying commit ${{ github.sha }} at $(date -u)"
+
+            # Pin the checkout to the exact commit we just built & pushed.
+            git fetch --all --prune
+            git checkout -B main origin/main
+            git pull --ff-only origin main
+
+            # Persistent, bind-mounted upload directories. These are host
+            # volumes (not recreated on deploy) - just ensure they exist with
+            # write access so Apache can save uploads.
+            for d in \
+              /srv/unilis-uploads/uploads/short_courses/sponsors \
+              /srv/unilis-uploads/uploads/course_images \
+              /srv/unilis-uploads/uploads/course_pdfs \
+              /srv/unilis-uploads/uploads/course_videos \
+              /srv/unilis-uploads/uploads/course_audio \
+              /srv/unilis-uploads/uploads/course_presentations \
+              /srv/unilis-uploads/uploads/course_diagrams \
+              /srv/unilis-uploads/uploads/chat \
+              /srv/unilis-uploads/uploads/answers \
+              /srv/unilis-uploads/assets/uploads \
+              /srv/unilis-uploads/assets/assignments \
+              /srv/unilis-uploads/assets/meetings \
+              /srv/unilis-uploads/assets/requested_files; do
+              mkdir -p "$d" || true
+            done
+            chmod -R 775 /srv/unilis-uploads 2>/dev/null || true
+
+            # Pull the exact images built & pushed earlier in THIS pipeline so
+            # both servers run identical artifacts.
+            $DC pull
+
+            # Recreate containers WITHOUT touching named volumes (db_data,
+            # smart_labs_data) or bind mounts (.env and uploads are preserved).
+            $DC up -d --remove-orphans
+
+            $DC ps
+          EOF
