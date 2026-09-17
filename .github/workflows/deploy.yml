@@ -76,6 +76,18 @@ jobs:
           fi
           echo "PHP syntax check passed."
 
+      - name: Create placeholder .env for CI validation
+        run: |
+          cat > .env << 'EOF'
+          MYSQL_ROOT_PASSWORD=ci-placeholder
+          MYSQL_PASSWORD=ci-placeholder
+          SMARTLAB_MYSQL_PASSWORD=ci-placeholder
+          MEETING_MEDIA_WS_URL=ws://localhost:8765/ws/media
+          MEETING_PYTHON_APP_URL=http://localhost
+          MEETING_ALLOWED_ORIGINS=*
+          MEETING_API_KEY=ci-placeholder
+          EOF
+
       - name: Validate Docker Compose configuration
         run: |
           docker compose -f docker-compose.yml config -q
