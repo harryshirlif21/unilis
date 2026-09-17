@@ -2012,11 +2012,30 @@ function downloadRegistrationPDF() {
 function submitDepartmentForm(event) {
     event.preventDefault();
     const form = event.currentTarget;
-    fetch(form.action, { method:'POST', body: new FormData(form) })
+    // Always POST to the real actions endpoint. If the <form> has no action
+    // attribute (older deployments), form.action resolves to the CURRENT page,
+    // so force the canonical ../actions.php URL.
+    let url = form.action && form.action.indexOf('actions.php') !== -1 ? form.action : '../actions.php';
+    fetch(url, { method: 'POST', body: new FormData(form) })
     .then(r => r.text()).then(text => {
-        let data; try { data = parseJSONSafe(text); } catch(e) { showFloatingMessage('Invalid response', 'error'); return; }
-        if (data?.status === 'success') { showFloatingMessage(data.message, 'success'); closeModal('departmentModal'); setTimeout(() => location.reload(), 1200); }
-        else showFloatingMessage(data?.message||'Failed to add department', 'error');
+        let data = null;
+        try { data = JSON.parse(text); } catch (e) { data = null; }
+        // If the server redirected (302) — e.g. session expired, login required,
+        // or an older actions.php that used header("Location") — we get an HTML
+        // page (login, dashboard or a 404) instead of JSON.
+        if (!data || typeof data.status === 'undefined') {
+            const snippet = String(text || '').trim().slice(0, 120);
+            const isHtml = /<[a-z!\/]/i.test(snippet);
+            showFloatingMessage(
+                isHtml
+                    ? 'Server returned a page instead of a response. Make sure you are logged in as an admin, then reload the dashboard and retry.'
+                    : 'Invalid response from server: ' + snippet,
+                'error'
+            );
+            return;
+        }
+        if (data.status === 'success') { showFloatingMessage(data.message, 'success'); closeModal('departmentModal'); setTimeout(() => location.reload(), 1200); }
+        else showFloatingMessage(data.message || 'Failed to add department', 'error');
     }).catch(() => showFloatingMessage('Error submitting form', 'error'));
 }
 
