@@ -2012,10 +2012,11 @@ function downloadRegistrationPDF() {
 function submitDepartmentForm(event) {
     event.preventDefault();
     const form = event.currentTarget;
-    // Always POST to the real actions endpoint. If the <form> has no action
-    // attribute (older deployments), form.action resolves to the CURRENT page,
-    // so force the canonical ../actions.php URL.
-    let url = form.action && form.action.indexOf('actions.php') !== -1 ? form.action : '../actions.php';
+    // Always POST to the real actions endpoint. Use getAttribute(), NOT
+    // form.action: this form contains <input name="action">, whose named form
+    // control shadows form.action (returning the input element, not a string).
+    let url = form.getAttribute('action');
+    if (!url || url.indexOf('actions.php') === -1) url = '../actions.php';
     fetch(url, { method: 'POST', body: new FormData(form) })
     .then(r => r.text()).then(text => {
         let data = null;
