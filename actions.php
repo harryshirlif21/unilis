@@ -590,8 +590,14 @@ if ($action === 'add_university') {
 // === ADD SCHOOL ===
 if ($action === 'add_school') {
     try {
-        $name = trim((string)($_POST['school_name'] ?? $_POST['name'] ?? ''));
-        $university_id = (int)($_POST['university_id'] ?? $_POST['university'] ?? 0);
+        $name = trim((string)($_POST['school_name'] ?? ''));
+        if ($name === '') {
+            $name = trim((string)($_POST['name'] ?? $_POST['school'] ?? ''));
+        }
+        $university_id = (int)($_POST['university_id'] ?? 0);
+        if ($university_id <= 0) {
+            $university_id = (int)($_POST['university'] ?? 0);
+        }
 
         if ($name === '' || $university_id <= 0) {
             header('Content-Type: application/json');

@@ -2088,7 +2088,46 @@ function submitDepartmentForm(event) {
 
 function submitSchoolForm(event) {
     event.preventDefault();
-    submitAcademicForm(event.currentTarget, 'schoolModal', 'School');
+    const form = document.getElementById('schoolForm');
+    const schoolNameInput = form ? form.querySelector('[name="school_name"]') : null;
+    const universityInput = form ? form.querySelector('[name="university_id"]') : null;
+    const schoolName = schoolNameInput ? schoolNameInput.value.trim() : '';
+    const universityId = universityInput ? universityInput.value : '';
+
+    if (!schoolName || !universityId) {
+        showFloatingMessage('Enter a school name and select a university.', 'error');
+        return;
+    }
+
+    const payload = new URLSearchParams();
+    payload.set('action', 'add_school');
+    payload.set('school_name', schoolName);
+    payload.set('university_id', universityId);
+
+    const endpoint = form.getAttribute('action') || '../actions.php';
+    fetch(endpoint, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+        body: payload.toString()
+    })
+        .then(response => response.text())
+        .then(text => {
+            let data;
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+            if (!data || typeof data.status === 'undefined') {
+                showFloatingMessage('Invalid response from server while adding school.', 'error');
+                return;
+            }
+            if (data.status === 'success') {
+                showFloatingMessage(data.message, 'success');
+                closeModal('schoolModal');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showFloatingMessage(data.message || 'Failed to add school.', 'error');
+            }
+        })
+        .catch(() => showFloatingMessage('Error submitting school form.', 'error'));
 }
 
 function submitAcademicForm(form, modalId, entityName) {

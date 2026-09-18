@@ -58,35 +58,89 @@
   </div>
 
   <!-- Hero Section -->
-  <section class="min-h-screen flex items-center text-white py-20" style="background-image: linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1544717297-fa95b6ee9643?w=1920&fit=crop'); background-size: cover; background-position: center; background-attachment: fixed;">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        <div class="bg-white/10 rounded-2xl p-8 border border-white/20">
-          <h1 class="text-4xl lg:text-6xl font-bold mb-6">
-            Empowering University Learning with <span class="text-gold">UNILIS</span>
-          </h1>
-          <p class="text-xl mb-8 text-gray-100">
-            A comprehensive platform for students and lecturers to manage courses, assignments, assessments, and collaboration seamlessly.
-          </p>
-          <div class="flex flex-col sm:flex-row gap-4">
-            <a href="student/signup.php" class="bg-gold text-gray-900 px-8 py-3 rounded-lg font-semibold hover:bg-gold/90 transition">Start Free Trial</a>
-            <a href="modules/live-engagement/landing.php" class="border border-gold bg-white/10 px-8 py-3 rounded-lg font-semibold hover:bg-gold hover:text-gray-900 transition">Open Live Engagement</a>
-            <a href="meeting_portal.php" class="border border-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-gray-900 transition">Virtual Meetings</a>
-            <a href="login.php" class="border border-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-gray-900 transition">Login</a>
+  <section class="relative isolate overflow-hidden pt-32 pb-20 text-white lg:pt-40 lg:pb-28" style="background-image: url('uni.jpg'); background-size: cover; background-position: center;">
+    <div class="absolute inset-0 -z-10 bg-slate-950/65 backdrop-blur-[2px]"></div>
+    <div class="absolute inset-0 -z-10 bg-gradient-to-r from-blue-950/80 via-blue-950/55 to-slate-950/35"></div>
+    <div class="absolute -right-24 top-24 -z-10 h-72 w-72 rounded-full border border-white/20 bg-white/[0.06] blur-sm"></div>
+    <div class="absolute -left-32 bottom-0 -z-10 h-80 w-80 rounded-full border border-white/10"></div>
+
+    <div class="mx-auto grid max-w-7xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+      <div class="rounded-[2rem] border border-white/20 bg-white/[0.10] p-7 shadow-2xl backdrop-blur-xl sm:p-10">
+        <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-gold/30 bg-gold/10 px-4 py-2 text-sm font-medium text-amber-200">
+          <span class="h-2 w-2 rounded-full bg-gold shadow-[0_0_12px_#d4af37]"></span>
+          One connected place to learn and collaborate
+        </div>
+        <h1 class="max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-7xl">
+          Learning that moves
+          <span class="block text-gold">with you.</span>
+        </h1>
+        <p class="mt-6 max-w-xl text-lg leading-8 text-slate-300 sm:text-xl">
+          UNILIS brings courses, assessments, collaboration, live engagement, and meetings together in one simple university learning platform.
+        </p>
+        <div class="mt-9 flex flex-col gap-3 sm:flex-row">
+          <a href="student/signup.php" class="inline-flex items-center justify-center rounded-xl bg-gold px-6 py-3.5 font-bold text-slate-950 shadow-lg shadow-gold/20 transition hover:-translate-y-0.5 hover:bg-yellow-300">
+            Start learning
+            <span class="ml-2 text-lg">→</span>
+          </a>
+          <a href="login.php" class="inline-flex items-center justify-center rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 font-semibold text-white transition hover:border-white/50 hover:bg-white/15">
+            Sign in to UNILIS
+          </a>
+        </div>
+        <div class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium text-slate-300">
+          <a href="modules/live-engagement/landing.php" class="transition hover:text-gold">Join live engagement <span aria-hidden="true">↗</span></a>
+          <a href="meeting_portal.php" class="transition hover:text-gold">Open virtual meetings <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm text-slate-400">
+          <span class="flex items-center gap-2"><span class="text-gold">✓</span> Built for students</span>
+          <span class="flex items-center gap-2"><span class="text-gold">✓</span> Designed for lecturers</span>
+          <span class="flex items-center gap-2"><span class="text-gold">✓</span> Ready when you are</span>
+        </div>
+      </div>
+
+      <div class="relative mx-auto w-full max-w-lg">
+        <div class="absolute -inset-4 rounded-[2rem] bg-blue-500/20 blur-3xl"></div>
+        <div class="relative rounded-[2rem] border border-white/25 bg-white/[0.14] p-3 shadow-2xl backdrop-blur-xl">
+          <div class="rounded-[1.4rem] bg-slate-950/75 p-5 sm:p-7">
+            <div class="mb-7 flex items-center justify-between border-b border-white/10 pb-5">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Student workspace</p>
+                <p class="mt-1 text-lg font-bold">Good morning, learner</p>
+              </div>
+              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gold/15 text-lg">✦</div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+                <p class="text-2xl font-bold text-gold">06</p>
+                <p class="mt-1 text-xs text-slate-400">Active courses</p>
+              </div>
+              <div class="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+                <p class="text-2xl font-bold text-emerald-300">84%</p>
+                <p class="mt-1 text-xs text-slate-400">Progress this week</p>
+              </div>
+            </div>
+            <div class="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+              <div class="mb-3 flex items-center justify-between">
+                <p class="text-sm font-semibold">Continue learning</p>
+                <span class="text-xs text-gold">View all</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/20 text-xl">📚</div>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium">Interactive course module</p>
+                  <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div class="h-full w-3/4 rounded-full bg-gold"></div></div>
+                </div>
+                <span class="text-xs text-slate-400">75%</span>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">
+              <span class="h-2 w-2 rounded-full bg-emerald-300"></span>
+              Your next live session starts soon
+            </div>
           </div>
         </div>
-        <div class="relative">
-          <div class="bg-white/10 rounded-2xl p-8 border border-white/20">
-            <h3 class="text-2xl font-bold mb-4 text-gold">Key Features</h3>
-            <ul class="space-y-3 text-gray-100">
-              <li>✓ Lecture Notes Management</li>
-              <li>✓ Assignment Management</li>
-              <li>✓ Interactive MCQ Assessments</li>
-              <li>✓ Student Group Collaboration</li>
-              <li>✓ Virtual Meeting System</li>
-              <li>✓ Interactive Course Learning Module</li>
-            </ul>
-          </div>
+        <div class="absolute -bottom-5 -left-5 hidden items-center gap-3 rounded-2xl border border-white/15 bg-slate-900/90 px-4 py-3 shadow-xl backdrop-blur sm:flex">
+          <span class="flex h-9 w-9 items-center justify-center rounded-full bg-gold text-slate-950">✓</span>
+          <div><p class="text-xs font-semibold text-white">Everything in one place</p><p class="text-xs text-slate-400">Learn. Connect. Grow.</p></div>
         </div>
       </div>
     </div>
@@ -97,63 +151,78 @@
        Placed directly under the hero because these are the entry points for
        visitors who are not enrolled - everything below this assumes an account.
        ═══════════════════════════════════════════════════════════ -->
-  <section id="open-access" class="py-16 bg-white">
+  <section id="open-access" class="bg-white py-20 lg:py-24">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-10">
-        <h2 class="text-3xl font-bold text-gray-900">Open to everyone</h2>
-        <p class="mt-3 text-gray-600 max-w-2xl mx-auto">
+      <div class="mb-14 max-w-2xl">
+        <p class="text-sm font-bold uppercase tracking-[0.2em] text-blue-800">Start with UNILIS</p>
+        <h2 class="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Open to everyone</h2>
+        <p class="mt-4 text-lg leading-8 text-slate-600">
           You do not need to be a registered student to learn with us or to join a session.
         </p>
       </div>
 
-      <div class="flex flex-col gap-8">
+      <div class="flex flex-col">
 
         <!-- Open courses / ICLM -->
         <div id="open-learning"
-             class="w-full border border-gray-200 p-8 sm:p-10 shadow-sm transition hover:border-gray-300 hover:shadow-md">
-          <div>
-            <span class="inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-gray-700">Free &amp; self-paced</span>
-            <h3 class="mt-4 text-2xl font-bold">Open courses with certificates</h3>
-            <p class="mt-3 max-w-3xl leading-relaxed text-gray-600">
+             class="grid items-center gap-10 border-t border-slate-200 py-10 lg:grid-cols-[1fr_0.9fr] lg:gap-20 lg:py-14">
+          <div class="max-w-xl">
+            <span class="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-blue-800">Free &amp; self-paced</span>
+            <h3 class="mt-5 text-2xl font-bold tracking-tight text-blue-950 sm:text-3xl">Open courses with certificates</h3>
+            <p class="mt-4 leading-7 text-slate-600">
               Work through self-paced courses at your own speed. Finish every lesson,
               pass the assessments, and earn a certificate anyone can verify online.
             </p>
-            <div class="mt-6 flex flex-wrap gap-3">
-              <a href="learn/" class="inline-block rounded-lg bg-navy px-6 py-3 font-semibold text-white transition hover:bg-navy/90">
+            <div class="mt-7 flex flex-wrap gap-3">
+              <a href="learn/" class="inline-flex items-center rounded-xl bg-blue-800 px-6 py-3 font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-900">
                 Browse courses
               </a>
-              <a href="learn/register.php" class="inline-block rounded-lg border border-gray-300 px-6 py-3 font-semibold text-gray-800 transition hover:border-navy hover:text-navy">
+              <a href="learn/register.php" class="inline-flex items-center rounded-xl border border-slate-300 px-6 py-3 font-semibold text-slate-800 transition hover:border-blue-800 hover:text-blue-800">
                 Create a free account
               </a>
             </div>
-            <p class="mt-4 text-sm text-gray-600">
-              Already learning? <a href="learn/login.php" class="underline hover:text-navy">Sign in</a>
-              &middot; <a href="learn/verify_certificate.php" class="underline hover:text-navy">Verify a certificate</a>
+            <p class="mt-5 text-sm text-slate-600">
+              Already learning? <a href="learn/login.php" class="font-semibold text-blue-800 underline hover:text-blue-950">Sign in</a>
+              &middot; <a href="learn/verify_certificate.php" class="font-semibold text-blue-800 underline hover:text-blue-950">Verify a certificate</a>
             </p>
+          </div>
+          <div class="relative overflow-hidden rounded-[2rem]">
+            <img src="lapt.jpg"
+                 alt="Students studying together around a table"
+                 class="h-64 w-full object-cover transition duration-500 hover:scale-105 sm:h-80">
+            <div class="absolute inset-0 bg-gradient-to-tr from-navy/40 to-transparent"></div>
+            <span class="absolute bottom-5 left-5 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-gray-900 shadow-lg">Learn at your pace</span>
           </div>
         </div>
 
         <!-- Live sessions / meetings -->
         <div id="open-sessions"
-             class="w-full border border-gray-200 p-8 sm:p-10 shadow-sm transition hover:border-gray-300 hover:shadow-md">
-          <div>
-            <span class="inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-gray-700">No sign-up needed</span>
-            <h3 class="mt-4 text-2xl font-bold">Join a live session</h3>
-            <p class="mt-3 max-w-3xl leading-relaxed text-gray-600">
+             class="grid items-center gap-10 border-t border-slate-200 py-10 lg:grid-cols-[1fr_0.9fr] lg:gap-20 lg:py-14">
+          <div class="max-w-xl">
+            <span class="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-900">No sign-up needed</span>
+            <h3 class="mt-5 text-2xl font-bold tracking-tight text-blue-950 sm:text-3xl">Join a live session</h3>
+            <p class="mt-4 leading-7 text-slate-600">
               Got a session code from a lecturer or an event host? Join the live room
               straight from your browser — polls, quizzes, whiteboard and chat included.
             </p>
-            <div class="mt-6 flex flex-wrap gap-3">
-              <a href="modules/live-engagement/" class="inline-block rounded-lg bg-navy px-6 py-3 font-semibold text-white transition hover:bg-navy/90">
+            <div class="mt-7 flex flex-wrap gap-3">
+              <a href="modules/live-engagement/" class="inline-flex items-center rounded-xl bg-blue-800 px-6 py-3 font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-900">
                 Enter a session code
               </a>
-              <a href="modules/live-engagement/index.php?page=join" class="inline-block rounded-lg border border-gray-300 px-6 py-3 font-semibold text-gray-800 transition hover:border-navy hover:text-navy">
+              <a href="modules/live-engagement/index.php?page=join" class="inline-flex items-center rounded-xl border border-slate-300 px-6 py-3 font-semibold text-slate-800 transition hover:border-blue-800 hover:text-blue-800">
                 Browse live sessions
               </a>
             </div>
-            <p class="mt-4 text-sm text-gray-600">
+            <p class="mt-5 text-sm text-slate-600">
               Point your phone camera at the QR code on screen to join instantly.
             </p>
+          </div>
+          <div class="relative overflow-hidden rounded-[2rem]">
+            <img src="uni.jpg"
+                 alt="People collaborating during a live discussion"
+                 class="h-64 w-full object-cover transition duration-500 hover:scale-105 sm:h-80">
+            <div class="absolute inset-0 bg-gradient-to-tr from-blue-950/45 to-transparent"></div>
+            <span class="absolute bottom-5 left-5 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-gray-900 shadow-lg">Connect in real time</span>
           </div>
         </div>
 

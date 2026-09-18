@@ -1,0 +1,29 @@
+services:
+  app:
+    environment:
+      APP_ENV: development
+    volumes:
+      # Serve the working tree directly; PHP/HTML changes are visible immediately.
+      - .:/var/www/html
+      - app_vendor:/var/www/html/vendor
+      - dev_uploads:/var/www/html/uploads
+      - dev_assets_uploads:/var/www/html/assets/uploads
+      - dev_assets_assignments:/var/www/html/assets/assignments
+      - dev_assets_meetings:/var/www/html/assets/meetings
+      - dev_assets_requested_files:/var/www/html/assets/requested_files
+      - dev_smartlab_uploads:/var/www/html/smart-lab/public/uploads
+      - ./apache.conf:/etc/apache2/sites-available/000-default.conf.template
+
+  meeting-server:
+    build:
+      context: ./meeting-server
+      dockerfile: Dockerfile
+
+volumes:
+  app_vendor:
+  dev_uploads:
+  dev_assets_uploads:
+  dev_assets_assignments:
+  dev_assets_meetings:
+  dev_assets_requested_files:
+  dev_smartlab_uploads:
