@@ -51,6 +51,37 @@ function run_all_migrations() {
         $GLOBALS['log'][] = ['label' => $label, 'status' => 'skip', 'msg' => $reason];
     }
 
+    function migrate_school_department_hierarchy(mysqli $conn) {
+        if (!tableExists($conn, 'schools')) {
+            run_sql($conn, 'CREATE TABLE schools', "
+                CREATE TABLE `schools` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(150) NOT NULL,
+                    `university_id` INT NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uniq_school_university` (`name`, `university_id`),
+                    INDEX `idx_school_university` (`university_id`),
+                    CONSTRAINT `fk_schools_university`
+                        FOREIGN KEY (`university_id`) REFERENCES `universities` (`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+        } else {
+            skip('CREATE TABLE schools');
+        }
+
+        if (tableExists($conn, 'departments') && !columnExists($conn, 'departments', 'school_id')) {
+            run_sql($conn, 'ALTER TABLE departments ADD school_id', "
+                ALTER TABLE `departments`
+                ADD COLUMN `school_id` INT NULL AFTER `university_id`,
+                ADD INDEX `idx_department_school` (`school_id`),
+                ADD CONSTRAINT `fk_departments_school`
+                    FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE SET NULL
+            ");
+        } else {
+            skip('ALTER TABLE departments ADD school_id');
+        }
+    }
+
     // --- Migration Functions ---
 
     function migrate_attendance(mysqli $conn) {
@@ -294,6 +325,7 @@ function run_all_migrations() {
     fix_notifications_columns($conn);
     migrate_note_status($conn);
     migrate_public_course_sponsorship($conn);
+    migrate_school_department_hierarchy($conn);
     $GLOBALS['log'][] = migrate_unique_unit_assignment($conn);
 
     // --- Run Phase 1 Migration ---

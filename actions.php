@@ -587,6 +587,72 @@ if ($action === 'add_university') {
     }
 }
 
+// === ADD SCHOOL ===
+if ($action === 'add_school') {
+    try {
+        $name = trim((string)($_POST['school_name'] ?? $_POST['name'] ?? ''));
+        $university_id = (int)($_POST['university_id'] ?? $_POST['university'] ?? 0);
+
+        if ($name === '' || $university_id <= 0) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'School name and university are required.',
+            ]);
+            exit;
+        }
+
+        $stmt = $conn->prepare("SELECT id FROM schools WHERE name = ? AND university_id = ?");
+        $stmt->bind_param("si", $name, $university_id);
+        $stmt->execute();
+        $stmt->store_result();
+        if ($stmt->num_rows > 0) {
+            $stmt->close();
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'School already exists in this university.']);
+            exit;
+        }
+        $stmt->close();
+
+        $stmt = $conn->prepare("INSERT INTO schools (name, university_id) VALUES (?, ?)");
+        $stmt->bind_param("si", $name, $university_id);
+        $stmt->execute();
+        $schoolId = $stmt->insert_id;
+        $stmt->close();
+
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'success',
+            'message' => 'School added successfully.',
+            'school_id' => $schoolId,
+            'school_name' => $name,
+        ]);
+        exit;
+    } catch (Throwable $e) {
+        error_log("Add school error: " . $e->getMessage());
+        header('Content-Type: application/json', true, 500);
+        echo json_encode(['status' => 'error', 'message' => 'An error occurred while adding the school.']);
+        exit;
+    }
+}
+
+// === LIST SCHOOLS FOR A UNIVERSITY ===
+if ($action === 'get_schools') {
+    $university_id = (int)($_GET['university_id'] ?? 0);
+    $stmt = $conn->prepare("SELECT id, name FROM schools WHERE university_id = ? ORDER BY name ASC");
+    $stmt->bind_param("i", $university_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $schools = [];
+    while ($row = $result->fetch_assoc()) {
+        $schools[] = $row;
+    }
+    $stmt->close();
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'success', 'schools' => $schools]);
+    exit;
+}
+
 // === ADD DEPARTMENT ===
 if ($action === 'add_department') {
     try {
@@ -595,21 +661,32 @@ if ($action === 'add_department') {
         // dashboard deployments so online and local forms behave consistently.
         $name = trim((string)($_POST['department_name'] ?? $_POST['name'] ?? ''));
         $university_id = (int)($_POST['university_id'] ?? $_POST['university'] ?? 0);
+        $school_id = (int)($_POST['school_id'] ?? 0);
 
-        if (empty($name) || $university_id <= 0) {
+        if ($name === '' || $university_id <= 0 || $school_id <= 0) {
             $response['status'] = 'error';
-            $response['message'] = "Department name and university are required.";
+            $response['message'] = "Department name, university, and school are required.";
             header('Content-Type: application/json');
             echo json_encode($response);
             exit;
         }
 
+        $schoolStmt = $conn->prepare("SELECT id FROM schools WHERE id = ? AND university_id = ?");
+        $schoolStmt->bind_param("ii", $school_id, $university_id);
+        $schoolStmt->execute();
+        $schoolStmt->store_result();
+        if ($schoolStmt->num_rows === 0) {
+            $schoolStmt->close();
+            throw new Exception("The selected school does not belong to the selected university.");
+        }
+        $schoolStmt->close();
+
         // First check if department exists
-        $stmt = $conn->prepare("SELECT id FROM departments WHERE name = ? AND university_id = ?");
+        $stmt = $conn->prepare("SELECT id FROM departments WHERE name = ? AND school_id = ?");
         if (!$stmt) {
             throw new Exception("Database error preparing department check: " . $conn->error);
         }
-        $stmt->bind_param("si", $name, $university_id);
+        $stmt->bind_param("si", $name, $school_id);
         if (!$stmt->execute()) {
             $stmt->close();
             throw new Exception("Database error checking department: " . $stmt->error);
@@ -623,11 +700,11 @@ if ($action === 'add_department') {
         } else {
             $stmt->close();
             // Insert new department with basic fields
-            $stmt = $conn->prepare("INSERT INTO departments (name, university_id) VALUES (?, ?)");
+            $stmt = $conn->prepare("INSERT INTO departments (name, university_id, school_id) VALUES (?, ?, ?)");
             if (!$stmt) {
                 throw new Exception("Database error preparing department insert: " . $conn->error);
             }
-            $stmt->bind_param("si", $name, $university_id);
+            $stmt->bind_param("sii", $name, $university_id, $school_id);
             
             if ($stmt->execute()) {
                 $response['status'] = 'success';

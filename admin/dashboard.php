@@ -496,6 +496,7 @@ if ($teamTablesExist) {
     <p>Role: System Administrator</p>
     <div class="menu-section-title">Management</div>
     <button class="menu-item" onclick="openModal('universityModal')"><i class="fas fa-university"></i> Add University</button>
+    <button class="menu-item" onclick="openModal('schoolModal')"><i class="fas fa-school"></i> Add School</button>
     <button class="menu-item" onclick="openModal('departmentModal')"><i class="fas fa-building"></i> Add Department</button>
     <button class="menu-item" onclick="openModal('courseModal')"><i class="fas fa-book"></i> Add Course</button>
     <button class="menu-item" onclick="openModal('unitSingleModal')"><i class="fas fa-cube"></i> Add Single Unit</button>
@@ -597,6 +598,9 @@ if ($teamTablesExist) {
             </div>
             <button type="button" class="btn btn-primary" onclick="openModal('universityModal')">
                 <i class="fas fa-plus"></i> Add University
+            </button>
+            <button type="button" class="btn btn-primary" onclick="openModal('schoolModal')">
+                <i class="fas fa-school"></i> Add School
             </button>
         </div>
         <?php
@@ -964,10 +968,15 @@ if ($teamTablesExist) {
             <h3>Add University</h3>
             <p>Create a new university in the system.</p>
         </div>
+        <div class="action-card" onclick="openModal('schoolModal')">
+            <div class="icon"><i class="fas fa-school"></i></div>
+            <h3>Add School</h3>
+            <p>Add a school under an existing university.</p>
+        </div>
         <div class="action-card" onclick="openModal('departmentModal')">
             <div class="icon"><i class="fas fa-building"></i></div>
             <h3>Add Department</h3>
-            <p>Add a new department to a university.</p>
+            <p>Add a department under a school.</p>
         </div>
         <div class="action-card" onclick="openModal('courseModal')">
             <div class="icon"><i class="fas fa-book"></i></div>
@@ -1018,6 +1027,36 @@ if ($teamTablesExist) {
         </div>
     </div>
 
+    <div id="schoolModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('schoolModal')">×</span>
+            <h3>Add School</h3>
+            <form id="schoolForm" method="POST" action="../actions.php" onsubmit="submitSchoolForm(event)">
+                <input type="hidden" name="action" value="add_school">
+                <div class="form-group">
+                    <label>School Name:</label>
+                    <input type="text" name="school_name" required>
+                </div>
+                <div class="form-group">
+                    <label>University:</label>
+                    <select name="university_id" required>
+                        <option value="">-- Select University --</option>
+                        <?php
+                        $res = $conn->query("SELECT id, name FROM universities ORDER BY name ASC");
+                        while ($row = $res->fetch_assoc()) {
+                            echo "<option value='{$row['id']}'>" . htmlspecialchars($row['name']) . "</option>";
+                        }
+                        ?>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal('schoolModal')">Cancel</button>
+                    <button type="submit" class="btn-primary">Add School</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="floatingMessage" class="floating-message" style="display: none;"></div>
 
     <div id="departmentModal" class="modal" style="display:none;">
@@ -1032,7 +1071,7 @@ if ($teamTablesExist) {
                 </div>
                 <div class="form-group">
                     <label>Select University:</label>
-                    <select name="university_id" required>
+                    <select name="university_id" id="departmentUniversity" required onchange="loadDepartmentSchools(this.value)">
                         <option value="">-- Select University --</option>
                         <?php
                         $res = $conn->query("SELECT id, name FROM universities ORDER BY name ASC");
@@ -1040,6 +1079,12 @@ if ($teamTablesExist) {
                             echo "<option value='{$row['id']}'>" . htmlspecialchars($row['name']) . "</option>";
                         }
                         ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Select School:</label>
+                    <select name="school_id" id="departmentSchool" required disabled>
+                        <option value="">-- Select a university first --</option>
                     </select>
                 </div>
                 <div class="form-actions">
@@ -2035,9 +2080,73 @@ function submitDepartmentForm(event) {
             );
             return;
         }
+
         if (data.status === 'success') { showFloatingMessage(data.message, 'success'); closeModal('departmentModal'); setTimeout(() => location.reload(), 1200); }
         else showFloatingMessage(data.message || 'Failed to add department', 'error');
     }).catch(() => showFloatingMessage('Error submitting form', 'error'));
+}
+
+function submitSchoolForm(event) {
+    event.preventDefault();
+    submitAcademicForm(event.currentTarget, 'schoolModal', 'School');
+}
+
+function submitAcademicForm(form, modalId, entityName) {
+    const url = form.getAttribute('action') || '../actions.php';
+    fetch(url, { method: 'POST', body: new FormData(form) })
+        .then(response => response.text())
+        .then(text => {
+            let data;
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+            if (!data || typeof data.status === 'undefined') {
+                showFloatingMessage('Invalid response from server while adding ' + entityName.toLowerCase(), 'error');
+                return;
+            }
+            if (data.status === 'success') {
+                showFloatingMessage(data.message, 'success');
+                closeModal(modalId);
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showFloatingMessage(data.message || 'Failed to add ' + entityName.toLowerCase(), 'error');
+            }
+        })
+        .catch(() => showFloatingMessage('Error submitting ' + entityName.toLowerCase() + ' form', 'error'));
+}
+
+function loadDepartmentSchools(universityId) {
+    const schoolSelect = document.getElementById('departmentSchool');
+    schoolSelect.innerHTML = '<option value="">Loading schools...</option>';
+    schoolSelect.disabled = true;
+    if (!universityId) {
+        schoolSelect.innerHTML = '<option value="">-- Select a university first --</option>';
+        return;
+    }
+    fetch('../actions.php?action=get_schools&university_id=' + encodeURIComponent(universityId), {
+        credentials: 'same-origin',
+        cache: 'no-store'
+    })
+        .then(response => response.json())
+        .then(data => {
+            schoolSelect.innerHTML = '<option value="">-- Select School --</option>';
+            if (data.status !== 'success' || !Array.isArray(data.schools)) {
+                throw new Error('Invalid schools response');
+            }
+            data.schools.forEach(school => {
+                const option = document.createElement('option');
+                option.value = school.id;
+                option.textContent = school.name;
+                schoolSelect.appendChild(option);
+            });
+            schoolSelect.disabled = data.schools.length === 0;
+            if (data.schools.length === 0) {
+                schoolSelect.innerHTML = '<option value="">-- Add a school first --</option>';
+            }
+        })
+        .catch(() => {
+            schoolSelect.innerHTML = '<option value="">Unable to load schools</option>';
+            schoolSelect.disabled = true;
+            showFloatingMessage('Unable to load schools for this university', 'error');
+        });
 }
 
 /* ─────────────────────────────────────────
