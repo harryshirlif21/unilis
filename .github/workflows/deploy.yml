@@ -147,18 +147,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Server 1 - Jhub
+          # Server 1 - Jhub (shared server; build locally to avoid being
+          # blocked by unrelated projects' broken images during a shared
+          # registry pull)
           - name: "Server 1 (Jhub)"
             ssh_key_secret: DEPLOY_KEY
             host_secret: SERVER_IP
             user_secret: SERVER_BOT
             path_secret: DEPLOY_PATH
-          # Server 2 - AWS
+            deploy_mode: build
+          # Server 2 - AWS (dedicated server; pull the centrally-built image)
           - name: "Server 2 (AWS)"
             ssh_key_secret: AWS_DEPLOY_KEY
             host_secret: AWS_SERVER_IP
             user_secret: AWS_SERVER_BOT
             path_secret: AWS_DEPLOY_PATH
+            deploy_mode: pull
     steps:
       - name: Setup SSH for ${{ matrix.name }}
         run: |
@@ -234,9 +238,19 @@ jobs:
             done
             chmod -R 775 /srv/unilis-uploads 2>/dev/null || true
 
-            # Pull the exact images built & pushed earlier in THIS pipeline so
-            # both servers run identical artifacts.
-            $DC pull
+            # Jhub is a shared server hosting many unrelated projects behind
+            # one docker-compose.yml; a registry pull there can be blocked by
+            # someone else's broken image. Build locally there instead (as
+            # this deploy always did before consolidation). AWS is dedicated
+            # to UNILIS, so it pulls the centrally-built image for speed and
+            # consistency with the exact commit that was tested in CI.
+            if [ "${{ matrix.deploy_mode }}" = "build" ]; then
+              echo "[${{ matrix.name }}] Building images locally from source"
+              $DC build
+            else
+              echo "[${{ matrix.name }}] Pulling pre-built images from Docker Hub"
+              $DC pull
+            fi
 
             # Recreate containers WITHOUT touching named volumes (db_data,
             # smart_labs_data) or bind mounts (.env and uploads are preserved).
