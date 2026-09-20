@@ -1,0 +1,8 @@
+﻿User-agent: *
+Allow: /$
+Allow: /login.php
+Allow: /robots.txt
+Allow: /sitemap.xml
+Disallow: /
+
+Sitemap: https://unilis-ai.com/sitemap.xml
