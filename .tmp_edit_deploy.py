@@ -1,0 +1,273 @@
+# UNILIS consolidated deployment pipeline.
+#
+# This is the ONLY deployment workflow. It replaces the previous `main.yml`
+# (deployed to the Jhub server) and `aws.yml` (deployed to the AWS server) so
+# that a single pipeline deploys the SAME commit to BOTH servers, and only from
+# the `main` branch.
+#
+# Flow (per push to `main`):
+#   1. CI            - validates PHP syntax, required files, compose config.
+#   2. build-push    - builds & pushes ONE set of Docker images to DockerHub.
+#   3. deploy        - matrix job that deploys those same images to BOTH
+#                      Server 1 (Jhub) and Server 2 (AWS) independently.
+#
+# Secrets referenced (existing names, reused - do not rename):
+#   Server 1 (Jhub) : DEPLOY_KEY, SERVER_IP, SERVER_BOT, DEPLOY_PATH
+#   Server 2 (AWS)  : AWS_DEPLOY_KEY, AWS_SERVER_IP, AWS_SERVER_BOT, AWS_DEPLOY_PATH
+#   Shared          : DOCKER_USERNAME, DOCKER_PASSWORD
+#
+# The root Dockerfile is the lowercase file `dockerfile`, so the app image build
+# explicitly uses `file: ./dockerfile`. Images are pushed to
+# `${{ secrets.DOCKER_USERNAME }}/unilis-app` and
+# `${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media` to MATCH the image names
+# declared in docker-compose.yml.
+
+name: UNILIS Deploy (main)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Only one deployment run at a time; never cancel a run already in progress.
+concurrency:
+  group: unilis-production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) CI - validate the project before any deployment happens.
+  # ---------------------------------------------------------------------------
+  ci:
+    name: CI - validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify required deployment files exist
+        run: |
+          for f in docker-compose.yml dockerfile apache.conf start.sh meeting-server/Dockerfile .env.docker.example; do
+            if [ ! -f "$f" ]; then
+              echo "::error:: Missing required file: $f"
+              exit 1
+            fi
+          done
+          echo "All required deployment files are present."
+
+      - name: Create placeholder .env for CI validation
+        run: |
+          cat > .env << 'EOF'
+          MEETING_MEDIA_WS_URL=ws://localhost:8765/ws/media
+          MEETING_PYTHON_APP_URL=http://localhost
+          MEETING_ALLOWED_ORIGINS=*
+          MEETING_API_KEY=ci-placeholder
+          EOF
+
+      - name: PHP syntax check (lint)
+        run: |
+          set +e
+          files=$(find . \
+            -path ./vendor -prune -o \
+            -path ./smart-lab/vendor -prune -o \
+            -name '*.php' -print 2>/dev/null)
+          count=$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)
+          echo "Linting ${count} PHP file(s)..."
+          printf '%s\n' "$files" | sed '/^$/d' | xargs -r -n1 php -l
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error:: PHP syntax check failed."
+            exit "$status"
+          fi
+          echo "PHP syntax check passed."
+
+      - name: Validate Docker Compose configuration
+        run: |
+          docker compose -f docker-compose.yml config -q
+          echo "docker-compose.yml is valid."
+
+  # ---------------------------------------------------------------------------
+  # 2) Build & push ONE set of images (single source of truth for both servers).
+  # ---------------------------------------------------------------------------
+  build-push:
+    name: Build & push Docker images
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/unilis-app:main-${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/unilis-app:latest
+
+      - name: Build and push meeting media image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: ./meeting-server
+          file: ./meeting-server/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:main-${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:latest
+  # ---------------------------------------------------------------------------
+  # 3) Deploy the SAME commit to BOTH servers independently.
+  #    Each matrix entry is a separate job, so a failure on one server is
+  #    reported clearly and never silently swallowed (fail-fast disabled).
+  #    Servers may run the standalone `docker-compose` (v1) OR the
+  #    `docker compose` plugin - we detect which is available and use it.
+  #
+  #    deploy_mode controls how each server gets its image:
+  #      - "build": compile fresh from source on the server itself. Used for
+  #        Jhub, a SHARED server hosting many unrelated projects behind one
+  #        docker-compose.yml. A registry pull there fetches every project's
+  #        images in one batch, so one unrelated broken image (bad TLS cert,
+  #        deleted tag, etc.) aborts the whole batch and blocks OUR deploy
+  #        too. Building locally only touches services that declare a
+  #        `build:` block in that shared file (just unilis-app and
+  #        unilis-meeting-media), so it's immune to everyone else's breakage.
+  #        This matches how Jhub was deployed for its first ~2 years, before
+  #        this pipeline was consolidated.
+  #      - "pull": fetch the pre-built image from Docker Hub. Used for AWS, a
+  #        server dedicated solely to UNILIS, so it benefits from pulling the
+  #        exact same artifact that was built and validated in THIS pipeline
+  #        run, rather than rebuilding it a second time.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: build-push
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Server 1 - Jhub (shared server; build locally to avoid being
+          # blocked by unrelated projects' broken images during a shared
+          # registry pull)
+          - name: "Server 1 (Jhub)"
+            ssh_key_secret: DEPLOY_KEY
+            host_secret: SERVER_IP
+            user_secret: SERVER_BOT
+            path_secret: DEPLOY_PATH
+            deploy_mode: build
+          # Server 2 - AWS (dedicated server; pull the centrally-built image)
+          - name: "Server 2 (AWS)"
+            ssh_key_secret: AWS_DEPLOY_KEY
+            host_secret: AWS_SERVER_IP
+            user_secret: AWS_SERVER_BOT
+            path_secret: AWS_DEPLOY_PATH
+            deploy_mode: pull
+    steps:
+      - name: Setup SSH for ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets[matrix.ssh_key_secret] }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          # Verify the private key is actually loadable before attempting SSH.
+          # This turns cryptic "error in libcrypto" auth failures into a clear
+          # message (malformed / wrong-format / passphrase-protected key).
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "::error:: Secret '${{ matrix.ssh_key_secret }}' is not a valid loadable private key (libcrypto/format/passphrase issue). Store a multi-line key with BEGIN/END lines, LF endings, no passphrase."
+            exit 1
+          fi
+
+          printf '%s %s\n' "${{ matrix.name }}" "${{ secrets[matrix.host_secret] }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -T 10 ${{ secrets[matrix.host_secret] }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy to ${{ matrix.name }} (commit ${{ github.sha }})
+        run: |
+          ssh ${{ secrets[matrix.user_secret] }}@${{ secrets[matrix.host_secret] }} << 'EOF'
+            set -euo pipefail
+
+            # The AWS server only ships the standalone `docker-compose` (v1)
+            # binary, while Jhub has the `docker compose` v2 plugin. Detect and
+            # use whichever one exists so the same job works on both servers.
+            if docker compose version >/dev/null 2>&1; then
+              DC="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              DC="docker-compose"
+            else
+              echo "[:] No compose command available on ${{ matrix.name }}."
+              exit 1
+            fi
+
+            DEPLOY_PATH="${{ secrets[matrix.path_secret] }}"
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "[:] Deploy path secret is empty for ${{ matrix.name }}."
+              exit 1
+            fi
+            if [ ! -d "$DEPLOY_PATH/.git" ] || [ ! -f "$DEPLOY_PATH/docker-compose.yml" ]; then
+              echo "[:] Deploy path '$DEPLOY_PATH' is not a valid git checkout for ${{ matrix.name }}."
+              exit 1
+            fi
+            cd "$DEPLOY_PATH"
+
+            echo "[${{ matrix.name }}] Deploying commit ${{ github.sha }} at $(date -u)"
+
+            # Pin the checkout to the exact commit we just built & pushed.
+            git fetch --all --prune
+            git checkout -B main origin/main
+            git pull --ff-only origin main
+
+            # Persistent, bind-mounted upload directories. These are host
+            # volumes (not recreated on deploy) - just ensure they exist with
+            # write access so Apache can save uploads.
+            for d in \
+              /srv/unilis-uploads/uploads/short_courses/sponsors \
+              /srv/unilis-uploads/uploads/course_images \
+              /srv/unilis-uploads/uploads/course_pdfs \
+              /srv/unilis-uploads/uploads/course_videos \
+              /srv/unilis-uploads/uploads/course_audio \
+              /srv/unilis-uploads/uploads/course_presentations \
+              /srv/unilis-uploads/uploads/course_diagrams \
+              /srv/unilis-uploads/uploads/chat \
+              /srv/unilis-uploads/uploads/answers \
+              /srv/unilis-uploads/assets/uploads \
+              /srv/unilis-uploads/assets/assignments \
+              /srv/unilis-uploads/assets/meetings \
+              /srv/unilis-uploads/assets/requested_files; do
+              mkdir -p "$d" || true
+            done
+            chmod -R 775 /srv/unilis-uploads 2>/dev/null || true
+
+            # Jhub is a shared server hosting many unrelated projects behind
+            # one docker-compose.yml; a registry pull there can be blocked by
+            # someone else's broken image. Build locally there instead (as
+            # this deploy always did before consolidation). AWS is dedicated
+            # to UNILIS, so it pulls the centrally-built image for speed and
+            # consistency with the exact commit that was tested in CI.
+            if [ "${{ matrix.deploy_mode }}" = "build" ]; then
+              echo "[${{ matrix.name }}] Building images locally from source"
+              $DC build
+            else
+              echo "[${{ matrix.name }}] Pulling pre-built images from Docker Hub"
+              $DC pull
+            fi
+
+            # Recreate containers WITHOUT touching named volumes (db_data,
+            # smart_labs_data) or bind mounts (.env and uploads are preserved).
+            $DC up -d --remove-orphans
+
+            $DC ps
+          EOF
