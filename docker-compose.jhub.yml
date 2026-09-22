@@ -1,0 +1,33 @@
+# Jhub-specific Compose override file.
+#
+# Jhub is the shared, long-running server. Historically the app container
+# bind-mounted the deployed git checkout (.:/var/www/html and vendor), which is
+# why code went live on `git pull` and the server rebooted cleanly onto the
+# latest code. The base docker-compose.yml removed these mounts so image-built
+# deployments work on dedicated servers. This override RESTORES them on Jhub
+# only.
+#
+# IMPORTANT: This file must NEVER be referenced on AWS or any image-consuming
+# server. AWS runs the base docker-compose.yml and pulls the centrally-built
+# image; adding this override there would bind-mount the checkout over the
+# image's /var/www/html and defeat the point of pulling.
+#
+# Merge notes:
+#   - Compose appends these app.volumes entries to the ones defined in the base
+#     file, so the /srv/unilis-uploads mounts are preserved.
+#   - Docker gives the more specific upload paths (e.g. /var/www/html/uploads)
+#     precedence over the /var/www/html parent mount, so uploads still live on
+#     the host while application code is served from the checkout.
+#   - The .htaccess / apache.conf deny rules (added during web-root hardening)
+#     still protect .git and *.sql even though /var/www/html is now the checkout.
+services:
+  app:
+    volumes:
+      # Live application code + vendored dependencies from the checked-out
+      # source, so the container serves the same code Apache would serve after
+      # a plain `git pull`, and reboots onto the latest checkout.
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+
+volumes:
+  vendor:

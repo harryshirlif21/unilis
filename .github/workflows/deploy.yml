@@ -91,6 +91,8 @@ jobs:
       - name: Validate Docker Compose configuration
         run: |
           docker compose -f docker-compose.yml config -q
+          # Also validate the Jhub-only override (bind mounts) merges cleanly.
+          docker compose -f docker-compose.yml -f docker-compose.jhub.yml config -q
           echo "docker-compose.yml is valid."
 
   # ---------------------------------------------------------------------------
@@ -244,17 +246,32 @@ jobs:
             # this deploy always did before consolidation). AWS is dedicated
             # to UNILIS, so it pulls the centrally-built image for speed and
             # consistency with the exact commit that was tested in CI.
+            #
+            # Jhub also layers docker-compose.jhub.yml, which re-adds the app
+            # web-root (.:/var/www/html) and vendor bind mounts so the container
+            # serves the deployed checkout and reboots onto the latest code.
+            # AWS MUST NOT use that override - it pulls the centrally-built image.
             if [ "${{ matrix.deploy_mode }}" = "build" ]; then
               echo "[${{ matrix.name }}] Building images locally from source"
-              $DC build
+              $DC -f docker-compose.yml -f docker-compose.jhub.yml build
+
+              # Jhub (build mode) ONLY. The app/meeting-server images use a
+              # stable `:latest` tag; a plain `up -d` can leave the
+              # already-running container on its OLD image (the Jhub regression),
+              # so force-roll ONLY the two code-bearing services. The
+              # docker-compose.jhub.yml override supplies the .:/var/www/html and
+              # vendor bind mounts from the live checkout. Named volumes
+              # (db_data, smart_labs_data) and /srv/unilis-uploads are preserved;
+              # db, smart-labs-db and phpmyadmin are untouched.
+              $DC -f docker-compose.yml -f docker-compose.jhub.yml up -d --no-deps --force-recreate --remove-orphans app meeting-server
             else
               echo "[${{ matrix.name }}] Pulling pre-built images from Docker Hub"
               $DC pull
-            fi
 
-            # Recreate containers WITHOUT touching named volumes (db_data,
-            # smart_labs_data) or bind mounts (.env and uploads are preserved).
-            $DC up -d --remove-orphans
+              # AWS (pull mode) behaviour is UNCHANGED from before - plain up.
+              # No Jhub override, no force-recreate: AWS runs the pulled image.
+              $DC up -d --remove-orphans
+            fi
 
             $DC ps
           EOF
