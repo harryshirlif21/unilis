@@ -214,10 +214,23 @@ jobs:
 
             echo "[${{ matrix.name }}] Deploying commit ${{ github.sha }} at $(date -u)"
 
-            # Pin the checkout to the exact commit we just built & pushed.
-            git fetch --all --prune
-            git checkout -B main origin/main
-            git pull --ff-only origin main
+            # Deploy the exact commit that CI built. Do not use origin/main
+            # here: a later push can move that ref before a queued deployment
+            # runs, causing the server source and published image to diverge.
+            DEPLOY_COMMIT="${{ github.sha }}"
+            git fetch --no-tags origin main --prune
+            if ! git cat-file -e "$DEPLOY_COMMIT^{commit}" 2>/dev/null; then
+              echo "[:] Commit '$DEPLOY_COMMIT' is not available after fetching origin/main."
+              exit 1
+            fi
+            git checkout --detach "$DEPLOY_COMMIT"
+            git reset --hard "$DEPLOY_COMMIT"
+            echo "[${{ matrix.name }}] Checked out commit $(git rev-parse HEAD)"
+
+            # Use the immutable image tag produced by build-push. Jhub builds
+            # the same tag locally; AWS pulls it instead of mutable :latest.
+            export DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}"
+            export IMAGE_TAG="main-${{ github.sha }}"
 
             # Persistent, bind-mounted upload directories. These are host
             # volumes (not recreated on deploy) - just ensure they exist with
@@ -255,10 +268,10 @@ jobs:
               echo "[${{ matrix.name }}] Building images locally from source"
               $DC -f docker-compose.yml -f docker-compose.jhub.yml build
 
-              # Jhub (build mode) ONLY. The app/meeting-server images use a
-              # stable `:latest` tag; a plain `up -d` can leave the
-              # already-running container on its OLD image (the Jhub regression),
-              # so force-roll ONLY the two code-bearing services. The
+              # Jhub (build mode) ONLY. Build with the immutable commit tag
+              # and force-roll ONLY the two code-bearing services. A plain
+              # `up -d` can leave the already-running container on its OLD
+              # image (the Jhub regression). The
               # docker-compose.jhub.yml override supplies the .:/var/www/html and
               # vendor bind mounts from the live checkout. Named volumes
               # (db_data, smart_labs_data) and /srv/unilis-uploads are preserved;

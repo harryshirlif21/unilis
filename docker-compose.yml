@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    image: hilkim21/unilis-app:latest
+    image: ${DOCKER_USERNAME:-hilkim21}/unilis-app:${IMAGE_TAG:-latest}
     container_name: unilis-app
     restart: unless-stopped
     ports:
@@ -44,7 +44,7 @@ services:
     build:
       context: ./meeting-server
       dockerfile: Dockerfile
-    image: hilkim21/unilis-meeting-media:latest
+    image: ${DOCKER_USERNAME:-hilkim21}/unilis-meeting-media:${IMAGE_TAG:-latest}
     container_name: unilis-meeting-media
     restart: unless-stopped
     ports:
