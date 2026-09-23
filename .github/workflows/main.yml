@@ -1,108 +1,103 @@
-name: UNILIS Jhub Deploy
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
 
 concurrency:
-  group: unilis-jhub-deploy
+  group: production-deploy
   cancel-in-progress: false
 
-permissions:
-  contents: read
-
 jobs:
-  validate:
-    name: Validate
+  build-and-deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Verify deployment files
-        run: |
-          for f in docker-compose.yml docker-compose.jhub.yml dockerfile apache.conf start.sh meeting-server/Dockerfile .env.docker.example; do
-            test -f "$f" || { echo "::error::Missing required file: $f"; exit 1; }
-          done
-      - name: PHP syntax check
-        run: |
-          set -e
-          find . -path ./vendor -prune -o -path ./smart-lab/vendor -prune -o -name '*.php' -print0 |
-            xargs -0 -r -n1 php -l
-      - name: Validate Compose files
-        run: |
-          cat > .env <<'EOF'
-          MYSQL_ROOT_PASSWORD=ci-placeholder
-          MYSQL_PASSWORD=ci-placeholder
-          SMARTLAB_MYSQL_PASSWORD=ci-placeholder
-          MEETING_MEDIA_WS_URL=ws://localhost:8765/ws/media
-          MEETING_PYTHON_APP_URL=http://localhost
-          MEETING_ALLOWED_ORIGINS=*
-          MEETING_API_KEY=ci-placeholder
-          EOF
-          docker compose -f docker-compose.yml -f docker-compose.jhub.yml config -q
 
-  deploy:
-    name: Deploy Jhub
-    runs-on: ubuntu-latest
-    needs: validate
     steps:
-      - name: Configure SSH
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push App Image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
+
+      - name: Build and Push Meeting Media Image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: ./meeting-server
+          file: ./meeting-server/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:latest
+
+      - name: Setup SSH
         run: |
-          set -euo pipefail
           mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' '${{ secrets.DEPLOY_KEY }}' > ~/.ssh/id_ed25519
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null
-          ssh-keyscan -T 10 '${{ secrets.SERVER_IP }}' >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Deploy exact Jhub version
+          ssh-keyscan -T 10 ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Production Server
         run: |
-          ssh '${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}' <<'EOF'
-            set -euo pipefail
-            DEPLOY_PATH='${{ secrets.DEPLOY_PATH }}'
-            test -d "$DEPLOY_PATH/.git"
-            test -f "$DEPLOY_PATH/docker-compose.yml"
-            cd "$DEPLOY_PATH"
+          ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} << 'EOF'
+            set -e
 
-            git fetch --no-tags origin main --prune
-            git checkout --detach '${{ github.sha }}'
-            git reset --hard '${{ github.sha }}'
-            test "$(git rev-parse HEAD)" = '${{ github.sha }}'
-
-            export DOCKER_USERNAME='${{ secrets.DOCKER_USERNAME }}'
-            export IMAGE_TAG='${{ github.sha }}'
-            if docker compose version >/dev/null 2>&1; then
-              DC='docker compose'
-            elif command -v docker-compose >/dev/null 2>&1; then
-              DC='docker-compose'
-            else
-              echo 'No Docker Compose command found.'
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "DEPLOY_PATH secret is not set - refusing to guess the checkout location."
               exit 1
             fi
+            if [ ! -d "$DEPLOY_PATH/.git" ] || [ ! -f "$DEPLOY_PATH/docker-compose.yml" ]; then
+              echo "DEPLOY_PATH='$DEPLOY_PATH' is not a git checkout containing docker-compose.yml."
+              echo "Set it to the absolute path of the deployment checkout, e.g. /srv/unilis."
+              exit 1
+            fi
+            cd "$DEPLOY_PATH"
 
-            for d in \
-              /srv/unilis-uploads/uploads/short_courses/sponsors \
-              /srv/unilis-uploads/uploads/course_images \
-              /srv/unilis-uploads/uploads/course_pdfs \
-              /srv/unilis-uploads/uploads/course_videos \
-              /srv/unilis-uploads/uploads/course_audio \
-              /srv/unilis-uploads/uploads/course_presentations \
-              /srv/unilis-uploads/uploads/course_diagrams \
-              /srv/unilis-uploads/uploads/chat \
-              /srv/unilis-uploads/uploads/answers \
-              /srv/unilis-uploads/assets/uploads \
-              /srv/unilis-uploads/assets/assignments \
-              /srv/unilis-uploads/assets/meetings \
-              /srv/unilis-uploads/assets/requested_files; do
-              mkdir -p "$d"
-            done
-            chmod -R 775 /srv/unilis-uploads 2>/dev/null || true
+            # Create persistent upload directories outside the git checkout.
+            # These survive git pulls, container rebuilds and Docker restarts permanently.
+            mkdir -p /srv/unilis-uploads/uploads/short_courses/sponsors
+            mkdir -p /srv/unilis-uploads/uploads/course_images
+            mkdir -p /srv/unilis-uploads/uploads/course_pdfs
+            mkdir -p /srv/unilis-uploads/uploads/course_videos
+            mkdir -p /srv/unilis-uploads/uploads/course_audio
+            mkdir -p /srv/unilis-uploads/uploads/course_presentations
+            mkdir -p /srv/unilis-uploads/uploads/course_diagrams
+            mkdir -p /srv/unilis-uploads/uploads/chat
+            mkdir -p /srv/unilis-uploads/uploads/answers
+            mkdir -p /srv/unilis-uploads/assets/uploads
+            mkdir -p /srv/unilis-uploads/assets/assignments
+            mkdir -p /srv/unilis-uploads/assets/meetings
+            mkdir -p /srv/unilis-uploads/assets/requested_files
+            # Make sure the web server process can write to these directories
+            chmod -R 775 /srv/unilis-uploads
 
-            echo "Building Jhub images with tag ${IMAGE_TAG}"
-            $DC -f docker-compose.yml -f docker-compose.jhub.yml build --pull --no-cache
-            $DC -f docker-compose.yml -f docker-compose.jhub.yml up -d --no-deps --force-recreate --remove-orphans app meeting-server
-            test "$(docker exec unilis-app git -C /var/www/html rev-parse HEAD)" = '${{ github.sha }}'
-            docker inspect unilis-app --format 'unilis-app image={{.Config.Image}} id={{.Image}}'
-            docker inspect unilis-meeting-media --format 'unilis-meeting-media image={{.Config.Image}} id={{.Image}}'
-            $DC -f docker-compose.yml -f docker-compose.jhub.yml ps
+            # Fail loudly rather than deploy half an update: --ff-only refuses if the
+            # server checkout has diverged (local edits to compose, deleted files, etc).
+            git pull --ff-only
+
+            docker compose build
+            docker compose up -d --remove-orphans
+
+            docker compose ps
           EOF
