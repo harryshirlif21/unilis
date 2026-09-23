@@ -225,7 +225,12 @@ jobs:
             fi
             git checkout --detach "$DEPLOY_COMMIT"
             git reset --hard "$DEPLOY_COMMIT"
-            echo "[${{ matrix.name }}] Checked out commit $(git rev-parse HEAD)"
+            CHECKED_OUT_COMMIT="$(git rev-parse HEAD)"
+            if [ "$CHECKED_OUT_COMMIT" != "$DEPLOY_COMMIT" ]; then
+              echo "[:] Checkout verification failed: expected '$DEPLOY_COMMIT', got '$CHECKED_OUT_COMMIT'."
+              exit 1
+            fi
+            echo "[${{ matrix.name }}] Checked out commit $CHECKED_OUT_COMMIT"
 
             # Use the immutable image tag produced by build-push. Jhub builds
             # the same tag locally; AWS pulls it instead of mutable :latest.
@@ -282,6 +287,12 @@ jobs:
               $DC -f docker-compose.yml -f docker-compose.jhub.yml images app meeting-server
               docker inspect unilis-app --format 'unilis-app image={{.Config.Image}} id={{.Image}} mounts={{range .Mounts}}{{.Source}}:{{.Destination}} {{end}}'
               docker inspect unilis-meeting-media --format 'unilis-meeting-media image={{.Config.Image}} id={{.Image}}'
+              RUNNING_SOURCE_COMMIT="$(docker exec unilis-app git -C /var/www/html rev-parse HEAD 2>/dev/null || true)"
+              if [ -z "$RUNNING_SOURCE_COMMIT" ] || [ "$RUNNING_SOURCE_COMMIT" != "$DEPLOY_COMMIT" ]; then
+                echo "[:] Jhub runtime verification failed: expected source '$DEPLOY_COMMIT', got '${RUNNING_SOURCE_COMMIT:-unavailable}'."
+                exit 1
+              fi
+              echo "[${{ matrix.name }}] Runtime source verified at $RUNNING_SOURCE_COMMIT"
             else
               echo "[${{ matrix.name }}] Pulling pre-built images from Docker Hub"
               $DC pull
