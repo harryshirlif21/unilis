@@ -265,8 +265,8 @@ jobs:
             # serves the deployed checkout and reboots onto the latest code.
             # AWS MUST NOT use that override - it pulls the centrally-built image.
             if [ "${{ matrix.deploy_mode }}" = "build" ]; then
-              echo "[${{ matrix.name }}] Building images locally from source"
-              $DC -f docker-compose.yml -f docker-compose.jhub.yml build
+              echo "[${{ matrix.name }}] Building images locally from source without cache"
+              $DC -f docker-compose.yml -f docker-compose.jhub.yml build --pull --no-cache
 
               # Jhub (build mode) ONLY. Build with the immutable commit tag
               # and force-roll ONLY the two code-bearing services. A plain
@@ -277,6 +277,11 @@ jobs:
               # (db_data, smart_labs_data) and /srv/unilis-uploads are preserved;
               # db, smart-labs-db and phpmyadmin are untouched.
               $DC -f docker-compose.yml -f docker-compose.jhub.yml up -d --no-deps --force-recreate --remove-orphans app meeting-server
+              echo "[${{ matrix.name }}] Verifying deployed containers"
+              $DC -f docker-compose.yml -f docker-compose.jhub.yml ps
+              $DC -f docker-compose.yml -f docker-compose.jhub.yml images app meeting-server
+              docker inspect unilis-app --format 'unilis-app image={{.Config.Image}} id={{.Image}} mounts={{range .Mounts}}{{.Source}}:{{.Destination}} {{end}}'
+              docker inspect unilis-meeting-media --format 'unilis-meeting-media image={{.Config.Image}} id={{.Image}}'
             else
               echo "[${{ matrix.name }}] Pulling pre-built images from Docker Hub"
               $DC pull
