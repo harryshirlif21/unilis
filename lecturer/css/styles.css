@@ -165,19 +165,19 @@ svg {
     padding: 12px 14px;
     cursor: pointer;
     border-radius: 10px;
-    color: white;
+    color: #374151;
     font-weight: 500;
     font-size: 15px;
     transition: all 0.18s ease;
 }
 
 .sidebar-section li:hover {
-    opacity: 0.94;
+    background-color: #f3f4f6;
     transform: translateX(6px);
 }
 
 .sidebar-section li.active {
-    box-shadow: inset 0 0 0 3px rgba(255,255,255,0.35);
+    background-color: #eef2ff;
     transform: translateX(4px);
 }
 
@@ -188,15 +188,15 @@ svg {
     text-align: center;
 }
 
-/* Color variants */
-.sidebar-section li.blue   { background-color: #4A90E2; }
-.sidebar-section li.green  { background-color: #10B981; }
-.sidebar-section li.orange { background-color: #F97316; }
-.sidebar-section li.golden { background-color: #FBBF24; color: #1f2937; }
-.sidebar-section li.brown  { background-color: #A0522D; }
-.sidebar-section li.teal   { background-color: #0ea5e9; }
-.sidebar-section li.purple { background-color: #8b5cf6; }
-.sidebar-section li.red    { background-color: #dc3545; }
+/* Text color variants (no background fills) */
+.sidebar-section li.blue   { color: #4A90E2; }
+.sidebar-section li.green  { color: #10B981; }
+.sidebar-section li.orange { color: #F97316; }
+.sidebar-section li.golden { color: #F59E0B; }
+.sidebar-section li.brown  { color: #A0522D; }
+.sidebar-section li.teal   { color: #0ea5e9; }
+.sidebar-section li.purple { color: #8b5cf6; }
+.sidebar-section li.red    { color: #dc3545; }
 
 /* ================= Mobile Responsive ================= */
 @media (max-width: 992px) {

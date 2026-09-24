@@ -657,63 +657,81 @@ $stmt->close();
     <div class="sidebar-section">
         <h4>Main Navigation</h4>
         <ul>
-    <li class="blue active"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></li>
-    <li class="green">
-        <a href="../lecturer/course_builder.php" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-book"></i><span>Training</span>
-        </a>
-    </li>
-    <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
-    <li class="golden">
-        <a href="lesson_editor.php" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-chalkboard-teacher"></i><span>Lessons</span>
-        </a>
-    </li>
-    <li class="blue">
-        <a href="assignment_submissions.php" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-inbox"></i><span>Assignment Submissions</span>
-        </a>
-    </li>
-    <li class="brown">
-        <a href="submissions.php" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-chart-line"></i><span>Assessment Submissions</span>
-        </a>
-    </li>
-    <li class="purple" onclick="openTeamsWithUnitCheck()">
-        <i class="fas fa-users-cog"></i><span>Teams</span>
-    </li>
-    <li class="blue">
-        <a href="../chat/views/chat.php" style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:inherit;width:100%;">
-            <i class="fas fa-comments"></i><span>Chat</span>
-            <span class="chat-nav-badge" id="chatNavBadge" hidden>0</span>
-        </a>
-    </li>
-    <li class="orange">
-        <a href="request_files.php" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-file-contract"></i><span>📁 Request Files</span>
-        </a>
-    </li>
-    <li class="golden">
-        <a href="../modules/live-engagement/index.php?page=dashboard&create=1&type=presentation" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-chalkboard"></i><span>Live Engagement</span>
-        </a>
-    </li>
-    <li class="green">
-        <a href="catalogue.php" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-globe"></i><span>Open Courses</span>
-        </a>
-    </li>
-    <!-- NEW: Notes Sent sidebar item -->
-    <li class="notes-sent-btn" id="sidebarNotesSent">
-        <i class="fas fa-paper-plane" style="color:#6366f1;"></i><span>Notes Sent</span>
-    </li>
-    <!-- Short Courses - course builder for lecturers -->
-    <li class="green">
-        <a href="catalogue.php" style="color:inherit;text-decoration:none;">
-            <i class="fas fa-graduation-cap"></i><span>Short Courses</span>
-        </a>
-    </li>
-</ul>
+            <li class="blue active"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></li>
+            <li class="green">
+                <a href="../lecturer/course_builder.php" style="color:inherit;text-decoration:none;">
+                    <i class="fas fa-book"></i><span>Training</span>
+                </a>
+            </li>
+            <li class="golden">
+                <a href="lesson_editor.php" style="color:inherit;text-decoration:none;">
+                    <i class="fas fa-chalkboard-teacher"></i><span>Lessons</span>
+                </a>
+            </li>
+            <li class="orange"><i class="fas fa-file-alt"></i><span>Exams</span></li>
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <h4>Submissions & Workload</h4>
+        <ul>
+            <li class="blue">
+                <a href="assignment_submissions.php" style="color:inherit;text-decoration:none;">
+                    <i class="fas fa-inbox"></i><span>Assignment Submissions</span>
+                </a>
+            </li>
+            <li class="brown">
+                <a href="submissions.php" style="color:inherit;text-decoration:none;">
+                    <i class="fas fa-chart-line"></i><span>Assessment Submissions</span>
+                </a>
+            </li>
+            <!-- Notes Sent sidebar item -->
+            <li class="notes-sent-btn" id="sidebarNotesSent">
+                <i class="fas fa-paper-plane" style="color:#6366f1;"></i><span>Notes Sent</span>
+            </li>
+            <li class="orange">
+                <a href="request_files.php" style="color:inherit;text-decoration:none;">
+                    <i class="fas fa-file-contract"></i><span>📁 Request Files</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <h4>Communication & Engagement</h4>
+        <ul>
+            <li class="blue">
+                <a href="../chat/views/chat.php" style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:inherit;width:100%;">
+                    <i class="fas fa-comments"></i><span>Chat</span>
+                    <span class="chat-nav-badge" id="chatNavBadge" hidden>0</span>
+                </a>
+            </li>
+            <li class="purple" onclick="openTeamsWithUnitCheck()">
+                <i class="fas fa-users-cog"></i><span>Teams</span>
+            </li>
+            <li class="golden">
+                <a href="../modules/live-engagement/index.php?page=dashboard&create=1&type=presentation" style="color:inherit;text-decoration:none;">
+                    <i class="fas fa-chalkboard"></i><span>Live Engagement</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <h4>Courses & Offerings</h4>
+        <ul>
+            <li class="green">
+                <a href="catalogue.php" style="color:inherit;text-decoration:none;">
+                    <i class="fas fa-globe"></i><span>Open Courses</span>
+                </a>
+            </li>
+            <!-- Short Courses - course builder for lecturers -->
+            <li class="green">
+                <a href="catalogue.php" style="color:inherit;text-decoration:none;">
+                    <i class="fas fa-graduation-cap"></i><span>Short Courses</span>
+                </a>
+            </li>
+        </ul>
     </div>
 
     <div class="sidebar-section">
