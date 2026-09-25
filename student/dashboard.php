@@ -1150,6 +1150,10 @@ try {
                 <?php endif; ?>
             </button>
             
+            <button class="nav-button" id="attendance-nav-icon" type="button" title="Mark Attendance" onclick="showModal('studentAttendanceModal')">
+                <span class="material-symbols-outlined">how_to_reg</span>
+            </button>
+            
             <button class="nav-button" id="profile-icon">
                 <span class="material-symbols-outlined">account_circle</span>
             </button>

@@ -216,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                 </div>
 
                 <div class="form-check mb-4">
-                    <input type="checkbox" name="send_email" class="form-check-input" id="email">
+                    <input type="checkbox" name="send_email" class="form-check-input" id="email" checked>
                     <label class="form-check-label" for="email">Send code via email</label>
                 </div>
 

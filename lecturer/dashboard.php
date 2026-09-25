@@ -2092,7 +2092,7 @@ $stmt->close();
             </div>
             <div class="mb-8">
                 <label class="inline-flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="send_email" value="1" class="rounded border-f5e6b2 text-f59e0b focus:ring-f59e0b">
+                    <input type="checkbox" name="send_email" value="1" checked class="rounded border-f5e6b2 text-f59e0b focus:ring-f59e0b">
                     <span class="text-sm font-medium stat-text-primary">Email personal codes to enrolled students</span>
                 </label>
             </div>
