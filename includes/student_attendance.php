@@ -44,14 +44,17 @@ function createEnhancedAttendanceSession($conn, $unit_id, $lecturer_id, $duratio
         $session_id = $conn->insert_id;
         $session_stmt->close();
 
-        // Get all students enrolled in this specific unit
+        // Get all students registered for this unit. Per-unit enrollment tables
+        // (student_units / student_unit_enrollments) are not populated in this
+        // build, so we match by the unit's course — the same relationship the
+        // legacy attendance flow used. `is_verified` is intentionally NOT
+        // filtered because signup-created students are currently unverified.
         $students_stmt = $conn->prepare("
             SELECT s.id, s.name, s.email 
             FROM students s
-            JOIN student_unit_enrollments sue ON s.id = sue.student_id
-            WHERE sue.unit_id = ? AND s.is_verified = 1
+            WHERE s.course_id = ?
         ");
-        $students_stmt->bind_param("i", $unit_id);
+        $students_stmt->bind_param("i", $unit['course_id']);
         $students_stmt->execute();
         $students_result = $students_stmt->get_result();
         
@@ -460,7 +463,7 @@ function getStudentActiveAttendanceSessions($conn, $student_id) {
                 ar.attended_at
             FROM attendance_sessions ats
             JOIN units u ON ats.unit_id = u.id
-            JOIN student_unit_enrollments sue ON sue.unit_id = ats.unit_id AND sue.student_id = ?
+            JOIN students stu ON stu.id = ? AND stu.course_id = u.course_id
             LEFT JOIN attendance_records ar ON ats.id = ar.session_id AND ar.student_id = ?
             LEFT JOIN student_attendance_codes sac ON sac.id = (
                 SELECT sac2.id FROM student_attendance_codes sac2

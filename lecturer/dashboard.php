@@ -2735,6 +2735,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 attendanceFormAlert.textContent = message;
                 attendanceFormAlert.className = 'mx-10 mb-4 px-4 py-3 rounded-xl text-sm bg-green-50 text-green-800 border border-green-200';
+                // Pop a success message, then close the attendance modal
+                showAttendanceToast(message, 'success');
+                document.getElementById('attendanceModal')?.classList.add('hidden');
+                document.body.style.overflow = '';
                 attendanceForm.reset();
             } else {
                 attendanceFormAlert.textContent = data.message || 'Failed to start attendance session.';
@@ -2764,6 +2768,31 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.add('hidden');
             document.body.style.overflow = '';
         }
+    };
+
+    // Lightweight toast popup used by the attendance flow (and reusable elsewhere).
+    window.showAttendanceToast = function (message, type = 'info') {
+        let container = document.getElementById('attendanceToastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'attendanceToastContainer';
+            container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:2200;display:flex;flex-direction:column;gap:10px;';
+            document.body.appendChild(container);
+        }
+        const colors = {
+            success: { bg: '#dcfce7', fg: '#166534' },
+            error:   { bg: '#fee2e2', fg: '#b91c1c' },
+            info:    { bg: '#e0e7ff', fg: '#1e40af' }
+        }[type] || { bg: '#e0e7ff', fg: '#1e40af' };
+        const toast = document.createElement('div');
+        toast.style.cssText = `background:${colors.bg};color:${colors.fg};padding:14px 18px;border-radius:10px;border-left:4px solid ${colors.fg};box-shadow:0 10px 20px rgba(0,0,0,0.12);font-size:14px;font-weight:500;max-width:380px;line-height:1.4;`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.transition = 'opacity .3s';
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
     };
 
     // Sent assignments: unit tiles open a modal, then each assignment opens its details.
