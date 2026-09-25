@@ -1,8 +1,9 @@
 <?php
 session_start();
-require_once 'attendance_functions.php';
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/student_attendance.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
+if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'student') {
     header('Location: login.php');
     exit;
 }
@@ -17,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (strlen($code) !== 6 || !ctype_digit($code)) {
         $error = "Please enter a valid 6-digit code";
     } else {
-        $result = submitAttendance($session_id, $student_id, $code);
+        $result = submitAttendance($conn, $session_id, $student_id, $code);
         if ($result['success']) {
             $message = $result['message'];
         } else {

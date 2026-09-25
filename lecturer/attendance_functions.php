@@ -10,6 +10,26 @@ use PHPMailer\PHPMailer\Exception;
 
 header('Content-Type: application/json'); // Ensure JSON response
 
+function requireLecturerForAttendance($conn, $lecturer_id, $unit_id) {
+    if (!$lecturer_id || ($_SESSION['user_role'] ?? '') !== 'lecturer') {
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
+    if ($unit_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Invalid unit']);
+        exit;
+    }
+    $stmt = $conn->prepare("SELECT 1 FROM lecturer_units WHERE lecturer_id = ? AND unit_id = ? LIMIT 1");
+    $stmt->bind_param("ii", $lecturer_id, $unit_id);
+    $stmt->execute();
+    $allowed = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+    if (!$allowed) {
+        echo json_encode(['success' => false, 'message' => 'You are not assigned to this unit']);
+        exit;
+    }
+}
+
 // ========================
 // ENHANCED ATTENDANCE SYSTEM
 // ========================
@@ -19,14 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
     if ($action === 'create_enhanced_attendance') {
         $unit_id = intval($_POST['unit_id'] ?? 0);
-        $duration = intval($_POST['duration'] ?? 10);
-        $send_email = isset($_POST['send_email']) ? true : false;
-        $lecturer_id = $_SESSION['user_id'] ?? 0;
-        
-        if (!$unit_id || !$lecturer_id) {
-            echo json_encode(['success' => false, 'message' => 'Invalid unit or lecturer']);
-            exit;
-        }
+        $duration = max(1, min(120, intval($_POST['duration'] ?? 10)));
+        $send_email = !empty($_POST['send_email']);
+        $lecturer_id = (int) ($_SESSION['user_id'] ?? 0);
+
+        requireLecturerForAttendance($conn, $lecturer_id, $unit_id);
         
         try {
             $result = createEnhancedAttendanceSession($conn, $unit_id, $lecturer_id, $duration, $send_email);
@@ -158,14 +175,11 @@ function createAttendanceSession($conn, $unit_id, $lecturer_id, $duration_minute
 // ========================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $unit_id = intval($_POST['unit_id'] ?? 0);
-    $duration = intval($_POST['duration'] ?? 10);
-    $send_email = isset($_POST['send_email']) ? true : false;
-    $lecturer_id = $_SESSION['user_id'] ?? 0;
+    $duration = max(1, min(120, intval($_POST['duration'] ?? 10)));
+    $send_email = !empty($_POST['send_email']);
+    $lecturer_id = (int) ($_SESSION['user_id'] ?? 0);
 
-    if (!$unit_id || !$lecturer_id) {
-        echo json_encode(['success' => false, 'message' => 'Invalid unit or lecturer ID']);
-        exit;
-    }
+    requireLecturerForAttendance($conn, $lecturer_id, $unit_id);
 
     try {
         $result = createAttendanceSession($conn, $unit_id, $lecturer_id, $duration, $send_email);

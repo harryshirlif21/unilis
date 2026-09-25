@@ -101,6 +101,15 @@ function createEnhancedAttendanceSession($conn, $unit_id, $lecturer_id, $duratio
             $insert_stmt->bind_param("iiss", $session_id, $student['id'], $student_code, $code_expiry);
             $insert_stmt->execute();
             $insert_stmt->close();
+
+            $record_stmt = $conn->prepare("
+                INSERT INTO attendance_records (session_id, student_id, attended, attended_at, created_at)
+                VALUES (?, ?, 0, NULL, NOW())
+                ON DUPLICATE KEY UPDATE session_id = session_id
+            ");
+            $record_stmt->bind_param("ii", $session_id, $student['id']);
+            $record_stmt->execute();
+            $record_stmt->close();
             
             $student_codes[] = [
                 'student_id' => $student['id'],
@@ -295,10 +304,9 @@ function validateStudentAttendanceCode($conn, $student_id, $code, $session_id) {
     try {
         // Check if code exists and is valid
         $stmt = $conn->prepare("
-            SELECT sac.*, ats.attended, ats.attended_at
+            SELECT sac.*, COALESCE(asr.attended, 0) AS attended, asr.attended_at
             FROM student_attendance_codes sac
             LEFT JOIN attendance_records asr ON sac.session_id = asr.session_id AND sac.student_id = asr.student_id
-            LEFT JOIN attendance_sessions ats ON sac.session_id = ats.id
             WHERE sac.student_id = ? 
             AND sac.code = ? 
             AND sac.session_id = ?
@@ -312,9 +320,20 @@ function validateStudentAttendanceCode($conn, $student_id, $code, $session_id) {
 
         if (!$result) {
             return [
+                'success' => false,
                 'valid' => false,
                 'message' => 'Invalid or expired code',
                 'code_type' => 'invalid'
+            ];
+        }
+
+        if ((int) $result['attended'] === 1) {
+            return [
+                'success' => true,
+                'valid' => true,
+                'message' => 'You have already marked attendance for this session',
+                'code_type' => 'already_marked',
+                'attended_at' => $result['attended_at']
             ];
         }
 
@@ -328,19 +347,17 @@ function validateStudentAttendanceCode($conn, $student_id, $code, $session_id) {
         $use_stmt->execute();
         $use_stmt->close();
 
-        // Mark attendance as present
-        if ($result['attended'] == 0) {
-            $attend_stmt = $conn->prepare("
-                UPDATE attendance_records 
-                SET attended = 1, attended_at = NOW() 
-                WHERE session_id = ? AND student_id = ?
-            ");
-            $attend_stmt->bind_param("ii", $session_id, $student_id);
-            $attend_stmt->execute();
-            $attend_stmt->close();
-        }
+        $attend_stmt = $conn->prepare("
+            INSERT INTO attendance_records (session_id, student_id, attended, attended_at, created_at)
+            VALUES (?, ?, 1, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE attended = 1, attended_at = NOW()
+        ");
+        $attend_stmt->bind_param("ii", $session_id, $student_id);
+        $attend_stmt->execute();
+        $attend_stmt->close();
 
         return [
+            'success' => true,
             'valid' => true,
             'message' => 'Attendance marked successfully',
             'code_type' => 'success',
@@ -350,11 +367,76 @@ function validateStudentAttendanceCode($conn, $student_id, $code, $session_id) {
     } catch (Exception $e) {
         error_log("Error validating student attendance code: " . $e->getMessage());
         return [
+            'success' => false,
             'valid' => false,
             'message' => 'System error. Please try again.',
             'code_type' => 'error'
         ];
     }
+}
+
+/**
+ * Submit attendance using personal (enhanced) or shared (legacy) session code.
+ */
+function submitAttendance($conn, $session_id, $student_id, $code) {
+    $session_id = (int) $session_id;
+    $student_id = (int) $student_id;
+    $code = trim($code);
+
+    if ($session_id <= 0 || $student_id <= 0 || $code === '') {
+        return ['success' => false, 'message' => 'Missing required fields.'];
+    }
+
+    $enhanced = validateStudentAttendanceCode($conn, $student_id, $code, $session_id);
+    if (!empty($enhanced['success'])) {
+        return ['success' => true, 'message' => $enhanced['message']];
+    }
+
+    $stmt = $conn->prepare("
+        SELECT session_code, deadline FROM attendance_sessions WHERE id = ? LIMIT 1
+    ");
+    $stmt->bind_param("i", $session_id);
+    $stmt->execute();
+    $session = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$session) {
+        return ['success' => false, 'message' => 'Attendance session not found.'];
+    }
+
+    if (strtotime($session['deadline']) < time()) {
+        return ['success' => false, 'message' => 'Attendance session has expired.'];
+    }
+
+    if (!hash_equals((string) $session['session_code'], $code)) {
+        return ['success' => false, 'message' => $enhanced['message'] ?? 'Invalid or expired code'];
+    }
+
+    $record_stmt = $conn->prepare("
+        SELECT attended FROM attendance_records WHERE session_id = ? AND student_id = ? LIMIT 1
+    ");
+    $record_stmt->bind_param("ii", $session_id, $student_id);
+    $record_stmt->execute();
+    $record = $record_stmt->get_result()->fetch_assoc();
+    $record_stmt->close();
+
+    if (!$record) {
+        return ['success' => false, 'message' => 'You are not enrolled for this attendance session.'];
+    }
+
+    if ((int) $record['attended'] === 1) {
+        return ['success' => true, 'message' => 'You have already marked attendance for this session.'];
+    }
+
+    $update_stmt = $conn->prepare("
+        UPDATE attendance_records SET attended = 1, attended_at = NOW()
+        WHERE session_id = ? AND student_id = ?
+    ");
+    $update_stmt->bind_param("ii", $session_id, $student_id);
+    $update_stmt->execute();
+    $update_stmt->close();
+
+    return ['success' => true, 'message' => 'Attendance marked successfully!'];
 }
 
 /**
@@ -366,25 +448,31 @@ function getStudentActiveAttendanceSessions($conn, $student_id) {
     try {
         $stmt = $conn->prepare("
             SELECT 
-                ats.id as session_id,
-                ats.session_code as main_code,
-                u.name as unit_name,
+                ats.id AS session_id,
+                ats.session_code AS main_code,
+                u.name AS unit_name,
                 ats.deadline,
                 ats.created_at,
-                sac.code as student_code,
+                sac.code AS student_code,
                 sac.expires_at,
                 sac.used_at,
-                ar.attended,
+                COALESCE(ar.attended, 0) AS attended,
                 ar.attended_at
             FROM attendance_sessions ats
             JOIN units u ON ats.unit_id = u.id
-            JOIN student_attendance_codes sac ON ats.id = sac.session_id AND sac.student_id = ?
-            LEFT JOIN attendance_records ar ON ats.id = ar.session_id AND sac.student_id = ar.student_id
+            JOIN student_unit_enrollments sue ON sue.unit_id = ats.unit_id AND sue.student_id = ?
+            LEFT JOIN attendance_records ar ON ats.id = ar.session_id AND ar.student_id = ?
+            LEFT JOIN student_attendance_codes sac ON sac.id = (
+                SELECT sac2.id FROM student_attendance_codes sac2
+                WHERE sac2.session_id = ats.id AND sac2.student_id = ?
+                ORDER BY sac2.created_at DESC
+                LIMIT 1
+            )
             WHERE ats.deadline > NOW()
-            AND sac.expires_at > NOW()
+            AND COALESCE(ar.attended, 0) = 0
             ORDER BY ats.deadline ASC
         ");
-        $stmt->bind_param("i", $student_id);
+        $stmt->bind_param("iii", $student_id, $student_id, $student_id);
         $stmt->execute();
         $result = $stmt->get_result();
         

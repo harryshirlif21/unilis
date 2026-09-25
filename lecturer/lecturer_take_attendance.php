@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 }
 
 require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/attendance_functions.php';
+require_once __DIR__ . '/../includes/student_attendance.php';
 require_once __DIR__ . '/../includes/mailer.php';
 
 $lecturer_id = (int)$_SESSION['user_id'];
@@ -53,14 +53,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
     $duration    = max(1, min(120, (int)($_POST['duration'] ?? 10)));
     $send_email  = !empty($_POST['send_email']);
 
-    $result = createAttendanceSession($unit_id, $lecturer_id, $duration, $send_email);
+    $result = createEnhancedAttendanceSession($conn, $unit_id, $lecturer_id, $duration, $send_email);
 
     if ($result && isset($result['session_id'])) {
         $success     = true;
         $session_id  = $result['session_id'];
-        $code        = $result['code'];
+        $code        = $result['session_code'] ?? '';
         $deadline    = $result['deadline'];
-        $email_status = $result['email_status'] ?? '';
+        $email_status = $result['email_results'] ?? '';
     }
 }
 ?>

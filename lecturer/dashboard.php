@@ -2043,7 +2043,9 @@ $stmt->close();
     <div class="modal-content bg-white rounded-2xl border border-f5e6b2 shadow-2xl" style="max-width: 580px; max-height: 92vh; overflow-y: auto;">
         <span class="close text-92400e text-3xl font-bold cursor-pointer hover:text-f59e0b absolute top-5 right-6 z-10" id="attendanceModalClose">×</span>
         <h3 class="text-2xl font-bold stat-text-secondary mb-8 text-center pt-8">Take Attendance</h3>
+        <div id="attendanceFormAlert" class="hidden mx-10 mb-4 px-4 py-3 rounded-xl text-sm"></div>
         <form id="attendanceForm" method="POST" action="attendance_functions.php" class="px-10 pb-10">
+            <input type="hidden" name="action" value="create_enhanced_attendance">
             <div class="mb-6">
                 <label class="block text-sm font-medium stat-text-primary mb-3">
                     Select Unit <span class="text-red-500">*</span>
@@ -2078,15 +2080,24 @@ $stmt->close();
                 </select>
             </div>
             <div class="mb-6">
-                <label class="block text-sm font-medium stat-text-primary mb-3">Session Date</label>
-                <input type="date" name="session_date" value="<?= date('Y-m-d') ?>" required class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg">
+                <label class="block text-sm font-medium stat-text-primary mb-3">Session duration (minutes)</label>
+                <select name="duration" required class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg focus:ring-2 focus:ring-f59e0b focus:border-f59e0b transition">
+                    <option value="5">5 minutes</option>
+                    <option value="10" selected>10 minutes</option>
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">60 minutes</option>
+                </select>
+                <p class="text-sm text-gray-500 mt-2">Each student receives a personal 6-digit code valid for 2 minutes.</p>
             </div>
             <div class="mb-8">
-                <label class="block text-sm font-medium stat-text-primary mb-3">Remarks / Topic Covered (optional)</label>
-                <textarea name="remarks" rows="3" class="w-full px-5 py-4 border border-f5e6b2 rounded-xl text-92400e text-lg resize-y"></textarea>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="send_email" value="1" class="rounded border-f5e6b2 text-f59e0b focus:ring-f59e0b">
+                    <span class="text-sm font-medium stat-text-primary">Email personal codes to enrolled students</span>
+                </label>
             </div>
             <div class="text-center">
-                <button type="submit" class="btn-golden px-10 py-4 text-xl font-semibold">Save Attendance</button>
+                <button type="submit" id="attendanceFormSubmitBtn" class="btn-golden px-10 py-4 text-xl font-semibold">Start Attendance Session</button>
             </div>
         </form>
     </div>
@@ -2689,6 +2700,52 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('attendanceModal')?.addEventListener('click', e => {
         if (e.target === document.getElementById('attendanceModal')) {
             document.getElementById('attendanceModal')?.classList.add('hidden');
+        }
+    });
+
+    const attendanceForm = document.getElementById('attendanceForm');
+    const attendanceFormAlert = document.getElementById('attendanceFormAlert');
+    const attendanceFormSubmitBtn = document.getElementById('attendanceFormSubmitBtn');
+
+    attendanceForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!attendanceFormAlert || !attendanceFormSubmitBtn) {
+            return;
+        }
+
+        attendanceFormAlert.className = 'hidden mx-10 mb-4 px-4 py-3 rounded-xl text-sm';
+        attendanceFormSubmitBtn.disabled = true;
+        const originalLabel = attendanceFormSubmitBtn.textContent;
+        attendanceFormSubmitBtn.textContent = 'Starting session...';
+
+        try {
+            const response = await fetch('attendance_functions.php', {
+                method: 'POST',
+                body: new FormData(attendanceForm)
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                const session = data.data || {};
+                const notified = session.students_count ?? 0;
+                const emailed = session.email_results?.success ?? 0;
+                let message = `Attendance started for ${session.unit_name || 'the selected unit'}. ${notified} student(s) notified.`;
+                if (emailed > 0) {
+                    message += ` ${emailed} email(s) sent.`;
+                }
+                attendanceFormAlert.textContent = message;
+                attendanceFormAlert.className = 'mx-10 mb-4 px-4 py-3 rounded-xl text-sm bg-green-50 text-green-800 border border-green-200';
+                attendanceForm.reset();
+            } else {
+                attendanceFormAlert.textContent = data.message || 'Failed to start attendance session.';
+                attendanceFormAlert.className = 'mx-10 mb-4 px-4 py-3 rounded-xl text-sm bg-red-50 text-red-800 border border-red-200';
+            }
+        } catch (err) {
+            attendanceFormAlert.textContent = 'Network error. Please try again.';
+            attendanceFormAlert.className = 'mx-10 mb-4 px-4 py-3 rounded-xl text-sm bg-red-50 text-red-800 border border-red-200';
+        } finally {
+            attendanceFormSubmitBtn.disabled = false;
+            attendanceFormSubmitBtn.textContent = originalLabel;
         }
     });
 

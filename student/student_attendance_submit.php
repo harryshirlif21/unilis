@@ -1,11 +1,16 @@
 <?php
 session_start();
 require_once '../config/db.php';
-require_once '../lecturer/attendance_functions.php';
+require_once __DIR__ . '/../includes/student_attendance.php';
 
 header('Content-Type: application/json');
 
-$student_id = $_SESSION['user_id'] ?? 0;
+if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'student') {
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+}
+
+$student_id = (int) $_SESSION['user_id'];
 $unit_id    = $_POST['unit_id'] ?? 0;
 $code       = $_POST['attendance_code'] ?? '';
 
@@ -30,7 +35,7 @@ $stmt->fetch();
 $stmt->close();
 
 // Submit attendance using existing function
-$result = submitAttendance($session_id, $student_id, $code);
+$result = submitAttendance($conn, $session_id, $student_id, $code);
 
 echo json_encode($result);
 ?>
