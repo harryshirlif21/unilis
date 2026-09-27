@@ -508,20 +508,7 @@ try {
         .sidebar.show {
             transform: translateX(0);
         }
-/* Desktop: keep the navigation sidebar visible so its buttons always show */
-        @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0);
-                width: 280px;
-            }
-            .main-content {
-                margin-left: 280px;
-            }
-            #mobileMenuToggle {
-                display: none;
-            }
-        }
-        
+
         .sidebar-section {
             margin-bottom: 2rem;
         }
@@ -1753,10 +1740,10 @@ try {
                         <span class="material-symbols-outlined">insights</span>
                         View Details
                     </a>
-                    <button class="btn btn-secondary">
+                    <a href="results.php" class="btn btn-secondary">
                         <span class="material-symbols-outlined">download</span>
                         Transcript
-                    </button>
+                    </a>
                 </div>
             </div>
             

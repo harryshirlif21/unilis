@@ -68,6 +68,22 @@ foreach ($enrollments as $enr) {
         .unit-body { display: none; padding: 6px 16px 16px; border-top: 1px solid #f1f3f5; }
         .unit-card.open .unit-body { display: block; }
         .empty { padding: 30px; text-align: center; color: #6b7280; background: #fff; border-radius: 10px; border: 1px dashed #d1d5db; }
+        .hdr-btn {
+            background: #fff; color: #1e3a8a; border: 1px solid #1e3a8a; border-radius: 6px;
+            padding: 5px 12px; margin-left: 10px; font-size: 13px; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+        }
+        .hdr-btn:hover { background: #1e3a8a; color: #fff; }
+        .hdr-btn.download { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
+        .hdr-btn.download:hover { background: #1e3a8a; color: #fff; }
+        @media print {
+            /* Hide action buttons / nav links when printing; show collapsed unit details */
+            .header .user-info button,
+            .header .user-info a { display: none; }
+            .unit-body { display: block !important; }
+            .header { background: #fff; color: #1e3a8a; }
+            body { background: #fff; }
+        }
     </style>
 </head>
 <body>
@@ -75,6 +91,8 @@ foreach ($enrollments as $enr) {
         <h1><i class="fas fa-file-alt"></i> My Results / Transcript</h1>
         <div class="user-info">
             <i class="fas fa-user-circle"></i> <?= htmlspecialchars($student_name) ?>
+            <button type="button" class="hdr-btn" onclick="window.print()" title="Print this transcript"><i class="fas fa-print"></i> Print</button>
+            <button type="button" class="hdr-btn download" onclick="window.print()" title="Download as PDF (choose 'Save as PDF')"><i class="fas fa-download"></i> Download PDF</button>
             <a href="../my_units.php"><i class="fas fa-arrow-left"></i> Back</a>
         </div>
     </div>

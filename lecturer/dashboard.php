@@ -562,20 +562,6 @@ $stmt->close();
         50% { box-shadow: 0 0 0 10px rgba(245,158,11,0); }
     }
 </style>
-<style>
-    /* 769px-992px: keep the sidebar visible so its buttons always show (matches the always-visible desktop layout) */
-    @media (min-width: 769px) and (max-width: 992px) {
-        .sidebar {
-            transform: none;
-        }
-        .sidebar-toggle {
-            display: none;
-        }
-        .main-content {
-            margin-left: 280px;
-        }
-    }
-</style>
 </head>
 <body data-theme="light">
     <!-- Global Theme Manager -->
