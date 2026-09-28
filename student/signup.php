@@ -221,6 +221,17 @@ $coursesJson = json_encode($allCourses);
             <input type="password" name="confirm_password" required placeholder="Confirm your password"
                    class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
           </div>
+          <fieldset class="mb-5 space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <legend class="px-2 font-semibold text-gray-800">Your consent <span class="text-red-500">*</span></legend>
+            <label class="flex items-start gap-3 text-sm text-gray-700">
+              <input type="checkbox" name="terms_consent" value="1" required <?= ($old_input['terms_consent'] ?? '') === '1' ? 'checked' : '' ?> class="mt-1 h-4 w-4 accent-blue-900">
+              <span>I agree to the terms and conditions for using the UNILIS student portal.</span>
+            </label>
+            <label class="flex items-start gap-3 text-sm text-gray-700">
+              <input type="checkbox" name="privacy_consent" value="1" required <?= ($old_input['privacy_consent'] ?? '') === '1' ? 'checked' : '' ?> class="mt-1 h-4 w-4 accent-blue-900">
+              <span>I have read the <a href="../output/pdf/unilis-student-privacy-notice-kenya.pdf" target="_blank" rel="noopener noreferrer" class="font-semibold text-blue-800 underline">Student Privacy Notice (PDF)</a> and consent to processing my personal information as described there.</span>
+            </label>
+          </fieldset>
         </div>
 
         <div class="flex justify-between mt-8">

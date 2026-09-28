@@ -227,6 +227,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         $year_joined     = (int)($_POST['year_joined'] ?? 0);
         $password        = $_POST['password'] ?? '';
         $confirm_password= $_POST['confirm_password'] ?? '';
+        $terms_consent   = isset($_POST['terms_consent']) && $_POST['terms_consent'] === '1' ? 1 : 0;
+        $privacy_consent = isset($_POST['privacy_consent']) && $_POST['privacy_consent'] === '1' ? 1 : 0;
 
         // === 2. Validate inputs ===
         $errors = [];
@@ -240,6 +242,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         if ($year_joined < 2000 || $year_joined > date('Y')) $errors[] = "Year joined must be between 2000 and " . date('Y') . ".";
         if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters long.";
         if ($password !== $confirm_password) $errors[] = "Passwords do not match.";
+        if (!$terms_consent) $errors[] = "You must agree to the terms and conditions.";
+        if (!$privacy_consent) $errors[] = "You must consent to processing of your personal information.";
 
         if (!empty($errors)) {
             $_SESSION['signup_errors'] = $errors;
@@ -277,17 +281,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
             INSERT INTO students (
                 reg_no, name, email, university_id, department_id, course_id,
                 year_of_study, year_joined, password,
-                verification_code, token_expires_at, is_verified
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                verification_code, token_expires_at, is_verified,
+                terms_consent, privacy_consent, consented_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())
         ");
         if (!$stmt) {
             throw new Exception("Database error preparing student insert: " . $conn->error);
         }
         $stmt->bind_param(
-            "sssiiiiisss",
+            "sssiiiiisssii",
             $reg_no, $name, $email, $university_id, $department_id, $course_id,
             $year_of_study, $year_joined, $hashed_pass,
-            $token, $expires_at
+            $token, $expires_at, $terms_consent, $privacy_consent
         );
 
         if (!$stmt->execute()) {
