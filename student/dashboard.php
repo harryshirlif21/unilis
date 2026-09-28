@@ -535,6 +535,14 @@ try {
             color: var(--neutral-700);
             font-weight: 500;
         }
+
+        button.sidebar-item {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            font: inherit;
+            text-align: left;
+        }
         
         .sidebar-item:hover {
             background: var(--primary-50);
@@ -1010,6 +1018,41 @@ try {
             background: var(--error-100);
             color: var(--error-600);
         }
+
+        .results-modal-content {
+            width: min(1100px, 94vw);
+            max-width: none;
+            height: 90vh;
+            margin: 5vh auto;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .results-modal-content .modal-close {
+            z-index: 2;
+        }
+
+        .results-frame {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            border: 0;
+            background: #f0f2f5;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
         
         /* Responsive Design */
         @media (max-width: 768px) {
@@ -1184,6 +1227,10 @@ try {
                 <span class="material-symbols-outlined">check_circle</span>
                 <span>Attendance</span>
             </div>
+            <button type="button" class="sidebar-item" onclick="openStudentResultsModal()" aria-haspopup="dialog" aria-controls="studentResultsModal">
+                <span class="material-symbols-outlined">fact_check</span>
+                <span>Results / Transcript</span>
+            </button>
             <a href="file_requests.php" class="sidebar-item">
                 <span class="material-symbols-outlined">folder</span>
                 <span>File Requests</span>
@@ -1685,7 +1732,7 @@ try {
                         <span class="material-symbols-outlined">play_arrow</span>
                         Take CAT
                     </a>
-                    <button class="btn btn-secondary">
+                        <button type="button" class="btn btn-secondary" onclick="openStudentResultsModal()">
                         <span class="material-symbols-outlined">bar_chart</span>
                         Results
                     </button>
@@ -1740,10 +1787,10 @@ try {
                         <span class="material-symbols-outlined">insights</span>
                         View Details
                     </a>
-                    <a href="results.php" class="btn btn-secondary">
+                    <button type="button" class="btn btn-secondary" onclick="openStudentResultsModal()">
                         <span class="material-symbols-outlined">download</span>
                         Transcript
-                    </a>
+                    </button>
                 </div>
             </div>
             
@@ -1833,6 +1880,17 @@ try {
         </section>
     </main>
     
+    <!-- Results / Transcript Modal -->
+    <div id="studentResultsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="studentResultsModalTitle" onclick="if (event.target === this) hideModal('studentResultsModal')">
+        <div class="modal-content results-modal-content">
+            <button type="button" class="modal-close" onclick="hideModal('studentResultsModal')" aria-label="Close results">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <h2 id="studentResultsModalTitle" class="sr-only">Results and transcript</h2>
+            <iframe id="studentResultsFrame" class="results-frame" title="Student results and transcript" loading="lazy"></iframe>
+        </div>
+    </div>
+
     <!-- Attendance Modal -->
     <div id="studentAttendanceModal" class="modal">
         <div class="modal-content">
@@ -2104,12 +2162,28 @@ try {
                 }
             }
         }
+
+        function openStudentResultsModal() {
+            const frame = document.getElementById('studentResultsFrame');
+            if (frame && frame.dataset.loaded !== 'true') {
+                frame.src = 'results.php?embedded=1';
+                frame.dataset.loaded = 'true';
+            }
+            showModal('studentResultsModal');
+        }
         
         function hideModal(id) {
             const modal = document.getElementById(id);
             if (modal) {
                 modal.style.display = 'none';
                 document.body.style.overflow = '';
+                if (id === 'studentResultsModal') {
+                    const frame = document.getElementById('studentResultsFrame');
+                    if (frame) {
+                        frame.src = 'about:blank';
+                        frame.dataset.loaded = 'false';
+                    }
+                }
             }
         }
         

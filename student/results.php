@@ -16,6 +16,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
 
 $student_id   = intval($_SESSION['user_id']);
 $student_name = $_SESSION['user_name'] ?? 'Student';
+$embedded     = isset($_GET['embedded']) && $_GET['embedded'] === '1';
 
 $enrollments = [];
 try {
@@ -76,6 +77,11 @@ foreach ($enrollments as $enr) {
         .hdr-btn:hover { background: #1e3a8a; color: #fff; }
         .hdr-btn.download { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
         .hdr-btn.download:hover { background: #1e3a8a; color: #fff; }
+        <?php if ($embedded): ?>
+        body { min-height: 100vh; }
+        .header { position: sticky; top: 0; z-index: 1; padding: 12px 18px; }
+        .wrap { max-width: none; padding: 18px; }
+        <?php endif; ?>
         @media print {
             /* Hide action buttons / nav links when printing; show collapsed unit details */
             .header .user-info button,
@@ -86,14 +92,18 @@ foreach ($enrollments as $enr) {
         }
     </style>
 </head>
-<body>
+<body class="<?= $embedded ? 'embedded' : '' ?>">
     <div class="header">
         <h1><i class="fas fa-file-alt"></i> My Results / Transcript</h1>
         <div class="user-info">
             <i class="fas fa-user-circle"></i> <?= htmlspecialchars($student_name) ?>
             <button type="button" class="hdr-btn" onclick="window.print()" title="Print this transcript"><i class="fas fa-print"></i> Print</button>
             <button type="button" class="hdr-btn download" onclick="window.print()" title="Download as PDF (choose 'Save as PDF')"><i class="fas fa-download"></i> Download PDF</button>
-            <a href="../my_units.php"><i class="fas fa-arrow-left"></i> Back</a>
+            <?php if ($embedded): ?>
+                <button type="button" class="hdr-btn" onclick="if (window.parent && window.parent !== window) window.parent.hideModal('studentResultsModal')"><i class="fas fa-times"></i> Close</button>
+            <?php else: ?>
+                <a href="my_units.php"><i class="fas fa-arrow-left"></i> Back</a>
+            <?php endif; ?>
         </div>
     </div>
 

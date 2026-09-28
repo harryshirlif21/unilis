@@ -1997,6 +1997,11 @@ if ($department_id) {
             </button>
 
             <div class="sidebar-label">Manage</div>
+            <?php if ($is_department_admin): ?>
+            <button type="button" class="nav-item" onclick="openDepartmentResultsModal()" aria-haspopup="dialog" aria-controls="departmentResultsModal">
+                <i class="fas fa-chart-column"></i> Results overview
+            </button>
+            <?php endif; ?>
             <button class="nav-item" data-panel="tutors" onclick="switchPanel('tutors', this)">
                 <i class="fas fa-user-plus"></i> Assign Tutors
             </button>
@@ -2778,6 +2783,19 @@ if ($department_id) {
         </main>
     </div>
 
+    <?php if ($is_department_admin): ?>
+    <div id="departmentResultsModal" role="dialog" aria-modal="true" aria-label="Department results overview"
+         onclick="if(event.target===this) closeDepartmentResultsModal()"
+         style="display:none; position:fixed; z-index:3000; inset:0; padding:5vh 3vw; background:rgba(15,23,42,.6);">
+        <div style="position:relative; width:100%; height:90vh; overflow:hidden; border-radius:12px; background:#f4f6fb; box-shadow:0 24px 70px rgba(15,23,42,.3);">
+            <button type="button" onclick="closeDepartmentResultsModal()" aria-label="Close results overview"
+                    style="position:absolute; z-index:2; top:10px; right:10px; width:36px; height:36px; border:1px solid #cbd5e1; border-radius:50%; background:#fff; color:#1e3a8a; cursor:pointer; font-size:20px;">&times;</button>
+            <iframe id="departmentResultsFrame" title="Read-only department results overview" loading="lazy"
+                    style="width:100%; height:100%; border:0;"></iframe>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Edit Short Course Modal -->
     <div id="editShortCourseModal" class="modal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); overflow-y:auto;">
         <div style="background:var(--surface); max-width:640px; margin:5% auto; padding:28px 32px; border-radius:var(--radius); box-shadow:var(--shadow-lg); position:relative;">
@@ -2863,6 +2881,23 @@ if ($department_id) {
     </div>
 
     <script>
+    function openDepartmentResultsModal() {
+        const modal = document.getElementById('departmentResultsModal');
+        const frame = document.getElementById('departmentResultsFrame');
+        if (!modal || !frame) return;
+        frame.src = 'results_overview.php?embedded=1';
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeDepartmentResultsModal() {
+        const modal = document.getElementById('departmentResultsModal');
+        const frame = document.getElementById('departmentResultsFrame');
+        if (modal) modal.style.display = 'none';
+        if (frame) frame.src = 'about:blank';
+        document.body.style.overflow = '';
+    }
+
     function switchPanel(panelId, el) {
         document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
