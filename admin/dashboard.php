@@ -345,6 +345,12 @@ if ($teamTablesExist) {
             border-radius: 6px;
             font-size: 14px;
         }
+        .btn-verify-all {
+            background: #28a745; color: #fff; border: none;
+            padding: 8px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 13px; white-space: nowrap;
+        }
+        .btn-verify-all:disabled { opacity: .55; cursor: not-allowed; }
         #studentsTableWrapper {
             max-height: 380px;
             overflow-y: auto;
@@ -1357,11 +1363,26 @@ if ($teamTablesExist) {
             <!-- Toolbar: search + filter -->
             <div class="students-toolbar">
                 <input type="text" id="studentSearch" placeholder="🔍 Search by name, email or reg no..." oninput="filterStudentsTable()">
+                <select id="studentCourseFilter" onchange="filterStudentsTable()">
+                    <option value="">All Courses</option>
+                    <?php
+                    $student_courses = $conn->query("SELECT id, name FROM courses ORDER BY name ASC");
+                    if ($student_courses) {
+                        while ($student_course = $student_courses->fetch_assoc()) {
+                            echo '<option value="' . (int)$student_course['id'] . '">' . htmlspecialchars($student_course['name']) . '</option>';
+                        }
+                    }
+                    ?>
+                </select>
+                <select id="studentYearFilter" onchange="filterStudentsTable()">
+                    <option value="">All Years</option>
+                </select>
                 <select id="studentVerifiedFilter" onchange="filterStudentsTable()">
                     <option value="">All Students</option>
                     <option value="1">Verified</option>
                     <option value="0">Unverified</option>
                 </select>
+                <button class="btn-verify-all" id="verifyAllStudentsBtn" onclick="verifyAllFilteredStudents()"><i class="fas fa-user-check"></i> Verify All</button>
             </div>
 
             <!-- Table -->
@@ -2218,11 +2239,24 @@ function loadStudents() {
             return;
         }
         allStudents = data.students;
-        renderStudentsTable(allStudents);
+        populateStudentYearFilter();
+        filterStudentsTable();
     })
     .catch(() => {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:red;">Failed to load students.</td></tr>';
     });
+}
+
+function populateStudentYearFilter() {
+    const yearFilter = document.getElementById('studentYearFilter');
+    if (!yearFilter) return;
+    const selectedYear = yearFilter.value;
+    const years = [...new Set(allStudents.map(s => String(s.year_of_study || '')).filter(year => year && year !== '0'))]
+        .sort((a, b) => Number(a) - Number(b));
+    yearFilter.innerHTML = '<option value="">All Years</option>' + years.map(year =>
+        `<option value="${escapeHtml(year)}">Year ${escapeHtml(year)}</option>`
+    ).join('');
+    if (years.includes(selectedYear)) yearFilter.value = selectedYear;
 }
 
 function renderStudentsTable(students) {
@@ -2233,6 +2267,7 @@ function renderStudentsTable(students) {
     if (!students.length) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">No students match your search.</td></tr>';
         updateBulkDeleteBtn();
+        updateVerifyAllBtn();
         return;
     }
 
@@ -2259,6 +2294,7 @@ function renderStudentsTable(students) {
         tbody.appendChild(tr);
     });
     updateBulkDeleteBtn();
+    updateVerifyAllBtn();
 }
 
 function verifyStudent(id, name) {
@@ -2286,15 +2322,58 @@ function verifyStudent(id, name) {
 function filterStudentsTable() {
     const search  = document.getElementById('studentSearch').value.toLowerCase();
     const verified = document.getElementById('studentVerifiedFilter').value;
+    const courseId = document.getElementById('studentCourseFilter').value;
+    const year = document.getElementById('studentYearFilter').value;
     const filtered = allStudents.filter(s => {
         const matchSearch = !search ||
             (s.name  && s.name.toLowerCase().includes(search)) ||
             (s.email && s.email.toLowerCase().includes(search)) ||
             (s.reg_no && s.reg_no.toLowerCase().includes(search));
         const matchVerified = verified === '' || String(s.is_verified) === verified;
-        return matchSearch && matchVerified;
+        const matchCourse = courseId === '' || String(s.course_id || '') === courseId;
+        const matchYear = year === '' || String(s.year_of_study || '') === year;
+        return matchSearch && matchVerified && matchCourse && matchYear;
     });
     renderStudentsTable(filtered);
+}
+
+function updateVerifyAllBtn() {
+    const btn = document.getElementById('verifyAllStudentsBtn');
+    if (!btn) return;
+    const visibleUnverified = [...document.querySelectorAll('#studentsTableBody tr[data-id]')]
+        .filter(row => parseInt(allStudents.find(s => String(s.id) === row.dataset.id)?.is_verified) !== 1).length;
+    btn.disabled = visibleUnverified === 0;
+    btn.innerHTML = `<i class="fas fa-user-check"></i> Verify All${visibleUnverified ? ` (${visibleUnverified})` : ''}`;
+}
+
+async function verifyAllFilteredStudents() {
+    const ids = [...document.querySelectorAll('#studentsTableBody tr[data-id]')]
+        .filter(row => parseInt(allStudents.find(s => String(s.id) === row.dataset.id)?.is_verified) !== 1)
+        .map(row => row.dataset.id);
+    if (!ids.length) return;
+    if (!confirm(`Verify all ${ids.length} unverified student(s) in the current filter?`)) return;
+
+    const btn = document.getElementById('verifyAllStudentsBtn');
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
+    let verifiedCount = 0;
+    let failedCount = 0;
+    for (const id of ids) {
+        try {
+            const response = await fetch('../actions.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=verify_student_by_id&student_id=${encodeURIComponent(id)}`
+            });
+            const data = parseJSONSafe(await response.text());
+            if (data?.status === 'success') verifiedCount++;
+            else failedCount++;
+        } catch (error) {
+            failedCount++;
+        }
+    }
+    showFloatingMessage(`${verifiedCount} student(s) verified${failedCount ? `; ${failedCount} failed` : ''}.`, failedCount ? 'error' : 'success');
+    loadStudents();
 }
 
 document.getElementById('selectAllStudents').addEventListener('change', function() {

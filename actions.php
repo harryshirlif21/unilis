@@ -2400,6 +2400,7 @@ if ($action === 'get_all_students') {
 
     $has_year_of_study = tableColumnExists($conn, 'students', 'year_of_study');
     $has_year_joined = tableColumnExists($conn, 'students', 'year_joined');
+    $has_course_id = tableColumnExists($conn, 'students', 'course_id');
     $has_is_verified = tableColumnExists($conn, 'students', 'is_verified');
     $has_verified_at = tableColumnExists($conn, 'students', 'verified_at');
 
@@ -2408,6 +2409,7 @@ if ($action === 'get_all_students') {
         'reg_no',
         'name',
         'email',
+        $has_course_id ? 'course_id' : 'NULL AS course_id',
         $has_year_of_study ? 'year_of_study' : 'NULL AS year_of_study',
         $has_year_joined ? 'year_joined' : 'NULL AS year_joined',
         $has_is_verified ? 'is_verified' : '0 AS is_verified',
