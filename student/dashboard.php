@@ -28,6 +28,7 @@ try {
             s.year_of_study,
             s.year_joined,
             c.name AS course_name,
+            c.duration AS course_duration,
             d.name AS department_name,
             u.name AS university_name
         FROM students s
@@ -47,6 +48,10 @@ try {
     $course_name = $student['course_name'] ?: 'Unknown Course';
     $department_name = $student['department_name'] ?: 'Not set';
     $university_name = $student['university_name'] ?: 'Not set';
+    $course_end_date = null;
+    if (!empty($student['year_joined']) && !empty($student['course_duration'])) {
+        $course_end_date = ((int)$student['year_joined'] + (int)$student['course_duration'] - 1) . '-12-31';
+    }
 
     $departments = [];
     $deptResult = $conn->query('SELECT id, name, university_id FROM departments ORDER BY name ASC');
@@ -2757,6 +2762,15 @@ try {
             }
         })();
     </script>
+    <?php if ($course_end_date && date('Y-m-d') > $course_end_date): ?>
+    <div id="courseCompletionModal" role="dialog" aria-modal="true" aria-labelledby="courseCompletionTitle" style="position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;">
+        <div style="background:#fff;border-radius:16px;padding:28px;max-width:460px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+            <h2 id="courseCompletionTitle">Classwork completed</h2>
+            <p>You have finished your classwork for <?= htmlspecialchars($course_name) ?>.</p>
+            <button type="button" onclick="document.getElementById('courseCompletionModal').remove()" style="padding:10px 20px;border:0;border-radius:8px;background:#2563eb;color:#fff;cursor:pointer;">Close</button>
+        </div>
+    </div>
+    <?php endif; ?>
     <?php include __DIR__ . '/../chat/includes/nav_badge.php'; ?>
 </body>
 </html>

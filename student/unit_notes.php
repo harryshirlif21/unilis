@@ -21,7 +21,7 @@ $student_id = (int) $_SESSION['user_id'];
 $verify_stmt = $conn->prepare("
     SELECT u.id, u.name, u.code, u.course_id, u.year
     FROM units u
-    INNER JOIN students s ON s.course_id = u.course_id AND s.year_of_study = u.year
+    INNER JOIN students s ON s.course_id = u.course_id AND u.year <= s.year_of_study
     WHERE u.id = ? AND s.id = ?
 ");
 $verify_stmt->bind_param("ii", $unit_id, $student_id);

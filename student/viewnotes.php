@@ -22,6 +22,7 @@ if (!$student) die("Student record not found.");
 $course_id = $student['course_id'];
 $year_of_study = $student['year_of_study'];
 $course_name = $student['course_name'];
+$selected_year = max(1, min((int)$year_of_study, (int)($_GET['year'] ?? $year_of_study)));
 
 // Get latest notifications
 require_once '../includes/notifications.php';
@@ -36,7 +37,7 @@ $units_stmt = $conn->prepare("
     WHERE u.course_id = ? AND u.year = ?
     ORDER BY u.name
 ");
-$units_stmt->bind_param("ii", $course_id, $year_of_study);
+$units_stmt->bind_param("ii", $course_id, $selected_year);
 $units_stmt->execute();
 $units_result = $units_stmt->get_result();
 ?>
@@ -302,7 +303,15 @@ $units_result = $units_stmt->get_result();
     <div class="notes-container">
         <div class="notes-header">
             <h1>📚 My Notes</h1>
-            <p>Year <?= htmlspecialchars($year_of_study) ?> • Select a unit to view available notes</p>
+            <p>Year <?= htmlspecialchars((string)$selected_year) ?> • Select a unit to view available notes</p>
+            <form method="get" style="margin:12px 0 20px;">
+                <label for="notesYear">View notes from year:</label>
+                <select id="notesYear" name="year" onchange="this.form.submit()">
+                    <?php for ($yearOption = 1; $yearOption <= max(1, (int)$year_of_study); $yearOption++): ?>
+                        <option value="<?= $yearOption ?>" <?= $selected_year === $yearOption ? 'selected' : '' ?>>Year <?= $yearOption ?><?= $yearOption === (int)$year_of_study ? ' (current)' : '' ?></option>
+                    <?php endfor; ?>
+                </select>
+            </form>
         </div>
 
         <?php if ($units_result->num_rows > 0): ?>

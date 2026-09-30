@@ -23,6 +23,16 @@ $stmt->execute();
 $lecturer_info = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
+/* Archived notes remain available to their lecturer after yearly progression. */
+$archivedNotes = [];
+$stmt = $conn->prepare("SELECT n.id, n.file_path, n.unit_id, n.uploaded_at, u.name AS unit_name FROM notes n JOIN lecturer_units lu ON lu.unit_id = n.unit_id JOIN units u ON u.id = n.unit_id WHERE lu.lecturer_id = ? AND n.status = 'archived' ORDER BY n.uploaded_at DESC");
+if ($stmt) {
+    $stmt->bind_param('i', $lecturer_id);
+    $stmt->execute();
+    $archivedNotes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+}
+
 // Get latest 5 notifications for current lecturer
 $latest_notifications = get_latest_notifications($conn, 5, $lecturer_id, 'lecturer');
 
@@ -840,6 +850,24 @@ $stmt->close();
                     </div>
                 <?php endforeach; ?>
             </div>
+
+            <section class="notes-box" style="margin-top:24px; text-align:left;">
+                <h3><i class="fas fa-box-archive"></i> Archived Notes</h3>
+                <p>Notes for completed-year units are kept here after yearly progression.</p>
+                <?php if (!$archivedNotes): ?>
+                    <p style="color:#6b7280;">No archived notes yet.</p>
+                <?php else: ?>
+                    <ul>
+                        <?php foreach ($archivedNotes as $archivedNote): ?>
+                            <li><?= htmlspecialchars($archivedNote['unit_name']) ?>:
+                                <a href="../assets/uploads/<?= rawurlencode(basename($archivedNote['file_path'])) ?>" target="_blank"><?= htmlspecialchars(basename($archivedNote['file_path'])) ?></a>
+                                <small>(<?= date('d M Y', strtotime($archivedNote['uploaded_at'])) ?>)</small>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+                <p style="color:#6b7280;">Upload new notes by selecting any of your assigned units from the unit list.</p>
+            </section>
         </div>
 
         <!-- ==================== NOTES SENT SECTION ==================== -->

@@ -149,6 +149,14 @@ function apply_academic_year_progression(mysqli $conn, array $setting, bool $for
         $currentYear = max(1, (int)($student['year_of_study'] ?? 0));
 
         if ($expectedYear > $currentYear) {
+            // Preserve prior-year files while removing them from the active lecturer/student views.
+            $archive = $conn->prepare("UPDATE notes n JOIN units u ON u.id = n.unit_id JOIN students s ON s.course_id = u.course_id SET n.status = 'archived' WHERE s.id = ? AND u.year <= ? AND n.status = 'active'");
+            if ($archive) {
+                $completedYear = $expectedYear - 1;
+                $archive->bind_param('ii', $student['id'], $completedYear);
+                $archive->execute();
+                $archive->close();
+            }
             $update = $conn->prepare("UPDATE students SET year_of_study = ? WHERE id = ?");
             $update->bind_param('ii', $expectedYear, $student['id']);
             $update->execute();
