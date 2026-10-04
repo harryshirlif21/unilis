@@ -108,17 +108,22 @@ jobs:
           MPESA_STK_RESULT_URL: ${{ secrets.MPESA_STK_RESULT_URL }}
         run: |
           set -euo pipefail
-          : "${MPESA_CONSUMER_KEY:?Set the MPESA_CONSUMER_KEY GitHub Actions secret.}"
-          : "${MPESA_CONSUMER_SECRET:?Set the MPESA_CONSUMER_SECRET GitHub Actions secret.}"
-          : "${MPESA_SHORTCODE:?Set the MPESA_SHORTCODE GitHub Actions secret.}"
-          : "${MPESA_PASSKEY:?Set the MPESA_PASSKEY GitHub Actions secret.}"
-          : "${MPESA_STK_RESULT_URL:?Set the MPESA_STK_RESULT_URL GitHub Actions secret.}"
           umask 077
           LOCAL_MPESA_ENV="$(mktemp)"
           trap 'rm -f "$LOCAL_MPESA_ENV"' EXIT
-          printf 'MPESA_ENVIRONMENT=%s\nMPESA_CONSUMER_KEY=%s\nMPESA_CONSUMER_SECRET=%s\nMPESA_SHORTCODE=%s\nMPESA_PASSKEY=%s\nMPESA_STK_RESULT_URL=%s\n' \
-            "$MPESA_ENVIRONMENT" "$MPESA_CONSUMER_KEY" "$MPESA_CONSUMER_SECRET" "$MPESA_SHORTCODE" "$MPESA_PASSKEY" "$MPESA_STK_RESULT_URL" \
-            > "$LOCAL_MPESA_ENV"
+          printf 'MPESA_ENVIRONMENT=sandbox\n' > "$LOCAL_MPESA_ENV"
+          if [ -n "$MPESA_CONSUMER_KEY" ] \
+            && [ -n "$MPESA_CONSUMER_SECRET" ] \
+            && [ -n "$MPESA_SHORTCODE" ] \
+            && [ -n "$MPESA_PASSKEY" ] \
+            && [ -n "$MPESA_STK_RESULT_URL" ]; then
+            printf 'MPESA_CONSUMER_KEY=%s\nMPESA_CONSUMER_SECRET=%s\nMPESA_SHORTCODE=%s\nMPESA_PASSKEY=%s\nMPESA_STK_RESULT_URL=%s\n' \
+              "$MPESA_CONSUMER_KEY" "$MPESA_CONSUMER_SECRET" "$MPESA_SHORTCODE" "$MPESA_PASSKEY" "$MPESA_STK_RESULT_URL" \
+              >> "$LOCAL_MPESA_ENV"
+            echo "Using M-Pesa sandbox settings from GitHub Actions secrets."
+          else
+            echo "::warning::One or more M-Pesa GitHub Actions secrets are missing; preserving the deployment server's existing M-Pesa values from .env."
+          fi
           chmod 600 "$LOCAL_MPESA_ENV"
           ssh '${{ secrets.AWS_SERVER_BOT }}@${{ secrets.AWS_SERVER_IP }}' "umask 077 && cat > /tmp/unilis-mpesa-${{ github.run_id }}.env" < "$LOCAL_MPESA_ENV"
 
