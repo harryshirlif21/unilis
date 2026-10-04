@@ -86,9 +86,35 @@ jobs:
           ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null
           ssh-keyscan -T 10 '${{ secrets.AWS_SERVER_IP }}' >> ~/.ssh/known_hosts 2>/dev/null
       - name: Deploy exact AWS version
+        env:
+          MPESA_ENVIRONMENT: sandbox
+          MPESA_CONSUMER_KEY: ${{ secrets.MPESA_CONSUMER_KEY }}
+          MPESA_CONSUMER_SECRET: ${{ secrets.MPESA_CONSUMER_SECRET }}
+          MPESA_SHORTCODE: ${{ secrets.MPESA_SHORTCODE }}
+          MPESA_PASSKEY: ${{ secrets.MPESA_PASSKEY }}
+          MPESA_STK_RESULT_URL: ${{ secrets.MPESA_STK_RESULT_URL }}
         run: |
+          set -euo pipefail
+          : "${MPESA_CONSUMER_KEY:?Set the MPESA_CONSUMER_KEY GitHub Actions secret.}"
+          : "${MPESA_CONSUMER_SECRET:?Set the MPESA_CONSUMER_SECRET GitHub Actions secret.}"
+          : "${MPESA_SHORTCODE:?Set the MPESA_SHORTCODE GitHub Actions secret.}"
+          : "${MPESA_PASSKEY:?Set the MPESA_PASSKEY GitHub Actions secret.}"
+          : "${MPESA_STK_RESULT_URL:?Set the MPESA_STK_RESULT_URL GitHub Actions secret.}"
+          umask 077
+          LOCAL_MPESA_ENV="$(mktemp)"
+          trap 'rm -f "$LOCAL_MPESA_ENV"' EXIT
+          printf 'MPESA_ENVIRONMENT=%s\nMPESA_CONSUMER_KEY=%s\nMPESA_CONSUMER_SECRET=%s\nMPESA_SHORTCODE=%s\nMPESA_PASSKEY=%s\nMPESA_STK_RESULT_URL=%s\n' \
+            "$MPESA_ENVIRONMENT" "$MPESA_CONSUMER_KEY" "$MPESA_CONSUMER_SECRET" "$MPESA_SHORTCODE" "$MPESA_PASSKEY" "$MPESA_STK_RESULT_URL" \
+            > "$LOCAL_MPESA_ENV"
+          chmod 600 "$LOCAL_MPESA_ENV"
+          scp -q "$LOCAL_MPESA_ENV" '${{ secrets.AWS_SERVER_BOT }}@${{ secrets.AWS_SERVER_IP }}:/tmp/unilis-mpesa-${{ github.run_id }}.env'
+
           ssh '${{ secrets.AWS_SERVER_BOT }}@${{ secrets.AWS_SERVER_IP }}' <<'EOF'
             set -euo pipefail
+            MPESA_ENV_FILE="/tmp/unilis-mpesa-${{ github.run_id }}.env"
+            test -r "$MPESA_ENV_FILE"
+            trap 'rm -f "$MPESA_ENV_FILE"' EXIT
+
             DEPLOY_PATH='${{ secrets.AWS_DEPLOY_PATH }}'
             test -d "$DEPLOY_PATH/.git"
             test -f "$DEPLOY_PATH/docker-compose.yml"
@@ -112,7 +138,7 @@ jobs:
 
             echo "Pulling AWS images with tag ${IMAGE_TAG}"
             $DC pull app meeting-server
-            $DC up -d --no-build --force-recreate --remove-orphans
+            $DC --env-file .env --env-file "$MPESA_ENV_FILE" up -d --no-build --force-recreate --remove-orphans
             docker inspect unilis-app --format 'unilis-app image={{.Config.Image}} id={{.Image}}'
             docker inspect unilis-meeting-media --format 'unilis-meeting-media image={{.Config.Image}} id={{.Image}}'
             $DC ps
