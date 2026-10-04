@@ -2,7 +2,6 @@
 session_start();
 require_once '../config/db.php';
 require_once __DIR__ . '/../includes/university_helpers.php';
-require_once __DIR__ . '/../learn/includes/mpesa.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     header("Location: ../login.php");
@@ -563,6 +562,7 @@ if ($teamTablesExist) {
     <button class="menu-item" onclick="openModal('unitModal')"><i class="fas fa-cubes"></i> Add Multiple Units</button>
     <button class="menu-item" onclick="openModal('verifyEmailModal')">Verify Student Email</button>
     <button class="menu-item" onclick="openModal('lecturerModal')"><i class="fas fa-chalkboard-teacher"></i> Add Lecturer</button>
+    <a class="menu-item" href="mpesa_integration.php"><i class="fas fa-mobile-alt"></i> M-Pesa Integration</a>
     <!-- NEW: Delete Students -->
     <button class="menu-item" onclick="openDeleteStudentsModal()" style="color:#e74c3c;">
         <i class="fas fa-user-times"></i> Delete Students
@@ -708,108 +708,11 @@ if ($teamTablesExist) {
         </div>
     </section>
 
-    <?php
-    $mpesaEnvironment = 'sandbox';
-    $mpesaStkConfig = learn_mpesa_config('stk');
-    $mpesaStkMissingConfig = array_filter([
-        'MPESA_CONSUMER_KEY' => $mpesaStkConfig['consumer_key'],
-        'MPESA_CONSUMER_SECRET' => $mpesaStkConfig['consumer_secret'],
-        'MPESA_SHORTCODE' => $mpesaStkConfig['shortcode'],
-        'MPESA_PASSKEY' => $mpesaStkConfig['passkey'],
-        'MPESA_STK_RESULT_URL (or MPESA_RESULT_URL)' => $mpesaStkConfig['result_url'],
-    ], static function ($value): bool {
-        return trim((string)$value) === '';
-    });
-    $mpesaStkConfigured = empty($mpesaStkMissingConfig);
-    $mpesaB2bConfigured = getenv('MPESA_B2B_CONSUMER_KEY')
-        && getenv('MPESA_B2B_CONSUMER_SECRET')
-        && getenv('MPESA_B2B_SHORTCODE')
-        && getenv('MPESA_B2B_INITIATOR_NAME')
-        && getenv('MPESA_B2B_SECURITY_CREDENTIAL')
-        && getenv('MPESA_B2B_RESULT_URL')
-        && getenv('MPESA_B2B_TIMEOUT_URL');
-    $mpesaPaymentsCount = 0;
-    $mpesaRecentPayments = [];
-    $mpesaTable = $conn->query("SHOW TABLES LIKE 'short_course_payments'");
-    if ($mpesaTable && $mpesaTable->num_rows > 0) {
-        $mpesaPaymentsCount = (int)$conn->query("SELECT COUNT(*) AS total FROM short_course_payments")->fetch_assoc()['total'];
-        $recent = $conn->query("
-            SELECT p.id, p.amount, p.status, p.created_at, c.title, l.email
-            FROM short_course_payments p
-            JOIN public_courses c ON c.id = p.course_id
-            JOIN external_learners l ON l.id = p.learner_id
-            ORDER BY p.id DESC LIMIT 8
-        ");
-        if ($recent) {
-            while ($row = $recent->fetch_assoc()) {
-                $mpesaRecentPayments[] = $row;
-            }
-        }
-    }
-    ?>
-    <div class="registration-stats-section" style="border:2px solid #16a34a; background:#f0fdf4;">
-        <h3><i class="fas fa-mobile-alt" style="color:#16a34a;"></i> M-Pesa Sandbox Testing</h3>
-        <p style="margin:0 0 14px;color:#166534;">
-            This is the short-course payment test control panel. Use a Safaricom sandbox test number
-            on the public course payment page; successful callbacks create enrolment records.
-        </p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <span style="padding:8px 12px;border-radius:999px;background:#dcfce7;color:#166534;">
-                Test environment: <strong><?= htmlspecialchars($mpesaEnvironment, ENT_QUOTES, 'UTF-8') ?></strong>
-            </span>
-            <span style="padding:8px 12px;border-radius:999px;background:<?= $mpesaStkConfigured ? '#dcfce7' : '#fee2e2' ?>;color:<?= $mpesaStkConfigured ? '#166534' : '#991b1b' ?>;">
-                STK: <strong><?= $mpesaStkConfigured ? 'configured' : 'missing configuration' ?></strong>
-            </span>
-            <span style="padding:8px 12px;border-radius:999px;background:<?= $mpesaB2bConfigured ? '#dcfce7' : '#fef3c7' ?>;color:<?= $mpesaB2bConfigured ? '#166534' : '#92400e' ?>;">
-                B2B: <strong><?= $mpesaB2bConfigured ? 'configured' : 'not configured' ?></strong>
-            </span>
-            <span style="padding:8px 12px;border-radius:999px;background:#e0f2fe;color:#075985;">
-                Payments recorded: <strong><?= $mpesaPaymentsCount ?></strong>
-            </span>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-            <a class="btn btn-primary" href="../learn/" target="_blank" rel="noopener">
-                <i class="fas fa-external-link-alt"></i> Open course catalogue
-            </a>
-            <a class="btn btn-success" href="../migrations/short_course_mpesa.php">
-                <i class="fas fa-database"></i> Open M-Pesa migration
-            </a>
-        </div>
-        <form id="mpesaStkTestForm" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:14px;margin-bottom:16px;background:#fff;border:1px solid #bbf7d0;border-radius:8px;">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
-            <div style="flex:1;min-width:220px;">
-                <label for="mpesaTestPhone" style="display:block;margin-bottom:6px;font-weight:600;">Sandbox Safaricom number</label>
-                <input id="mpesaTestPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="0712345678" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;">
-            </div>
-            <button id="mpesaStkTestButton" type="submit" class="btn btn-success">
-                <i class="fas fa-mobile-alt"></i> Send KSh 1 STK Test
-            </button>
-        </form>
-        <div id="mpesaStkTestResult" role="status" aria-live="polite" style="display:none;margin:0 0 16px;padding:12px;border-radius:8px;white-space:pre-wrap;"></div>
-        <p style="margin:0 0 8px;color:#166534;">
-            Callback URLs:
-            <code>/api/mpesa_callback.php</code> and <code>/api/mpesa_b2b_callback.php</code>
-        </p>
-        <?php if ($mpesaRecentPayments): ?>
-            <div style="overflow:auto;">
-                <table style="width:100%;border-collapse:collapse;background:#fff;">
-                    <thead><tr><th style="text-align:left;padding:8px;">Course</th><th style="text-align:left;padding:8px;">Learner</th><th style="text-align:left;padding:8px;">Amount</th><th style="text-align:left;padding:8px;">Status</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($mpesaRecentPayments as $payment): ?>
-                        <tr>
-                            <td style="padding:8px;border-top:1px solid #dcfce7;"><?= htmlspecialchars($payment['title'], ENT_QUOTES, 'UTF-8') ?></td>
-                            <td style="padding:8px;border-top:1px solid #dcfce7;"><?= htmlspecialchars($payment['email'], ENT_QUOTES, 'UTF-8') ?></td>
-                            <td style="padding:8px;border-top:1px solid #dcfce7;">KSh <?= number_format((float)$payment['amount'], 2) ?></td>
-                            <td style="padding:8px;border-top:1px solid #dcfce7;"><?= htmlspecialchars($payment['status'], ENT_QUOTES, 'UTF-8') ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php else: ?>
-            <p style="margin:0;color:#166534;">No short-course payment attempts have been recorded yet.</p>
-        <?php endif; ?>
-    </div>
+    <section class="registration-stats-section" style="border-left:4px solid #16a34a;">
+        <h3><i class="fas fa-mobile-alt" style="color:#16a34a;"></i> M-Pesa Integration</h3>
+        <p>Open the dedicated M-Pesa page to check configuration, test a sandbox STK push, and review payment activity.</p>
+        <a class="btn btn-primary" href="mpesa_integration.php"><i class="fas fa-arrow-right"></i> Open M-Pesa Integration</a>
+    </section>
 
     <div class="charts-grid">
         <div class="chart-container">
@@ -1798,42 +1701,6 @@ function confirmStudentUniversityAssignment(form) {
     }
     return confirm('This will assign every student account to ' + universityName + '. Continue?');
 }
-
-document.getElementById('mpesaStkTestForm')?.addEventListener('submit', async function(event) {
-    event.preventDefault();
-    const button = document.getElementById('mpesaStkTestButton');
-    const result = document.getElementById('mpesaStkTestResult');
-    const originalLabel = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-    result.style.display = 'block';
-    result.style.background = '#e0f2fe';
-    result.style.color = '#075985';
-    result.textContent = 'Sending a KSh 1 sandbox STK request...';
-
-    try {
-        const response = await fetch('mpesa_stk_test.php', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-            body: new URLSearchParams(new FormData(this)),
-            cache: 'no-store'
-        });
-        const data = await response.json();
-        const succeeded = response.ok && data.success;
-        result.style.background = succeeded ? '#dcfce7' : '#fee2e2';
-        result.style.color = succeeded ? '#166534' : '#991b1b';
-        result.textContent = (data.message || 'No response message was provided.')
-            + (data.checkout_request_id ? '\nCheckout request ID: ' + data.checkout_request_id : '');
-    } catch (error) {
-        result.style.background = '#fee2e2';
-        result.style.color = '#991b1b';
-        result.textContent = 'Unable to send the STK test: ' + error.message;
-    } finally {
-        button.disabled = false;
-        button.innerHTML = originalLabel;
-    }
-});
 
 window.onclick = function(e) {
     document.querySelectorAll('.modal').forEach(m => { if (e.target === m) m.style.display = 'none'; });
