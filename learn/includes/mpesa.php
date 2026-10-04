@@ -4,8 +4,9 @@
  * Credentials are read exclusively from environment variables.
  */
 
-function learn_mpesa_config(string $kind = 'stk'): array
+function learn_mpesa_config(string $kind = 'stk', ?string $environmentOverride = null): array
 {
+    $environment = $environmentOverride ?? getenv('MPESA_ENVIRONMENT');
     $prefix = $kind === 'b2b' ? 'MPESA_B2B_' : 'MPESA_';
     $resultUrl = $kind === 'b2b'
         ? getenv('MPESA_B2B_RESULT_URL')
@@ -14,7 +15,7 @@ function learn_mpesa_config(string $kind = 'stk'): array
         ? getenv('MPESA_B2B_TIMEOUT_URL')
         : (getenv('MPESA_STK_TIMEOUT_URL') ?: getenv('MPESA_TIMEOUT_URL'));
     return [
-        'environment' => strtolower((string)(getenv('MPESA_ENVIRONMENT') ?: 'sandbox')),
+        'environment' => strtolower((string)($environment ?: 'sandbox')),
         'consumer_key' => (string)(getenv($prefix . 'CONSUMER_KEY') ?: getenv('MPESA_CONSUMER_KEY') ?: ''),
         'consumer_secret' => (string)(getenv($prefix . 'CONSUMER_SECRET') ?: getenv('MPESA_CONSUMER_SECRET') ?: ''),
         'shortcode' => (string)(getenv($prefix . 'SHORTCODE') ?: getenv('MPESA_SHORTCODE') ?: ''),
@@ -86,12 +87,19 @@ function learn_mpesa_normalise_phone(string $phone): string
     return $digits;
 }
 
-function learn_mpesa_stk_push(string $phone, int $amount, string $reference, string $description): array
+function learn_mpesa_stk_push(string $phone, int $amount, string $reference, string $description, ?string $environmentOverride = null): array
 {
-    $config = learn_mpesa_config('stk');
-    foreach (['shortcode', 'passkey', 'result_url', 'timeout_url'] as $key) {
+    $config = learn_mpesa_config('stk', $environmentOverride);
+    foreach (['consumer_key', 'consumer_secret', 'shortcode', 'passkey', 'result_url'] as $key) {
         if ($config[$key] === '') {
-            throw new RuntimeException('M-Pesa STK configuration is incomplete.');
+            $environmentNames = [
+                'consumer_key' => 'MPESA_CONSUMER_KEY',
+                'consumer_secret' => 'MPESA_CONSUMER_SECRET',
+                'shortcode' => 'MPESA_SHORTCODE',
+                'passkey' => 'MPESA_PASSKEY',
+                'result_url' => 'MPESA_STK_RESULT_URL or MPESA_RESULT_URL',
+            ];
+            throw new RuntimeException('M-Pesa STK configuration is missing ' . $environmentNames[$key] . '.');
         }
     }
     $token = learn_mpesa_token($config);

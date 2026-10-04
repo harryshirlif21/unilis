@@ -38,14 +38,9 @@ try {
         mpesa_test_respond(403, ['success' => false, 'message' => 'Forbidden.']);
     }
 
-    $environment = strtolower((string)(getenv('MPESA_ENVIRONMENT') ?: 'sandbox'));
-    if ($environment !== 'sandbox') {
-        mpesa_test_respond(400, ['success' => false, 'message' => 'STK test is disabled unless MPESA_ENVIRONMENT is set to sandbox.']);
-    }
-
     require_once __DIR__ . '/../learn/includes/mpesa.php';
     $phone = learn_mpesa_normalise_phone((string)($_POST['phone'] ?? ''));
-    $response = learn_mpesa_stk_push($phone, 1, 'ADMIN-TEST', 'UNILIS sandbox STK test');
+    $response = learn_mpesa_stk_push($phone, 1, 'ADMIN-TEST', 'UNILIS sandbox STK test', 'sandbox');
 
     $checkoutRequestId = (string)($response['CheckoutRequestID'] ?? '');
     $responseCode = (string)($response['ResponseCode'] ?? '');

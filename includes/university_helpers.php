@@ -32,3 +32,18 @@ function get_jkuat_university_id(mysqli $conn): int
 
     return $universityId;
 }
+
+function get_university_by_id(mysqli $conn, int $universityId): ?array
+{
+    $stmt = $conn->prepare('SELECT id, name FROM universities WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Unable to validate the selected university: ' . $conn->error);
+    }
+
+    $stmt->bind_param('i', $universityId);
+    $stmt->execute();
+    $university = $stmt->get_result()->fetch_assoc() ?: null;
+    $stmt->close();
+
+    return $university;
+}

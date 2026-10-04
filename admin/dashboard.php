@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/db.php';
 require_once __DIR__ . '/../includes/university_helpers.php';
+require_once __DIR__ . '/../learn/includes/mpesa.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     header("Location: ../login.php");
@@ -182,35 +183,42 @@ $academic_year_setting = get_academic_year_settings($conn);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['submit_action'] ?? ($_POST['action'] ?? '');
-    if ($action === 'assign_students_to_jkuat') {
+    if ($action === 'assign_students_to_university' || $action === 'assign_students_to_jkuat') {
         if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string)$_POST['csrf_token'])) {
             $student_university_error = 'Your session expired. Reload the page and try again.';
         } else {
             try {
-                $jkuatUniversityId = get_jkuat_university_id($conn);
+                $selectedUniversityId = (int)($_POST['university_id'] ?? 0);
+                $selectedUniversity = $selectedUniversityId > 0
+                    ? get_university_by_id($conn, $selectedUniversityId)
+                    : null;
+                if ($selectedUniversity === null) {
+                    throw new RuntimeException('Select a university that exists in the database.');
+                }
+
                 $stmt = $conn->prepare("
                     UPDATE students
                     SET university_id = ?
                     WHERE university_id IS NULL OR university_id <> ?
                 ");
-                $stmt->bind_param('ii', $jkuatUniversityId, $jkuatUniversityId);
+                $stmt->bind_param('ii', $selectedUniversityId, $selectedUniversityId);
                 $stmt->execute();
                 $updatedCount = $stmt->affected_rows;
                 $stmt->close();
 
                 if ($updatedCount > 0) {
-                    $student_university_message = "Assigned $updatedCount student(s) to JKUAT.";
+                    $student_university_message = "Assigned $updatedCount student(s) to " . $selectedUniversity['name'] . '.';
                 } else {
                     $studentCount = (int)$conn->query("SELECT COUNT(*) AS total FROM students")->fetch_assoc()['total'];
                     $student_university_message = $studentCount > 0
-                        ? 'All student accounts are already assigned to JKUAT.'
+                        ? 'All student accounts are already assigned to ' . $selectedUniversity['name'] . '.'
                         : 'No student accounts were found.';
                 }
             } catch (Throwable $e) {
-                error_log('Unable to assign students to JKUAT: ' . $e->getMessage());
+                error_log('Unable to assign students to selected university: ' . $e->getMessage());
                 $student_university_error = $e instanceof RuntimeException
                     ? $e->getMessage()
-                    : 'Unable to assign students to JKUAT. Please check the database and try again.';
+                    : 'Unable to assign students to the selected university. Please check the database and try again.';
             }
         }
     } elseif ($action === 'save_academic_year_settings') {
@@ -574,6 +582,9 @@ if ($teamTablesExist) {
     <button class="menu-item" onclick="alert('System Settings not implemented yet!')"><i class="fas fa-cogs"></i> System Settings</button>
     <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
 </div>
+<?php if (!$mpesaStkConfigured): ?>
+    <p style="margin:0 0 14px;color:#991b1b;">STK configuration is missing: <?= htmlspecialchars(implode(', ', array_keys($mpesaStkMissingConfig)), ENT_QUOTES, 'UTF-8') ?>. Sandbox credentials must be available to PHP; no environment values were changed.</p>
+<?php endif; ?>
 
 <!-- Overlay for Off-Canvas Menu -->
 <div class="overlay" id="menuOverlay"></div>
@@ -671,7 +682,7 @@ if ($teamTablesExist) {
             <p style="margin:0; color:#6b7280;">No universities have been registered yet.</p>
         <?php endif; ?>
         <div style="margin-top:18px; padding-top:16px; border-top:1px solid #e5e7eb;">
-            <h4 style="margin:0 0 6px;">Assign all students to JKUAT</h4>
+            <h4 style="margin:0 0 6px;">Assign all students to a university</h4>
             <p style="margin:0 0 12px; color:#6b7280;">This changes the university assigned to every student account. Department and course assignments are not changed.</p>
             <?php if ($student_university_message !== ''): ?>
                 <div class="success"><?= htmlspecialchars($student_university_message) ?></div>
@@ -679,22 +690,37 @@ if ($teamTablesExist) {
             <?php if ($student_university_error !== ''): ?>
                 <div class="error"><?= htmlspecialchars($student_university_error) ?></div>
             <?php endif; ?>
-            <form method="POST" onsubmit="return confirm('This will change the university assigned to every student account to JKUAT. Continue?');">
-                <input type="hidden" name="action" value="assign_students_to_jkuat">
+            <form method="POST" onsubmit="return confirmStudentUniversityAssignment(this);">
+                <input type="hidden" name="action" value="assign_students_to_university">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
-                <button type="submit" class="btn btn-primary"><i class="fas fa-user-graduate"></i> Set all students to JKUAT</button>
+                <label for="studentUniversityAssignment" style="display:block;margin-bottom:6px;font-weight:600;">University</label>
+                <select id="studentUniversityAssignment" name="university_id" required style="min-width:260px;padding:10px;border:1px solid #ccc;border-radius:8px;">
+                    <option value="">-- Select university --</option>
+                    <?php
+                    $assignmentUniversities = $conn->query("SELECT id, name FROM universities ORDER BY name ASC");
+                    while ($university = $assignmentUniversities->fetch_assoc()):
+                    ?>
+                        <option value="<?= (int)$university['id'] ?>"><?= htmlspecialchars($university['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                    <?php endwhile; ?>
+                </select>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-user-graduate"></i> Assign all students</button>
             </form>
         </div>
     </section>
 
     <?php
-    $mpesaEnvironment = strtolower((string)(getenv('MPESA_ENVIRONMENT') ?: 'sandbox'));
-    $mpesaStkConfigured = getenv('MPESA_CONSUMER_KEY')
-        && getenv('MPESA_CONSUMER_SECRET')
-        && getenv('MPESA_SHORTCODE')
-        && getenv('MPESA_PASSKEY')
-        && getenv('MPESA_STK_RESULT_URL')
-        && getenv('MPESA_STK_TIMEOUT_URL');
+    $mpesaEnvironment = 'sandbox';
+    $mpesaStkConfig = learn_mpesa_config('stk');
+    $mpesaStkMissingConfig = array_filter([
+        'MPESA_CONSUMER_KEY' => $mpesaStkConfig['consumer_key'],
+        'MPESA_CONSUMER_SECRET' => $mpesaStkConfig['consumer_secret'],
+        'MPESA_SHORTCODE' => $mpesaStkConfig['shortcode'],
+        'MPESA_PASSKEY' => $mpesaStkConfig['passkey'],
+        'MPESA_STK_RESULT_URL (or MPESA_RESULT_URL)' => $mpesaStkConfig['result_url'],
+    ], static function ($value): bool {
+        return trim((string)$value) === '';
+    });
+    $mpesaStkConfigured = empty($mpesaStkMissingConfig);
     $mpesaB2bConfigured = getenv('MPESA_B2B_CONSUMER_KEY')
         && getenv('MPESA_B2B_CONSUMER_SECRET')
         && getenv('MPESA_B2B_SHORTCODE')
@@ -729,7 +755,7 @@ if ($teamTablesExist) {
         </p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
             <span style="padding:8px 12px;border-radius:999px;background:#dcfce7;color:#166534;">
-                Environment: <strong><?= htmlspecialchars($mpesaEnvironment, ENT_QUOTES, 'UTF-8') ?></strong>
+                Test environment: <strong><?= htmlspecialchars($mpesaEnvironment, ENT_QUOTES, 'UTF-8') ?></strong>
             </span>
             <span style="padding:8px 12px;border-radius:999px;background:<?= $mpesaStkConfigured ? '#dcfce7' : '#fee2e2' ?>;color:<?= $mpesaStkConfigured ? '#166534' : '#991b1b' ?>;">
                 STK: <strong><?= $mpesaStkConfigured ? 'configured' : 'missing configuration' ?></strong>
@@ -1763,6 +1789,15 @@ function openModal(id) { const el = document.getElementById(id); if (el) el.styl
 function closeModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 function openAddAdminModal() { openModal('addAdminModal'); }
 function openAddTechnicianModal() { openModal('addTechnicianModal'); }
+function confirmStudentUniversityAssignment(form) {
+    const university = form.querySelector('[name="university_id"]');
+    const universityName = university?.selectedOptions[0]?.textContent?.trim();
+    if (!university || !university.value || !universityName) {
+        alert('Select a university first.');
+        return false;
+    }
+    return confirm('This will assign every student account to ' + universityName + '. Continue?');
+}
 
 document.getElementById('mpesaStkTestForm')?.addEventListener('submit', async function(event) {
     event.preventDefault();
