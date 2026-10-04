@@ -3,8 +3,8 @@
  * Phase 1 - Database Migration
  * UNILIS Academic Foundation Expansion
  * 
- * UPGRADES existing tables where needed, creates new tables for Phase 1 features.
- * Does NOT drop or destroy any existing data.
+ * UPGRADES existing tables where needed and creates new tables for Phase 1 features.
+ * This migration intentionally preserves existing tables, columns, and data.
  * 
  * Migration: 001
  * Version: 1.0.0
@@ -39,14 +39,10 @@ function phase1_migration_001_run($conn) {
     $errors = [];
     $warnings = [];
     
-    // ── 1. UPGRADE: Drop the retired course_type column from courses ───────────
+    // ── 1. PRESERVE: Keep the legacy course_type column and its data ──────────
     $check = $conn->query("SHOW COLUMNS FROM `courses` LIKE 'course_type'");
     if ($check && $check->num_rows > 0) {
-        if ($conn->query("ALTER TABLE `courses` DROP COLUMN `course_type`")) {
-            $results[] = "UPGRADED: courses table - dropped retired course_type column";
-        } else {
-            $errors[] = "Failed to drop course_type from courses: " . $conn->error;
-        }
+        $results[] = "PRESERVED: courses.course_type and its existing data";
     } else {
         $results[] = "OK: courses table has no course_type column";
     }
@@ -335,53 +331,10 @@ function phase1_migration_001_run($conn) {
         $errors[] = "Failed to create pool_technicians: " . $conn->error;
     }
     
-    // ── 16. DROP: short_courses table (redundant, using public_courses instead) ──
-    $checkTable = $conn->query("SHOW TABLES LIKE 'short_courses'");
-    if ($checkTable && $checkTable->num_rows > 0) {
-        // First, update short_course_tutors to reference public_courses if possible
-        // This is a data migration step - try to map short_courses to public_courses
-        $conn->query("UPDATE short_course_tutors sct SET sct.short_course_id = (SELECT pc.id FROM public_courses pc WHERE pc.title = (SELECT name FROM short_courses sc WHERE sc.id = sct.short_course_id) LIMIT 1) WHERE sct.short_course_id IN (SELECT id FROM short_courses)");
-        
-        // Drop the redundant table
-        if ($conn->query("DROP TABLE IF EXISTS `short_courses`")) {
-            $results[] = "DROPPED: short_courses table (redundant, using public_courses)";
-        } else {
-            $errors[] = "Failed to drop short_courses: " . $conn->error;
-        }
-    } else {
-        $results[] = "OK: short_courses table already removed";
-    }
-    
-    // ── 17. UPDATE: short_course_tutors foreign key to reference public_courses ──
-    $checkFK = $conn->query("SHOW CREATE TABLE `short_course_tutors`");
-    if ($checkFK) {
-        $tableDef = $checkFK->fetch_assoc()['Create Table'];
-        // Check if foreign key references short_courses
-        if (strpos($tableDef, 'REFERENCES `short_courses`') !== false) {
-            // Drop foreign key
-            $conn->query("ALTER TABLE `short_course_tutors` DROP FOREIGN KEY IF EXISTS `short_course_tutors_ibfk_1`");
-            // Add new foreign key to public_courses
-            if ($conn->query("ALTER TABLE `short_course_tutors` ADD CONSTRAINT `fk_sct_public_courses` FOREIGN KEY (`short_course_id`) REFERENCES `public_courses`(`id`) ON DELETE CASCADE")) {
-                $results[] = "UPGRADED: short_course_tutors foreign key now references public_courses";
-            } else {
-                $errors[] = "Failed to update short_course_tutors foreign key: " . $conn->error;
-            }
-        } else {
-            $results[] = "OK: short_course_tutors already references public_courses or no FK exists";
-        }
-    }
-    
-    // ── 18. DROP: short_course_units table (redundant, using public_course_modules instead) ──
-    $checkTable = $conn->query("SHOW TABLES LIKE 'short_course_units'");
-    if ($checkTable && $checkTable->num_rows > 0) {
-        if ($conn->query("DROP TABLE IF EXISTS `short_course_units`")) {
-            $results[] = "DROPPED: short_course_units table (redundant, using public_course_modules)";
-        } else {
-            $errors[] = "Failed to drop short_course_units: " . $conn->error;
-        }
-    } else {
-        $results[] = "OK: short_course_units table already removed";
-    }
+    // Keep legacy short-course tables, tutor records, and constraints intact.
+    // Moving those records to the public-course schema requires a separate,
+    // explicitly approved data migration.
+    $results[] = "PRESERVED: legacy short_courses and short_course_units tables and tutor references";
     
     // ── 19. ENSURE: short_course_tutors table exists with correct schema ─────────
     $sql = "CREATE TABLE IF NOT EXISTS `short_course_tutors` (
@@ -477,31 +430,10 @@ function phase1_migration_001_run($conn) {
  * Rollback the Phase 1 database migration
  */
 function phase1_migration_001_rollback($conn) {
-    $results = [];
-    $errors = [];
-    
-    $tables_to_drop = [
-        'pool_technicians',
-        'technician_pools',
-        'system_upgrade_logs',
-        'system_migrations',
-        'system_versions',
-        'technicians',
-        'department_admins',
-    ];
-    
-    foreach ($tables_to_drop as $table) {
-        if ($conn->query("DROP TABLE IF EXISTS `$table`")) {
-            $results[] = "DROPPED: $table";
-        } else {
-            $errors[] = "Failed to drop $table: " . $conn->error;
-        }
-    }
-    
     return [
-        'success' => empty($errors),
-        'results' => $results,
-        'errors' => $errors,
+        'success' => false,
+        'results' => ['Skipped rollback to preserve all existing tables and data. Restore a verified backup or perform a separately reviewed rollback.'],
+        'errors' => [],
     ];
 }
 

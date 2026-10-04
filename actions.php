@@ -35,6 +35,8 @@ try {
     exit;
 }
 
+require_once __DIR__ . '/includes/university_helpers.php';
+
 // Set up global error handler for uncaught exceptions
 set_exception_handler(function(Throwable $e) {
     error_log(sprintf(
@@ -220,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         $reg_no          = trim($_POST['reg_no'] ?? '');
         $name            = trim($_POST['name'] ?? '');
         $email           = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
-        $university_id   = trim($_POST['university'] ?? 'JKUAT'); // Always JKUAT
+        $university_id   = get_jkuat_university_id($conn);
         $department_id   = (int)($_POST['department'] ?? 0);
         $course_id       = (int)($_POST['course'] ?? 0);
         $year_of_study   = (int)($_POST['year_of_study'] ?? 0);

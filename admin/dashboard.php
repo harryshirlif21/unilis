@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../config/db.php';
+require_once __DIR__ . '/../includes/university_helpers.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     header("Location: ../login.php");
@@ -16,6 +17,10 @@ $admin = $admin_res->fetch_assoc();
 if (!$admin || strtolower(trim((string)($admin['email'] ?? ''))) !== 'admin@unilis.com') {
     http_response_code(403);
     exit('Forbidden: this dashboard is restricted to the designated super administrator.');
+}
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 // Keep the database flag aligned with the single-account policy.
@@ -171,11 +176,44 @@ function apply_academic_year_progression(mysqli $conn, array $setting, bool $for
 
 $academic_year_message = '';
 $academic_year_error = '';
+$student_university_message = '';
+$student_university_error = '';
 $academic_year_setting = get_academic_year_settings($conn);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['submit_action'] ?? ($_POST['action'] ?? '');
-    if ($action === 'save_academic_year_settings') {
+    if ($action === 'assign_students_to_jkuat') {
+        if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string)$_POST['csrf_token'])) {
+            $student_university_error = 'Your session expired. Reload the page and try again.';
+        } else {
+            try {
+                $jkuatUniversityId = get_jkuat_university_id($conn);
+                $stmt = $conn->prepare("
+                    UPDATE students
+                    SET university_id = ?
+                    WHERE university_id IS NULL OR university_id <> ?
+                ");
+                $stmt->bind_param('ii', $jkuatUniversityId, $jkuatUniversityId);
+                $stmt->execute();
+                $updatedCount = $stmt->affected_rows;
+                $stmt->close();
+
+                if ($updatedCount > 0) {
+                    $student_university_message = "Assigned $updatedCount student(s) to JKUAT.";
+                } else {
+                    $studentCount = (int)$conn->query("SELECT COUNT(*) AS total FROM students")->fetch_assoc()['total'];
+                    $student_university_message = $studentCount > 0
+                        ? 'All student accounts are already assigned to JKUAT.'
+                        : 'No student accounts were found.';
+                }
+            } catch (Throwable $e) {
+                error_log('Unable to assign students to JKUAT: ' . $e->getMessage());
+                $student_university_error = $e instanceof RuntimeException
+                    ? $e->getMessage()
+                    : 'Unable to assign students to JKUAT. Please check the database and try again.';
+            }
+        }
+    } elseif ($action === 'save_academic_year_settings') {
         try {
             $saved = save_academic_year_settings($conn, $_POST);
             $academic_year_setting = [
@@ -632,6 +670,21 @@ if ($teamTablesExist) {
         <?php else: ?>
             <p style="margin:0; color:#6b7280;">No universities have been registered yet.</p>
         <?php endif; ?>
+        <div style="margin-top:18px; padding-top:16px; border-top:1px solid #e5e7eb;">
+            <h4 style="margin:0 0 6px;">Assign all students to JKUAT</h4>
+            <p style="margin:0 0 12px; color:#6b7280;">This changes the university assigned to every student account. Department and course assignments are not changed.</p>
+            <?php if ($student_university_message !== ''): ?>
+                <div class="success"><?= htmlspecialchars($student_university_message) ?></div>
+            <?php endif; ?>
+            <?php if ($student_university_error !== ''): ?>
+                <div class="error"><?= htmlspecialchars($student_university_error) ?></div>
+            <?php endif; ?>
+            <form method="POST" onsubmit="return confirm('This will change the university assigned to every student account to JKUAT. Continue?');">
+                <input type="hidden" name="action" value="assign_students_to_jkuat">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-user-graduate"></i> Set all students to JKUAT</button>
+            </form>
+        </div>
     </section>
 
     <?php
@@ -696,6 +749,17 @@ if ($teamTablesExist) {
                 <i class="fas fa-database"></i> Open M-Pesa migration
             </a>
         </div>
+        <form id="mpesaStkTestForm" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:14px;margin-bottom:16px;background:#fff;border:1px solid #bbf7d0;border-radius:8px;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
+            <div style="flex:1;min-width:220px;">
+                <label for="mpesaTestPhone" style="display:block;margin-bottom:6px;font-weight:600;">Sandbox Safaricom number</label>
+                <input id="mpesaTestPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="0712345678" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;">
+            </div>
+            <button id="mpesaStkTestButton" type="submit" class="btn btn-success">
+                <i class="fas fa-mobile-alt"></i> Send KSh 1 STK Test
+            </button>
+        </form>
+        <div id="mpesaStkTestResult" role="status" aria-live="polite" style="display:none;margin:0 0 16px;padding:12px;border-radius:8px;white-space:pre-wrap;"></div>
         <p style="margin:0 0 8px;color:#166534;">
             Callback URLs:
             <code>/api/mpesa_callback.php</code> and <code>/api/mpesa_b2b_callback.php</code>
@@ -794,7 +858,7 @@ if ($teamTablesExist) {
     $migrationScripts = array_merge($migrationScripts, $phase1Migrations, $migrationsDirScripts);
     sort($migrationScripts);
     ?>
-    <div class="registration-stats-section">
+    <div class="registration-stats-section" hidden>
         <h3><i class="fas fa-database" style="color:#8e44ad;"></i> Database Migrations</h3>
         <p style="margin:0 0 14px 0; color:#666;">
             One-off schema scripts awaiting a run. Each is safe to run more than once and
@@ -804,11 +868,7 @@ if ($teamTablesExist) {
         <div style="border:1px solid #e1e4e8; border-radius:8px; padding:12px; margin-bottom: 20px; background-color: #f0f4f8;">
             <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                 <strong style="flex:1; min-width:240px;">Run all migrations at once</strong>
-                <button type="button" class="btn btn-primary" id="run-all-migrations-btn" onclick="runAllMigrations(this)">
-                    <i class="fas fa-cogs"></i> Run All Migrations
-                </button>
             </div>
-            <pre id="all-migrations-output" style="display:none; margin:10px 0 0 0; padding:10px; background:#1e1e1e; color:#e6e6e6; border-radius:6px; overflow:auto; max-height:480px; white-space:pre-wrap; font-size:0.82rem;"></pre>
         </div>
 
         <p style="margin:14px 0; color:#666;">Or run scripts individually:</p>
@@ -1659,9 +1719,10 @@ async function runMigration(scriptName, outputId, button) {
 }
 
 async function runAllMigrations(button) {
-    if (!confirm('Run all migrations now?\n\nThis will alter the database schema and cannot be undone.')) return;
+    if (!confirm('Run all consolidated migrations now?\n\nThis can alter the database schema, including Phase 1 tables. Back up the database first. Continue?')) return;
 
     const output = document.getElementById('all-migrations-output');
+    document.getElementById('migration-status-panel').style.display = 'block';
     const originalLabel = button.innerHTML;
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running All...';
@@ -1669,14 +1730,24 @@ async function runAllMigrations(button) {
     output.textContent = 'Starting all migrations...';
 
     try {
+        const body = new URLSearchParams({
+            csrf_token: <?= json_encode($_SESSION['csrf_token']) ?>
+        });
         const res = await fetch('run_all_migrations.php', {
             method: 'POST',
             credentials: 'same-origin',
-            headers: { 'Accept': 'text/html' },
+            headers: {
+                'Accept': 'text/html',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body,
             cache: 'no-store'
         });
-        const body = (await res.text()).trim();
-        output.innerHTML = body || '(no output)';
+        const responseText = (await res.text()).trim();
+        output.innerHTML = responseText || '(no output)';
+        if (!res.ok) {
+            output.insertAdjacentHTML('afterbegin', '<p style="color:#b91c1c;font-weight:600;">Migration run returned HTTP ' + res.status + '.</p>');
+        }
     } catch (err) {
         output.textContent = 'Request failed: ' + err.message;
     } finally {
@@ -1692,6 +1763,43 @@ function openModal(id) { const el = document.getElementById(id); if (el) el.styl
 function closeModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 function openAddAdminModal() { openModal('addAdminModal'); }
 function openAddTechnicianModal() { openModal('addTechnicianModal'); }
+
+document.getElementById('mpesaStkTestForm')?.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    const button = document.getElementById('mpesaStkTestButton');
+    const result = document.getElementById('mpesaStkTestResult');
+    const originalLabel = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+    result.style.display = 'block';
+    result.style.background = '#e0f2fe';
+    result.style.color = '#075985';
+    result.textContent = 'Sending a KSh 1 sandbox STK request...';
+
+    try {
+        const response = await fetch('mpesa_stk_test.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+            body: new URLSearchParams(new FormData(this)),
+            cache: 'no-store'
+        });
+        const data = await response.json();
+        const succeeded = response.ok && data.success;
+        result.style.background = succeeded ? '#dcfce7' : '#fee2e2';
+        result.style.color = succeeded ? '#166534' : '#991b1b';
+        result.textContent = (data.message || 'No response message was provided.')
+            + (data.checkout_request_id ? '\nCheckout request ID: ' + data.checkout_request_id : '');
+    } catch (error) {
+        result.style.background = '#fee2e2';
+        result.style.color = '#991b1b';
+        result.textContent = 'Unable to send the STK test: ' + error.message;
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalLabel;
+    }
+});
+
 window.onclick = function(e) {
     document.querySelectorAll('.modal').forEach(m => { if (e.target === m) m.style.display = 'none'; });
 };
@@ -2589,9 +2697,28 @@ function confirmBulkDeleteTestData() {
   </div>
 </div>
 
+<!-- Floating migration output -->
+<div id="migration-status-panel" style="display:none;position:fixed;right:20px;bottom:76px;width:min(620px,calc(100vw - 40px));max-height:55vh;overflow:auto;background:#fff;border:1px solid #d1d5db;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:99997;">
+  <div style="position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#1e3a5f;color:#fff;">
+    <strong><i class="fas fa-database"></i> Migration results</strong>
+    <button type="button" onclick="document.getElementById('migration-status-panel').style.display='none'" aria-label="Close migration results" style="background:transparent;color:#fff;border:0;font-size:20px;cursor:pointer;">&times;</button>
+  </div>
+  <div id="all-migrations-output" style="padding:12px;overflow:auto;max-height:calc(55vh - 44px);"></div>
+</div>
+
+<!-- Floating migration launcher -->
+<button type="button" id="run-all-migrations-btn" onclick="runAllMigrations(this)" title="Run all consolidated migrations" aria-label="Run all consolidated migrations" style="
+  position:fixed;bottom:20px;right:20px;z-index:99998;
+  width:52px;height:52px;border-radius:50%;
+  background:#1e3a5f;color:#fff;border:2px solid #fff;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:20px;box-shadow:0 4px 16px rgba(0,0,0,.35);
+  transition:transform .2s;
+" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'"><i class="fas fa-database"></i></button>
+
 <!-- Floating diagnostic launcher -->
 <div onclick="toggleLeDiag()" id="le-diag-launcher" style="
-  position:fixed;bottom:20px;right:20px;z-index:99998;
+  position:fixed;bottom:82px;right:20px;z-index:99998;
   width:44px;height:44px;border-radius:50%;
   background:#1B5E20;color:#F9A825;border:2px solid #F9A825;
   display:flex;align-items:center;justify-content:center;
@@ -2814,29 +2941,6 @@ function confirmBulkDeleteTestData() {
 
     document.getElementById('le-diag-spinner').style.display = 'none';
   }
-</script>
-<script>
-    function runAllMigrations(btn) {
-        var output = document.getElementById('all-migrations-output');
-        output.style.display = 'block';
-        output.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running all migrations... This may take a moment.';
-        btn.disabled = true;
-
-        fetch('run_all_migrations.php')
-            .then(response => response.text())
-            .then(text => {
-                output.innerHTML = text;
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-secondary');
-                btn.innerHTML = '<i class="fas fa-check"></i> All Migrations Ran';
-            })
-            .catch(error => {
-                output.innerHTML = '<strong>Error:</strong> ' + error;
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-danger');
-                btn.innerHTML = '<i class="fas fa-times"></i> Error';
-            });
-    }
 </script>
 </body>
 </html>
