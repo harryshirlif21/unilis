@@ -77,14 +77,27 @@ jobs:
     needs: build
     steps:
       - name: Configure SSH
+        env:
+          AWS_DEPLOY_KEY: ${{ secrets.AWS_DEPLOY_KEY }}
+          AWS_SERVER_IP: ${{ secrets.AWS_SERVER_IP }}
         run: |
           set -euo pipefail
+          : "${AWS_DEPLOY_KEY:?Set the AWS_DEPLOY_KEY GitHub Actions secret.}"
+          : "${AWS_SERVER_IP:?Set the AWS_SERVER_IP GitHub Actions secret.}"
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' '${{ secrets.AWS_DEPLOY_KEY }}' > ~/.ssh/id_ed25519
+          printf '%s\n' "$AWS_DEPLOY_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null
-          ssh-keyscan -T 10 '${{ secrets.AWS_SERVER_IP }}' >> ~/.ssh/known_hosts 2>/dev/null
+          if ! ssh-keyscan -T 10 -H "$AWS_SERVER_IP" > "$RUNNER_TEMP/unilis-aws-known-hosts" 2>/dev/null; then
+            echo "Unable to retrieve the AWS SSH host key. Check AWS_SERVER_IP and runner network access."
+            exit 1
+          fi
+          if [ ! -s "$RUNNER_TEMP/unilis-aws-known-hosts" ]; then
+            echo "AWS SSH host-key scan returned no keys. Check AWS_SERVER_IP and runner network access."
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/unilis-aws-known-hosts" >> ~/.ssh/known_hosts
       - name: Deploy exact AWS version
         env:
           MPESA_ENVIRONMENT: sandbox
@@ -107,7 +120,7 @@ jobs:
             "$MPESA_ENVIRONMENT" "$MPESA_CONSUMER_KEY" "$MPESA_CONSUMER_SECRET" "$MPESA_SHORTCODE" "$MPESA_PASSKEY" "$MPESA_STK_RESULT_URL" \
             > "$LOCAL_MPESA_ENV"
           chmod 600 "$LOCAL_MPESA_ENV"
-          scp -q "$LOCAL_MPESA_ENV" '${{ secrets.AWS_SERVER_BOT }}@${{ secrets.AWS_SERVER_IP }}:/tmp/unilis-mpesa-${{ github.run_id }}.env'
+          ssh '${{ secrets.AWS_SERVER_BOT }}@${{ secrets.AWS_SERVER_IP }}' "umask 077 && cat > /tmp/unilis-mpesa-${{ github.run_id }}.env" < "$LOCAL_MPESA_ENV"
 
           ssh '${{ secrets.AWS_SERVER_BOT }}@${{ secrets.AWS_SERVER_IP }}' <<'EOF'
             set -euo pipefail

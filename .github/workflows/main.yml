@@ -51,11 +51,27 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/unilis-meeting-media:latest
 
       - name: Setup SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
+          set -euo pipefail
+          : "${DEPLOY_KEY:?Set the DEPLOY_KEY GitHub Actions secret.}"
+          : "${SERVER_IP:?Set the SERVER_IP GitHub Actions secret.}"
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -T 10 ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null
+          if ! ssh-keyscan -T 10 -H "$SERVER_IP" > "$RUNNER_TEMP/unilis-known-hosts" 2>/dev/null; then
+            echo "Unable to retrieve the SSH host key. Check SERVER_IP and runner network access."
+            exit 1
+          fi
+          if [ ! -s "$RUNNER_TEMP/unilis-known-hosts" ]; then
+            echo "SSH host-key scan returned no keys. Check SERVER_IP and runner network access."
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/unilis-known-hosts" >> ~/.ssh/known_hosts
 
       - name: Deploy to Production Server
         env:
@@ -79,7 +95,7 @@ jobs:
             "$MPESA_ENVIRONMENT" "$MPESA_CONSUMER_KEY" "$MPESA_CONSUMER_SECRET" "$MPESA_SHORTCODE" "$MPESA_PASSKEY" "$MPESA_STK_RESULT_URL" \
             > "$LOCAL_MPESA_ENV"
           chmod 600 "$LOCAL_MPESA_ENV"
-          scp -q "$LOCAL_MPESA_ENV" '${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}:/tmp/unilis-mpesa-${{ github.run_id }}.env'
+          ssh '${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }}' "umask 077 && cat > /tmp/unilis-mpesa-${{ github.run_id }}.env" < "$LOCAL_MPESA_ENV"
 
           ssh ${{ secrets.SERVER_BOT }}@${{ secrets.SERVER_IP }} << 'EOF'
             set -e
