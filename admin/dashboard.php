@@ -582,9 +582,6 @@ if ($teamTablesExist) {
     <button class="menu-item" onclick="alert('System Settings not implemented yet!')"><i class="fas fa-cogs"></i> System Settings</button>
     <a href="../logout.php" class="menu-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
 </div>
-<?php if (!$mpesaStkConfigured): ?>
-    <p style="margin:0 0 14px;color:#991b1b;">STK configuration is missing: <?= htmlspecialchars(implode(', ', array_keys($mpesaStkMissingConfig)), ENT_QUOTES, 'UTF-8') ?>. Sandbox credentials must be available to PHP; no environment values were changed.</p>
-<?php endif; ?>
 
 <!-- Overlay for Off-Canvas Menu -->
 <div class="overlay" id="menuOverlay"></div>
