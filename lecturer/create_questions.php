@@ -173,11 +173,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
         // -------------------------
         $ust = $conn->prepare("
             UPDATE interactive_assignments 
-            SET title=?, description=?, due_date=?, unit_id=?, academic_year=?
+            SET title=?, description=?, due_date=?, unit_id=?
             WHERE id=? AND lecturer_id=?
         ");
-        $academic_year = academic_year_history_current_label($conn);
-        $ust->bind_param("sssisii", $title, $description, $due_date, $unit_id, $academic_year, $id, $lecturer_id);
+        $ust->bind_param("sssiii", $title, $description, $due_date, $unit_id, $id, $lecturer_id);
         $ust->execute();
 
         // -------------------------
@@ -395,7 +394,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignme
             (lecturer_id, unit_id, title, description, due_date, created_at, academic_year)
             VALUES (?, ?, ?, ?, ?, NOW(), ?)
         ");
-        $academic_year = academic_year_history_current_label($conn);
+        $academic_year = academic_year_history_label_for_date(
+            $conn,
+            date('Y-m-d')
+        );
         $ins->bind_param("iissss", $lecturer_id, $unit_id, $title, $description, $due_date, $academic_year);
         $ins->execute();
 

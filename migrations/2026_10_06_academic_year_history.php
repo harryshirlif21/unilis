@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/academic_year_history.php';
 
 if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], ['admin', 'department_admin'], true)) {
     http_response_code(403);
@@ -86,10 +87,24 @@ foreach ($contentTables as $table => $dateColumn) {
     }
 
     if (ayh_column_exists($conn, $table, $dateColumn)) {
+        $yearForDate = "CONCAT(YEAR(`{$dateColumn}`), '/', YEAR(`{$dateColumn}`) + 1)";
+        if (ayh_table_exists($conn, 'academic_year_settings')) {
+            $yearForDate = "COALESCE((
+                SELECT ays.academic_year_label
+                FROM academic_year_settings ays
+                WHERE ays.start_date <= DATE(`{$dateColumn}`)
+                  AND ays.end_date >= DATE(`{$dateColumn}`)
+                  AND ays.academic_year_label REGEXP '^[0-9]{4}/[0-9]{4}$'
+                ORDER BY ays.start_date DESC, ays.id DESC
+                LIMIT 1
+            ), {$yearForDate})";
+        }
         $sql = "
             UPDATE `{$table}`
-            SET academic_year = CONCAT(YEAR(`{$dateColumn}`), '/', YEAR(`{$dateColumn}`) + 1)
-            WHERE academic_year IS NULL OR academic_year = ''
+            SET academic_year = CASE
+                WHEN `{$dateColumn}` IS NULL THEN academic_year
+                ELSE {$yearForDate}
+            END
         ";
         if (!$conn->query($sql)) {
             throw new RuntimeException("Unable to backfill {$table}.academic_year: " . $conn->error);
@@ -97,39 +112,70 @@ foreach ($contentTables as $table => $dateColumn) {
     }
 }
 
-$currentLabel = date('Y') . '/' . (date('Y') + 1);
+$currentLabel = academic_year_history_current_label($conn);
+$today = date('Y-m-d');
+$academicYears = [];
 if (ayh_table_exists($conn, 'academic_year_settings')) {
-    $result = $conn->query("
-        SELECT academic_year_label
+    $periodStmt = $conn->prepare("
+        SELECT academic_year_label, start_date, end_date
         FROM academic_year_settings
-        ORDER BY is_active DESC, updated_at DESC
-        LIMIT 1
+        WHERE start_date <= ?
+          AND academic_year_label REGEXP '^[0-9]{4}/[0-9]{4}$'
+        ORDER BY start_date ASC, id ASC
     ");
-    $row = $result ? $result->fetch_assoc() : null;
-    if ($row && preg_match('/^\d{4}\/\d{4}$/', (string)$row['academic_year_label'])) {
-        $currentLabel = (string)$row['academic_year_label'];
+    $periodStmt->bind_param('s', $today);
+    $periodStmt->execute();
+    $periodResult = $periodStmt->get_result();
+    while ($period = $periodResult->fetch_assoc()) {
+        $academicYears[(string)$period['academic_year_label']] = $period;
     }
+    $periodStmt->close();
 }
 
 $currentStart = (int)substr($currentLabel, 0, 4);
 $students = $conn->query("
-    SELECT id, year_joined, year_of_study
-    FROM students
-    WHERE year_joined REGEXP '^[0-9]{4}$'
+    SELECT s.id, s.year_joined, s.year_of_study, c.duration
+    FROM students s
+    LEFT JOIN courses c ON c.id = s.course_id
+    WHERE s.year_joined REGEXP '^[0-9]{4}$'
 ");
+$hasConfiguredAcademicYears = $academicYears !== [];
 $historyInsert = $conn->prepare("
-    INSERT IGNORE INTO student_academic_year_history (student_id, academic_year, year_of_study)
+    INSERT INTO student_academic_year_history (student_id, academic_year, year_of_study)
     VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE year_of_study = VALUES(year_of_study)
 ");
 while ($student = $students->fetch_assoc()) {
     $joinedYear = (int)$student['year_joined'];
     $latestStudyYear = max(1, (int)$student['year_of_study']);
+    $duration = (int)($student['duration'] ?? 0);
+    if ($duration > 0) {
+        $latestStudyYear = min($latestStudyYear, $duration);
+    }
     $maxStartYear = min($currentStart, $joinedYear + $latestStudyYear - 1);
 
-    for ($startYear = $joinedYear; $startYear <= $maxStartYear; $startYear++) {
+    $studentAcademicYears = $academicYears;
+    if (!$hasConfiguredAcademicYears) {
+        for ($startYear = $joinedYear; $startYear <= $maxStartYear; $startYear++) {
+            $label = academic_year_history_label($startYear);
+            $studentAcademicYears[$label] = ['academic_year_label' => $label];
+        }
+    } else {
+        for ($startYear = $joinedYear; $startYear <= $maxStartYear; $startYear++) {
+            $label = academic_year_history_label($startYear);
+            if (!isset($studentAcademicYears[$label])) {
+                $studentAcademicYears[$label] = ['academic_year_label' => $label];
+            }
+        }
+    }
+
+    foreach ($studentAcademicYears as $label => $period) {
+        $startYear = academic_year_history_start_year((string)$label);
+        if ($startYear === null || $startYear < $joinedYear || $startYear > $maxStartYear) {
+            continue;
+        }
         $studentId = (int)$student['id'];
-        $studyYear = $startYear - $joinedYear + 1;
-        $label = $startYear . '/' . ($startYear + 1);
+        $studyYear = academic_year_history_study_year($joinedYear, (string)$label, $duration);
         $historyInsert->bind_param('isi', $studentId, $label, $studyYear);
         if (!$historyInsert->execute()) {
             throw new RuntimeException('Unable to initialize student year history: ' . $historyInsert->error);
@@ -138,4 +184,4 @@ while ($student = $students->fetch_assoc()) {
 }
 $historyInsert->close();
 
-echo "OK initialized academic-year history through {$currentLabel}\n";
+echo "OK initialized academic-year history through {$currentLabel}; content years were matched to configured progression dates where available.\n";

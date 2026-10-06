@@ -1313,7 +1313,10 @@ if ($action === 'upload_notes') {
             if (move_uploaded_file($file['tmp_name'], $target_path)) {
 
                 // Insert into notes table
-                $academic_year = academic_year_history_current_label($conn);
+                $academic_year = academic_year_history_label_for_date(
+                    $conn,
+                    date('Y-m-d')
+                );
                 $stmt = $conn->prepare("
                     INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at, academic_year)
                     VALUES (?, ?, ?, NOW(), ?)
@@ -1519,7 +1522,10 @@ if ($action === 'create_assignment') {
         }
     }
 
-    $academic_year = academic_year_history_current_label($conn);
+    $academic_year = academic_year_history_label_for_date(
+        $conn,
+        date('Y-m-d')
+    );
     if ($filename) {
         $stmt = $conn->prepare("INSERT INTO assignments (lecturer_id, unit_id, title, description, deadline, file_path, created_at, academic_year)
                                 VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");

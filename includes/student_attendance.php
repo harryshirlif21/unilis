@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/email_system.php';
+require_once __DIR__ . '/academic_year_history.php';
 
 /**
  * Enhanced Student Attendance System
@@ -33,13 +34,17 @@ function createEnhancedAttendanceSession($conn, $unit_id, $lecturer_id, $duratio
         
         $session_stmt = $conn->prepare("
             INSERT INTO attendance_sessions 
-            (unit_id, lecturer_id, session_code, duration_minutes, deadline, created_at) 
-            VALUES (?, ?, ?, ?, ?, NOW())
+            (unit_id, lecturer_id, session_code, duration_minutes, deadline, created_at, academic_year)
+            VALUES (?, ?, ?, ?, ?, NOW(), ?)
         ");
         
         // Generate main session code (for reference)
         $main_session_code = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        $session_stmt->bind_param("iisis", $unit_id, $lecturer_id, $main_session_code, $duration_minutes, $session_deadline);
+        $academic_year = academic_year_history_label_for_date(
+            $conn,
+            date('Y-m-d')
+        );
+        $session_stmt->bind_param("iisiss", $unit_id, $lecturer_id, $main_session_code, $duration_minutes, $session_deadline, $academic_year);
         $session_stmt->execute();
         $session_id = $conn->insert_id;
         $session_stmt->close();

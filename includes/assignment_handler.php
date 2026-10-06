@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/academic_year_history.php';
+
 function handle_assignment_creation($conn) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         return ['error' => 'Invalid request method'];
@@ -9,16 +11,21 @@ function handle_assignment_creation($conn) {
         $conn->begin_transaction();
 
         // Insert assignment
-        $stmt = $conn->prepare("INSERT INTO assignments (unit_id, lecturer_id, title, description, deadline, mode) VALUES (?, ?, ?, ?, ?, ?)");
+        $academic_year = academic_year_history_label_for_date(
+            $conn,
+            date('Y-m-d')
+        );
+        $stmt = $conn->prepare("INSERT INTO assignments (unit_id, lecturer_id, title, description, deadline, mode, academic_year) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $lecturer_id = $_SESSION['user_id'];
         $mode = isset($_POST['enable_ai']) ? 'ai_assisted' : 'manual';
-        $stmt->bind_param("iissss", 
+        $stmt->bind_param("iisssss",
             $_POST['unit_id'],
             $lecturer_id,
             $_POST['title'],
             $_POST['instructions'],
             $_POST['deadline'],
-            $mode
+            $mode,
+            $academic_year
         );
         $stmt->execute();
         $assignment_id = $stmt->insert_id;

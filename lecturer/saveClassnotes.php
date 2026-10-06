@@ -119,7 +119,10 @@ try {
                 SET title = ?, subtopics_json = ?, uploaded_at = NOW(), academic_year = ?
                 WHERE id = ? AND lecturer_id = ?
             ");
-            $academic_year = academic_year_history_current_label($conn);
+            $academic_year = academic_year_history_label_for_date(
+                $conn,
+                date('Y-m-d')
+            );
             $stmt->bind_param("sssii", $topic_title, $subtopics_json, $academic_year, $topic_id, $lecturer_id);
 
             if (!$stmt->execute()) {
@@ -158,7 +161,10 @@ try {
                 VALUES (?, ?, ?, ?, NOW(), ?)
             ");
             
-            $academic_year = academic_year_history_current_label($conn);
+            $academic_year = academic_year_history_label_for_date(
+                $conn,
+                date('Y-m-d')
+            );
             $stmt->bind_param("iisss", $unit_id, $lecturer_id, $topic_title, $subtopics_json, $academic_year);
             
             if (!$stmt->execute()) {

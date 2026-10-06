@@ -37,7 +37,7 @@ if (!$unit) {
 }
 
 $currentAcademicYear = academic_year_history_current_label($conn);
-$academicYearOptions = academic_year_history_student_options($unit, $currentAcademicYear);
+$academicYearOptions = academic_year_history_student_options($unit, $currentAcademicYear, $conn);
 $selectedAcademicYear = (string)($_GET['academic_year'] ?? $currentAcademicYear);
 if (
     !array_key_exists($selectedAcademicYear, $academicYearOptions)

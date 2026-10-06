@@ -24,7 +24,7 @@ $course_id = $student['course_id'];
 $year_of_study = $student['year_of_study'];
 $course_name = $student['course_name'];
 $currentAcademicYear = academic_year_history_current_label($conn);
-$academicYearOptions = academic_year_history_student_options($student, $currentAcademicYear);
+$academicYearOptions = academic_year_history_student_options($student, $currentAcademicYear, $conn);
 $selectedAcademicYear = (string)($_GET['academic_year'] ?? $currentAcademicYear);
 if (!array_key_exists($selectedAcademicYear, $academicYearOptions)) {
     $selectedAcademicYear = $currentAcademicYear;
