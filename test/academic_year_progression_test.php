@@ -27,4 +27,8 @@ $assertSame(3, academic_year_history_study_year(2023, '2025/2026'), 'Study-year 
 $assertSame(4, academic_year_history_study_year(2020, '2025/2026', 4), 'Course-duration cap');
 $assertSame(1, academic_year_history_study_year(2026, '2025/2026'), 'Registration after academic-year start');
 
+$emptyStudentOptions = academic_year_history_student_options(['id' => 12, 'year_joined' => 2024, 'year_of_study' => 2], '2026/2027', null);
+$assertSame(['2026/2027' => 2, '2025/2026' => 2, '2024/2025' => 1], $emptyStudentOptions, 'Student academic-year options are ordered and stable');
+$assertSame(1, max(1, (int)($emptyStudentOptions['2024/2025'] ?? 1)), 'Previous-year study mapping stays valid');
+
 echo "Academic-year progression tests passed.\n";

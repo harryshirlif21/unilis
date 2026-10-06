@@ -49,12 +49,17 @@ try {
     $course_name = $student['course_name'] ?: 'Unknown Course';
     $currentAcademicYear = academic_year_history_current_label($conn);
     $academicYearOptions = academic_year_history_student_options($student, $currentAcademicYear, $conn);
-    $selectedAcademicYear = (string)($_GET['academic_year'] ?? $_SESSION['student_dashboard_academic_year'] ?? $currentAcademicYear);
-    if (!array_key_exists($selectedAcademicYear, $academicYearOptions)) {
+    if ($academicYearOptions === []) {
+        $academicYearOptions = [$currentAcademicYear => max(1, (int)($student['year_of_study'] ?? 1))];
+    }
+
+    $selectedAcademicYear = trim((string)($_GET['academic_year'] ?? $_SESSION['student_dashboard_academic_year'] ?? $currentAcademicYear));
+    if ($selectedAcademicYear === '' || !array_key_exists($selectedAcademicYear, $academicYearOptions)) {
         $selectedAcademicYear = $currentAcademicYear;
     }
     $_SESSION['student_dashboard_academic_year'] = $selectedAcademicYear;
-    $selectedStudyYear = (int)$academicYearOptions[$selectedAcademicYear];
+    $selectedStudyYear = (int)($academicYearOptions[$selectedAcademicYear] ?? max(1, (int)($student['year_of_study'] ?? 1)));
+    $selectedStudyYear = max(1, $selectedStudyYear);
     $viewingPastAcademicYear = $selectedAcademicYear !== $currentAcademicYear;
     $department_name = $student['department_name'] ?: 'Not set';
     $university_name = $student['university_name'] ?: 'Not set';

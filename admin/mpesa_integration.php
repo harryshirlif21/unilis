@@ -42,11 +42,11 @@ $paymentTable = $conn->query("SHOW TABLES LIKE 'short_course_payments'");
 if ($paymentTable && $paymentTable->num_rows > 0) {
     $paymentCount = (int)$conn->query('SELECT COUNT(*) AS total FROM short_course_payments')->fetch_assoc()['total'];
     $recent = $conn->query("
-        SELECT p.id, p.amount, p.status, p.created_at, c.title, l.email
+        SELECT p.id, p.amount, p.status, p.created_at, p.mpesa_receipt, p.result_description, c.title, l.email
         FROM short_course_payments p
         JOIN public_courses c ON c.id = p.course_id
         JOIN external_learners l ON l.id = p.learner_id
-        ORDER BY p.id DESC LIMIT 8
+        ORDER BY p.id DESC LIMIT 20
     ");
     if ($recent) {
         while ($row = $recent->fetch_assoc()) {
@@ -106,6 +106,7 @@ if ($paymentTable && $paymentTable->num_rows > 0) {
         <div class="mpesa-actions">
             <a class="btn btn-primary" href="../learn/" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Open course catalogue</a>
             <a class="btn btn-success" href="../migrations/short_course_mpesa.php"><i class="fas fa-database"></i> Run M-Pesa migration</a>
+            <a class="btn btn-success" href="../migrations/2026_10_04_mpesa_reconciliation.php" title="Adds cancelled / timeout / reconciliation_required states"><i class="fas fa-sync-alt"></i> Run reconciliation migration</a>
             <a class="btn btn-secondary" href="dashboard.php"><i class="fas fa-arrow-left"></i> Back to dashboard</a>
         </div>
     </div>
@@ -125,11 +126,27 @@ if ($paymentTable && $paymentTable->num_rows > 0) {
     </div>
 
     <div class="mpesa-card">
+        <h2><i class="fas fa-sync-alt" style="color:#1d4ed8;"></i> Reconciliation</h2>
+        <p>
+            Flags stale <strong>pending</strong> payments that have received no callback for an operator to
+            review. This never auto-approves anything: an unknown outcome is left for a human to verify
+            against M-Pesa before being marked paid.
+        </p>
+        <div class="mpesa-actions">
+            <button id="mpesaReconcileButton" type="button" class="btn btn-warning" onclick="reconcilePayments(this)">
+                <i class="fas fa-search-dollar"></i> Flag stale pending for review
+            </button>
+            <span id="mpesaReconcileResult" class="mpesa-test-result" style="display:none;"></span>
+        </div>
+        <div id="mpesaPendingWrap" class="mpesa-table-wrap" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="mpesa-card">
         <h2>Recent course payments</h2>
         <?php if ($recentPayments): ?>
             <div class="mpesa-table-wrap">
                 <table class="mpesa-table">
-                    <thead><tr><th>Course</th><th>Learner</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead>
+                    <thead><tr><th>Course</th><th>Learner</th><th>Amount</th><th>Status</th><th>Receipt</th><th>Notes</th><th>Created</th></tr></thead>
                     <tbody>
                     <?php foreach ($recentPayments as $payment): ?>
                         <tr>
@@ -137,6 +154,8 @@ if ($paymentTable && $paymentTable->num_rows > 0) {
                             <td><?= htmlspecialchars((string)$payment['email'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td>KSh <?= number_format((float)$payment['amount'], 2) ?></td>
                             <td><?= htmlspecialchars((string)$payment['status'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars((string)($payment['mpesa_receipt'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars((string)($payment['result_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars((string)$payment['created_at'], ENT_QUOTES, 'UTF-8') ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -185,6 +204,142 @@ document.getElementById('mpesaStkTestForm').addEventListener('submit', async fun
         button.innerHTML = originalLabel;
     }
 });
+</script>
+<script>
+(function () {
+    'use strict';
+    const CSRF = '<?= htmlspecialchars((string)$_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>';
+
+    async function apiPost(body) {
+        const fd = new FormData();
+        for (const [k, v] of Object.entries(body)) fd.append(k, v);
+        fd.append('csrf_token', CSRF);
+        const res = await fetch('/api/mpesa_reconcile.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+            body: fd,
+            cache: 'no-store'
+        });
+        return res;
+    }
+
+    window.reconcilePayments = async function (btn) {
+        const result = document.getElementById('mpesaReconcileResult');
+        result.style.display = 'block';
+        result.style.background = '#e0f2fe';
+        result.style.color = '#075985';
+        result.textContent = 'Flagging stale pending payments…';
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        try {
+            const res = await apiPost({ action: 'reconcile', cutoff_minutes: '120' });
+            const data = await res.json();
+            const ok = res.ok && data.ok;
+            result.style.background = ok ? '#dcfce7' : '#fee2e2';
+            result.style.color = ok ? '#166534' : '#991b1b';
+            result.textContent = data.message || 'Reconciliation finished.';
+            if (ok) await loadPendingPayments();
+        } catch (e) {
+            result.style.background = '#fee2e2';
+            result.style.color = '#991b1b';
+            result.textContent = 'Reconciliation failed: ' + e.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    };
+
+    window.resolvePayment = async function (id, resolution, btn) {
+        const result = document.getElementById('mpesaReconcileResult');
+        result.style.display = 'block';
+        result.style.background = '#e0f2fe';
+        result.style.color = '#075985';
+        result.textContent = 'Resolving payment ' + id + ' as ' + resolution + '…';
+        btn.disabled = true;
+        try {
+            const res = await apiPost({ action: 'resolve', id: String(id), resolution: resolution });
+            const data = await res.json();
+            const ok = res.ok && data.ok;
+            result.style.background = ok ? '#dcfce7' : '#fee2e2';
+            result.style.color = ok ? '#166534' : '#991b1b';
+            result.textContent = data.message || 'Resolved.';
+            if (ok) await loadPendingPayments();
+        } catch (e) {
+            result.style.background = '#fee2e2';
+            result.style.color = '#991b1b';
+            result.textContent = 'Could not resolve: ' + e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+window.loadPendingPayments = async function () {
+        const wrap = document.getElementById('mpesaPendingWrap');
+        if (!wrap) return;
+        try {
+            const res = await fetch('/api/mpesa_reconcile.php', { credentials: 'same-origin', cache: 'no-store' });
+            const data = await res.json();
+            const pending = (data.ok && data.pending) ? data.pending : [];
+            if (pending.length === 0) {
+                wrap.textContent = 'No pending or review-required payments.';
+                return;
+            }
+            const table = document.createElement('table');
+            table.className = 'mpesa-table';
+            const head = document.createElement('thead');
+            const hr = document.createElement('tr');
+            ['ID', 'Course', 'Learner', 'Amount', 'Status', 'Created', 'Action'].forEach(function (col) {
+                const th = document.createElement('th');
+                th.textContent = col;
+                hr.appendChild(th);
+            });
+            head.appendChild(hr);
+            table.appendChild(head);
+            const tbody = document.createElement('tbody');
+            pending.forEach(function (p) {
+                const tr = document.createElement('tr');
+                const id = document.createElement('td'); id.textContent = String(p.id);
+                const course = document.createElement('td'); course.textContent = p.course;
+                const learner = document.createElement('td'); learner.textContent = p.learner;
+                const amount = document.createElement('td'); amount.textContent = 'KSh ' + Number(p.amount).toFixed(2);
+                const status = document.createElement('td'); status.textContent = p.status;
+                const created = document.createElement('td'); created.textContent = p.created_at;
+                const action = document.createElement('td');
+                if (p.status === 'reconciliation_required') {
+                    const sel = document.createElement('select');
+                    ['paid', 'failed', 'cancelled', 'timeout'].forEach(function (v) {
+                        const opt = document.createElement('option');
+                        opt.value = v;
+                        opt.textContent = v;
+                        sel.appendChild(opt);
+                    });
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn btn-primary';
+                    btn.textContent = 'Resolve';
+                    btn.addEventListener('click', function () {
+                        resolvePayment(p.id, sel.value, btn);
+                    });
+                    action.appendChild(sel);
+                    action.appendChild(btn);
+                } else {
+                    action.textContent = '—';
+                }
+                [id, course, learner, amount, status, created, action].forEach(function (td) { tr.appendChild(td); });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            wrap.replaceChildren(table);
+        } catch (e) {
+            wrap.textContent = 'Could not load pending payments.';
+        }
+    };
+
+    window.addEventListener('DOMContentLoaded', function () {
+        loadPendingPayments();
+    });
+})();
 </script>
 </body>
 </html>

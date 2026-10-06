@@ -25,11 +25,24 @@ $year_of_study = $student['year_of_study'];
 $course_name = $student['course_name'];
 $currentAcademicYear = academic_year_history_current_label($conn);
 $academicYearOptions = academic_year_history_student_options($student, $currentAcademicYear, $conn);
-$selectedAcademicYear = (string)($_GET['academic_year'] ?? $currentAcademicYear);
-if (!array_key_exists($selectedAcademicYear, $academicYearOptions)) {
+if ($academicYearOptions === []) {
+    $academicYearOptions = [$currentAcademicYear => max(1, (int)($student['year_of_study'] ?? 1))];
+}
+$selectedAcademicYear = trim((string)($_GET['academic_year'] ?? $currentAcademicYear));
+if ($selectedAcademicYear === '' || !array_key_exists($selectedAcademicYear, $academicYearOptions)) {
     $selectedAcademicYear = $currentAcademicYear;
 }
-$selected_year = (int)$academicYearOptions[$selectedAcademicYear];
+$selected_year = (int)($academicYearOptions[$selectedAcademicYear] ?? max(1, (int)($student['year_of_study'] ?? 1)));
+$selected_year = max(1, $selected_year);
+$yearTiles = [];
+foreach ($academicYearOptions as $label => $studyYear) {
+    $yearTiles[] = [
+        'label' => (string)$label,
+        'studyYear' => (int)$studyYear,
+        'isCurrent' => $label === $currentAcademicYear,
+        'isSelected' => $label === $selectedAcademicYear,
+    ];
+}
 
 // Get latest notifications
 require_once '../includes/notifications.php';
@@ -91,6 +104,50 @@ $units_result = $units_stmt->get_result();
         .notes-header p {
             color: #555;
             font-size: 16px;
+        }
+
+        .year-tile-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 20px 0 24px;
+        }
+
+        .year-tile {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 150px;
+            padding: 0.9rem 1.1rem;
+            border-radius: 12px;
+            background: #fff;
+            border: 1px solid #dbe3f0;
+            text-decoration: none;
+            color: #1f2937;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        }
+
+        .year-tile:hover {
+            transform: translateY(-2px);
+            border-color: #667eea;
+            box-shadow: 0 10px 22px rgba(102, 126, 234, 0.12);
+        }
+
+        .year-tile.active {
+            background: linear-gradient(135deg, #667eea, #4f46e5);
+            color: white;
+            border-color: transparent;
+        }
+
+        .year-tile small {
+            display: block;
+            opacity: 0.8;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
 
         .units-grid {
@@ -311,16 +368,22 @@ $units_result = $units_stmt->get_result();
         <div class="notes-header">
             <h1>📚 My Notes</h1>
             <p><?= htmlspecialchars($selectedAcademicYear) ?> • Year <?= $selected_year ?> • Select a unit to view available notes</p>
-            <form method="get" style="margin:12px 0 20px;">
-                <label for="notesAcademicYear">View notes from academic year:</label>
-                <select id="notesAcademicYear" name="academic_year" onchange="this.form.submit()">
-                    <?php foreach ($academicYearOptions as $label => $studyYear): ?>
-                        <option value="<?= htmlspecialchars($label) ?>" <?= $label === $selectedAcademicYear ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($label) ?><?= $label === $currentAcademicYear ? ' (current)' : ' (Year ' . (int)$studyYear . ')' ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </form>
+            <div class="year-tile-grid" aria-label="Academic-year selection">
+                <?php foreach ($yearTiles as $yearTile): ?>
+                    <a class="year-tile <?= $yearTile['isSelected'] ? 'active' : '' ?>"
+                       href="viewnotes.php?academic_year=<?= urlencode($yearTile['label']) ?>"
+                       title="Open <?= htmlspecialchars($yearTile['label']) ?> notes">
+                        <span>
+                            <?= htmlspecialchars($yearTile['label']) ?>
+                            <?php if ($yearTile['isCurrent']): ?>
+                                <small>Current</small>
+                            <?php else: ?>
+                                <small>Year <?= (int)$yearTile['studyYear'] ?></small>
+                            <?php endif; ?>
+                        </span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
         </div>
 
         <?php if ($units_result->num_rows > 0): ?>

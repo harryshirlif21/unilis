@@ -38,13 +38,25 @@ if (!$unit) {
 
 $currentAcademicYear = academic_year_history_current_label($conn);
 $academicYearOptions = academic_year_history_student_options($unit, $currentAcademicYear, $conn);
-$selectedAcademicYear = (string)($_GET['academic_year'] ?? $currentAcademicYear);
-if (
-    !array_key_exists($selectedAcademicYear, $academicYearOptions)
-    || (int)$academicYearOptions[$selectedAcademicYear] !== (int)$unit['year']
-) {
+if ($academicYearOptions === []) {
+    $academicYearOptions = [$currentAcademicYear => max(1, (int)($unit['year'] ?? 1))];
+}
+$selectedAcademicYear = trim((string)($_GET['academic_year'] ?? $currentAcademicYear));
+if ($selectedAcademicYear === '' || !array_key_exists($selectedAcademicYear, $academicYearOptions)) {
+    $selectedAcademicYear = $currentAcademicYear;
+}
+if ((int)($academicYearOptions[$selectedAcademicYear] ?? 0) !== (int)$unit['year']) {
     http_response_code(403);
     exit('This academic-year version of the unit is not available to your account.');
+}
+$yearTiles = [];
+foreach ($academicYearOptions as $label => $studyYear) {
+    $yearTiles[] = [
+        'label' => (string)$label,
+        'studyYear' => (int)$studyYear,
+        'isCurrent' => $label === $currentAcademicYear,
+        'isSelected' => $label === $selectedAcademicYear,
+    ];
 }
 $readOnlyHistory = $selectedAcademicYear !== $currentAcademicYear;
 
@@ -258,6 +270,48 @@ function fixImagePathsInContent($content) {
         .unit-header p {
             font-size: 16px;
             opacity: 0.9;
+        }
+
+        .year-tile-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .year-tile {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 150px;
+            padding: 0.8rem 1rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            text-decoration: none;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+
+        .year-tile:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .year-tile.active {
+            background: #ffffff;
+            color: #1d4ed8;
+            border-color: transparent;
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+        }
+
+        .year-tile small {
+            display: block;
+            font-size: 11px;
+            letter-spacing: 0.04em;
+            opacity: 0.8;
+            text-transform: uppercase;
         }
 
         .back-btn {
@@ -797,8 +851,24 @@ function fixImagePathsInContent($content) {
             </a>
             <h1><?= htmlspecialchars($unit['name']) ?></h1>
             <p><?= htmlspecialchars($unit['code']) ?> • <?= htmlspecialchars($selectedAcademicYear) ?> • Year <?= htmlspecialchars($unit['year']) ?></p>
+            <div class="year-tile-grid" aria-label="Academic-year selection">
+                <?php foreach ($yearTiles as $yearTile): ?>
+                    <a class="year-tile <?= $yearTile['isSelected'] ? 'active' : '' ?>"
+                       href="unit_notes.php?unit_id=<?= (int)$unit['id'] ?>&amp;academic_year=<?= urlencode($yearTile['label']) ?>"
+                       title="Open <?= htmlspecialchars($yearTile['label']) ?> notes for this unit">
+                        <span>
+                            <?= htmlspecialchars($yearTile['label']) ?>
+                            <?php if ($yearTile['isCurrent']): ?>
+                                <small>Current</small>
+                            <?php else: ?>
+                                <small>Year <?= (int)$yearTile['studyYear'] ?></small>
+                            <?php endif; ?>
+                        </span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
             <?php if ($readOnlyHistory): ?>
-                <p style="padding:10px 14px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">Viewing archived notes. This academic year is read-only.</p>
+                <p style="padding:10px 14px;border-radius:8px;background:#eff6ff;color:#1d4ed8; margin-top:18px;">Viewing archived notes. This academic year is read-only.</p>
             <?php endif; ?>
         </div>
 
