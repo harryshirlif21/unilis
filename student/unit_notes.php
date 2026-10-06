@@ -17,6 +17,10 @@ if (!isset($_GET['unit_id'])) {
 
 $unit_id = (int) $_GET['unit_id'];
 $student_id = (int) $_SESSION['user_id'];
+$hasAcademicYearColumn = static function (mysqli $conn, string $table): bool {
+    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE 'academic_year'");
+    return $result && $result->num_rows > 0;
+};
 
 // Verify unit belongs to student
 $verify_stmt = $conn->prepare("
@@ -96,26 +100,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Fetch file notes
-$file_notes_stmt = $conn->prepare("
-    SELECT n.id, n.file_path, n.uploaded_at, n.status
-    FROM notes n
-    WHERE n.unit_id = ? AND n.academic_year = ?
-    ORDER BY n.uploaded_at DESC
-");
-$file_notes_stmt->bind_param("is", $unit_id, $selectedAcademicYear);
+if ($hasAcademicYearColumn($conn, 'notes')) {
+    $file_notes_stmt = $conn->prepare("
+        SELECT n.id, n.file_path, n.uploaded_at, n.status
+        FROM notes n
+        WHERE n.unit_id = ? AND n.academic_year = ?
+        ORDER BY n.uploaded_at DESC
+    ");
+    $file_notes_stmt->bind_param("is", $unit_id, $selectedAcademicYear);
+} else {
+    $file_notes_stmt = $conn->prepare("
+        SELECT n.id, n.file_path, n.uploaded_at, n.status
+        FROM notes n
+        WHERE n.unit_id = ?
+        ORDER BY n.uploaded_at DESC
+    ");
+    $file_notes_stmt->bind_param("i", $unit_id);
+}
 $file_notes_stmt->execute();
 $file_notes = $file_notes_stmt->get_result();
 
 // Fetch interactive notes
-$interactive_notes_stmt = $conn->prepare("
-    SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at,
-           scp.status as progress_status
-    FROM classnotes cn
-    LEFT JOIN student_classnotes_progress scp ON scp.classnote_id = cn.id AND scp.student_id = ?
-    WHERE cn.unit_id = ? AND cn.academic_year = ?
-    ORDER BY cn.uploaded_at ASC
-");
-$interactive_notes_stmt->bind_param("iis", $student_id, $unit_id, $selectedAcademicYear);
+if ($hasAcademicYearColumn($conn, 'classnotes')) {
+    $interactive_notes_stmt = $conn->prepare("
+        SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at,
+               scp.status as progress_status
+        FROM classnotes cn
+        LEFT JOIN student_classnotes_progress scp ON scp.classnote_id = cn.id AND scp.student_id = ?
+        WHERE cn.unit_id = ? AND cn.academic_year = ?
+        ORDER BY cn.uploaded_at ASC
+    ");
+    $interactive_notes_stmt->bind_param("iis", $student_id, $unit_id, $selectedAcademicYear);
+} else {
+    $interactive_notes_stmt = $conn->prepare("
+        SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at,
+               scp.status as progress_status
+        FROM classnotes cn
+        LEFT JOIN student_classnotes_progress scp ON scp.classnote_id = cn.id AND scp.student_id = ?
+        WHERE cn.unit_id = ?
+        ORDER BY cn.uploaded_at ASC
+    ");
+    $interactive_notes_stmt->bind_param("ii", $student_id, $unit_id);
+}
 $interactive_notes_stmt->execute();
 $interactive_notes = $interactive_notes_stmt->get_result();
 

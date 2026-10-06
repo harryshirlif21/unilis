@@ -12,7 +12,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
 $student_id = (int) $_SESSION['user_id'];
 
 // Get student course/year and details
-$stmt = $conn->prepare("SELECT s.course_id, s.year_of_study, s.name, s.email, s.reg_no, s.year_joined, c.name as course_name FROM students s JOIN courses c ON s.course_id = c.id WHERE s.id = ?");
+$hasAcademicYearColumn = static function (mysqli $conn, string $table): bool {
+    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE 'academic_year'");
+    return $result && $result->num_rows > 0;
+};
+
+$stmt = $conn->prepare("SELECT s.id, s.course_id, s.year_of_study, s.name, s.email, s.reg_no, s.year_joined, c.name as course_name FROM students s JOIN courses c ON s.course_id = c.id WHERE s.id = ?");
 $stmt->bind_param("i", $student_id);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
@@ -34,6 +39,7 @@ if ($selectedAcademicYear === '' || !array_key_exists($selectedAcademicYear, $ac
 }
 $selected_year = (int)($academicYearOptions[$selectedAcademicYear] ?? max(1, (int)($student['year_of_study'] ?? 1)));
 $selected_year = max(1, $selected_year);
+$notesAcademicYearAvailable = $hasAcademicYearColumn($conn, 'notes') && $hasAcademicYearColumn($conn, 'classnotes');
 $yearTiles = [];
 foreach ($academicYearOptions as $label => $studyYear) {
     $yearTiles[] = [
@@ -49,15 +55,29 @@ require_once '../includes/notifications.php';
 $latest_notifications = get_latest_notifications($conn, 5);
 
 // Fetch units that have notes
-$units_stmt = $conn->prepare("
-    SELECT DISTINCT u.id, u.name, u.code, 
-           (SELECT COUNT(*) FROM notes WHERE unit_id = u.id AND academic_year = ?) as file_count,
-           (SELECT COUNT(*) FROM classnotes WHERE unit_id = u.id AND academic_year = ?) as interactive_count
-    FROM units u
-    WHERE u.course_id = ? AND u.year = ?
-    ORDER BY u.name
-");
-$units_stmt->bind_param("ssii", $selectedAcademicYear, $selectedAcademicYear, $course_id, $selected_year);
+if ($notesAcademicYearAvailable) {
+    $units_sql = "
+        SELECT DISTINCT u.id, u.name, u.code,
+               (SELECT COUNT(*) FROM notes WHERE unit_id = u.id AND academic_year = ?) as file_count,
+               (SELECT COUNT(*) FROM classnotes WHERE unit_id = u.id AND academic_year = ?) as interactive_count
+        FROM units u
+        WHERE u.course_id = ? AND u.year = ?
+        ORDER BY u.name
+    ";
+    $units_stmt = $conn->prepare($units_sql);
+    $units_stmt->bind_param("ssii", $selectedAcademicYear, $selectedAcademicYear, $course_id, $selected_year);
+} else {
+    $units_sql = "
+        SELECT DISTINCT u.id, u.name, u.code,
+               (SELECT COUNT(*) FROM notes WHERE unit_id = u.id) as file_count,
+               (SELECT COUNT(*) FROM classnotes WHERE unit_id = u.id) as interactive_count
+        FROM units u
+        WHERE u.course_id = ? AND u.year = ?
+        ORDER BY u.name
+    ";
+    $units_stmt = $conn->prepare($units_sql);
+    $units_stmt->bind_param("ii", $course_id, $selected_year);
+}
 $units_stmt->execute();
 $units_result = $units_stmt->get_result();
 ?>
