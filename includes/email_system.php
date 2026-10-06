@@ -10,6 +10,21 @@ use PHPMailer\PHPMailer\Exception;
  * Handles notification emails and deadline reminders
  */
 
+function format_sender_prefixed_subject(string $subject, ?string $senderName): string {
+    $trimmedSubject = trim($subject);
+    $trimmedSender = trim((string)($senderName ?? ''));
+
+    if ($trimmedSender === '' || $trimmedSubject === '') {
+        return $trimmedSubject;
+    }
+
+    if (str_starts_with($trimmedSubject, $trimmedSender)) {
+        return $trimmedSubject;
+    }
+
+    return $trimmedSender . ' - ' . $trimmedSubject;
+}
+
 /**
  * Send notification email to user
  * @param string $email Recipient email
@@ -37,7 +52,7 @@ function send_notification_email($email, $user_name, $subject, $title, $message,
         }
 
         $mail->isHTML(true);
-        $mail->Subject = $subject;
+        $mail->Subject = format_sender_prefixed_subject($subject, $senderName);
 
         // Get email template based on type
         $email_body = get_email_template($type, $title, $message, $link, $user_name);

@@ -304,7 +304,7 @@ function send_notes_email_with_attachment($email, $student_name, $lecturer_name,
         $mail->addAddress($email);
 
         $mail->isHTML(true);
-        $mail->Subject = "{$lecturer_name} sent {$unit_code}";
+        $mail->Subject = format_sender_prefixed_subject("New notes uploaded for {$unit_code}", $lecturer_name);
 
         // Attach the file if it exists
         $full_path = __DIR__ . '/../assets/uploads/' . $file_path;
@@ -438,7 +438,10 @@ function notify_students_assignment_posted($conn, $unit_id, $assignment_id, $ass
         $notif_stmt->close();
         
         // Send bulk email notifications
-        $email_subject = "✏️ New Assignment Posted: {$assignment_title}";
+        $lecturerName = trim((string)($assignment['lecturer_name'] ?? ''));
+        $email_subject = ($lecturerName !== ''
+            ? $lecturerName . " - New Assignment Posted: {$assignment_title}"
+            : "✏️ New Assignment Posted: {$assignment_title}");
         $attachmentPath = null;
         if (!empty($assignment['file_path'])) {
             $attachmentPath = __DIR__ . '/../assets/uploads/assignments/' . basename($assignment['file_path']);
