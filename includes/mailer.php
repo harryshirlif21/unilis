@@ -57,6 +57,58 @@ function send_verification_email($email, $token, $name = '') {
     }
 }
 
+function send_student_registration_start_email(string $email, string $token): bool
+{
+    $configuredBaseUrl = getenv('APP_BASE_URL');
+    if ($configuredBaseUrl !== false && trim($configuredBaseUrl) !== '') {
+        $baseUrl = rtrim(trim($configuredBaseUrl), '/');
+    } elseif (PHP_SAPI === 'cli') {
+        $baseUrl = 'http://localhost/unilis';
+    } else {
+        $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+        if (preg_match('/^(localhost|127\.0\.0\.1)(:\d{1,5})?$/', $host)) {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+                ? 'https' : 'http';
+            $baseUrl = $scheme . '://' . $host;
+            $script = $_SERVER['SCRIPT_NAME'] ?? '';
+            if (preg_match('#^(.*?)/student/#', $script, $matches)) {
+                $baseUrl .= $matches[1];
+            }
+        } else {
+            $baseUrl = 'https://unilis.jhubafrica.com';
+        }
+    }
+
+    $link = $baseUrl . '/student/signup.php?email_token=' . rawurlencode($token);
+    $safeLink = htmlspecialchars($link, ENT_QUOTES, 'UTF-8');
+
+    try {
+        $mail = getConfiguredMailer();
+        $mail->addAddress($email);
+        $mail->isHTML(true);
+        $mail->Subject = 'Start your UNILIS student registration';
+        $mail->Body = "
+            <div style='font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:28px;border:1px solid #e5e7eb;border-radius:10px;'>
+                <h1 style='color:#1e3a8a;'>UNILIS student registration</h1>
+                <p>Confirm that you can access this email address to begin creating your student account.</p>
+                <p style='text-align:center;margin:28px 0;'>
+                    <a href='{$safeLink}' style='background:#1e3a8a;color:#fff;padding:13px 24px;border-radius:7px;text-decoration:none;'>Confirm email and start registration</a>
+                </p>
+                <p>If the button does not work, open this link:</p>
+                <p><a href='{$safeLink}'>{$safeLink}</a></p>
+                <p style='color:#6b7280;font-size:13px;'>This link expires in 30 minutes. If you did not request it, you can ignore this email.</p>
+            </div>
+        ";
+        $mail->AltBody = "Confirm your email and start UNILIS student registration:\n{$link}\n\nThis link expires in 30 minutes. If you did not request it, ignore this email.";
+        $mail->send();
+        return true;
+    } catch (Throwable $e) {
+        error_log('Student registration email confirmation failed: ' . $e->getMessage());
+        return false;
+    }
+}
+
 
 function send_password_reset_email($email, $token, $name = '') {
     error_log("=== RESET EMAIL CALLED → To: $email | Name: $name ===");

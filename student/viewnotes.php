@@ -1,5 +1,6 @@
 <?php
 require_once '../config/db.php';
+require_once __DIR__ . '/../includes/academic_year_history.php';
 session_start();
 
 // Redirect if not student
@@ -22,7 +23,13 @@ if (!$student) die("Student record not found.");
 $course_id = $student['course_id'];
 $year_of_study = $student['year_of_study'];
 $course_name = $student['course_name'];
-$selected_year = max(1, min((int)$year_of_study, (int)($_GET['year'] ?? $year_of_study)));
+$currentAcademicYear = academic_year_history_current_label($conn);
+$academicYearOptions = academic_year_history_student_options($student, $currentAcademicYear);
+$selectedAcademicYear = (string)($_GET['academic_year'] ?? $currentAcademicYear);
+if (!array_key_exists($selectedAcademicYear, $academicYearOptions)) {
+    $selectedAcademicYear = $currentAcademicYear;
+}
+$selected_year = (int)$academicYearOptions[$selectedAcademicYear];
 
 // Get latest notifications
 require_once '../includes/notifications.php';
@@ -31,13 +38,13 @@ $latest_notifications = get_latest_notifications($conn, 5);
 // Fetch units that have notes
 $units_stmt = $conn->prepare("
     SELECT DISTINCT u.id, u.name, u.code, 
-           (SELECT COUNT(*) FROM notes WHERE unit_id = u.id) as file_count,
-           (SELECT COUNT(*) FROM classnotes WHERE unit_id = u.id) as interactive_count
+           (SELECT COUNT(*) FROM notes WHERE unit_id = u.id AND academic_year = ?) as file_count,
+           (SELECT COUNT(*) FROM classnotes WHERE unit_id = u.id AND academic_year = ?) as interactive_count
     FROM units u
     WHERE u.course_id = ? AND u.year = ?
     ORDER BY u.name
 ");
-$units_stmt->bind_param("ii", $course_id, $selected_year);
+$units_stmt->bind_param("ssii", $selectedAcademicYear, $selectedAcademicYear, $course_id, $selected_year);
 $units_stmt->execute();
 $units_result = $units_stmt->get_result();
 ?>
@@ -303,13 +310,15 @@ $units_result = $units_stmt->get_result();
     <div class="notes-container">
         <div class="notes-header">
             <h1>📚 My Notes</h1>
-            <p>Year <?= htmlspecialchars((string)$selected_year) ?> • Select a unit to view available notes</p>
+            <p><?= htmlspecialchars($selectedAcademicYear) ?> • Year <?= $selected_year ?> • Select a unit to view available notes</p>
             <form method="get" style="margin:12px 0 20px;">
-                <label for="notesYear">View notes from year:</label>
-                <select id="notesYear" name="year" onchange="this.form.submit()">
-                    <?php for ($yearOption = 1; $yearOption <= max(1, (int)$year_of_study); $yearOption++): ?>
-                        <option value="<?= $yearOption ?>" <?= $selected_year === $yearOption ? 'selected' : '' ?>>Year <?= $yearOption ?><?= $yearOption === (int)$year_of_study ? ' (current)' : '' ?></option>
-                    <?php endfor; ?>
+                <label for="notesAcademicYear">View notes from academic year:</label>
+                <select id="notesAcademicYear" name="academic_year" onchange="this.form.submit()">
+                    <?php foreach ($academicYearOptions as $label => $studyYear): ?>
+                        <option value="<?= htmlspecialchars($label) ?>" <?= $label === $selectedAcademicYear ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($label) ?><?= $label === $currentAcademicYear ? ' (current)' : ' (Year ' . (int)$studyYear . ')' ?>
+                        </option>
+                    <?php endforeach; ?>
                 </select>
             </form>
         </div>
@@ -317,7 +326,7 @@ $units_result = $units_stmt->get_result();
         <?php if ($units_result->num_rows > 0): ?>
             <div class="units-grid">
                 <?php while ($unit = $units_result->fetch_assoc()): ?>
-                    <div class="unit-card" onclick="window.location.href='unit_notes.php?unit_id=<?= $unit['id'] ?>'">
+                    <div class="unit-card" onclick="window.location.href='unit_notes.php?unit_id=<?= (int)$unit['id'] ?>&amp;academic_year=<?= urlencode($selectedAcademicYear) ?>'">
                         <div class="unit-header">
                             <div class="unit-icon">
                                 <i class="fas fa-book"></i>

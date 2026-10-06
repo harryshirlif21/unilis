@@ -1,5 +1,200 @@
 <?php
 session_start();
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/mailer.php';
+
+if (empty($_SESSION['student_signup_csrf'])) {
+    $_SESSION['student_signup_csrf'] = bin2hex(random_bytes(32));
+}
+if (
+    !empty($_SESSION['student_signup_verified_at'])
+    && time() - (int)$_SESSION['student_signup_verified_at'] > 1800
+) {
+    unset($_SESSION['student_signup_verified_email'], $_SESSION['student_signup_verified_at']);
+}
+
+$emailGateNotice = '';
+$emailGateError = '';
+$emailToken = trim((string)($_GET['email_token'] ?? ''));
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['request_signup_email', 'confirm_signup_email'], true)) {
+    if (
+        !isset($_POST['csrf_token'])
+        || !hash_equals($_SESSION['student_signup_csrf'], (string)$_POST['csrf_token'])
+    ) {
+        http_response_code(400);
+        exit('Invalid registration request. Reload and try again.');
+    }
+
+    if ($_POST['action'] === 'request_signup_email') {
+        $email = filter_var(trim((string)($_POST['email'] ?? '')), FILTER_VALIDATE_EMAIL);
+        if (!$email) {
+            $emailGateError = 'Enter a valid email address.';
+        } else {
+            $email = strtolower($email);
+            $existingStmt = $conn->prepare('SELECT id FROM students WHERE email = ? LIMIT 1');
+            $existingStmt->bind_param('s', $email);
+            $existingStmt->execute();
+            $emailAlreadyUsed = $existingStmt->get_result()->num_rows > 0;
+            $existingStmt->close();
+
+            $recentStmt = $conn->prepare("
+                SELECT created_at
+                FROM student_signup_email_tokens
+                WHERE email = ? AND created_at > DATE_SUB(NOW(), INTERVAL 60 SECOND)
+                LIMIT 1
+            ");
+            $recentStmt->bind_param('s', $email);
+            $recentStmt->execute();
+            $recentRequest = $recentStmt->get_result()->num_rows > 0;
+            $recentStmt->close();
+
+            if (!$emailAlreadyUsed && !$recentRequest) {
+                $token = bin2hex(random_bytes(32));
+                $tokenHash = hash('sha256', $token);
+                $insertStmt = $conn->prepare("
+                    INSERT INTO student_signup_email_tokens (email, token_hash, expires_at, created_at, used_at)
+                    VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE), NOW(), NULL)
+                    ON DUPLICATE KEY UPDATE
+                        token_hash = VALUES(token_hash),
+                        expires_at = VALUES(expires_at),
+                        created_at = VALUES(created_at),
+                        used_at = NULL
+                ");
+                $insertStmt->bind_param('ss', $email, $tokenHash);
+                $insertStmt->execute();
+                $insertStmt->close();
+
+                if (!send_student_registration_start_email($email, $token)) {
+                    $deleteStmt = $conn->prepare('DELETE FROM student_signup_email_tokens WHERE email = ? AND token_hash = ?');
+                    $deleteStmt->bind_param('ss', $email, $tokenHash);
+                    $deleteStmt->execute();
+                    $deleteStmt->close();
+                    error_log('Could not send student registration confirmation email.');
+                }
+            }
+
+            $emailGateNotice = 'If this address can be used to register, a confirmation email will arrive shortly. Check your inbox and spam folder.';
+            $_SESSION['signup_email_gate_notice'] = $emailGateNotice;
+            header('Location: signup.php');
+            exit;
+        }
+    } elseif ($_POST['action'] === 'confirm_signup_email') {
+        $confirmationToken = trim((string)($_POST['email_token'] ?? ''));
+        if (!preg_match('/^[a-f0-9]{64}$/i', $confirmationToken)) {
+            $emailGateError = 'This confirmation link is invalid or expired. Request a new one.';
+        } else {
+            $tokenHash = hash('sha256', $confirmationToken);
+            $tokenStmt = $conn->prepare("
+                SELECT id, email
+                FROM student_signup_email_tokens
+                WHERE token_hash = ? AND used_at IS NULL AND expires_at > NOW()
+                LIMIT 1
+            ");
+            $tokenStmt->bind_param('s', $tokenHash);
+            $tokenStmt->execute();
+            $tokenRecord = $tokenStmt->get_result()->fetch_assoc();
+            $tokenStmt->close();
+
+            if (!$tokenRecord) {
+                $emailGateError = 'This confirmation link is invalid, expired, or already used. Request a new one.';
+            } else {
+                $consumeStmt = $conn->prepare("
+                    UPDATE student_signup_email_tokens
+                    SET used_at = NOW()
+                    WHERE id = ? AND used_at IS NULL AND expires_at > NOW()
+                ");
+                $tokenRecordId = (int)$tokenRecord['id'];
+                $consumeStmt->bind_param('i', $tokenRecordId);
+                $consumeStmt->execute();
+                $consumed = $consumeStmt->affected_rows === 1;
+                $consumeStmt->close();
+
+                if (!$consumed) {
+                    $emailGateError = 'This confirmation link is invalid, expired, or already used. Request a new one.';
+                } else {
+                    $_SESSION['student_signup_verified_email'] = (string)$tokenRecord['email'];
+                    $_SESSION['student_signup_verified_at'] = time();
+                    $_SESSION['signup_email_gate_notice'] = 'Email confirmed. You can now complete your student registration.';
+                    header('Location: signup.php');
+                    exit;
+                }
+            }
+        }
+    }
+}
+
+if (!empty($_SESSION['signup_email_gate_notice'])) {
+    $emailGateNotice = (string)$_SESSION['signup_email_gate_notice'];
+    unset($_SESSION['signup_email_gate_notice']);
+}
+
+if ($emailToken !== '' && empty($_SESSION['student_signup_verified_email'])) {
+    $tokenIsValid = false;
+    if (preg_match('/^[a-f0-9]{64}$/i', $emailToken)) {
+        $tokenHash = hash('sha256', $emailToken);
+        $tokenStmt = $conn->prepare("
+            SELECT id
+            FROM student_signup_email_tokens
+            WHERE token_hash = ? AND used_at IS NULL AND expires_at > NOW()
+            LIMIT 1
+        ");
+        $tokenStmt->bind_param('s', $tokenHash);
+        $tokenStmt->execute();
+        $tokenIsValid = $tokenStmt->get_result()->num_rows === 1;
+        $tokenStmt->close();
+    }
+
+    ?><!doctype html>
+    <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirm email · UNILIS</title>
+    <style>body{font:16px/1.5 Arial,sans-serif;background:#f3f4f6;margin:0;padding:24px;color:#1f2937}.card{max-width:480px;margin:10vh auto;background:#fff;padding:30px;border-radius:12px;box-shadow:0 8px 30px #0001;text-align:center}button{background:#1e3a8a;color:#fff;border:0;border-radius:8px;padding:13px 20px;font-size:16px;cursor:pointer;width:100%}a{color:#1e3a8a}</style></head>
+    <body><main class="card"><h1>Confirm your email</h1>
+    <?php if ($tokenIsValid): ?>
+        <p>Confirm that you own this email address to begin student registration.</p>
+        <form method="post">
+            <input type="hidden" name="action" value="confirm_signup_email">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['student_signup_csrf'], ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="email_token" value="<?= htmlspecialchars($emailToken, ENT_QUOTES, 'UTF-8') ?>">
+            <button type="submit">Confirm email and start registration</button>
+        </form>
+    <?php else: ?>
+        <p>This confirmation link is invalid, expired, or already used. Request another link to continue.</p>
+        <a href="signup.php">Request a new link</a>
+    <?php endif; ?>
+    </main></body></html><?php
+    exit;
+}
+
+if (empty($_SESSION['student_signup_verified_email'])) {
+    ?>
+    <!doctype html>
+    <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirm email · Student Registration</title>
+    <script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <main class="w-full max-w-lg bg-white rounded-2xl shadow-xl p-8">
+        <h1 class="text-2xl font-bold text-blue-900">Start student registration</h1>
+        <p class="mt-3 text-gray-600">Confirm your email address first. We’ll send a one-time link that unlocks the registration form for 30 minutes.</p>
+        <?php if ($emailGateNotice !== ''): ?>
+            <div class="mt-5 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 p-4"><?= htmlspecialchars($emailGateNotice, ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+        <?php if ($emailGateError !== ''): ?>
+            <div class="mt-5 rounded-lg bg-red-50 border border-red-200 text-red-800 p-4"><?= htmlspecialchars($emailGateError, ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+        <form method="post" class="mt-6">
+            <input type="hidden" name="action" value="request_signup_email">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['student_signup_csrf'], ENT_QUOTES, 'UTF-8') ?>">
+            <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">Email address</label>
+            <input id="email" type="email" name="email" autocomplete="email" required class="w-full border border-gray-300 rounded-lg px-4 py-3" placeholder="you@example.com">
+            <button type="submit" class="mt-4 w-full bg-blue-900 text-white rounded-lg px-4 py-3 font-semibold">Send confirmation link</button>
+        </form>
+        <p class="mt-5 text-sm text-gray-600"><a href="../login.php" class="text-blue-800 underline">Back to login</a></p>
+    </main></body></html>
+    <?php
+    exit;
+}
+
 include '../actions.php';
 
 // Handle redirect parameter
@@ -18,6 +213,9 @@ if (isset($_SESSION['signup_errors'])) {
 if (isset($_SESSION['signup_success'])) {
     $success = $_SESSION['signup_success'];
     unset($_SESSION['signup_success']);
+}
+if ($emailGateNotice !== '' && !empty($_SESSION['student_signup_verified_email'])) {
+    $success = $emailGateNotice;
 }
 
 if (isset($_SESSION['old_input'])) {
@@ -100,6 +298,7 @@ $coursesJson = json_encode($allCourses);
       <form method="POST" id="signupForm" novalidate>
         <input type="hidden" name="action" value="signup_student">
         <input type="hidden" name="university" value="JKUAT">
+        <input type="hidden" name="signup_csrf_token" value="<?= htmlspecialchars($_SESSION['student_signup_csrf'], ENT_QUOTES, 'UTF-8') ?>">
 
         <!-- Step 1: Personal Details -->
         <div class="form-step active">
@@ -127,8 +326,8 @@ $coursesJson = json_encode($allCourses);
             <label class="block text-gray-700 text-sm font-semibold mb-2">
               Email Address <span class="text-red-500">*</span>
             </label>
-            <input type="email" name="email" required placeholder="your.email@jkuat.ac.ke"
-                   value="<?= htmlspecialchars($old_input['email'] ?? '') ?>"
+            <input type="email" name="email" required readonly
+                   value="<?= htmlspecialchars($_SESSION['student_signup_verified_email'], ENT_QUOTES, 'UTF-8') ?>"
                    class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition">
           </div>
           <div class="mb-6">

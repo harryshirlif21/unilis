@@ -1,5 +1,6 @@
 <?php
 require_once '../config/db.php';
+require_once __DIR__ . '/../includes/academic_year_history.php';
 session_start();
 
 // Redirect if not student
@@ -19,7 +20,8 @@ $student_id = (int) $_SESSION['user_id'];
 
 // Verify unit belongs to student
 $verify_stmt = $conn->prepare("
-    SELECT u.id, u.name, u.code, u.course_id, u.year
+    SELECT u.id, u.name, u.code, u.course_id, u.year,
+           s.year_of_study, s.year_joined
     FROM units u
     INNER JOIN students s ON s.course_id = u.course_id AND u.year <= s.year_of_study
     WHERE u.id = ? AND s.id = ?
@@ -34,11 +36,29 @@ if (!$unit) {
     exit;
 }
 
+$currentAcademicYear = academic_year_history_current_label($conn);
+$academicYearOptions = academic_year_history_student_options($unit, $currentAcademicYear);
+$selectedAcademicYear = (string)($_GET['academic_year'] ?? $currentAcademicYear);
+if (
+    !array_key_exists($selectedAcademicYear, $academicYearOptions)
+    || (int)$academicYearOptions[$selectedAcademicYear] !== (int)$unit['year']
+) {
+    http_response_code(403);
+    exit('This academic-year version of the unit is not available to your account.');
+}
+$readOnlyHistory = $selectedAcademicYear !== $currentAcademicYear;
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
     
     if ($_POST['action'] === 'mark_complete' && isset($_POST['note_id'])) {
+        if ($readOnlyHistory) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Past-year notes are read-only.']);
+            exit;
+        }
+
         $note_id = (int) $_POST['note_id'];
         
         // Check if already completed
@@ -67,10 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $file_notes_stmt = $conn->prepare("
     SELECT n.id, n.file_path, n.uploaded_at, n.status
     FROM notes n
-    WHERE n.unit_id = ?
+    WHERE n.unit_id = ? AND n.academic_year = ?
     ORDER BY n.uploaded_at DESC
 ");
-$file_notes_stmt->bind_param("i", $unit_id);
+$file_notes_stmt->bind_param("is", $unit_id, $selectedAcademicYear);
 $file_notes_stmt->execute();
 $file_notes = $file_notes_stmt->get_result();
 
@@ -80,10 +100,10 @@ $interactive_notes_stmt = $conn->prepare("
            scp.status as progress_status
     FROM classnotes cn
     LEFT JOIN student_classnotes_progress scp ON scp.classnote_id = cn.id AND scp.student_id = ?
-    WHERE cn.unit_id = ?
+    WHERE cn.unit_id = ? AND cn.academic_year = ?
     ORDER BY cn.uploaded_at ASC
 ");
-$interactive_notes_stmt->bind_param("ii", $student_id, $unit_id);
+$interactive_notes_stmt->bind_param("iis", $student_id, $unit_id, $selectedAcademicYear);
 $interactive_notes_stmt->execute();
 $interactive_notes = $interactive_notes_stmt->get_result();
 
@@ -772,11 +792,14 @@ function fixImagePathsInContent($content) {
     <!-- Main Content -->
     <div class="unit-notes-container">
         <div class="unit-header">
-            <a href="viewnotes.php" class="back-btn">
+            <a href="viewnotes.php?academic_year=<?= urlencode($selectedAcademicYear) ?>" class="back-btn">
                 <i class="fas fa-arrow-left"></i> Back to Units
             </a>
             <h1><?= htmlspecialchars($unit['name']) ?></h1>
-            <p><?= htmlspecialchars($unit['code']) ?> • Year <?= htmlspecialchars($unit['year']) ?></p>
+            <p><?= htmlspecialchars($unit['code']) ?> • <?= htmlspecialchars($selectedAcademicYear) ?> • Year <?= htmlspecialchars($unit['year']) ?></p>
+            <?php if ($readOnlyHistory): ?>
+                <p style="padding:10px 14px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">Viewing archived notes. This academic year is read-only.</p>
+            <?php endif; ?>
         </div>
 
         <!-- File Notes Section -->
@@ -917,12 +940,18 @@ function fixImagePathsInContent($content) {
                             <?php endif; ?>
                             
                             <div class="note-actions">
-                                <button class="btn btn-success <?= $isCompleted ? 'completed' : '' ?>" 
-                                        onclick="markAsComplete(<?= $note['id'] ?>)"
-                                        <?= $isCompleted ? 'disabled' : '' ?>>
-                                    <i class="fas <?= $isCompleted ? 'fa-check' : 'fa-check-circle' ?>"></i>
-                                    <?= $isCompleted ? 'Completed' : 'Mark as Complete' ?>
-                                </button>
+                                <?php if ($readOnlyHistory): ?>
+                                    <span class="btn btn-secondary" aria-disabled="true">
+                                        <i class="fas fa-lock"></i> <?= $isCompleted ? 'Completed in this view' : 'Read-only history' ?>
+                                    </span>
+                                <?php else: ?>
+                                    <button class="btn btn-success <?= $isCompleted ? 'completed' : '' ?>"
+                                            onclick="markAsComplete(<?= (int)$note['id'] ?>)"
+                                            <?= $isCompleted ? 'disabled' : '' ?>>
+                                        <i class="fas <?= $isCompleted ? 'fa-check' : 'fa-check-circle' ?>"></i>
+                                        <?= $isCompleted ? 'Completed' : 'Mark as Complete' ?>
+                                    </button>
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endwhile; ?>
