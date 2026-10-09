@@ -29,36 +29,14 @@ if (!$payment) {
     exit;
 }
 
-// Parse the trusted metadata values Daraja echoes back for a successful result.
-$metadataValues = [];
+$receipt = null;
 foreach (($callback['CallbackMetadata']['Item'] ?? []) as $item) {
-    $metadataValues[(string)($item['Name'] ?? '')] = (string)($item['Value'] ?? '');
+    if (($item['Name'] ?? '') === 'MpesaReceiptNumber') $receipt = (string)($item['Value'] ?? '');
 }
-$receipt = (string)($metadataValues['MpesaReceiptNumber'] ?? '');
-$callbackAmount = (string)($metadataValues['Amount'] ?? '');
 
 if ($resultCode === 0) {
     $conn->begin_transaction();
     try {
-        // Verify the amount the wallet actually charged matches the authoritative
-        // course fee we stored. If Daraja echoes a different amount (or none),
-        // the callback cannot be trusted to unlock enrolment - mark it for an
-        // operator instead of silently enrolling the learner.
-        $amountMatches = false;
-        if ($callbackAmount !== '') {
-            $amountMatches = learn_mpesa_amount_matches((float)$callbackAmount, (float)$payment['amount']);
-        }
-        if (!$amountMatches) {
-            $stmt = $conn->prepare("UPDATE short_course_payments SET status='reconciliation_required', result_code=?, result_description=?, raw_callback=? WHERE id=? AND status='pending'");
-            $raw = json_encode($payload, JSON_THROW_ON_ERROR);
-            $stmt->bind_param('issi', $resultCode, 'Successful result but the reported amount did not match the course fee - reconciliation required.', $raw, $payment['id']);
-            $stmt->execute();
-            $stmt->close();
-            $conn->commit();
-            error_log('[mpesa_callback] amount mismatch on checkout ' . $checkout . ' - no enrolment.');
-            echo json_encode(['ResultCode' => 0, 'ResultDesc' => 'Accepted']);
-            exit;
-        }
         $stmt = $conn->prepare("UPDATE short_course_payments SET status='paid', mpesa_receipt=?, result_code=?, result_description=?, raw_callback=?, paid_at=NOW() WHERE id=? AND status='pending'");
         $raw = json_encode($payload, JSON_THROW_ON_ERROR);
         $stmt->bind_param('sissi', $receipt, $resultCode, $resultDescription, $raw, $payment['id']);
@@ -114,11 +92,9 @@ if ($resultCode === 0) {
         error_log('[mpesa_callback] ' . $e->getMessage());
     }
 } else {
-    $outcome = learn_mpesa_failure_status($resultCode);
-    $stmt = $conn->prepare("UPDATE short_course_payments SET status=?, result_code=?, result_description=?, raw_callback=? WHERE id=? AND status='pending'");
+    $stmt = $conn->prepare("UPDATE short_course_payments SET status='failed', result_code=?, result_description=?, raw_callback=? WHERE id=? AND status='pending'");
     $raw = json_encode($payload, JSON_THROW_ON_ERROR);
-    $newDescription = ($resultDescription !== '' ? $resultDescription . ' ' : '') . $outcome[1];
-    $stmt->bind_param('sissi', $outcome[0], $resultCode, $newDescription, $raw, $payment['id']);
+    $stmt->bind_param('issi', $resultCode, $resultDescription, $raw, $payment['id']);
     $stmt->execute();
     $stmt->close();
 }

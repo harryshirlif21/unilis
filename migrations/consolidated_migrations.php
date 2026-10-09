@@ -2,7 +2,6 @@
 // migrations/consolidated_migrations.php
 
 function run_all_migrations() {
-    global $conn;
     ob_start();
 
     if (session_status() === PHP_SESSION_NONE) {

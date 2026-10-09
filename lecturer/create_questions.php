@@ -1,6 +1,5 @@
 <?php
 require_once '../config/db.php';
-require_once __DIR__ . '/../includes/academic_year_history.php';
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
@@ -115,65 +114,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
     $conn->begin_transaction();
 
     try {
-        $previous = $conn->prepare("
-            SELECT id, unit_id, title, description, due_date, academic_year
-            FROM interactive_assignments
-            WHERE id = ? AND lecturer_id = ?
-        ");
-        $previous->bind_param("ii", $id, $lecturer_id);
-        $previous->execute();
-        $previousAssignment = $previous->get_result()->fetch_assoc();
-        $previous->close();
-        if (!$previousAssignment) {
-            throw new RuntimeException('Assignment not found or unauthorized.');
-        }
-
-        $previousQuestions = [];
-        $previousQuestionStmt = $conn->prepare("
-            SELECT id, question_text, question_type, points, media_url
-            FROM interactive_questions
-            WHERE interactive_assignment_id = ?
-            ORDER BY id ASC
-        ");
-        $previousQuestionStmt->bind_param("i", $id);
-        $previousQuestionStmt->execute();
-        $previousQuestionResult = $previousQuestionStmt->get_result();
-        while ($previousQuestion = $previousQuestionResult->fetch_assoc()) {
-            $optionsStmt = $conn->prepare("
-                SELECT option_text, is_correct
-                FROM interactive_options
-                WHERE question_id = ?
-                ORDER BY id ASC
-            ");
-            $previousQuestionId = (int)$previousQuestion['id'];
-            $optionsStmt->bind_param("i", $previousQuestionId);
-            $optionsStmt->execute();
-            $previousQuestion['options'] = $optionsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $optionsStmt->close();
-            $previousQuestions[] = $previousQuestion;
-        }
-        $previousQuestionStmt->close();
-
-        $revisionYear = (string)($previousAssignment['academic_year'] ?? '');
-        if ($revisionYear === '') {
-            $revisionYear = academic_year_history_current_label($conn);
-        }
-        academic_year_history_revision(
-            $conn,
-            'interactive_assignment',
-            $id,
-            (int)$previousAssignment['unit_id'],
-            $revisionYear,
-            (int)$lecturer_id,
-            ['assignment' => $previousAssignment, 'questions' => $previousQuestions]
-        );
 
         // -------------------------
         // Update assignment record
         // -------------------------
         $ust = $conn->prepare("
             UPDATE interactive_assignments 
-            SET title=?, description=?, due_date=?, unit_id=?
+            SET title=?, description=?, due_date=?, unit_id=? 
             WHERE id=? AND lecturer_id=?
         ");
         $ust->bind_param("sssiii", $title, $description, $due_date, $unit_id, $id, $lecturer_id);
@@ -391,14 +338,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignme
         // Insert assignment
         $ins = $conn->prepare("
             INSERT INTO interactive_assignments 
-            (lecturer_id, unit_id, title, description, due_date, created_at, academic_year)
-            VALUES (?, ?, ?, ?, ?, NOW(), ?)
+            (lecturer_id, unit_id, title, description, due_date, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
         ");
-        $academic_year = academic_year_history_label_for_date(
-            $conn,
-            date('Y-m-d')
-        );
-        $ins->bind_param("iissss", $lecturer_id, $unit_id, $title, $description, $due_date, $academic_year);
+        $ins->bind_param("iisss", $lecturer_id, $unit_id, $title, $description, $due_date);
         $ins->execute();
 
         $assignment_id = $conn->insert_id;
@@ -552,7 +495,6 @@ table th{background:var(--primary);color:#fff}
                 <button class="btn btn-edit" onclick="openEditModal(<?= $a['id'] ?>)"><i class="fas fa-edit"></i> Edit</button>
                 <button class="btn btn-add" onclick="viewQuestions(<?= $a['id'] ?>, this)"><i class="fas fa-list"></i> View Questions</button>
                 <a class="btn btn-primary" href="view_scores.php?id=<?= $a['id'] ?>"><i class="fas fa-chart-bar"></i> View Scores</a>
-                <a class="btn btn-primary" href="content_history.php?type=interactive_assignment&id=<?= (int)$a['id'] ?>" target="_blank" rel="noopener"><i class="fas fa-history"></i> Version history</a>
                 <button class="btn btn-delete" onclick="deleteAssignment(<?= $a['id'] ?>)"><i class="fas fa-trash"></i> Delete</button>
               </td>
             </tr>

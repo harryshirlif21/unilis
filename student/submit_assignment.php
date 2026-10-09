@@ -2,20 +2,10 @@
 require_once '../config/db.php';
 require_once '../includes/notifications.php';
 require_once '../includes/ensure_assignment_submission_schema.php';
-require_once __DIR__ . '/../includes/academic_year_history.php';
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
     header("Location: ../index.php");
-    exit;
-}
-
-if (
-    isset($_SESSION['student_dashboard_academic_year'])
-    && $_SESSION['student_dashboard_academic_year'] !== academic_year_history_current_label($conn)
-) {
-    $_SESSION['submission_error'] = 'Past academic-year assignments are read-only.';
-    header('Location: dashboard.php?academic_year=' . urlencode((string)$_SESSION['student_dashboard_academic_year']));
     exit;
 }
 

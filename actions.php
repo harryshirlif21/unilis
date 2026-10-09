@@ -36,7 +36,6 @@ try {
 }
 
 require_once __DIR__ . '/includes/university_helpers.php';
-require_once __DIR__ . '/includes/academic_year_history.php';
 
 // Set up global error handler for uncaught exceptions
 set_exception_handler(function(Throwable $e) {
@@ -219,24 +218,6 @@ if ($action === 'save_questions' && isset($_SESSION['user_id']) && $_SESSION['us
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signup_student') {
     try {
-        if (
-            !isset($_POST['signup_csrf_token'], $_SESSION['student_signup_csrf'])
-            || !hash_equals($_SESSION['student_signup_csrf'], (string)$_POST['signup_csrf_token'])
-        ) {
-            $_SESSION['signup_errors'] = ['Your registration session expired. Please try again.'];
-            header("Location: signup.php");
-            exit;
-        }
-
-        $verifiedSignupEmail = strtolower((string)($_SESSION['student_signup_verified_email'] ?? ''));
-        $verifiedAt = (int)($_SESSION['student_signup_verified_at'] ?? 0);
-        if ($verifiedSignupEmail === '' || $verifiedAt < 1 || time() - $verifiedAt > 1800) {
-            unset($_SESSION['student_signup_verified_email'], $_SESSION['student_signup_verified_at']);
-            $_SESSION['signup_errors'] = ['Confirm your email before starting student registration.'];
-            header("Location: signup.php");
-            exit;
-        }
-
         // === 1. Collect and sanitize input ===
         $reg_no          = trim($_POST['reg_no'] ?? '');
         $name            = trim($_POST['name'] ?? '');
@@ -257,7 +238,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         if (empty($reg_no)) $errors[] = "Registration number is required.";
         if (empty($name)) $errors[] = "Full name is required.";
         if (!$email) $errors[] = "Please enter a valid email address.";
-        elseif (strtolower($email) !== $verifiedSignupEmail) $errors[] = "The registration email must match the confirmed email address.";
         if ($department_id <= 0) $errors[] = "Please select a valid department.";
         if ($course_id <= 0) $errors[] = "Please select a valid course.";
         if ($year_of_study < 1 || $year_of_study > 6) $errors[] = "Year of study must be between 1 and 6.";
@@ -295,23 +275,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         $stmt->close();
 
         // === 4. Insert student record ===
+        $token       = bin2hex(random_bytes(32));
+        $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
         $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
 
         $stmt = $conn->prepare("
             INSERT INTO students (
                 reg_no, name, email, university_id, department_id, course_id,
                 year_of_study, year_joined, password,
-                verification_code, token_expires_at, is_verified, verified_at,
+                verification_code, token_expires_at, is_verified,
                 terms_consent, privacy_consent, consented_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 1, NOW(), ?, ?, NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())
         ");
         if (!$stmt) {
             throw new Exception("Database error preparing student insert: " . $conn->error);
         }
         $stmt->bind_param(
-            "sssiiiiisii",
+            "sssiiiiisssii",
             $reg_no, $name, $email, $university_id, $department_id, $course_id,
-            $year_of_study, $year_joined, $hashed_pass, $terms_consent, $privacy_consent
+            $year_of_study, $year_joined, $hashed_pass,
+            $token, $expires_at, $terms_consent, $privacy_consent
         );
 
         if (!$stmt->execute()) {
@@ -320,10 +303,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         }
         $stmt->close();
 
-        unset($_SESSION['student_signup_verified_email'], $_SESSION['student_signup_verified_at']);
-        $_SESSION['signup_email_gate_notice'] = "Registration complete. Your email is confirmed; you can now log in.";
-        header("Location: signup.php");
-        exit;
+        // === 5. Send verification email ===
+        error_log("=== ATTEMPTING EMAIL TO: $email | TOKEN: $token | NAME: $name ===");
+        $email_sent = send_verification_email($email, $token, $name);
+        error_log("=== EMAIL RESULT: " . ($email_sent ? 'SUCCESS' : 'FAILED') . " ===");
+
+        if ($email_sent) {
+            $_SESSION['signup_success'] = "Account created! A verification email has been sent to $email.";
+            $redirect_url = $_GET['redirect'] ?? '';
+            if ($redirect_url) {
+                header("Location: ../verify.php?sent=1&email=" . urlencode($email) . "&redirect=" . urlencode($redirect_url));
+            } else {
+                header("Location: ../verify.php?sent=1&email=" . urlencode($email));
+            }
+            exit;
+        } else {
+            $_SESSION['signup_errors'] = ["Account created, but failed to send verification email. Please try again or contact support."];
+            header("Location: signup.php");
+            exit;
+        }
     } catch (Exception $e) {
         error_log("Student signup error: " . $e->getMessage());
         $_SESSION['signup_errors'] = ["An error occurred during signup: " . $e->getMessage()];
@@ -1313,15 +1311,11 @@ if ($action === 'upload_notes') {
             if (move_uploaded_file($file['tmp_name'], $target_path)) {
 
                 // Insert into notes table
-                $academic_year = academic_year_history_label_for_date(
-                    $conn,
-                    date('Y-m-d')
-                );
                 $stmt = $conn->prepare("
-                    INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at, academic_year)
-                    VALUES (?, ?, ?, NOW(), ?)
+                    INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at) 
+                    VALUES (?, ?, ?, NOW())
                 ");
-                $stmt->bind_param("iiss", $lecturer_id, $unit_id, $filename, $academic_year);
+                $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
 
                 if ($stmt->execute()) {
                     $success_count++;
@@ -1522,18 +1516,14 @@ if ($action === 'create_assignment') {
         }
     }
 
-    $academic_year = academic_year_history_label_for_date(
-        $conn,
-        date('Y-m-d')
-    );
     if ($filename) {
-        $stmt = $conn->prepare("INSERT INTO assignments (lecturer_id, unit_id, title, description, deadline, file_path, created_at, academic_year)
-                                VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");
-        $stmt->bind_param("iisssss", $lecturer_id, $unit_id, $title, $instructions, $due_date, $filename, $academic_year);
+        $stmt = $conn->prepare("INSERT INTO assignments (lecturer_id, unit_id, title, description, deadline, file_path, created_at)
+                                VALUES (?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("iissss", $lecturer_id, $unit_id, $title, $instructions, $due_date, $filename);
     } else {
-        $stmt = $conn->prepare("INSERT INTO assignments (lecturer_id, unit_id, title, description, deadline, created_at, academic_year)
-                                VALUES (?, ?, ?, ?, ?, NOW(), ?)");
-        $stmt->bind_param("iissss", $lecturer_id, $unit_id, $title, $instructions, $due_date, $academic_year);
+        $stmt = $conn->prepare("INSERT INTO assignments (lecturer_id, unit_id, title, description, deadline, created_at)
+                                VALUES (?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("iisss", $lecturer_id, $unit_id, $title, $instructions, $due_date);
     }
 
     if ($stmt->execute()) {

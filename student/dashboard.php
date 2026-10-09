@@ -2,7 +2,6 @@
 require_once '../config/db.php';
 require_once '../includes/notifications.php';
 require_once __DIR__ . '/../config/meeting.php';
-require_once __DIR__ . '/../includes/academic_year_history.php';
 session_start();
 
 // Redirect if not logged in or not a student
@@ -47,20 +46,6 @@ try {
     $course_id = $student['course_id'];
     $year_of_study = $student['year_of_study'];
     $course_name = $student['course_name'] ?: 'Unknown Course';
-    $currentAcademicYear = academic_year_history_current_label($conn);
-    $academicYearOptions = academic_year_history_student_options($student, $currentAcademicYear, $conn);
-    if ($academicYearOptions === []) {
-        $academicYearOptions = [$currentAcademicYear => max(1, (int)($student['year_of_study'] ?? 1))];
-    }
-
-    $selectedAcademicYear = trim((string)($_GET['academic_year'] ?? $_SESSION['student_dashboard_academic_year'] ?? $currentAcademicYear));
-    if ($selectedAcademicYear === '' || !array_key_exists($selectedAcademicYear, $academicYearOptions)) {
-        $selectedAcademicYear = $currentAcademicYear;
-    }
-    $_SESSION['student_dashboard_academic_year'] = $selectedAcademicYear;
-    $selectedStudyYear = (int)($academicYearOptions[$selectedAcademicYear] ?? max(1, (int)($student['year_of_study'] ?? 1)));
-    $selectedStudyYear = max(1, $selectedStudyYear);
-    $viewingPastAcademicYear = $selectedAcademicYear !== $currentAcademicYear;
     $department_name = $student['department_name'] ?: 'Not set';
     $university_name = $student['university_name'] ?: 'Not set';
     $course_end_date = null;
@@ -133,9 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 try {
-    $studentMeetingsByUnit = $viewingPastAcademicYear
-        ? []
-        : fetchStudentMeetingsByUnit($conn, (int)$student_id);
+    $studentMeetingsByUnit = fetchStudentMeetingsByUnit($conn, (int)$student_id);
 } catch (Exception $e) {
     error_log("Error fetching student meetings: " . $e->getMessage());
     $studentMeetingsByUnit = [];
@@ -178,10 +161,10 @@ try {
         SELECT a.id, a.title, a.deadline, a.allow_late_submission, u.name AS unit_name
         FROM assignments a
         JOIN units u ON a.unit_id = u.id
-        WHERE u.course_id = ? AND u.year = ? AND a.academic_year = ?
+        WHERE u.course_id = ? AND u.year = ?
         ORDER BY a.deadline ASC
     ");
-    $assign_stmt->bind_param("iis", $course_id, $selectedStudyYear, $selectedAcademicYear);
+    $assign_stmt->bind_param("ii", $course_id, $year_of_study);
     $assign_stmt->execute();
     $assign_result = $assign_stmt->get_result();
 
@@ -211,7 +194,7 @@ try {
             $allowLate = (int)($a['allow_late_submission'] ?? 1) === 1;
             $isOpen = $now <= $deadline || $allowLate;
 
-            if (!$viewingPastAcademicYear && $isOpen && $deadline >= $now && $deadline <= $weekEnd) {
+            if ($isOpen && $deadline >= $now && $deadline <= $weekEnd) {
                 $assignmentStats['due_this_week']++;
                 $assignmentStats['upcoming'][] = [
                     'title'     => $a['title'],
@@ -228,11 +211,11 @@ try {
         SELECT a.id, a.title, a.due_date, u.name AS unit_name
         FROM interactive_assignments a
         JOIN units u ON a.unit_id = u.id
-        WHERE u.course_id = ? AND u.year = ? AND a.academic_year = ?
+        WHERE u.course_id = ? AND u.year = ?
           AND a.due_date >= NOW()
         ORDER BY a.due_date ASC
     ");
-    $ia_stmt->bind_param("iis", $course_id, $selectedStudyYear, $selectedAcademicYear);
+    $ia_stmt->bind_param("ii", $course_id, $year_of_study);
     $ia_stmt->execute();
     $ia_result = $ia_stmt->get_result();
 
@@ -275,127 +258,6 @@ try {
 
 } catch (Exception $e) {
     error_log("Error fetching assignment stats: " . $e->getMessage());
-}
-
-$academicHistoryEvents = [];
-if ($viewingPastAcademicYear) {
-    $addHistoryEvent = static function (
-        string $type,
-        string $title,
-        string $unit,
-        ?string $date,
-        string $status,
-        ?int $unitId = null
-    ) use (&$academicHistoryEvents): void {
-        $academicHistoryEvents[] = [
-            'type' => $type,
-            'title' => $title,
-            'unit' => $unit,
-            'date' => $date,
-            'status' => $status,
-            'unit_id' => $unitId,
-        ];
-    };
-
-    try {
-        $stmt = $conn->prepare("
-            SELECT n.file_path, n.uploaded_at, n.status, u.id AS unit_id, u.name AS unit_name
-            FROM notes n
-            JOIN units u ON u.id = n.unit_id
-            WHERE u.course_id = ? AND u.year = ? AND n.academic_year = ?
-              AND COALESCE(n.status, 'active') <> 'deleted'
-        ");
-        $stmt->bind_param('iis', $course_id, $selectedStudyYear, $selectedAcademicYear);
-        $stmt->execute();
-        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-            $addHistoryEvent('File note', basename((string)$row['file_path']), (string)$row['unit_name'], $row['uploaded_at'], (string)($row['status'] ?? 'active'), (int)$row['unit_id']);
-        }
-        $stmt->close();
-
-        $stmt = $conn->prepare("
-            SELECT cn.title, cn.uploaded_at, u.id AS unit_id, u.name AS unit_name
-            FROM classnotes cn
-            JOIN units u ON u.id = cn.unit_id
-            WHERE u.course_id = ? AND u.year = ? AND cn.academic_year = ?
-        ");
-        $stmt->bind_param('iis', $course_id, $selectedStudyYear, $selectedAcademicYear);
-        $stmt->execute();
-        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-            $addHistoryEvent('Interactive notes', (string)$row['title'], (string)$row['unit_name'], $row['uploaded_at'], 'Available to view', (int)$row['unit_id']);
-        }
-        $stmt->close();
-
-        $stmt = $conn->prepare("
-            SELECT a.title, a.created_at, u.id AS unit_id, u.name AS unit_name,
-                   s.id AS submission_id, s.submitted_at
-            FROM assignments a
-            JOIN units u ON u.id = a.unit_id
-            LEFT JOIN submissions s ON s.assignment_id = a.id AND s.student_id = ?
-            WHERE u.course_id = ? AND u.year = ? AND a.academic_year = ?
-        ");
-        $stmt->bind_param('iiis', $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
-        $stmt->execute();
-        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-            $addHistoryEvent('Assignment', (string)$row['title'], (string)$row['unit_name'], $row['submitted_at'] ?: $row['created_at'], $row['submission_id'] ? 'Submitted' : 'Not submitted', (int)$row['unit_id']);
-        }
-        $stmt->close();
-
-        $stmt = $conn->prepare("
-            SELECT a.title, a.created_at, u.id AS unit_id, u.name AS unit_name,
-                   s.id AS submission_id, s.submitted_at
-            FROM interactive_assignments a
-            JOIN units u ON u.id = a.unit_id
-            LEFT JOIN interactive_submissions s ON s.assignment_id = a.id AND s.student_id = ?
-            WHERE u.course_id = ? AND u.year = ? AND a.academic_year = ?
-        ");
-        $stmt->bind_param('iiis', $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
-        $stmt->execute();
-        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-            $addHistoryEvent('Interactive assignment', (string)$row['title'], (string)$row['unit_name'], $row['submitted_at'] ?: $row['created_at'], $row['submission_id'] ? 'Submitted' : 'Not submitted', (int)$row['unit_id']);
-        }
-        $stmt->close();
-
-        $stmt = $conn->prepare("
-            SELECT u.id AS unit_id, u.name AS unit_name, ars.attended, ars.attended_at, ars.created_at
-            FROM attendance_records ars
-            JOIN attendance_sessions ats ON ats.id = ars.session_id
-            JOIN units u ON u.id = ats.unit_id
-            WHERE ars.student_id = ? AND u.course_id = ? AND u.year = ?
-              AND ats.academic_year = ?
-        ");
-        $stmt->bind_param('iiis', $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
-        $stmt->execute();
-        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-            $addHistoryEvent('Attendance', 'Class attendance', (string)$row['unit_name'], $row['attended_at'] ?: $row['created_at'], (int)$row['attended'] === 1 ? 'Present' : 'Absent', (int)$row['unit_id']);
-        }
-        $stmt->close();
-
-        $tableCheck = $conn->query("SHOW TABLES LIKE 'student_units'");
-        if ($tableCheck && $tableCheck->num_rows > 0) {
-            $columnCheck = $conn->query("SHOW COLUMNS FROM student_units LIKE 'academic_year'");
-            if ($columnCheck && $columnCheck->num_rows > 0) {
-                $stmt = $conn->prepare("
-                    SELECT u.name AS unit_name, su.status, u.id AS unit_id
-                    FROM student_units su
-                    JOIN units u ON u.id = su.unit_id
-                    WHERE su.student_id = ? AND su.academic_year = ? AND u.course_id = ?
-                ");
-                $stmt->bind_param('isi', $student_id, $selectedAcademicYear, $course_id);
-                $stmt->execute();
-                foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-                    $addHistoryEvent('Unit result', 'Unit result record', (string)$row['unit_name'], null, (string)$row['status'], (int)$row['unit_id']);
-                }
-                $stmt->close();
-            }
-        }
-    } catch (Throwable $e) {
-        error_log('Unable to load student academic-year activity: ' . $e->getMessage());
-    }
-
-    usort($academicHistoryEvents, static function (array $left, array $right): int {
-        return strtotime((string)($right['date'] ?? '1970-01-01')) <=> strtotime((string)($left['date'] ?? '1970-01-01'));
-    });
-    $academicHistoryEvents = array_slice($academicHistoryEvents, 0, 100);
 }
 ?>
 
@@ -1336,11 +1198,9 @@ if ($viewingPastAcademicYear) {
                 <?php endif; ?>
             </button>
             
-            <?php if (!$viewingPastAcademicYear): ?>
-                <button class="nav-button" id="attendance-nav-icon" type="button" title="Mark Attendance" onclick="showModal('studentAttendanceModal')">
-                    <span class="material-symbols-outlined">how_to_reg</span>
-                </button>
-            <?php endif; ?>
+            <button class="nav-button" id="attendance-nav-icon" type="button" title="Mark Attendance" onclick="showModal('studentAttendanceModal')">
+                <span class="material-symbols-outlined">how_to_reg</span>
+            </button>
             
             <button class="nav-button" id="profile-icon">
                 <span class="material-symbols-outlined">account_circle</span>
@@ -1458,17 +1318,6 @@ if ($viewingPastAcademicYear) {
             </p>
         </div>
 
-        <form method="get" action="dashboard.php" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--neutral-200);">
-            <label for="dashboard-academic-year" style="display:block;font-weight:600;margin-bottom:.4rem;">View academic year</label>
-            <select id="dashboard-academic-year" name="academic_year" onchange="this.form.submit()" style="width:100%;padding:.65rem;border:1px solid var(--neutral-300);border-radius:.5rem;background:#fff;">
-                <?php foreach ($academicYearOptions as $label => $studyYear): ?>
-                    <option value="<?= htmlspecialchars($label) ?>" <?= $label === $selectedAcademicYear ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($label) ?><?= $label === $currentAcademicYear ? ' (Current)' : ' (Year ' . (int)$studyYear . ')' ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </form>
-
         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--neutral-200);">
             <button type="button" class="btn btn-primary w-full" onclick="openAcademicProfileModal()">
                 <span class="material-symbols-outlined">edit</span>
@@ -1571,13 +1420,7 @@ if ($viewingPastAcademicYear) {
         <section class="hero-section fade-in">
             <div class="hero-content">
                 <h1 class="hero-title">Welcome back, <?= htmlspecialchars($student['name']) ?>! 👋</h1>
-                <p class="hero-subtitle">
-                    <?php if ($viewingPastAcademicYear): ?>
-                        Viewing your read-only learning activity for <?= htmlspecialchars($selectedAcademicYear) ?> (Year <?= $selectedStudyYear ?>).
-                    <?php else: ?>
-                        Ready to continue your learning journey? Let's make today productive!
-                    <?php endif; ?>
-                </p>
+                <p class="hero-subtitle">Ready to continue your learning journey? Let's make today productive!</p>
                 
                 <div class="hero-stats">
                     <div class="hero-stat">
@@ -1599,52 +1442,6 @@ if ($viewingPastAcademicYear) {
                 </div>
             </div>
         </section>
-
-        <?php if ($viewingPastAcademicYear): ?>
-            <section class="card" style="grid-column:1 / -1; margin-bottom:1.5rem;">
-                <div class="card-header">
-                    <div class="card-icon purple"><span class="material-symbols-outlined">history</span></div>
-                    <div>
-                        <h2 class="card-title">Learning activity · <?= htmlspecialchars($selectedAcademicYear) ?></h2>
-                        <p class="card-subtitle">Past-year records are view-only.</p>
-                    </div>
-                </div>
-                <?php if (!$academicHistoryEvents): ?>
-                    <p style="padding:1rem;color:var(--neutral-500);">No saved learning activity was found for this academic year.</p>
-                <?php else: ?>
-                    <div style="overflow-x:auto;">
-                        <table style="width:100%;border-collapse:collapse;text-align:left;">
-                            <thead>
-                                <tr>
-                                    <th style="padding:.75rem;border-bottom:1px solid var(--neutral-200);">Activity</th>
-                                    <th style="padding:.75rem;border-bottom:1px solid var(--neutral-200);">Unit</th>
-                                    <th style="padding:.75rem;border-bottom:1px solid var(--neutral-200);">Date</th>
-                                    <th style="padding:.75rem;border-bottom:1px solid var(--neutral-200);">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($academicHistoryEvents as $event): ?>
-                                    <tr>
-                                        <td style="padding:.75rem;border-bottom:1px solid var(--neutral-100);">
-                                            <?php if (in_array($event['type'], ['File note', 'Interactive notes'], true) && $event['unit_id']): ?>
-                                                <a href="unit_notes.php?unit_id=<?= (int)$event['unit_id'] ?>&amp;academic_year=<?= urlencode($selectedAcademicYear) ?>">
-                                                    <?= htmlspecialchars($event['type'] . ': ' . $event['title']) ?>
-                                                </a>
-                                            <?php else: ?>
-                                                <?= htmlspecialchars($event['type'] . ': ' . $event['title']) ?>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td style="padding:.75rem;border-bottom:1px solid var(--neutral-100);"><?= htmlspecialchars($event['unit']) ?></td>
-                                        <td style="padding:.75rem;border-bottom:1px solid var(--neutral-100);"><?= $event['date'] ? htmlspecialchars(date('d M Y', strtotime($event['date']))) : '—' ?></td>
-                                        <td style="padding:.75rem;border-bottom:1px solid var(--neutral-100);"><?= htmlspecialchars($event['status']) ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
-            </section>
-        <?php endif; ?>
         
         <!-- Dashboard Grid -->
         <div class="dashboard-grid">
@@ -1693,7 +1490,7 @@ if ($viewingPastAcademicYear) {
                 </div>
                 
                 <div class="card-actions">
-                    <a href="viewnotes.php?academic_year=<?= urlencode($selectedAcademicYear) ?>" class="btn btn-primary flex-1">
+                    <a href="viewnotes.php" class="btn btn-primary flex-1">
                         <span class="material-symbols-outlined">visibility</span>
                         View Notes
                     </a>
@@ -1771,17 +1568,10 @@ if ($viewingPastAcademicYear) {
                 <?php endif; ?>
                 
                 <div class="card-actions">
-                    <?php if ($viewingPastAcademicYear): ?>
-                        <span class="btn btn-secondary flex-1" aria-disabled="true">
-                            <span class="material-symbols-outlined">lock</span>
-                            Past assignments are read-only
-                        </span>
-                    <?php else: ?>
-                        <a href="take_assignment.php" class="btn btn-success flex-1">
-                            <span class="material-symbols-outlined">edit</span>
-                            View Assignments
-                        </a>
-                    <?php endif; ?>
+                    <a href="take_assignment.php" class="btn btn-success flex-1">
+                        <span class="material-symbols-outlined">edit</span>
+                        View Assignments
+                    </a>
                     <button class="btn btn-secondary">
                         <span class="material-symbols-outlined">history</span>
                         History

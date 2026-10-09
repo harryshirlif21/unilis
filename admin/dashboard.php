@@ -2,7 +2,6 @@
 session_start();
 require_once '../config/db.php';
 require_once __DIR__ . '/../includes/university_helpers.php';
-require_once __DIR__ . '/../includes/academic_year_history.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     header("Location: ../login.php");
@@ -65,26 +64,8 @@ function ensure_academic_year_settings_table(mysqli $conn): void
 function get_academic_year_settings(mysqli $conn): array
 {
     ensure_academic_year_settings_table($conn);
-    $today = date('Y-m-d');
-    $stmt = $conn->prepare("
-        SELECT *
-        FROM academic_year_settings
-        WHERE start_date <= ? AND end_date >= ?
-        ORDER BY start_date DESC, id DESC
-        LIMIT 1
-    ");
-    $stmt->bind_param('ss', $today, $today);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if (!$row) {
-        $row = $conn->query("
-            SELECT *
-            FROM academic_year_settings
-            ORDER BY is_active DESC, start_date DESC, id DESC
-            LIMIT 1
-        ")->fetch_assoc();
-    }
+    $row = $conn->query("SELECT * FROM academic_year_settings ORDER BY is_active DESC, updated_at DESC LIMIT 1")
+        ->fetch_assoc();
 
     if (!$row) {
         $defaultLabel = date('Y') . '/' . (date('Y') + 1);
@@ -107,69 +88,27 @@ function save_academic_year_settings(mysqli $conn, array $data): array
     $label = trim((string)($data['academic_year_label'] ?? ''));
     $startDate = trim((string)($data['start_date'] ?? ''));
     $endDate = trim((string)($data['end_date'] ?? ''));
-    $validationError = academic_year_history_validate_period($label, $startDate, $endDate);
-    if ($validationError !== null) {
-        throw new RuntimeException($validationError);
+
+    if ($label === '') {
+        $label = date('Y') . '/' . (date('Y') + 1);
+    }
+    if ($startDate === '') {
+        $startDate = date('Y') . '-01-01';
+    }
+    if ($endDate === '') {
+        $endDate = date('Y') . '-12-31';
     }
 
-    $periodStmt = $conn->prepare("
-        SELECT academic_year_label, start_date, end_date
-        FROM academic_year_settings
-        WHERE academic_year_label <> ?
-    ");
-    $periodStmt->bind_param('s', $label);
-    $periodStmt->execute();
-    $existingPeriods = $periodStmt->get_result();
-    while ($period = $existingPeriods->fetch_assoc()) {
-        if (academic_year_history_periods_overlap(
-            $startDate,
-            $endDate,
-            (string)$period['start_date'],
-            (string)$period['end_date']
-        )) {
-            $periodStmt->close();
-            throw new RuntimeException('Academic-year date ranges cannot overlap.');
-        }
+    $stmt = $conn->prepare(
+        "INSERT INTO academic_year_settings (academic_year_label, start_date, end_date, is_active) VALUES (?, ?, ?, 1)"
+    );
+    if (!$stmt) {
+        throw new Exception('Unable to save academic year settings: ' . $conn->error);
     }
-    $periodStmt->close();
 
-    $conn->begin_transaction();
-    try {
-        $conn->query('UPDATE academic_year_settings SET is_active = 0 WHERE is_active <> 0');
-        $existing = $conn->prepare("
-            SELECT id
-            FROM academic_year_settings
-            WHERE academic_year_label = ?
-            ORDER BY updated_at DESC, id DESC
-            LIMIT 1
-        ");
-        $existing->bind_param('s', $label);
-        $existing->execute();
-        $existingRow = $existing->get_result()->fetch_assoc();
-        $existing->close();
-
-        if ($existingRow) {
-            $stmt = $conn->prepare("
-                UPDATE academic_year_settings
-                SET start_date = ?, end_date = ?, is_active = 1
-                WHERE id = ?
-            ");
-            $periodId = (int)$existingRow['id'];
-            $stmt->bind_param('ssi', $startDate, $endDate, $periodId);
-        } else {
-            $stmt = $conn->prepare("
-                INSERT INTO academic_year_settings (academic_year_label, start_date, end_date, is_active)
-                VALUES (?, ?, ?, 1)
-            ");
-            $stmt->bind_param('sss', $label, $startDate, $endDate);
-        }
-        $stmt->execute();
-        $stmt->close();
-        $conn->commit();
-    } catch (Throwable $e) {
-        $conn->rollback();
-        throw $e;
-    }
+    $stmt->bind_param('sss', $label, $startDate, $endDate);
+    $stmt->execute();
+    $stmt->close();
 
     return [
         'success' => true,
@@ -179,164 +118,58 @@ function save_academic_year_settings(mysqli $conn, array $data): array
     ];
 }
 
-function get_completed_academic_year_setting(mysqli $conn): ?array
+function get_expected_year_of_study(int $registeredYear, string $academicYearLabel): int
 {
-    $today = date('Y-m-d');
-    $stmt = $conn->prepare("
-        SELECT *
-        FROM academic_year_settings
-        WHERE end_date < ?
-          AND academic_year_label REGEXP '^[0-9]{4}/[0-9]{4}$'
-        ORDER BY end_date DESC, id DESC
-        LIMIT 1
-    ");
-    $stmt->bind_param('s', $today);
-    $stmt->execute();
-    $setting = $stmt->get_result()->fetch_assoc() ?: null;
-    $stmt->close();
-    return $setting;
+    $registeredYear = max(1, (int)$registeredYear);
+    $parts = preg_split('/[\\/-]/', trim($academicYearLabel));
+    $startYear = isset($parts[0]) && is_numeric($parts[0]) ? (int)$parts[0] : date('Y');
+    return max(1, ($startYear - $registeredYear) + 1);
 }
 
-function apply_academic_year_progression(mysqli $conn, array $setting): int
+function apply_academic_year_progression(mysqli $conn, array $setting, bool $force = false): int
 {
     ensure_academic_year_settings_table($conn);
 
     $today = date('Y-m-d');
-    $label = trim((string)($setting['academic_year_label'] ?? ''));
-    $validationError = academic_year_history_validate_period(
-        $label,
-        (string)($setting['start_date'] ?? ''),
-        (string)($setting['end_date'] ?? '')
-    );
-    if ($validationError !== null) {
-        throw new RuntimeException('Progression is not configured correctly: ' . $validationError);
-    }
-    if ($today < (string)$setting['end_date']) {
-        return 0;
-    }
-    if ($today === (string)$setting['end_date']) {
+    if (!$force && $today < (string)($setting['end_date'] ?? '')) {
         return 0;
     }
 
-    $historyTable = $conn->query("SHOW TABLES LIKE 'student_academic_year_history'");
-    if (!$historyTable || $historyTable->num_rows === 0) {
-        throw new RuntimeException('Run migrations/2026_10_06_academic_year_history.php before applying student progression.');
+    $label = trim((string)($setting['academic_year_label'] ?? ''));
+    if ($label === '') {
+        $label = date('Y') . '/' . (date('Y') + 1);
     }
+
+    $stmt = $conn->prepare("SELECT id, year_joined, year_of_study FROM students WHERE year_joined IS NOT NULL AND year_joined != ''");
+    if (!$stmt) {
+        throw new Exception('Unable to load students for academic year progression: ' . $conn->error);
+    }
+    $stmt->execute();
+    $result = $stmt->get_result();
 
     $updatedCount = 0;
-    $currentPeriod = $conn->prepare("
-        SELECT academic_year_label, start_date, end_date
-        FROM academic_year_settings
-        WHERE start_date <= ? AND end_date >= ?
-          AND academic_year_label REGEXP '^[0-9]{4}/[0-9]{4}$'
-        ORDER BY start_date DESC, id DESC
-        LIMIT 1
-    ");
-    $currentPeriod->bind_param('ss', $today, $today);
-    $currentPeriod->execute();
-    $currentAcademicPeriod = $currentPeriod->get_result()->fetch_assoc();
-    $currentPeriod->close();
-    if (!$currentAcademicPeriod) {
-        return 0;
-    }
-    $currentLabel = (string)$currentAcademicPeriod['academic_year_label'];
+    while ($student = $result->fetch_assoc()) {
+        $registeredYear = (int)($student['year_joined'] ?? 0);
+        $expectedYear = get_expected_year_of_study($registeredYear, $label);
+        $currentYear = max(1, (int)($student['year_of_study'] ?? 0));
 
-    $conn->begin_transaction();
-    try {
-        $stmt = $conn->prepare("
-            SELECT s.id, s.year_joined, s.year_of_study, c.duration
-            FROM students s
-            LEFT JOIN courses c ON c.id = s.course_id
-            WHERE s.year_joined REGEXP '^[0-9]{4}$'
-            FOR UPDATE
-        ");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $periodStmt = $conn->prepare("
-            SELECT academic_year_label, start_date, end_date
-            FROM academic_year_settings
-            WHERE start_date <= ? AND start_date <= ?
-              AND academic_year_label REGEXP '^[0-9]{4}/[0-9]{4}$'
-            ORDER BY start_date ASC, id ASC
-        ");
-        $currentStartDate = (string)$currentAcademicPeriod['start_date'];
-        $periodStmt->bind_param('ss', $today, $currentStartDate);
-        $periodStmt->execute();
-        $periods = $periodStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $periodStmt->close();
-        $historyInsert = $conn->prepare("
-            INSERT INTO student_academic_year_history (student_id, academic_year, year_of_study)
-            VALUES (?, ?, ?)
-            ON DUPLICATE KEY UPDATE year_of_study = VALUES(year_of_study)
-        ");
-        $studentUpdate = $conn->prepare('UPDATE students SET year_of_study = ? WHERE id = ? AND COALESCE(year_of_study, 1) < ?');
-        while ($student = $result->fetch_assoc()) {
-            $studentId = (int)$student['id'];
-            $registeredYear = (int)$student['year_joined'];
-            $duration = (int)($student['duration'] ?? 0);
-            $currentYear = max(1, (int)($student['year_of_study'] ?? 0));
-            $expectedYear = academic_year_history_study_year($registeredYear, $currentLabel, $duration);
-            $maxHistoryStudyYear = max($currentYear, $expectedYear);
-            if ($duration > 0) {
-                $maxHistoryStudyYear = min($maxHistoryStudyYear, $duration);
+        if ($expectedYear > $currentYear) {
+            // Preserve prior-year files while removing them from the active lecturer/student views.
+            $archive = $conn->prepare("UPDATE notes n JOIN units u ON u.id = n.unit_id JOIN students s ON s.course_id = u.course_id SET n.status = 'archived' WHERE s.id = ? AND u.year <= ? AND n.status = 'active'");
+            if ($archive) {
+                $completedYear = $expectedYear - 1;
+                $archive->bind_param('ii', $student['id'], $completedYear);
+                $archive->execute();
+                $archive->close();
             }
-            $maxHistoryStartYear = $registeredYear + $maxHistoryStudyYear - 1;
-            $recordedLabels = [];
-
-            foreach ($periods as $period) {
-                $periodLabel = (string)$period['academic_year_label'];
-                if ((int)$student['year_joined'] > (int)substr($periodLabel, 0, 4)) {
-                    continue;
-                }
-                if ((int)substr($periodLabel, 0, 4) > $maxHistoryStartYear) {
-                    continue;
-                }
-                if (isset($period['start_date'], $period['end_date'])) {
-                    $periodError = academic_year_history_validate_period(
-                        $periodLabel,
-                        (string)$period['start_date'],
-                        (string)$period['end_date']
-                    );
-                    if ($periodError !== null) {
-                        throw new RuntimeException("Invalid saved progression period {$periodLabel}: {$periodError}");
-                    }
-                }
-                $periodStudyYear = academic_year_history_study_year($registeredYear, $periodLabel, $duration);
-                $historyInsert->bind_param('isi', $studentId, $periodLabel, $periodStudyYear);
-                $historyInsert->execute();
-                $recordedLabels[$periodLabel] = true;
-            }
-
-            $currentStartYear = academic_year_history_start_year($currentLabel);
-            if ($currentStartYear !== null) {
-                $lastHistoryYear = min($currentStartYear, $maxHistoryStartYear);
-                for ($year = $registeredYear; $year <= $lastHistoryYear; $year++) {
-                    $periodLabel = academic_year_history_label($year);
-                    if (isset($recordedLabels[$periodLabel])) {
-                        continue;
-                    }
-                    $periodStudyYear = academic_year_history_study_year($registeredYear, $periodLabel, $duration);
-                    $historyInsert->bind_param('isi', $studentId, $periodLabel, $periodStudyYear);
-                    $historyInsert->execute();
-                }
-            }
-
-            if ($expectedYear > $currentYear) {
-                $studentUpdate->bind_param('iii', $expectedYear, $studentId, $expectedYear);
-                $studentUpdate->execute();
-                if ($studentUpdate->affected_rows === 1) {
-                    $updatedCount++;
-                }
-            }
+            $update = $conn->prepare("UPDATE students SET year_of_study = ? WHERE id = ?");
+            $update->bind_param('ii', $expectedYear, $student['id']);
+            $update->execute();
+            $update->close();
+            $updatedCount++;
         }
-        $historyInsert->close();
-        $studentUpdate->close();
-        $stmt->close();
-        $conn->commit();
-    } catch (Throwable $e) {
-        $conn->rollback();
-        throw $e;
     }
+    $stmt->close();
 
     return $updatedCount;
 }
@@ -403,33 +236,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'run_academic_year_progression') {
         try {
-            $completedSetting = get_completed_academic_year_setting($conn);
-            if ($completedSetting === null) {
-                $academic_year_message = 'Progression is not due yet. Students advance after the configured academic-year end date.';
-            } else {
-                $updatedCount = apply_academic_year_progression($conn, $completedSetting);
-                $academic_year_message = $updatedCount > 0
-                    ? "Student year progression applied to $updatedCount student(s) for {$completedSetting['academic_year_label']}."
-                    : "No student year changes were needed for {$completedSetting['academic_year_label']}.";
-            }
+            $updatedCount = apply_academic_year_progression($conn, $academic_year_setting, true);
+            $academic_year_message = $updatedCount > 0
+                ? "Student year progression applied to $updatedCount student(s)."
+                : 'No student year changes were needed.';
         } catch (Throwable $e) {
             $academic_year_error = $e->getMessage();
         }
     }
 }
 
-try {
-    $completedSetting = get_completed_academic_year_setting($conn);
-    if ($completedSetting !== null) {
-        $autoPromoted = apply_academic_year_progression($conn, $completedSetting);
+if (($academic_year_setting['end_date'] ?? '') && date('Y-m-d') >= (string)$academic_year_setting['end_date']) {
+    try {
+        $autoPromoted = apply_academic_year_progression($conn, $academic_year_setting);
         if ($autoPromoted > 0) {
-            $academic_year_message = trim(($academic_year_message === '' ? '' : $academic_year_message . ' ') . "Auto-promoted $autoPromoted student(s) after {$completedSetting['academic_year_label']} ended.");
+            $academic_year_message = trim(($academic_year_message === '' ? '' : $academic_year_message . ' ') . "Auto-promoted $autoPromoted student(s) to the next study year.");
         }
-    }
-} catch (Throwable $e) {
-    error_log('Academic year progression failed: ' . $e->getMessage());
-    if ($academic_year_error === '') {
-        $academic_year_error = 'Academic-year progression failed. ' . $e->getMessage();
+    } catch (Throwable $e) {
+        error_log('Academic year progression failed: ' . $e->getMessage());
     }
 }
 
@@ -927,7 +751,7 @@ if ($teamTablesExist) {
                 <button type="submit" class="btn btn-success" name="submit_action" value="run_academic_year_progression">Run Year Progression</button>
             </div>
         </form>
-        <p style="margin:0 0 12px 0; color:#666;">Content is assigned to the academic year whose date range contains its upload or creation date. Students progress after an academic year ends and the next configured year begins. Date ranges cannot overlap.</p>
+        <p style="margin:0 0 12px 0; color:#666;">This setting is used to determine the current academic year and to promote students based on the year they registered.</p>
         <div class="student-count-text">Current setting: <strong><?= htmlspecialchars($academic_year_setting['academic_year_label'] ?? 'Not set') ?></strong> (<?= htmlspecialchars($academic_year_setting['start_date'] ?? '—') ?> to <?= htmlspecialchars($academic_year_setting['end_date'] ?? '—') ?>)</div>
     </div>
 

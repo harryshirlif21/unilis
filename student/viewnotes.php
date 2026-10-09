@@ -1,6 +1,5 @@
 <?php
 require_once '../config/db.php';
-require_once __DIR__ . '/../includes/academic_year_history.php';
 session_start();
 
 // Redirect if not student
@@ -12,12 +11,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
 $student_id = (int) $_SESSION['user_id'];
 
 // Get student course/year and details
-$hasAcademicYearColumn = static function (mysqli $conn, string $table): bool {
-    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE 'academic_year'");
-    return $result && $result->num_rows > 0;
-};
-
-$stmt = $conn->prepare("SELECT s.id, s.course_id, s.year_of_study, s.name, s.email, s.reg_no, s.year_joined, c.name as course_name FROM students s JOIN courses c ON s.course_id = c.id WHERE s.id = ?");
+$stmt = $conn->prepare("SELECT s.course_id, s.year_of_study, s.name, s.email, s.reg_no, s.year_joined, c.name as course_name FROM students s JOIN courses c ON s.course_id = c.id WHERE s.id = ?");
 $stmt->bind_param("i", $student_id);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
@@ -28,56 +22,22 @@ if (!$student) die("Student record not found.");
 $course_id = $student['course_id'];
 $year_of_study = $student['year_of_study'];
 $course_name = $student['course_name'];
-$currentAcademicYear = academic_year_history_current_label($conn);
-$academicYearOptions = academic_year_history_student_options($student, $currentAcademicYear, $conn);
-if ($academicYearOptions === []) {
-    $academicYearOptions = [$currentAcademicYear => max(1, (int)($student['year_of_study'] ?? 1))];
-}
-$selectedAcademicYear = trim((string)($_GET['academic_year'] ?? $currentAcademicYear));
-if ($selectedAcademicYear === '' || !array_key_exists($selectedAcademicYear, $academicYearOptions)) {
-    $selectedAcademicYear = $currentAcademicYear;
-}
-$selected_year = (int)($academicYearOptions[$selectedAcademicYear] ?? max(1, (int)($student['year_of_study'] ?? 1)));
-$selected_year = max(1, $selected_year);
-$notesAcademicYearAvailable = $hasAcademicYearColumn($conn, 'notes') && $hasAcademicYearColumn($conn, 'classnotes');
-$yearTiles = [];
-foreach ($academicYearOptions as $label => $studyYear) {
-    $yearTiles[] = [
-        'label' => (string)$label,
-        'studyYear' => (int)$studyYear,
-        'isCurrent' => $label === $currentAcademicYear,
-        'isSelected' => $label === $selectedAcademicYear,
-    ];
-}
+$selected_year = max(1, min((int)$year_of_study, (int)($_GET['year'] ?? $year_of_study)));
 
 // Get latest notifications
 require_once '../includes/notifications.php';
 $latest_notifications = get_latest_notifications($conn, 5);
 
 // Fetch units that have notes
-if ($notesAcademicYearAvailable) {
-    $units_sql = "
-        SELECT DISTINCT u.id, u.name, u.code,
-               (SELECT COUNT(*) FROM notes WHERE unit_id = u.id AND academic_year = ?) as file_count,
-               (SELECT COUNT(*) FROM classnotes WHERE unit_id = u.id AND academic_year = ?) as interactive_count
-        FROM units u
-        WHERE u.course_id = ? AND u.year = ?
-        ORDER BY u.name
-    ";
-    $units_stmt = $conn->prepare($units_sql);
-    $units_stmt->bind_param("ssii", $selectedAcademicYear, $selectedAcademicYear, $course_id, $selected_year);
-} else {
-    $units_sql = "
-        SELECT DISTINCT u.id, u.name, u.code,
-               (SELECT COUNT(*) FROM notes WHERE unit_id = u.id) as file_count,
-               (SELECT COUNT(*) FROM classnotes WHERE unit_id = u.id) as interactive_count
-        FROM units u
-        WHERE u.course_id = ? AND u.year = ?
-        ORDER BY u.name
-    ";
-    $units_stmt = $conn->prepare($units_sql);
-    $units_stmt->bind_param("ii", $course_id, $selected_year);
-}
+$units_stmt = $conn->prepare("
+    SELECT DISTINCT u.id, u.name, u.code, 
+           (SELECT COUNT(*) FROM notes WHERE unit_id = u.id) as file_count,
+           (SELECT COUNT(*) FROM classnotes WHERE unit_id = u.id) as interactive_count
+    FROM units u
+    WHERE u.course_id = ? AND u.year = ?
+    ORDER BY u.name
+");
+$units_stmt->bind_param("ii", $course_id, $selected_year);
 $units_stmt->execute();
 $units_result = $units_stmt->get_result();
 ?>
@@ -124,50 +84,6 @@ $units_result = $units_stmt->get_result();
         .notes-header p {
             color: #555;
             font-size: 16px;
-        }
-
-        .year-tile-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin: 20px 0 24px;
-        }
-
-        .year-tile {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 150px;
-            padding: 0.9rem 1.1rem;
-            border-radius: 12px;
-            background: #fff;
-            border: 1px solid #dbe3f0;
-            text-decoration: none;
-            color: #1f2937;
-            font-weight: 600;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-        }
-
-        .year-tile:hover {
-            transform: translateY(-2px);
-            border-color: #667eea;
-            box-shadow: 0 10px 22px rgba(102, 126, 234, 0.12);
-        }
-
-        .year-tile.active {
-            background: linear-gradient(135deg, #667eea, #4f46e5);
-            color: white;
-            border-color: transparent;
-        }
-
-        .year-tile small {
-            display: block;
-            opacity: 0.8;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
         }
 
         .units-grid {
@@ -387,29 +303,21 @@ $units_result = $units_stmt->get_result();
     <div class="notes-container">
         <div class="notes-header">
             <h1>📚 My Notes</h1>
-            <p><?= htmlspecialchars($selectedAcademicYear) ?> • Year <?= $selected_year ?> • Select a unit to view available notes</p>
-            <div class="year-tile-grid" aria-label="Academic-year selection">
-                <?php foreach ($yearTiles as $yearTile): ?>
-                    <a class="year-tile <?= $yearTile['isSelected'] ? 'active' : '' ?>"
-                       href="viewnotes.php?academic_year=<?= urlencode($yearTile['label']) ?>"
-                       title="Open <?= htmlspecialchars($yearTile['label']) ?> notes">
-                        <span>
-                            <?= htmlspecialchars($yearTile['label']) ?>
-                            <?php if ($yearTile['isCurrent']): ?>
-                                <small>Current</small>
-                            <?php else: ?>
-                                <small>Year <?= (int)$yearTile['studyYear'] ?></small>
-                            <?php endif; ?>
-                        </span>
-                    </a>
-                <?php endforeach; ?>
-            </div>
+            <p>Year <?= htmlspecialchars((string)$selected_year) ?> • Select a unit to view available notes</p>
+            <form method="get" style="margin:12px 0 20px;">
+                <label for="notesYear">View notes from year:</label>
+                <select id="notesYear" name="year" onchange="this.form.submit()">
+                    <?php for ($yearOption = 1; $yearOption <= max(1, (int)$year_of_study); $yearOption++): ?>
+                        <option value="<?= $yearOption ?>" <?= $selected_year === $yearOption ? 'selected' : '' ?>>Year <?= $yearOption ?><?= $yearOption === (int)$year_of_study ? ' (current)' : '' ?></option>
+                    <?php endfor; ?>
+                </select>
+            </form>
         </div>
 
         <?php if ($units_result->num_rows > 0): ?>
             <div class="units-grid">
                 <?php while ($unit = $units_result->fetch_assoc()): ?>
-                    <div class="unit-card" onclick="window.location.href='unit_notes.php?unit_id=<?= (int)$unit['id'] ?>&amp;academic_year=<?= urlencode($selectedAcademicYear) ?>'">
+                    <div class="unit-card" onclick="window.location.href='unit_notes.php?unit_id=<?= $unit['id'] ?>'">
                         <div class="unit-header">
                             <div class="unit-icon">
                                 <i class="fas fa-book"></i>

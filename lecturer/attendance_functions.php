@@ -1,6 +1,4 @@
 <?php
-require_once __DIR__ . '/../includes/academic_year_history.php';
-
 session_start();
 require_once '../config/db.php';
 require_once __DIR__ . '/../includes/mailer.php';
@@ -112,14 +110,10 @@ function createAttendanceSession($conn, $unit_id, $lecturer_id, $duration_minute
     // Insert session
     $stmt = $conn->prepare("
         INSERT INTO attendance_sessions 
-        (unit_id, lecturer_id, session_code, duration_minutes, deadline, created_at, academic_year)
-        VALUES (?, ?, ?, ?, ?, NOW(), ?)
+        (unit_id, lecturer_id, session_code, duration_minutes, deadline, created_at) 
+        VALUES (?, ?, ?, ?, ?, NOW())
     ");
-    $academic_year = academic_year_history_label_for_date(
-        $conn,
-        date('Y-m-d')
-    );
-    $stmt->bind_param("iisiss", $unit_id, $lecturer_id, $code, $duration_minutes, $deadline, $academic_year);
+    $stmt->bind_param("iisis", $unit_id, $lecturer_id, $code, $duration_minutes, $deadline);
     $stmt->execute();
     $session_id = $conn->insert_id;
     $stmt->close();

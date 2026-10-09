@@ -1,7 +1,6 @@
 <?php
 session_start();
 require_once '../config/db.php';
-require_once __DIR__ . '/../includes/academic_year_history.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
     header("Location: ../login.php");
@@ -9,32 +8,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 }
 
 $lecturer_id = $_SESSION['user_id'];
-$currentAcademicYear = academic_year_history_current_label($conn);
-$lecturerAcademicYears = [$currentAcademicYear => $currentAcademicYear];
-$yearStmt = $conn->prepare("
-    SELECT academic_year FROM classnotes WHERE lecturer_id = ? AND academic_year IS NOT NULL
-    UNION SELECT academic_year FROM notes WHERE lecturer_id = ? AND academic_year IS NOT NULL
-    UNION SELECT academic_year FROM assignments WHERE lecturer_id = ? AND academic_year IS NOT NULL
-    UNION SELECT academic_year FROM interactive_assignments WHERE lecturer_id = ? AND academic_year IS NOT NULL
-    ORDER BY academic_year DESC
-");
-if ($yearStmt) {
-    $yearStmt->bind_param('iiii', $lecturer_id, $lecturer_id, $lecturer_id, $lecturer_id);
-    $yearStmt->execute();
-    $yearRows = $yearStmt->get_result();
-    while ($yearRow = $yearRows->fetch_assoc()) {
-        $label = trim((string)$yearRow['academic_year']);
-        if (preg_match('/^\d{4}\/\d{4}$/', $label)) {
-            $lecturerAcademicYears[$label] = $label;
-        }
-    }
-    $yearStmt->close();
-}
-$selectedAcademicYear = (string)($_GET['academic_year'] ?? $currentAcademicYear);
-if (!isset($lecturerAcademicYears[$selectedAcademicYear])) {
-    $selectedAcademicYear = $currentAcademicYear;
-}
-$readOnlyHistory = $selectedAcademicYear !== $currentAcademicYear;
 $lecturer_name = $_SESSION['user_name'];
 // Fetch units taught by lecturer
 $units = [];
@@ -56,16 +29,15 @@ try {
 }
 
 // Function to fetch existing topics for a unit
-function getTopics($conn, $unit_id, $lecturer_id, $academic_year) {
+function getTopics($conn, $unit_id) {
     $topics = [];
     try {
         $stmt = $conn->prepare("
-            SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at, cn.academic_year
-            FROM classnotes cn
-            JOIN lecturer_units lu ON lu.unit_id = cn.unit_id
-            WHERE cn.unit_id = ? AND lu.lecturer_id = ? AND cn.academic_year = ?
+            SELECT id, title, subtopics_json, uploaded_at
+            FROM classnotes
+            WHERE unit_id = ?
         ");
-        $stmt->bind_param("iis", $unit_id, $lecturer_id, $academic_year);
+        $stmt->bind_param("i", $unit_id);
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
@@ -82,7 +54,7 @@ function getTopics($conn, $unit_id, $lecturer_id, $academic_year) {
 // --- Handle AJAX request for existing topics ---
 if(isset($_GET['getTopics']) && isset($_GET['unit_id'])){
     header('Content-Type: application/json');
-    echo json_encode(getTopics($conn, intval($_GET['unit_id']), (int)$lecturer_id, $selectedAcademicYear));
+    echo json_encode(getTopics($conn, intval($_GET['unit_id'])));
     exit;
 }
 ?>
@@ -127,15 +99,6 @@ img.inline-img { max-width:200px; display:inline-block; margin:4px; border-radiu
 <h1>Lecturer Notes Creator</h1>
 
 <div class="unit-select">
-    <label>Academic Year:
-        <select id="academicYearDropdown" onchange="window.location.href='?academic_year='+encodeURIComponent(this.value)">
-            <?php foreach ($lecturerAcademicYears as $yearLabel): ?>
-                <option value="<?= htmlspecialchars($yearLabel) ?>" <?= $yearLabel === $selectedAcademicYear ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($yearLabel) ?><?= $yearLabel === $currentAcademicYear ? ' (Current)' : '' ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-    </label>
     <label>Select Unit: 
         <select id="unitDropdown">
             <option value="">-- Select Unit --</option>
@@ -150,10 +113,10 @@ img.inline-img { max-width:200px; display:inline-block; margin:4px; border-radiu
     <div class="form-section">
         <h2>Input Notes</h2>
         <div id="topics"></div>
-        <button onclick="addTopic()" <?= $readOnlyHistory ? 'disabled' : '' ?>>+ Add Topic</button>
+        <button onclick="addTopic()">+ Add Topic</button>
         <hr>
-        <button onclick="submitNotes()" <?= $readOnlyHistory ? 'disabled' : '' ?>>Save Notes</button>
-        <button onclick="updateNotes()" <?= $readOnlyHistory ? 'disabled' : '' ?>>Update Notes</button>
+        <button onclick="submitNotes()">Save Notes</button>
+        <button onclick="updateNotes()">Update Notes</button>
     </div>
 
     <div class="preview-section">
@@ -163,7 +126,7 @@ img.inline-img { max-width:200px; display:inline-block; margin:4px; border-radiu
 </div>
 
 <div id="existingTopics">
-    <h3>Notes for <?= htmlspecialchars($selectedAcademicYear) ?><?= $readOnlyHistory ? ' (read-only)' : '' ?></h3>
+    <h3>Already Added Topics in this Unit</h3>
     <div id="topicsList"></div>
 </div>
 
@@ -194,7 +157,7 @@ function loadUnitTopics() {
         return;
     }
 
-    fetch(`?getTopics=1&unit_id=${selectedUnitId}&academic_year=${encodeURIComponent(<?= json_encode($selectedAcademicYear) ?>)}`)
+    fetch(`?getTopics=1&unit_id=${selectedUnitId}`)
         .then(res => res.json())
         .then(data => {
             existingTopics = data;
@@ -235,9 +198,6 @@ function addTopic() {
 }
 
 function removeTopic(id) {
-    if (!window.confirm("Remove this topic? It will be removed from the saved notes when you click Update Notes. Previous versions remain in history.")) {
-        return;
-    }
     topics = topics.filter(t => t.id !== id);
     renderForm();
 }
@@ -257,9 +217,6 @@ function addSubtopic(topicId) {
 }
 
 function removeSubtopic(topicId, subId) {
-    if (!window.confirm("Remove this subtopic? It will be removed from the saved notes when you click Update Notes. Previous versions remain in history.")) {
-        return;
-    }
     const t = topics.find(x => x.id === topicId);
     t.subtopics = t.subtopics.filter(s => s.id !== subId);
     renderForm();
@@ -643,8 +600,6 @@ function renderExistingTopics() {
 
         const titleSpan = document.createElement("strong");
         titleSpan.textContent = t.title;
-        const yearSpan = document.createElement("small");
-        yearSpan.textContent = ` · ${t.academic_year || "Unknown year"}`;
         
         const editBtn = document.createElement("button");
         editBtn.className = "edit-btn";
@@ -652,15 +607,7 @@ function renderExistingTopics() {
         editBtn.onclick = () => loadForEditing(t.id);
 
         div.appendChild(titleSpan);
-        div.appendChild(yearSpan);
-        if (!<?= $readOnlyHistory ? 'true' : 'false' ?>) {
-            div.appendChild(editBtn);
-        }
-        const historyLink = document.createElement("a");
-        historyLink.href = `content_history.php?type=classnote&id=${encodeURIComponent(t.id)}`;
-        historyLink.textContent = "Version history";
-        historyLink.style.marginLeft = "8px";
-        div.appendChild(historyLink);
+        div.appendChild(editBtn);
         box.appendChild(div);
     });
 }
@@ -731,7 +678,6 @@ function submitNotes() {
     // Append main JSON
     formData.append("unit_id", selectedUnitId);
     formData.append("topics", JSON.stringify(topics));
-    formData.append("academic_year", <?= json_encode($selectedAcademicYear) ?>);
 
     // Collect images + files for upload
     topics.forEach(topic => {
@@ -823,7 +769,6 @@ function updateNotes() {
     formData.append("topic_id", editingTopicId);
     formData.append("unit_id", selectedUnitId);
     formData.append("topics", JSON.stringify(topics));
-    formData.append("academic_year", <?= json_encode($selectedAcademicYear) ?>);
 
     // Attach images + files
     editedTopic.subtopics.forEach(sub => {
