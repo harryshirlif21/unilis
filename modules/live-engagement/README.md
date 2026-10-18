@@ -8,7 +8,8 @@ A production-ready, standalone live engagement module for the UNILIS Learning Ma
 - Create and manage slide-based presentations
 - Upload PDF, PowerPoint, images, and videos
 - Real-time slide navigation synchronized with participants
-- Presenter mode with speaker notes
+- Presenter mode with visual slide previews, speaker notes, and a projector toggle
+- Live presenter sidebar for participant questions, raised hands, and reaction counts
 - Drawing tools, annotations, and laser pointer
 - Fullscreen mode and presentation timer
 

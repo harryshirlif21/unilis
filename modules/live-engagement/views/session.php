@@ -354,6 +354,27 @@ Layout::start([
     var slideCache = null;
     var shownSlide = null;
 
+    function restorePresenterWaiting() {
+        var stage = document.getElementById('sessionContent');
+        stage.textContent = '';
+        var icon = document.createElement('div');
+        icon.style.fontSize = '4rem';
+        icon.style.marginBottom = 'var(--le-space-3)';
+        icon.textContent = '🎯';
+        var heading = document.createElement('h2');
+        heading.style.fontSize = '1.5rem';
+        heading.style.fontWeight = '600';
+        heading.style.marginBottom = 'var(--le-space-1)';
+        heading.textContent = 'Waiting for presenter';
+        var message = document.createElement('p');
+        message.style.color = 'var(--le-gray-500)';
+        message.textContent = 'The session will begin shortly. Stay tuned for interactive content.';
+        stage.appendChild(icon);
+        stage.appendChild(heading);
+        stage.appendChild(message);
+        delete stage.dataset.presenterActive;
+    }
+
     async function leFetch(endpoint, options) {
         var opts = options || {};
         var request = {
@@ -386,6 +407,10 @@ Layout::start([
         }
 
         if (!state || !state.active || !state.presentation_id) {
+            var inactiveStage = document.getElementById('sessionContent');
+            if (inactiveStage.dataset.presenterActive === 'true') {
+                restorePresenterWaiting();
+            }
             shownSlide = null;
             return;
         }
@@ -408,6 +433,7 @@ Layout::start([
 
         var stage = document.getElementById('sessionContent');
         stage.textContent = '';
+        stage.dataset.presenterActive = 'true';
 
         if (!slide) {
             var waiting = document.createElement('p');

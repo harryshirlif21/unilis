@@ -163,7 +163,7 @@ Layout::start([
     position: fixed;
     inset: 0;
     display: grid;
-    grid-template-columns: 232px 1fr;
+    grid-template-columns: clamp(200px, 18vw, 260px) minmax(0, 1fr) clamp(190px, 10vw, 300px);
     background:
         radial-gradient(1200px 600px at 12% -10%, rgba(27, 94, 32, .28), transparent 60%),
         radial-gradient(900px 500px at 105% 110%, rgba(249, 168, 37, .20), transparent 55%),
@@ -172,7 +172,7 @@ Layout::start([
     overflow: hidden;
     transition: grid-template-columns var(--le-transition-base, 240ms) ease;
 }
-.le-presenter-shell[data-rail="hidden"] { grid-template-columns: 0 1fr; }
+.le-presenter-shell[data-rail="hidden"] { grid-template-columns: 0 minmax(0, 1fr) clamp(190px, 10vw, 300px); }
 
 /* ── Thumbnail rail ─────────────────────────────────────────── */
 .le-rail {
@@ -191,7 +191,7 @@ Layout::start([
     font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
     color: rgba(255, 255, 255, .55);
 }
-.le-rail-list { flex: 1; overflow-y: auto; padding: 0 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.le-rail-list { flex: 1; overflow-y: auto; padding: 0 12px 16px; display: flex; flex-direction: column; gap: 10px; }
 .le-rail .le-toolbar {
     position: static;
     transform: none;
@@ -201,9 +201,8 @@ Layout::start([
     border-radius: 18px;
 }
 .le-thumb {
-    position: relative;
-    display: flex; gap: 10px; align-items: center;
-    padding: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+    width: 100%; padding: 7px;
     border: 1px solid rgba(255, 255, 255, .10);
     border-radius: 12px;
     background: rgba(255, 255, 255, .04);
@@ -215,12 +214,17 @@ Layout::start([
 }
 .le-thumb:hover { transform: translateY(-1px); background: rgba(255, 255, 255, .09); }
 .le-thumb.is-current { border-color: var(--le-secondary, #F9A825); background: rgba(249, 168, 37, .14); }
-.le-thumb-num {
-    flex-shrink: 0; width: 26px; height: 26px; display: grid; place-items: center;
-    border-radius: 8px; background: rgba(0, 0, 0, .35);
-    font-size: 12px; font-weight: 700;
+.le-thumb-preview {
+    width: 100%; aspect-ratio: 16 / 9; overflow: hidden; display: grid;
+    place-items: center; padding: 7px; border-radius: 7px;
+    background: #f8faf8; color: #17251a; text-align: left;
 }
-.le-thumb-title { font-size: 12px; line-height: 1.35; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.le-thumb-preview img { width: 100%; height: 100%; object-fit: contain; }
+.le-thumb-preview canvas { display: block; max-width: 100%; max-height: 100%; }
+.le-thumb-preview-text { width: 100%; max-height: 100%; overflow: hidden; font-size: 9px; line-height: 1.3; }
+.le-thumb-meta { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.le-thumb-num { flex: 0 0 auto; font-size: 10px; font-weight: 700; color: var(--le-secondary, #F9A825); }
+.le-thumb-title { min-width: 0; font-size: 11px; line-height: 1.25; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Stage ──────────────────────────────────────────────────── */
 .le-stage-wrap { position: relative; display: flex; flex-direction: column; min-width: 0; }
@@ -486,7 +490,6 @@ Layout::start([
     50% { box-shadow: 0 14px 40px rgba(0, 0, 0, .35), 0 0 0 9px rgba(249, 168, 37, 0); }
 }
 .le-questions {
-    position: absolute; top: 190px; right: 22px; width: min(360px, calc(100vw - 44px));
     max-height: 48%; overflow-y: auto; padding: 12px;
     background: rgba(10, 26, 13, .94); border: 1px solid rgba(255, 255, 255, .16);
     border-radius: 14px; box-shadow: 0 18px 46px rgba(0, 0, 0, .4);
@@ -498,6 +501,38 @@ Layout::start([
 .le-question-row p { margin: 4px 0 0; color: rgba(255, 255, 255, .9); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .le-question-row button { margin-top: 7px; padding: 6px 10px; border: 0; border-radius: 7px; background: #F9A825; color: #17251a; cursor: pointer; font-weight: 700; }
 .le-question-row button:disabled { opacity: .55; cursor: wait; }
+.le-room-sidebar {
+    display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow: hidden;
+    padding: 16px 10px; background: rgba(255, 255, 255, .055);
+    border-left: 1px solid rgba(255, 255, 255, .10);
+}
+.le-room-sidebar-title {
+    margin: 0; color: rgba(255,255,255,.6); font-size: 11px;
+    letter-spacing: .08em; text-transform: uppercase;
+}
+.le-sidebar-section {
+    min-height: 0; padding: 10px; border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px; background: rgba(10,26,13,.62);
+}
+.le-sidebar-section h3 {
+    margin: 0 0 9px; color: #F9A825; font-size: 11px;
+    letter-spacing: .04em; text-transform: uppercase;
+}
+.le-reaction-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.le-reaction-count-item {
+    display: flex; justify-content: space-between; gap: 5px; padding: 6px;
+    border-radius: 8px; background: rgba(255,255,255,.07); font-size: 12px;
+}
+.le-reaction-count-item span:last-child { font-variant-numeric: tabular-nums; opacity: .72; }
+.le-room-sidebar .le-questions { max-height: none; flex: 1; overflow-y: auto; padding: 10px; }
+.le-room-sidebar .le-question-row { padding: 7px; overflow-wrap: anywhere; }
+.le-room-sidebar .le-question-row p { font-size: 12px; }
+.le-room-sidebar .le-question-row button { width: 100%; font-size: 11px; }
+.le-questions-empty { margin: 0; color: rgba(255,255,255,.55); font-size: 12px; }
+.le-room-sidebar .le-raisehand { position: static; min-width: 0; max-width: none; padding: 9px; }
+.le-room-sidebar .le-raisehand-row { font-size: 12px; }
+.le-project-btn { width: 54px; height: 54px; flex-shrink: 0; }
+.le-project-btn.is-on { background: #43a047; color: #fff; }
 
 /* ── Notes panel ────────────────────────────────────────────── */
 .le-notes {
@@ -541,7 +576,10 @@ Layout::start([
 body.le-laser-on .le-stage { cursor: none; }
 
 @media (max-width: 900px) {
-    .le-presenter-shell { grid-template-columns: 0 1fr; }
+    .le-presenter-shell { grid-template-columns: 0 minmax(0, 1fr) minmax(170px, 30vw); }
+    .le-presenter-shell[data-rail="hidden"] { grid-template-columns: 0 minmax(0, 1fr) minmax(170px, 30vw); }
+    .le-rail { grid-column: 1; }
+    .le-room-sidebar { grid-column: 3; padding: 10px 6px; }
     .le-stage { padding: 16px 16px 140px; }
     
     /* Google Meet style bottom navigation for mobile */
@@ -590,6 +628,8 @@ body.le-laser-on .le-stage { cursor: none; }
     .le-tool-count {
         display: none;
     }
+
+    .le-project-btn { width: 44px; height: 52px; }
     
     .le-notes {
         right: 16px; bottom: 160px;
@@ -627,6 +667,9 @@ body.le-laser-on .le-stage { cursor: none; }
                 <span class="material-symbols-rounded">chevron_right</span>
             </button>
             <span class="le-tool-sep"></span>
+            <button class="le-tool le-project-btn" id="projectBtn" title="Show this presentation on participant screens" aria-label="Project slides to participants" aria-pressed="false">
+                <span class="material-symbols-rounded">present_to_all</span>
+            </button>
             <button class="le-tool" id="notesBtn" title="Presenter notes (N)" aria-label="Presenter notes">
                 <span class="material-symbols-rounded">sticky_note_2</span>
             </button>
@@ -707,18 +750,32 @@ body.le-laser-on .le-stage { cursor: none; }
             <div class="le-participants-empty" id="participantsEmpty">No participants yet. Share the code above or the QR code to let them join.</div>
         </div>
 
-        <!-- Raised hands (auto-appears) -->
-        <div class="le-raisehand" id="raiseHandPanel" hidden>
-            <div class="le-raisehand-head"><span class="material-symbols-rounded">front_hand</span> Raised hands</div>
-            <div class="le-raisehand-list" id="raiseHandList"></div>
-        </div>
-
-        <div class="le-questions" id="questionsPanel" hidden>
-            <h4>Student questions</h4>
-            <div id="questionsList"></div>
-        </div>
-
     </div>
+
+    <aside class="le-room-sidebar" aria-label="Live questions and reactions">
+        <h2 class="le-room-sidebar-title">Live room</h2>
+        <section class="le-sidebar-section" aria-labelledby="reactionSummaryTitle">
+            <h3 id="reactionSummaryTitle">Reactions</h3>
+            <div class="le-reaction-counts" id="reactionCounts">
+                <div class="le-reaction-count-item" data-reaction-count="like"><span>👍</span><span>0</span></div>
+                <div class="le-reaction-count-item" data-reaction-count="love"><span>❤️</span><span>0</span></div>
+                <div class="le-reaction-count-item" data-reaction-count="laugh"><span>😂</span><span>0</span></div>
+                <div class="le-reaction-count-item" data-reaction-count="wow"><span>😮</span><span>0</span></div>
+                <div class="le-reaction-count-item" data-reaction-count="clap"><span>👏</span><span>0</span></div>
+            </div>
+        </section>
+        <section class="le-sidebar-section" aria-labelledby="raisedHandsTitle">
+            <div class="le-raisehand" id="raiseHandPanel" hidden>
+                <div class="le-raisehand-head" id="raisedHandsTitle"><span class="material-symbols-rounded">front_hand</span> Raised hands</div>
+                <div class="le-raisehand-list" id="raiseHandList"></div>
+            </div>
+            <div class="le-raisehand-head" id="noRaisedHands" style="margin:0; color:rgba(255,255,255,.55);">No raised hands</div>
+        </section>
+        <section class="le-sidebar-section le-questions" id="questionsPanel" aria-labelledby="studentQuestionsTitle">
+            <h3 id="studentQuestionsTitle">Student questions</h3>
+            <div id="questionsList"></div>
+        </section>
+    </aside>
 </div>
 
 <div class="le-laser" id="laserDot" hidden></div>
@@ -779,6 +836,7 @@ body.le-laser-on .le-stage { cursor: none; }
 
     const SESSION_ID      = <?= (int) $session['id'] ?>;
     const PRESENTATION_ID = <?= (int) ($presentation['id'] ?? 0) ?>;
+    const PRESENTATION_ACTIVE = <?= !empty($presentation['is_active']) ? 'true' : 'false' ?>;
     const API_BASE        = <?= json_encode(le_module_url('api') . '/') ?>;
     const CSRF            = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const FILE_TYPE       = <?= json_encode($documentFileType) ?>;
@@ -833,6 +891,28 @@ body.le-laser-on .le-stage { cursor: none; }
         return true;
     }
 
+    async function renderPdfThumbnails() {
+        const doc = await ensurePdfDoc();
+        if (!doc) return;
+        for (let i = 0; i < SLIDES.length; i++) {
+            const slide = SLIDES[i];
+            const preview = el.rail.children[i] && el.rail.children[i].querySelector('.le-thumb-preview');
+            if (!preview) continue;
+            const page = await doc.getPage(slide.number);
+            const viewport = page.getViewport({ scale: 1 });
+            const scale = Math.min(320 / viewport.width, 180 / viewport.height);
+            const scaled = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            canvas.width = scaled.width;
+            canvas.height = scaled.height;
+            canvas.setAttribute('aria-hidden', 'true');
+            const context = canvas.getContext('2d');
+            await page.render({ canvasContext: context, viewport: scaled }).promise;
+            preview.textContent = '';
+            preview.appendChild(canvas);
+        }
+    }
+
     const el = {
         shell:      document.getElementById('presenterShell'),
         rail:       document.getElementById('slideRailList'),
@@ -840,6 +920,7 @@ body.le-laser-on .le-stage { cursor: none; }
         counter:    document.getElementById('slideCounter'),
         prev:       document.getElementById('prevBtn'),
         next:       document.getElementById('nextBtn'),
+        project:    document.getElementById('projectBtn'),
         notes:      document.getElementById('notesPanel'),
         notesBody:  document.getElementById('notesBody'),
         laser:      document.getElementById('laserDot'),
@@ -853,8 +934,10 @@ body.le-laser-on .le-stage { cursor: none; }
         participantListCount: document.getElementById('participantListCount'),
         raiseHandPanel:      document.getElementById('raiseHandPanel'),
         raiseHandList:       document.getElementById('raiseHandList'),
+        noRaisedHands:       document.getElementById('noRaisedHands'),
         questionsPanel:      document.getElementById('questionsPanel'),
         questionsList:       document.getElementById('questionsList'),
+        reactionCounts:      document.getElementById('reactionCounts'),
     };
 
     function toast(msg, kind) {
@@ -898,18 +981,35 @@ body.le-laser-on .le-stage { cursor: none; }
             btn.className = 'le-thumb' + (s.number === current ? ' is-current' : '');
             btn.addEventListener('click', () => goTo(s.number));
 
+            const preview = document.createElement('span');
+            preview.className = 'le-thumb-preview';
+            if (s.image) {
+                const image = document.createElement('img');
+                image.src = s.image;
+                image.alt = '';
+                image.loading = 'lazy';
+                preview.appendChild(image);
+            } else {
+                const excerpt = document.createElement('span');
+                excerpt.className = 'le-thumb-preview-text';
+                excerpt.textContent = (s.html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180) || ('Slide ' + s.number);
+                preview.appendChild(excerpt);
+            }
+
+            const meta = document.createElement('span');
+            meta.className = 'le-thumb-meta';
             const num = document.createElement('span');
             num.className = 'le-thumb-num';
-            num.textContent = s.number;
+            num.textContent = 'Slide ' + s.number;
 
             const title = document.createElement('span');
             title.className = 'le-thumb-title';
-            // textContent: slide HTML is authored content and must not be
-            // executed inside the rail label.
             title.textContent = (s.html || '').replace(/<[^>]*>/g, ' ').trim().slice(0, 40) || ('Slide ' + s.number);
 
-            btn.appendChild(num);
-            btn.appendChild(title);
+            meta.appendChild(num);
+            meta.appendChild(title);
+            btn.appendChild(preview);
+            btn.appendChild(meta);
             el.rail.appendChild(btn);
         });
     }
@@ -997,6 +1097,30 @@ body.le-laser-on .le-stage { cursor: none; }
     // ── Toolbar ────────────────────────────────────────────────
     el.prev.addEventListener('click', () => goTo(current - 1));
     el.next.addEventListener('click', () => goTo(current + 1));
+    function updateProjectButton(active) {
+        el.project.classList.toggle('is-on', active);
+        el.project.setAttribute('aria-pressed', active ? 'true' : 'false');
+        el.project.title = active ? 'Stop projecting to participants' : 'Show this presentation on participant screens';
+    }
+
+    updateProjectButton(PRESENTATION_ACTIVE);
+    el.project.addEventListener('click', async () => {
+        if (!PRESENTATION_ID || el.project.disabled) return;
+        const active = el.project.getAttribute('aria-pressed') !== 'true';
+        el.project.disabled = true;
+        try {
+            await api('presentation.php?action=set_active', {
+                method: 'POST',
+                body: { presentation_id: PRESENTATION_ID, active },
+            });
+            updateProjectButton(active);
+            toast(active ? 'Presentation projected to participants.' : 'Projection stopped.', 'success');
+        } catch (error) {
+            toast('Could not update projection: ' + error.message, 'error');
+        } finally {
+            el.project.disabled = false;
+        }
+    });
 
     document.getElementById('railBtn').addEventListener('click', () => {
         const shown = el.shell.getAttribute('data-rail') === 'shown';
@@ -1130,6 +1254,7 @@ body.le-laser-on .le-stage { cursor: none; }
         // has their hand up so the presenter notices instantly.
         const raised = array.filter((p) => Number(p.hand_raised) === 1);
         el.raiseHandPanel.hidden = raised.length === 0;
+        el.noRaisedHands.hidden = raised.length > 0;
         el.raiseHandList.textContent = '';
         raised.forEach((p) => {
             const row = document.createElement('div');
@@ -1176,6 +1301,14 @@ body.le-laser-on .le-stage { cursor: none; }
         try {
             const r = await api('session.php?action=reactions&id=' + SESSION_ID);
             const events = Array.isArray(r && r.events) ? r.events : [];
+            const counts = {};
+            events.forEach((event) => {
+                counts[event.type] = (counts[event.type] || 0) + 1;
+            });
+            Array.prototype.forEach.call(el.reactionCounts.querySelectorAll('[data-reaction-count]'), (node) => {
+                const type = node.getAttribute('data-reaction-count');
+                node.lastElementChild.textContent = counts[type] || 0;
+            });
             if (knownReactionIds === null) {
                 knownReactionIds = new Set(events.map((event) => String(event.id)));
             } else {
@@ -1208,7 +1341,12 @@ body.le-laser-on .le-stage { cursor: none; }
     function renderQuestions(questions) {
         const currentIds = new Set();
         el.questionsList.textContent = '';
-        el.questionsPanel.hidden = questions.length === 0;
+        if (!questions.length) {
+            const empty = document.createElement('p');
+            empty.className = 'le-questions-empty';
+            empty.textContent = 'No questions yet.';
+            el.questionsList.appendChild(empty);
+        }
         questions.forEach((question) => {
             const id = String(question.id);
             currentIds.add(id);
@@ -1267,18 +1405,13 @@ body.le-laser-on .le-stage { cursor: none; }
 
     // ── Boot ───────────────────────────────────────────────────
     renderRail();
+    if (FILE_TYPE === 'pdf' && FILE_URL) {
+        renderPdfThumbnails().catch(() => toast('PDF slide previews could not be loaded.', 'error'));
+    }
     renderSlide().catch(() => {});
     pollRoom();
     setInterval(pollRoom, 5000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) pollRoom(); });
-
-    // Announce the deck as live so students start following it.
-    if (PRESENTATION_ID) {
-        api('presentation.php?action=set_active', {
-            method: 'POST',
-            body: { presentation_id: PRESENTATION_ID, active: true },
-        }).catch(() => toast('Students may not follow your slides: the deck could not be marked live.', 'error'));
-    }
 
     // Open the session for participants. The join screen and session API gate
     // entry on live_sessions.status = 'active', but opening the presenter only
