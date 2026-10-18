@@ -1,7 +1,7 @@
 {
   "project_name": "UNILIS - Unified Learning and Innovation Lab Information System",
   "version": "2.1.0",
-  "last_updated": "2026-07-28",
+  "last_updated": "2026-10-16",
   "description": "Comprehensive feature inventory for the UNILIS LMS system including Traditional LMS, SmartLab (SmartLab), Live Engagement, Teams, Chat, Meeting Server, ICLM (Self-Paced & Public Courses), and Public Learning (Learn) modules.",
   "modules": [
     {
@@ -37,9 +37,13 @@
           "id": "lms-student-assignments",
           "name": "Student Assignments",
           "status": "implemented",
-          "description": "View assignment details, submit work (text/file), track submission status",
-          "files": ["student/view_assignments.php", "includes/assignment_handler.php"],
+          "description": "Browse regular and interactive assignments by academic year and unit, submit work, and track submission status",
+          "files": ["student/take_assignment.php", "student/submit_assignment.php", "lecturer/create_questions.php", "actions.php", "includes/assignment_handler.php"],
           "sub_features": [
+            {"name": "Assignment Listing by Academic Year and Unit", "status": "implemented"},
+            {"name": "Archived Assignment History (Read-only)", "status": "implemented"},
+            {"name": "Academic-Year Filter for Submitted Assignments PDF", "status": "implemented"},
+            {"name": "Academic-Year Assignment Tagging on Creation", "status": "implemented"},
             {"name": "Assignment Listing with Deadlines", "status": "implemented"},
             {"name": "File Upload Submission", "status": "implemented"},
             {"name": "Text Submission", "status": "implemented"},
@@ -50,11 +54,28 @@
           ]
         },
         {
+          "id": "lms-student-assessments",
+          "name": "Student Assessment Taking",
+          "status": "implemented",
+          "description": "Take assessments online using the student assessment interface",
+          "files": ["student/take_assessment.php"],
+          "sub_features": [
+            {"name": "Online Assessment Delivery", "status": "implemented"}
+          ]
+        },
+        {
+          "id": "lms-student-progress",
+          "name": "Student Learning Progress",
+          "status": "implemented",
+          "description": "View progress across enrolled units and academic periods",
+          "files": ["student/my_progress.php"]
+        },
+        {
           "id": "lms-student-grades",
           "name": "Student Grades",
           "status": "implemented",
           "description": "View graded assignments, unit grades, GPA calculation, and detailed feedback",
-          "files": ["student/view_grades.php"],
+          "files": ["student/results.php"],
           "sub_features": [
             {"name": "Assignment Grades", "status": "implemented"},
             {"name": "Unit Grade Aggregation", "status": "implemented"},
@@ -67,7 +88,7 @@
           "name": "Student Attendance Tracking",
           "status": "partial",
           "description": "View attendance records per unit, mark attendance via QR/RFID/biometric/code",
-          "files": ["student/attendance.php", "student/attendance_submit.php", "smart-lab/controllers/QrAuthController.php"],
+          "files": ["student/student_attendance.php", "smart-lab/controllers/QrAuthController.php"],
           "sub_features": [
             {"name": "Attendance Record View", "status": "implemented"},
             {"name": "QR Code Attendance", "status": "implemented"},
@@ -83,7 +104,7 @@
           "name": "Course Content Access",
           "status": "implemented",
           "description": "Access course notes, lecture recordings, slides, and learning materials with lesson view",
-          "files": ["student/view_content.php", "student/lesson_view.php", "student/unit_notes.php", "student/js/lesson-dashboard.js"]
+          "files": ["student/lesson_view.php", "student/unit_notes.php", "student/js/lesson-dashboard.js"]
         },
         {
           "id": "lms-student-notifications",
@@ -95,7 +116,7 @@
             {"name": "In-app Notifications", "status": "implemented"},
             {"name": "Email Notifications", "status": "implemented"},
             {"name": "Real-time WebSocket Notifications", "status": "not-started"},
-            {"name": "Notification Preferences", "status": "not-started"}
+            {"name": "Notification Preferences", "status": "implemented"}
           ]
         },
         {
@@ -103,7 +124,7 @@
           "name": "Student Profile Management",
           "status": "implemented",
           "description": "Update personal info, change password, manage notification preferences",
-          "files": ["profile.php"]
+          "files": ["student/profile.php"]
         },
         {
           "id": "lms-student-enrolled-units",
@@ -318,19 +339,19 @@
     },
     {
       "name": "SmartLab Module",
-      "description": "Advanced laboratory management system with practicals, notebooks, asset tracking, biometric authentication, and blockchain audit trail",
+      "description": "Advanced laboratory management system with practicals, notebooks, asset tracking, authentication workflows, and blockchain audit trail",
       "features": [
         {
           "id": "smartlab-auth",
           "name": "Multi-Modal Authentication",
-          "status": "implemented",
-          "description": "Six authentication methods: password, QR code, RFID, biometric, OTP, and session codes with MFA support",
+          "status": "partial",
+          "description": "Password, QR code, RFID, OTP, and session-code login flows with MFA; fingerprint login is simulated and is not connected to biometric hardware",
           "files": ["smart-lab/auth/Auth.php", "smart-lab/controllers/AuthController.php", "smart-lab/controllers/QrAuthController.php"],
           "sub_features": [
             {"name": "Password Login", "status": "implemented"},
             {"name": "QR Code Login (Dynamic)", "status": "implemented"},
             {"name": "RFID Card Login", "status": "implemented"},
-            {"name": "Biometric/Fingerprint Login", "status": "implemented"},
+            {"name": "Biometric/Fingerprint Login (Simulated)", "status": "partial"},
             {"name": "OTP Email Login", "status": "implemented"},
             {"name": "Session Code Login", "status": "implemented"},
             {"name": "Multi-Factor Authentication", "status": "implemented"}
@@ -359,7 +380,7 @@
           "name": "Academic Integrity Workflow Engine",
           "status": "implemented",
           "description": "Strict state machine enforcing physical-presence-only attendance verification with 11 workflow states (Scheduled → Graded), practical dashboard, and verify attendance views",
-          "files": ["smart-lab/includes/WorkflowEngine.php", "smart-lab/controllers/WorkflowController.php", "smart-lab/migrations/workflow/001_strict_workflow_tables.sql", "smart-lab/views/workflow/practical_dashboard.php", "smart-lab/views/workflow/verify_attendance.php"],
+          "files": ["smart-lab/includes/WorkflowEngine.php", "smart-lab/controllers/WorkflowController.php", "smart-lab/views/workflow/practical_dashboard.php", "smart-lab/views/workflow/verify_attendance.php"],
           "sub_features": [
             {"name": "11-State Workflow", "status": "implemented"},
             {"name": "Physical Presence Verification Only", "status": "implemented"},
@@ -606,7 +627,7 @@
           "name": "Docker & CI/CD Deployment",
           "status": "implemented",
           "description": "Containerized deployment with Docker Compose (Apache/PHP + MySQL), GitHub Actions CI/CD pipeline, and production configuration",
-          "files": ["smart-lab/docker-compose.yml", "smart-lab/Dockerfile", "smart-lab/apache.conf", ".github/workflows/main.yml", "docker-compose.yml", "dockerfile"],
+          "files": ["smart-lab/docker-compose.yml", "smart-lab/Dockerfile", ".github/workflows/deploy.yml", "docker-compose.yml", "dockerfile"],
           "sub_features": [
             {"name": "Docker Compose Multi-Service Setup", "status": "implemented"},
             {"name": "GitHub Actions Automated Deployment", "status": "implemented"},
@@ -630,7 +651,7 @@
           "sub_features": [
             {"name": "Public Landing Page", "status": "implemented"},
             {"name": "Authenticated Home Dashboard", "status": "implemented"},
-            {"name": "Setup Script", "status": "implemented", "files": ["setup_live_engagement.php"]},
+            {"name": "Standalone Setup Script", "status": "not-started"},
             {"name": "Bootstrap Initialization", "status": "implemented", "files": ["modules/live-engagement/bootstrap.php"]}
           ]
         },
@@ -758,13 +779,11 @@
         {
           "id": "live-database",
           "name": "Database Management",
-          "status": "implemented",
-          "description": "Database installation scripts, update migrations, and helper utilities for the Live Engagement module",
-          "files": ["modules/live-engagement/database/install.php", "modules/live-engagement/database/update.php", "modules/live-engagement/config/database_helper.php"],
+          "status": "not-started",
+          "description": "Standalone database installation and update scripts are not present in the current source tree",
           "sub_features": [
-            {"name": "Install Script", "status": "implemented"},
-            {"name": "Update/Migration Script", "status": "implemented"},
-            {"name": "Database Helper Utilities", "status": "implemented"}
+            {"name": "Database Installation Script", "status": "not-started"},
+            {"name": "Database Update/Migration Script", "status": "not-started"}
           ]
         },
         {
@@ -888,15 +907,15 @@
           "id": "teams-members",
           "name": "Team Membership Management",
           "status": "implemented",
-          "description": "Manage team members with invitations, requests, approvals, removals, and role migration",
-          "files": ["teams/api/add_member.php", "teams/api/remove_member.php", "teams/api/get_team_members.php", "teams/api/confirm_member.php", "teams/api/request_member_removal.php", "teams/api/request_membership_leave.php", "teams/api/accept_invitation.php", "teams/api/get_invitations.php", "teams/api/get_team_invitations.php", "teams/api/resend_invitation_code.php", "teams/api/cleanup_expired_invitations.php", "teams/api/approve_membership_request.php", "teams/api/get_pending_membership_requests.php", "teams/api/migrate_membership_requests_table.php", "teams/api/migrate_team_members_role.php", "teams/controllers/MemberController.php", "teams/models/TeamMember.php", "teams/includes/team_membership.php", "teams/includes/ensure_team_marks.php"],
+          "description": "Manage team members with invitations, requests, approvals, removals, and roles",
+          "files": ["teams/api/add_member.php", "teams/api/remove_member.php", "teams/api/get_team_members.php", "teams/api/confirm_member.php", "teams/api/request_member_removal.php", "teams/api/request_membership_leave.php", "teams/api/accept_invitation.php", "teams/api/get_invitations.php", "teams/api/get_team_invitations.php", "teams/api/resend_invitation_code.php", "teams/api/cleanup_expired_invitations.php", "teams/api/approve_membership_request.php", "teams/api/get_pending_membership_requests.php", "teams/controllers/MemberController.php", "teams/models/TeamMember.php", "teams/includes/team_membership.php", "teams/includes/ensure_team_marks.php"],
           "sub_features": [
             {"name": "Add/Remove Members", "status": "implemented"},
             {"name": "Invitation System with Codes", "status": "implemented"},
             {"name": "Membership Requests & Approval", "status": "implemented"},
             {"name": "Membership Leave/Removal Requests", "status": "implemented"},
             {"name": "Expired Invitation Cleanup", "status": "implemented"},
-            {"name": "Role Migration", "status": "implemented"},
+            {"name": "Role Management", "status": "implemented"},
             {"name": "Team Marks Tracking", "status": "implemented"}
           ]
         },
@@ -1190,6 +1209,19 @@
           ]
         },
         {
+          "id": "learn-payments",
+          "name": "Course Payments & Settlement",
+          "status": "implemented",
+          "description": "Process learner course payments through M-Pesa, handle payment callbacks, reconcile transactions, and initiate department payouts",
+          "files": ["learn/payment.php", "learn/includes/mpesa.php", "api/mpesa_callback.php", "api/mpesa_reconcile.php"],
+          "sub_features": [
+            {"name": "M-Pesa Learner Checkout", "status": "implemented"},
+            {"name": "Payment Status & Callback Handling", "status": "implemented"},
+            {"name": "Transaction Reconciliation", "status": "implemented"},
+            {"name": "Department B2B Payout", "status": "implemented"}
+          ]
+        },
+        {
           "id": "learn-certificates",
           "name": "Certificate Generation & Verification",
           "status": "implemented",
@@ -1324,7 +1356,7 @@
           "name": "Deployment & DevOps",
           "status": "implemented",
           "description": "Docker containerization, GitHub Actions CI/CD pipeline, production configuration, and database initialization",
-          "files": ["docker-compose.yml", "Dockerfile", "apache.conf", ".github/workflows/main.yml", "start.sh", "docker/init.sh"],
+          "files": ["docker-compose.yml", "Dockerfile", "apache.conf", ".github/workflows/deploy.yml", "start.sh", "docker/init.sh"],
           "sub_features": [
             {"name": "Docker Compose Multi-Service Setup", "status": "implemented"},
             {"name": "GitHub Actions CI/CD Pipeline", "status": "implemented"},
@@ -1393,23 +1425,16 @@
             {"name": "WebSocket Real-time Notifications", "status": "not-started"},
             {"name": "SMS Notifications", "status": "not-started"},
             {"name": "Push Notifications", "status": "not-started"},
-            {"name": "Notification Preferences UI", "status": "not-started"}
+            {"name": "Notification Preferences UI", "status": "implemented"}
           ]
         },
         {
-          "id": "cross-migrations",
-          "name": "Database Migrations & Fixes",
+          "id": "smartlab-migrations",
+          "name": "SmartLab Database Migrations",
           "status": "implemented",
-          "description": "Database migration scripts and data fixes for schema updates across modules",
-          "files": ["migrations/", "fix/", "smart-lab/migrations/"],
+          "description": "SmartLab-specific database setup and schema updates",
+          "files": ["smart-lab/migrations/"],
           "sub_features": [
-            {"name": "Attendance Table Migration", "status": "implemented"},
-            {"name": "Chat System Migration", "status": "implemented"},
-            {"name": "Meeting Guests Migration", "status": "implemented"},
-            {"name": "External Learners Migration", "status": "implemented"},
-            {"name": "Note Status Migration", "status": "implemented"},
-            {"name": "RFID Database Migration", "status": "implemented"},
-            {"name": "Database Collation Fix", "status": "implemented"},
             {"name": "SmartLab Workflow Migrations", "status": "implemented"},
             {"name": "Report Graded-By Migration", "status": "implemented"}
           ]
@@ -1418,28 +1443,28 @@
     }
   ],
   "summary": {
-    "total_features": 95,
-    "implemented": 80,
-    "partial": 8,
-    "not_started": 7,
+    "total_features": 108,
+    "implemented": 94,
+    "partial": 9,
+    "not_started": 5,
     "by_module": {
       "Traditional LMS": {
-        "total": 25,
-        "implemented": 18,
+        "total": 29,
+        "implemented": 22,
         "partial": 5,
         "not_started": 2
       },
       "SmartLab Module": {
-        "total": 18,
-        "implemented": 18,
-        "partial": 0,
+        "total": 20,
+        "implemented": 19,
+        "partial": 1,
         "not_started": 0
       },
       "Live Engagement Module": {
-        "total": 12,
-        "implemented": 12,
+        "total": 14,
+        "implemented": 13,
         "partial": 0,
-        "not_started": 0
+        "not_started": 1
       },
       "Chat Module": {
         "total": 5,
@@ -1448,8 +1473,8 @@
         "not_started": 0
       },
       "Teams Module": {
-        "total": 12,
-        "implemented": 12,
+        "total": 13,
+        "implemented": 13,
         "partial": 0,
         "not_started": 0
       },
@@ -1460,25 +1485,26 @@
         "not_started": 0
       },
       "ICLM / Public Learning Module (Learn)": {
-        "total": 10,
-        "implemented": 10,
+        "total": 11,
+        "implemented": 11,
         "partial": 0,
         "not_started": 0
       },
       "Cross-Cutting Features": {
         "total": 9,
-        "implemented": 5,
+        "implemented": 4,
         "partial": 3,
-        "not_started": 1
+        "not_started": 2
       }
     },
-    "last_updated": "2026-07-28",
+    "last_updated": "2026-10-16",
     "note": "Total features are top-level features (not counting sub-features). Sub-feature statuses are detailed within each feature."
   },
   "known_issues": [
     "Practical attendance modal QR scanning not fully tested in browser",
     "Lab session start flow and notebook editor integration need completion",
     "Biometric enrollment flow not implemented in student profile",
+    "SmartLab fingerprint login is simulated and has no biometric hardware integration",
     "RFID card registration UI not implemented",
     "WebRTC meeting system partially implemented (screen sharing incomplete)",
     "Real-time notifications use AJAX polling instead of WebSocket",

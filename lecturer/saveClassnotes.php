@@ -16,6 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+if (!academic_year_history_table_exists($conn, 'classnotes')) {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'message' => 'Interactive notes are unavailable in this database.']);
+    exit;
+}
+
 // Create upload directories if they don't exist
 $upload_dirs = ['../uploads/images', '../uploads/files'];
 foreach ($upload_dirs as $dir) {
@@ -66,7 +72,7 @@ try {
         }
         
         // Verify the topic belongs to this lecturer
-        $check_stmt = $conn->prepare("SELECT id, unit_id, title, subtopics_json, academic_year FROM classnotes WHERE id = ? AND lecturer_id = ?");
+        $check_stmt = $conn->prepare("SELECT id, unit_id, title, subtopics_json, uploaded_at FROM classnotes WHERE id = ? AND lecturer_id = ?");
         $check_stmt->bind_param("ii", $topic_id, $lecturer_id);
         $check_stmt->execute();
         $check_result = $check_stmt->get_result();
@@ -97,10 +103,10 @@ try {
         // Update the topic
         $conn->begin_transaction();
         try {
-            $revisionYear = (string)($existingTopic['academic_year'] ?? '');
-            if ($revisionYear === '') {
-                $revisionYear = academic_year_history_current_label($conn);
-            }
+            $revisionYear = academic_year_history_label_for_date(
+                $conn,
+                (string)($existingTopic['uploaded_at'] ?? date('Y-m-d'))
+            );
             academic_year_history_revision(
                 $conn,
                 'classnote',
@@ -116,14 +122,10 @@ try {
 
             $stmt = $conn->prepare("
                 UPDATE classnotes
-                SET title = ?, subtopics_json = ?, uploaded_at = NOW(), academic_year = ?
+                SET title = ?, subtopics_json = ?
                 WHERE id = ? AND lecturer_id = ?
             ");
-            $academic_year = academic_year_history_label_for_date(
-                $conn,
-                date('Y-m-d')
-            );
-            $stmt->bind_param("sssii", $topic_title, $subtopics_json, $academic_year, $topic_id, $lecturer_id);
+            $stmt->bind_param("ssii", $topic_title, $subtopics_json, $topic_id, $lecturer_id);
 
             if (!$stmt->execute()) {
                 throw new Exception('Failed to update topic: ' . $stmt->error);
@@ -157,15 +159,10 @@ try {
             
             // Create new topic
             $stmt = $conn->prepare("
-                INSERT INTO classnotes (unit_id, lecturer_id, title, subtopics_json, uploaded_at, academic_year)
-                VALUES (?, ?, ?, ?, NOW(), ?)
+                INSERT INTO classnotes (unit_id, lecturer_id, title, subtopics_json)
+                VALUES (?, ?, ?, ?)
             ");
-            
-            $academic_year = academic_year_history_label_for_date(
-                $conn,
-                date('Y-m-d')
-            );
-            $stmt->bind_param("iisss", $unit_id, $lecturer_id, $topic_title, $subtopics_json, $academic_year);
+            $stmt->bind_param("iiss", $unit_id, $lecturer_id, $topic_title, $subtopics_json);
             
             if (!$stmt->execute()) {
                 throw new Exception('Failed to save topic: ' . $stmt->error);

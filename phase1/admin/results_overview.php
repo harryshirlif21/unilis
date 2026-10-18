@@ -60,7 +60,7 @@ foreach ([
     }
 }
 if (!$ready) {
-    $setupMessage = 'Results reporting needs the Results / Transcript database migration. Ask the system administrator to apply migrations/2026_09_26_results_transcript.php.';
+    $setupMessage = 'Results reporting is unavailable because the current database is missing required results fields.';
 }
 
 $units = [];

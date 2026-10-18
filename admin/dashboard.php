@@ -220,7 +220,7 @@ function apply_academic_year_progression(mysqli $conn, array $setting): int
 
     $historyTable = $conn->query("SHOW TABLES LIKE 'student_academic_year_history'");
     if (!$historyTable || $historyTable->num_rows === 0) {
-        throw new RuntimeException('Run migrations/2026_10_06_academic_year_history.php before applying student progression.');
+        throw new RuntimeException('Student academic-year history is unavailable in the current database.');
     }
 
     $updatedCount = 0;
@@ -929,82 +929,6 @@ if ($teamTablesExist) {
         </form>
         <p style="margin:0 0 12px 0; color:#666;">Content is assigned to the academic year whose date range contains its upload or creation date. Students progress after an academic year ends and the next configured year begins. Date ranges cannot overlap.</p>
         <div class="student-count-text">Current setting: <strong><?= htmlspecialchars($academic_year_setting['academic_year_label'] ?? 'Not set') ?></strong> (<?= htmlspecialchars($academic_year_setting['start_date'] ?? '—') ?> to <?= htmlspecialchars($academic_year_setting['end_date'] ?? '—') ?>)</div>
-    </div>
-
-    <?php
-    // One-off schema scripts living in the application root. Each one gates itself
-    // on the admin role, so this panel is only a launcher — it grants no access
-    // that visiting the script directly would not. The list empties itself as
-    // scripts are deleted after being applied.
-    $migrationScripts = glob(dirname(__DIR__) . '/migrate_*.php') ?: [];
-    // Also include Phase 1 migration scripts - preserve relative path
-    $phase1Migrations = glob(dirname(__DIR__) . '/phase1/database/*.php') ?: [];
-    // Include migrations directory scripts
-    $migrationsDirScripts = glob(dirname(__DIR__) . '/migrations/*.php') ?: [];
-    
-    // Convert root-level migrations to relative paths (just filename)
-    $migrationScripts = array_map(function($path) {
-        return basename($path);
-    }, $migrationScripts);
-    
-    // Phase 1 migrations need their subdirectory path preserved
-    $phase1Migrations = array_map(function($path) {
-        return 'phase1/database/' . basename($path);
-    }, $phase1Migrations);
-    
-    // Migrations directory scripts need their subdirectory path preserved
-    $migrationsDirScripts = array_map(function($path) {
-        return 'migrations/' . basename($path);
-    }, $migrationsDirScripts);
-    
-    $migrationScripts = array_merge($migrationScripts, $phase1Migrations, $migrationsDirScripts);
-    sort($migrationScripts);
-    ?>
-    <div class="registration-stats-section" hidden>
-        <h3><i class="fas fa-database" style="color:#8e44ad;"></i> Database Migrations</h3>
-        <p style="margin:0 0 14px 0; color:#666;">
-            One-off schema scripts awaiting a run. Each is safe to run more than once and
-            reports what it changed. Delete a script from the repository once it has been applied.
-        </p>
-
-        <div style="border:1px solid #e1e4e8; border-radius:8px; padding:12px; margin-bottom: 20px; background-color: #f0f4f8;">
-            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                <strong style="flex:1; min-width:240px;">Run all migrations at once</strong>
-            </div>
-        </div>
-
-        <p style="margin:14px 0; color:#666;">Or run scripts individually:</p>
-
-        <?php if (empty($migrationScripts)): ?>
-            <div class="empty-state">No migration scripts are pending.</div>
-        <?php else: ?>
-            <div style="display:grid; gap:10px;">
-                <?php foreach ($migrationScripts as $path):
-                    $scriptName = $path; // Use full relative path, not just basename
-                    // Build absolute path for filemtime
-                    if (strpos($path, 'phase1/') === 0) {
-                        $absolutePath = dirname(__DIR__) . '/' . $path;
-                    } elseif (strpos($path, 'migrations/') === 0) {
-                        $absolutePath = dirname(__DIR__) . '/' . $path;
-                    } else {
-                        $absolutePath = dirname(__DIR__) . '/' . $path;
-                    }
-                    $outputId = 'migration-output-' . md5($scriptName);
-                    ?>
-                    <div style="border:1px solid #e1e4e8; border-radius:8px; padding:12px;">
-                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                            <code style="flex:1; min-width:240px; word-break:break-all;"><?= htmlspecialchars($scriptName) ?></code>
-                            <span style="color:#888; font-size:0.85rem;">added <?= file_exists($absolutePath) ? date('Y-m-d H:i', filemtime($absolutePath)) : 'unknown' ?></span>
-                            <button type="button" class="btn btn-success"
-                                    onclick="runMigration('<?= htmlspecialchars($scriptName, ENT_QUOTES) ?>', '<?= $outputId ?>', this)">
-                                <i class="fas fa-play"></i> Run
-                            </button>
-                        </div>
-                        <pre id="<?= $outputId ?>" style="display:none; margin:10px 0 0 0; padding:10px; background:#1e1e1e; color:#e6e6e6; border-radius:6px; overflow:auto; max-height:320px; white-space:pre-wrap; font-size:0.82rem;"></pre>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
     </div>
 
     <div class="registration-stats-section">
@@ -1787,75 +1711,6 @@ function escapeHtml(str) {
 function escapeJs(str) {
     if (str == null) return '';
     return String(str).replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n').replace(/\r/g,'');
-}
-
-/* ─────────────────────────────────────────
-   Database migrations
-───────────────────────────────────────── */
-async function runMigration(scriptName, outputId, button) {
-    if (!confirm('Run ' + scriptName + '?\n\nThis alters the database schema.')) return;
-
-    const output = document.getElementById(outputId);
-    const originalLabel = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running';
-    output.style.display = 'block';
-    output.textContent = 'Running ' + scriptName + ' ...';
-
-    try {
-        // The script reports plain text and gates itself on the admin session, so the
-        // cookie has to travel with the request.
-        const res = await fetch('../' + scriptName, {
-            credentials: 'same-origin',
-            headers: { 'Accept': 'text/plain' },
-            cache: 'no-store'
-        });
-        const body = (await res.text()).trim();
-        output.textContent = res.ok ? (body || '(no output)') : ('HTTP ' + res.status + '\n\n' + body);
-    } catch (err) {
-        output.textContent = 'Request failed: ' + err.message;
-    } finally {
-        button.disabled = false;
-        button.innerHTML = originalLabel;
-    }
-}
-
-async function runAllMigrations(button) {
-    if (!confirm('Run all consolidated migrations now?\n\nThis can alter the database schema, including Phase 1 tables. Back up the database first. Continue?')) return;
-
-    const output = document.getElementById('all-migrations-output');
-    document.getElementById('migration-status-panel').style.display = 'block';
-    const originalLabel = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running All...';
-    output.style.display = 'block';
-    output.textContent = 'Starting all migrations...';
-
-    try {
-        const body = new URLSearchParams({
-            csrf_token: <?= json_encode($_SESSION['csrf_token']) ?>
-        });
-        const res = await fetch('run_all_migrations.php', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Accept': 'text/html',
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body,
-            cache: 'no-store'
-        });
-        const responseText = (await res.text()).trim();
-        output.innerHTML = responseText || '(no output)';
-        if (!res.ok) {
-            output.insertAdjacentHTML('afterbegin', '<p style="color:#b91c1c;font-weight:600;">Migration run returned HTTP ' + res.status + '.</p>');
-        }
-    } catch (err) {
-        output.textContent = 'Request failed: ' + err.message;
-    } finally {
-        button.disabled = false;
-        button.innerHTML = originalLabel;
-    }
 }
 
 /* ─────────────────────────────────────────
@@ -2771,25 +2626,6 @@ function confirmBulkDeleteTestData() {
     <div style="text-align:center;padding:20px;color:#aaa;">Click <strong>"Run All"</strong> to start diagnostics.</div>
   </div>
 </div>
-
-<!-- Floating migration output -->
-<div id="migration-status-panel" style="display:none;position:fixed;right:20px;bottom:76px;width:min(620px,calc(100vw - 40px));max-height:55vh;overflow:auto;background:#fff;border:1px solid #d1d5db;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:99997;">
-  <div style="position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#1e3a5f;color:#fff;">
-    <strong><i class="fas fa-database"></i> Migration results</strong>
-    <button type="button" onclick="document.getElementById('migration-status-panel').style.display='none'" aria-label="Close migration results" style="background:transparent;color:#fff;border:0;font-size:20px;cursor:pointer;">&times;</button>
-  </div>
-  <div id="all-migrations-output" style="padding:12px;overflow:auto;max-height:calc(55vh - 44px);"></div>
-</div>
-
-<!-- Floating migration launcher -->
-<button type="button" id="run-all-migrations-btn" onclick="runAllMigrations(this)" title="Run all consolidated migrations" aria-label="Run all consolidated migrations" style="
-  position:fixed;bottom:20px;right:20px;z-index:99998;
-  width:52px;height:52px;border-radius:50%;
-  background:#1e3a5f;color:#fff;border:2px solid #fff;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;font-size:20px;box-shadow:0 4px 16px rgba(0,0,0,.35);
-  transition:transform .2s;
-" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'"><i class="fas fa-database"></i></button>
 
 <!-- Floating diagnostic launcher -->
 <div onclick="toggleLeDiag()" id="le-diag-launcher" style="

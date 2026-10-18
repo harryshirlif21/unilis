@@ -11,22 +11,28 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 $lecturer_id = $_SESSION['user_id'];
 $currentAcademicYear = academic_year_history_current_label($conn);
 $lecturerAcademicYears = [$currentAcademicYear => $currentAcademicYear];
-$yearStmt = $conn->prepare("
-    SELECT academic_year FROM classnotes WHERE lecturer_id = ? AND academic_year IS NOT NULL
-    UNION SELECT academic_year FROM notes WHERE lecturer_id = ? AND academic_year IS NOT NULL
-    UNION SELECT academic_year FROM assignments WHERE lecturer_id = ? AND academic_year IS NOT NULL
-    UNION SELECT academic_year FROM interactive_assignments WHERE lecturer_id = ? AND academic_year IS NOT NULL
-    ORDER BY academic_year DESC
-");
-if ($yearStmt) {
-    $yearStmt->bind_param('iiii', $lecturer_id, $lecturer_id, $lecturer_id, $lecturer_id);
+$contentDateLabels = [];
+foreach ([
+    ['notes', 'uploaded_at'],
+    ['classnotes', 'uploaded_at'],
+    ['assignments', 'created_at'],
+    ['interactive_assignments', 'created_at'],
+] as [$tableName, $dateColumn]) {
+    if (!academic_year_history_table_exists($conn, $tableName)) {
+        continue;
+    }
+
+    $yearStmt = $conn->prepare("SELECT DISTINCT DATE(`{$dateColumn}`) AS content_date FROM `{$tableName}` WHERE lecturer_id = ? AND `{$dateColumn}` IS NOT NULL");
+    $yearStmt->bind_param('i', $lecturer_id);
     $yearStmt->execute();
     $yearRows = $yearStmt->get_result();
     while ($yearRow = $yearRows->fetch_assoc()) {
-        $label = trim((string)$yearRow['academic_year']);
-        if (preg_match('/^\d{4}\/\d{4}$/', $label)) {
-            $lecturerAcademicYears[$label] = $label;
+        $contentDate = (string)$yearRow['content_date'];
+        if (!isset($contentDateLabels[$contentDate])) {
+            $contentDateLabels[$contentDate] = academic_year_history_label_for_date($conn, $contentDate);
         }
+        $label = $contentDateLabels[$contentDate];
+        $lecturerAcademicYears[$label] = $label;
     }
     $yearStmt->close();
 }
@@ -35,6 +41,7 @@ if (!isset($lecturerAcademicYears[$selectedAcademicYear])) {
     $selectedAcademicYear = $currentAcademicYear;
 }
 $readOnlyHistory = $selectedAcademicYear !== $currentAcademicYear;
+$selectedAcademicYearRange = academic_year_history_date_range($conn, $selectedAcademicYear);
 $lecturer_name = $_SESSION['user_name'];
 // Fetch units taught by lecturer
 $units = [];
@@ -59,16 +66,22 @@ try {
 function getTopics($conn, $unit_id, $lecturer_id, $academic_year) {
     $topics = [];
     try {
+        $dateRange = academic_year_history_date_range($conn, $academic_year);
+        if ($dateRange === null || !academic_year_history_table_exists($conn, 'classnotes')) {
+            return $topics;
+        }
+
         $stmt = $conn->prepare("
-            SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at, cn.academic_year
+            SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at
             FROM classnotes cn
             JOIN lecturer_units lu ON lu.unit_id = cn.unit_id
-            WHERE cn.unit_id = ? AND lu.lecturer_id = ? AND cn.academic_year = ?
+            WHERE cn.unit_id = ? AND lu.lecturer_id = ? AND cn.uploaded_at >= ? AND cn.uploaded_at < ?
         ");
-        $stmt->bind_param("iis", $unit_id, $lecturer_id, $academic_year);
+        $stmt->bind_param("iiss", $unit_id, $lecturer_id, $dateRange[0], $dateRange[1]);
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
+            $row['academic_year'] = $academic_year;
             $row['subtopics'] = json_decode($row['subtopics_json'], true) ?: [];
             $topics[] = $row;
         }

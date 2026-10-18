@@ -124,6 +124,41 @@ function academic_year_history_label_for_date(mysqli $conn, string $date): strin
     return academic_year_history_label($year > 0 ? $year : (int)date('Y'));
 }
 
+function academic_year_history_table_exists(mysqli $conn, string $tableName): bool
+{
+    $stmt = $conn->prepare("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1");
+    $stmt->bind_param('s', $tableName);
+    $stmt->execute();
+    $exists = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+    return $exists;
+}
+
+function academic_year_history_date_range(mysqli $conn, string $label): ?array
+{
+    if (academic_year_history_table_exists($conn, 'academic_year_settings')) {
+        $stmt = $conn->prepare("SELECT start_date, end_date FROM academic_year_settings WHERE academic_year_label = ? LIMIT 1");
+        $stmt->bind_param('s', $label);
+        $stmt->execute();
+        $period = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (
+            $period
+            && academic_year_history_validate_period($label, (string)$period['start_date'], (string)$period['end_date']) === null
+        ) {
+            $endExclusive = (new DateTimeImmutable((string)$period['end_date']))->modify('+1 day')->format('Y-m-d');
+            return [(string)$period['start_date'], $endExclusive];
+        }
+    }
+
+    $startYear = academic_year_history_start_year($label);
+    if ($startYear === null) {
+        return null;
+    }
+
+    return [sprintf('%04d-01-01', $startYear), sprintf('%04d-01-01', $startYear + 1)];
+}
+
 function academic_year_history_student_options(array $student, string $currentLabel, ?mysqli $conn = null): array
 {
     $currentStart = academic_year_history_start_year($currentLabel);
@@ -185,6 +220,10 @@ function academic_year_history_revision(
     int $editedBy,
     array $snapshot
 ): void {
+    if (!academic_year_history_table_exists($conn, 'learning_content_versions')) {
+        return;
+    }
+
     $stmt = $conn->prepare("
         INSERT INTO learning_content_versions
             (content_type, content_id, unit_id, academic_year, version_number, snapshot_json, edited_by)

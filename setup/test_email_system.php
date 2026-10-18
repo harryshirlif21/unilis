@@ -216,7 +216,6 @@ echo "
         <h2>🔗 Quick Links</h2>
         <ul>
             <li><a href='deadline_reminder_cron.php'>Cron Job Setup Instructions</a></li>
-            <li><a href='../migrations/add_deadline_reminders.php'>Run Database Migration</a></li>
             <li><a href='../student/dashboard.php'>Student Dashboard</a></li>
         </ul>
     </div>

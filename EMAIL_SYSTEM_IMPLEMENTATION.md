@@ -40,8 +40,8 @@ Successfully extracted email sending logic from student registration and impleme
 - **Automatic scheduling** via cron job
 - **Comprehensive logging** of all reminder activities
 
-### ✅ **4. Database Schema Updates**
-**File**: `migrations/add_deadline_reminders.php`
+### ✅ **4. Database Schema Requirements**
+The configured database must already include the reminder tracking columns and `deadline_reminders_log` table. This project no longer includes database migration scripts.
 
 **New Columns**:
 ```sql
@@ -160,17 +160,12 @@ send_bulk_notification_emails($recipients, $subject, $title, $message, $link, 'n
 
 ## 🚀 **Setup Instructions**
 
-### **1. Database Migration**:
-```bash
-php migrations/add_deadline_reminders.php
-```
-
-### **2. Test Email System**:
+### **1. Test Email System**:
 ```bash
 php setup/test_email_system.php
 ```
 
-### **3. Set Up Cron Job**:
+### **2. Set Up Cron Job**:
 ```bash
 # Option A: Direct PHP
 0 * * * * /usr/bin/php /path/to/unilis/includes/deadline_reminders.php
@@ -233,7 +228,6 @@ php setup/test_email_system.php
 ### **New Files**:
 - `includes/email_system.php` - Unified email system
 - `includes/deadline_reminders.php` - Deadline reminder automation
-- `migrations/add_deadline_reminders.php` - Database migration
 - `setup/deadline_reminder_cron.php` - Cron job setup guide
 - `setup/test_email_system.php` - Email testing dashboard
 
@@ -243,7 +237,7 @@ php setup/test_email_system.php
 
 ## 🎯 **Next Steps**
 
-1. **Run database migration** to add reminder columns
+1. Confirm the configured database already has the reminder tracking columns and log table.
 2. **Test email system** using the test dashboard
 3. **Set up cron job** for automated reminders
 4. **Monitor system** for first week of operation
@@ -254,7 +248,7 @@ php setup/test_email_system.php
 ### **Common Issues**:
 - **Email not sending**: Check SMTP configuration
 - **Cron job not running**: Verify cron service and paths
-- **Database errors**: Run migration script
+- **Database errors**: Verify the configured database already has the required reminder schema
 - **Missing reminders**: Check assignment deadlines and reminder flags
 
 ### **Debug Tools**:

@@ -23,7 +23,7 @@ Successfully implemented a comprehensive enhanced attendance system where each s
 - **Session management** with status tracking
 
 ### ✅ **2. Database Schema Enhancement**
-**File**: `migrations/add_student_attendance_codes.php`
+The current database must already contain the tables shown below. This repository no longer includes migration scripts.
 
 **New Tables**:
 ```sql
@@ -189,12 +189,7 @@ CREATE TABLE attendance_records (
 
 ## 🚀 **Setup Instructions**
 
-### **1. Run Database Migration**:
-```bash
-php migrations/add_student_attendance_codes.php
-```
-
-### **2. Test Enhanced System**:
+### **1. Verify the existing database contains the required tables, then test the enhanced system**:
 1. **Lecturer**: Create attendance session with email option
 2. **Student**: Check email for personal code
 3. **Student**: Enter code in dashboard modal
@@ -236,7 +231,6 @@ php migrations/add_student_attendance_codes.php
 
 ### **New Files**:
 - `includes/student_attendance.php` - Core enhanced attendance functions
-- `migrations/add_student_attendance_codes.php` - Database migration
 - `student/attendance_submit.php` - Attendance submission API
 - `student/get_attendance_sessions.php` - Sessions API endpoint
 
@@ -246,11 +240,10 @@ php migrations/add_student_attendance_codes.php
 
 ## 🎯 **Next Steps**
 
-1. **Run migration** to create new database tables
-2. **Test lecturer session creation** with email sending
-3. **Test student code entry** and validation
-4. **Monitor email delivery** and code usage
-5. **Gather user feedback** on enhanced experience
+1. **Test lecturer session creation** with email sending
+2. **Test student code entry** and validation
+3. **Monitor email delivery** and code usage
+4. **Gather user feedback** on enhanced experience
 
 ## 📞 **Troubleshooting**
 

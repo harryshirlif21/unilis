@@ -228,6 +228,148 @@ function le_join_session(int $sessionId, ?int $userId, string $displayName, stri
 }
 
 /**
+ * Find the signed-in participant in a session using the current account or guest identity.
+ */
+function le_get_current_session_participant(int $sessionId, ?int $userId): ?array
+{
+    $db = le_db();
+    if ($userId) {
+        return $db->fetchOne(
+            "SELECT * FROM live_participants
+             WHERE session_id = ? AND user_id = ? AND is_online = 1
+             ORDER BY joined_at DESC LIMIT 1",
+            [$sessionId, $userId],
+            'ii'
+        );
+    }
+
+    $columns = [];
+    $columnResult = $db->getConnection()->query("SHOW COLUMNS FROM live_participants");
+    if ($columnResult) {
+        while ($column = $columnResult->fetch_assoc()) {
+            $columns[$column['Field']] = true;
+        }
+        $columnResult->free();
+    }
+
+    $guestId = (int) ($_SESSION['le_guest_id'] ?? 0);
+    if ($guestId && isset($columns['guest_id'])) {
+        return $db->fetchOne(
+            "SELECT * FROM live_participants
+             WHERE session_id = ? AND guest_id = ? AND is_online = 1
+             ORDER BY joined_at DESC LIMIT 1",
+            [$sessionId, $guestId],
+            'ii'
+        );
+    }
+
+    $email = strtolower(trim((string) le_current_user_email()));
+    if ($email !== '' && isset($columns['email'])) {
+        return $db->fetchOne(
+            "SELECT * FROM live_participants
+             WHERE session_id = ? AND LOWER(email) = ? AND is_online = 1
+             ORDER BY joined_at DESC LIMIT 1",
+            [$sessionId, $email],
+            'is'
+        );
+    }
+
+    return null;
+}
+
+/**
+ * Read temporary live-room state, discarding expired questions and reactions.
+ */
+function le_get_live_room_state(int $sessionId): array
+{
+    return le_access_live_room_state($sessionId);
+}
+
+/**
+ * Atomically update temporary live-room state shared by the session participants.
+ */
+function le_update_live_room_state(int $sessionId, callable $update): array
+{
+    return le_access_live_room_state($sessionId, $update);
+}
+
+function le_clear_live_room_state(int $sessionId): void
+{
+    le_update_live_room_state($sessionId, static function (array $state): array {
+        return ['questions' => [], 'reactions' => []];
+    });
+}
+
+function le_access_live_room_state(int $sessionId, ?callable $update = null): array
+{
+    if ($sessionId < 1) {
+        throw new InvalidArgumentException('A valid session ID is required.');
+    }
+
+    $directory = LE_MODULE_PATH . '/storage/live-room-state';
+    if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+        throw new RuntimeException('Unable to create temporary live-room storage.');
+    }
+
+    $path = $directory . '/' . hash('sha256', (string) $sessionId) . '.state';
+    $file = fopen($path, 'c+');
+    if ($file === false) {
+        throw new RuntimeException('Unable to open temporary live-room storage.');
+    }
+
+    try {
+        if (!flock($file, LOCK_EX)) {
+            throw new RuntimeException('Unable to lock temporary live-room storage.');
+        }
+        rewind($file);
+        $contents = stream_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException('Unable to read temporary live-room state.');
+        }
+        $state = $contents === '' ? ['questions' => [], 'reactions' => []] : json_decode($contents, true);
+        if (!is_array($state)
+            || !isset($state['questions'], $state['reactions'])
+            || !is_array($state['questions'])
+            || !is_array($state['reactions'])) {
+            throw new RuntimeException('Temporary live-room state is invalid.');
+        }
+
+        $now = time();
+        $state['questions'] = array_values(array_filter(
+            $state['questions'],
+            static fn($question): bool => is_array($question) && (int) ($question['expires_at'] ?? 0) > $now
+        ));
+        $state['reactions'] = array_values(array_filter(
+            $state['reactions'],
+            static fn($reaction): bool => is_array($reaction) && (int) ($reaction['expires_at'] ?? 0) > $now
+        ));
+
+        if ($update !== null) {
+            $state = $update($state);
+            if (!is_array($state)) {
+                throw new RuntimeException('Temporary live-room update returned invalid state.');
+            }
+        }
+
+        $serialized = json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($serialized === false) {
+            throw new RuntimeException('Unable to encode temporary live-room state.');
+        }
+        if ($update !== null || $serialized !== $contents) {
+            rewind($file);
+            if (!ftruncate($file, 0) || fwrite($file, $serialized) !== strlen($serialized) || !fflush($file)) {
+                throw new RuntimeException('Unable to write temporary live-room state.');
+            }
+        }
+
+        flock($file, LOCK_UN);
+        return $state;
+    } finally {
+        fclose($file);
+    }
+}
+
+/**
  * Mark a participant as offline (left the session)
  * 
  * @param int $participantId
@@ -291,13 +433,18 @@ function le_get_raised_hands(int $sessionId): array
 function le_add_reaction(int $sessionId, ?int $userId, ?int $participantId, string $reactionType, 
                           string $targetType = 'general', ?int $targetId = null)
 {
-    $db = le_db();
-    return $db->insert(
-        "INSERT INTO live_reactions (session_id, user_id, session_participant_id, reaction_type, target_type, target_id) 
-         VALUES (?, ?, ?, ?, ?, ?)",
-        [$sessionId, $userId, $participantId, $reactionType, $targetType, $targetId],
-        'iiissi'
-    );
+    le_update_live_room_state($sessionId, static function (array $state) use ($participantId, $reactionType, $targetType, $targetId): array {
+        $state['reactions'][] = [
+            'id' => bin2hex(random_bytes(12)),
+            'type' => $reactionType,
+            'participant_id' => $participantId,
+            'target_type' => $targetType,
+            'target_id' => $targetId,
+            'expires_at' => time() + 120,
+        ];
+        return $state;
+    });
+    return 1;
 }
 
 /**
@@ -310,24 +457,11 @@ function le_add_reaction(int $sessionId, ?int $userId, ?int $participantId, stri
  */
 function le_get_reactions(int $sessionId, ?string $targetType = null, ?int $targetId = null): array
 {
-    $db = le_db();
-    $sql = "SELECT * FROM live_reactions WHERE session_id = ?";
-    $params = [$sessionId];
-    $types = 'i';
-    
-    if ($targetType) {
-        $sql .= " AND target_type = ?";
-        $params[] = $targetType;
-        $types .= 's';
-    }
-    
-    if ($targetId) {
-        $sql .= " AND target_id = ?";
-        $params[] = $targetId;
-        $types .= 'i';
-    }
-    
-    return $db->select($sql, $params, $types) ?? [];
+    $reactions = le_get_live_room_state($sessionId)['reactions'];
+    return array_values(array_filter($reactions, static function (array $reaction) use ($targetType, $targetId): bool {
+        return (!$targetType || ($reaction['target_type'] ?? 'general') === $targetType)
+            && (!$targetId || (int) ($reaction['target_id'] ?? 0) === $targetId);
+    }));
 }
 
 /**
@@ -338,13 +472,16 @@ function le_get_reactions(int $sessionId, ?string $targetType = null, ?int $targ
  */
 function le_get_reaction_counts(int $sessionId): array
 {
-    $db = le_db();
-    return $db->select(
-        "SELECT reaction_type, COUNT(*) as count 
-         FROM live_reactions WHERE session_id = ? 
-         GROUP BY reaction_type ORDER BY count DESC",
-        [$sessionId]
-    ) ?? [];
+    $counts = [];
+    foreach (le_get_live_room_state($sessionId)['reactions'] as $reaction) {
+        $type = $reaction['type'];
+        $counts[$type] = ($counts[$type] ?? 0) + 1;
+    }
+    $result = [];
+    foreach ($counts as $type => $count) {
+        $result[] = ['reaction_type' => $type, 'count' => $count];
+    }
+    return $result;
 }
 
 /**
@@ -473,10 +610,11 @@ function le_get_session_stats(int $sessionId): array
             'total_wordcloud_submissions' => 0,
             'total_open_responses' => 0,
             'total_hand_raises' => $handRaised,
-            'total_reactions' => $db->count('live_reactions', 'session_id = ?', [$sessionId]),
+            'total_reactions' => 0,
         ];
     }
-    
+    $stats['total_reactions'] = 0;
+
     return $stats;
 }
 
@@ -496,7 +634,7 @@ function le_update_stats(int $sessionId): bool
     $totalPollResponses = $db->count('live_poll_responses r JOIN live_polls p ON r.poll_id = p.id', 'p.session_id = ?', [$sessionId]);
     $totalQuizAttempts = $db->count('quiz_attempts a JOIN live_quizzes q ON a.quiz_id = q.id', 'q.session_id = ?', [$sessionId]);
     $totalHandRaised = $db->count('live_participants', 'session_id = ? AND hand_raised = 1', [$sessionId]);
-    $totalReactions = $db->count('live_reactions', 'session_id = ?', [$sessionId]);
+    $totalReactions = 0;
     
     // Calculate engagement score (0-100)
     $engagementScore = 0;

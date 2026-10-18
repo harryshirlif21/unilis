@@ -117,6 +117,13 @@ require_once 'modules/live-engagement/database/install.php';
 
 The installer is **safe to run multiple times**. It checks if tables exist before creating them.
 
+Live Q&A requests and emoji reactions are passed between browsers using
+short-lived files under `modules/live-engagement/storage/live-room-state/`;
+they are not written to the database. Ensure the web-server account can write
+to `modules/live-engagement/storage/`. Q&A entries expire one hour after the
+request, reaction events expire after two minutes, and ending or deleting a
+session clears its temporary room state.
+
 ### 2. Directory Permissions
 
 Ensure the following directories are writable by the web server:
@@ -160,6 +167,7 @@ $unitSessions = $sessionModel->getByUnit($unitId);
 2. Enter the session code provided by your lecturer
 3. Join and participate in polls, quizzes, and activities
 4. Use reactions, hand raise, and notes during the session
+5. Request permission from the lecturer before typing and submitting a question
 
 ## API Reference
 
@@ -174,7 +182,12 @@ $unitSessions = $sessionModel->getByUnit($unitId);
 | POST | `session.php` (action=join) | Join session |
 | POST | `session.php` (action=start) | Start session |
 | POST | `session.php` (action=end) | End session |
+| POST | `session.php` (action=raise_hand) | Raise or lower a joined participant's hand |
 | POST | `session.php` (action=reaction) | Send reaction |
+| POST | `session.php` (action=question_request) | Request permission to ask a question |
+| POST | `session.php` (action=question_allow) | Allow a student's question (session lecturer/admin only) |
+| POST | `session.php` (action=question_submit) | Submit a question after approval |
+| GET | `session.php?action=questions&id=X` | List pending and submitted questions (session lecturer/admin only) |
 | DELETE | `session.php?action=delete&id=X` | Delete session |
 
 ### Poll Endpoints
@@ -245,6 +258,7 @@ LiveEngagement.stopPolling();
 | `live_presentations` | Uploaded presentations |
 | `presentation_slides` | Individual slides |
 | `live_participants` | Session participants and tracking |
+| `storage/live-room-state/*.state` | Temporary, file-backed Q&A and reaction events |
 | `live_polls` | Poll questions |
 | `live_poll_options` | Poll answer options |
 | `live_poll_responses` | Participant poll responses |
@@ -260,7 +274,6 @@ LiveEngagement.stopPolling();
 | `live_notes` | User session notes |
 | `live_whiteboards` | Whiteboard canvases |
 | `whiteboard_objects` | Drawn objects on whiteboards |
-| `live_reactions` | Emoji/like reactions |
 | `live_reports` | Generated session reports |
 | `live_statistics` | Engagement statistics snapshots |
 
@@ -284,19 +297,13 @@ LiveEngagement.stopPolling();
 ### Adding New Features
 
 1. Create model class in `models/` extending `BaseModel`
-2. Add database migration in `database/update.php`
+2. Ensure the configured database already contains the schema required by the feature.
 3. Create API endpoint in `api/`
 4. Add JavaScript methods in `assets/js/live-engagement.js`
 5. Create view template in `views/`
 6. Register route in `index.php`
 
-### Running Database Migrations
-
-```php
-require_once 'modules/live-engagement/bootstrap.php';
-$result = le_install_database(); // Install tables
-$result = le_update_database();  // Run migrations
-```
+Database installation and migration scripts are not included in this repository.
 
 ## Extending
 

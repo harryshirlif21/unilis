@@ -3,16 +3,16 @@
 Use the development Compose file when working locally:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --no-build
 ```
 
 The development configuration bind-mounts the repository into the Apache
 container. PHP, HTML, CSS, JavaScript, and configuration changes therefore
-appear at `http://localhost:8080` without rebuilding the app image.
+appear at `http://localhost:8080` without rebuilding the app image. Use this
+command for normal local development; do not use the production Compose file
+alone, because it serves code baked into the image.
 
-The first start may build the meeting-server image if it is not already
-available. Rebuild only when changing a Dockerfile, Composer dependencies, or
-other files copied into an image:
+If the required images are not already available, build them once with:
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build

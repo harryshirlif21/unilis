@@ -485,6 +485,19 @@ Layout::start([
     0%, 100% { box-shadow: 0 14px 40px rgba(0, 0, 0, .35), 0 0 0 0 rgba(249, 168, 37, .5); }
     50% { box-shadow: 0 14px 40px rgba(0, 0, 0, .35), 0 0 0 9px rgba(249, 168, 37, 0); }
 }
+.le-questions {
+    position: absolute; top: 190px; right: 22px; width: min(360px, calc(100vw - 44px));
+    max-height: 48%; overflow-y: auto; padding: 12px;
+    background: rgba(10, 26, 13, .94); border: 1px solid rgba(255, 255, 255, .16);
+    border-radius: 14px; box-shadow: 0 18px 46px rgba(0, 0, 0, .4);
+    backdrop-filter: blur(18px); z-index: 23;
+}
+.le-questions[hidden] { display: none; }
+.le-questions h4 { margin: 0 0 8px; color: #F9A825; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+.le-question-row { padding: 9px; margin-top: 7px; border-radius: 9px; background: rgba(255, 255, 255, .07); }
+.le-question-row p { margin: 4px 0 0; color: rgba(255, 255, 255, .9); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.le-question-row button { margin-top: 7px; padding: 6px 10px; border: 0; border-radius: 7px; background: #F9A825; color: #17251a; cursor: pointer; font-weight: 700; }
+.le-question-row button:disabled { opacity: .55; cursor: wait; }
 
 /* ── Notes panel ────────────────────────────────────────────── */
 .le-notes {
@@ -700,6 +713,11 @@ body.le-laser-on .le-stage { cursor: none; }
             <div class="le-raisehand-list" id="raiseHandList"></div>
         </div>
 
+        <div class="le-questions" id="questionsPanel" hidden>
+            <h4>Student questions</h4>
+            <div id="questionsList"></div>
+        </div>
+
     </div>
 </div>
 
@@ -755,10 +773,6 @@ body.le-laser-on .le-stage { cursor: none; }
 </script>
 <?php endif; ?>
 
-<?php if ($documentFileType === 'pdf' && $documentFileUrl): ?>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs" type="module"></script>
-<?php endif; ?>
-
 <script type="module">
 (function () {
     'use strict';
@@ -781,14 +795,15 @@ body.le-laser-on .le-stage { cursor: none; }
     let laserOn = false;
     let syncing = false;
     let pdfDoc = null;
-
-    <?php if ($documentFileType === 'pdf' && $documentFileUrl): ?>
-    import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+    let pdfjsLib = null;
 
     async function ensurePdfDoc() {
         if (pdfDoc || FILE_TYPE !== 'pdf' || !FILE_URL) {
             return pdfDoc;
+        }
+        if (!pdfjsLib) {
+            pdfjsLib = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
         }
         pdfDoc = await pdfjsLib.getDocument({ url: FILE_URL, withCredentials: true }).promise;
         return pdfDoc;
@@ -817,9 +832,6 @@ body.le-laser-on .le-stage { cursor: none; }
         el.canvas.appendChild(canvas);
         return true;
     }
-    <?php else: ?>
-    async function renderPdfPage() { return false; }
-    <?php endif; ?>
 
     const el = {
         shell:      document.getElementById('presenterShell'),
@@ -841,6 +853,8 @@ body.le-laser-on .le-stage { cursor: none; }
         participantListCount: document.getElementById('participantListCount'),
         raiseHandPanel:      document.getElementById('raiseHandPanel'),
         raiseHandList:       document.getElementById('raiseHandList'),
+        questionsPanel:      document.getElementById('questionsPanel'),
+        questionsList:       document.getElementById('questionsList'),
     };
 
     function toast(msg, kind) {
@@ -866,7 +880,7 @@ body.le-laser-on .le-stage { cursor: none; }
         try { data = text ? JSON.parse(text) : {}; }
         catch (e) { throw new Error('The server returned an invalid response (HTTP ' + res.status + ').'); }
         if (!res.ok || data.success === false) {
-            throw new Error(data.message || (data.errors && data.errors[0]) || 'Request failed');
+            throw new Error(data.error || data.message || (data.errors && data.errors[0]) || 'Request failed');
         }
         return data.data !== undefined ? data.data : data;
     }
@@ -1033,7 +1047,7 @@ body.le-laser-on .le-stage { cursor: none; }
                     body: { presentation_id: PRESENTATION_ID, active: false },
                 });
             }
-            await api('session.php?action=end', { method: 'POST', body: { id: SESSION_ID } });
+            await api('session.php?action=end', { method: 'POST', body: { session_id: SESSION_ID } });
             window.location.href = '?page=dashboard';
         } catch (err) {
             toast('Could not end the session: ' + err.message, 'error');
@@ -1069,13 +1083,15 @@ body.le-laser-on .le-stage { cursor: none; }
 
     // ── Live room state ────────────────────────────────────────
     const REACTION_GLYPHS = { like: '👍', love: '❤️', laugh: '😂', wow: '😮', clap: '👏' };
-    let lastReactionTotal = null;
+    let knownReactionIds = null;
 
     // Auto-updating roster / raised hands. participantsReady prevents a toast
     // burst for every participant who was already joined on the first poll.
     let participantsReady = false;
     let knownParticipants = {};
     let knownRaised = {};
+    let knownQuestionIds = new Set();
+    let questionPollErrorShown = false;
 
     function renderParticipants(list) {
         const array = Array.isArray(list) ? list : [];
@@ -1159,21 +1175,84 @@ body.le-laser-on .le-stage { cursor: none; }
 
         try {
             const r = await api('session.php?action=reactions&id=' + SESSION_ID);
-            if (r && r.reactions) {
-                const total = Object.values(r.reactions).reduce((a, b) => a + Number(b || 0), 0);
-                // First pass establishes the baseline; without this every
-                // reaction accumulated before the presenter opened the page
-                // would burst onto the stage at once.
-                if (lastReactionTotal !== null && total > lastReactionTotal) {
-                    const burst = Math.min(total - lastReactionTotal, 12);
-                    const kinds = Object.keys(r.reactions).filter(k => Number(r.reactions[k]) > 0);
-                    for (let i = 0; i < burst; i++) {
-                        floatReaction(REACTION_GLYPHS[kinds[i % kinds.length]] || '👍');
+            const events = Array.isArray(r && r.events) ? r.events : [];
+            if (knownReactionIds === null) {
+                knownReactionIds = new Set(events.map((event) => String(event.id)));
+            } else {
+                const currentIds = new Set();
+                events.forEach((event) => {
+                    const id = String(event.id);
+                    currentIds.add(id);
+                    if (!knownReactionIds.has(id)) {
+                        floatReaction(REACTION_GLYPHS[event.type] || '👍');
                     }
-                }
-                lastReactionTotal = total;
+                });
+                knownReactionIds = currentIds;
             }
         } catch (e) { /* reactions are decorative; ignore failures */ }
+
+        if (SESSION_ID) {
+            try {
+                const questions = await api('session.php?action=questions&id=' + SESSION_ID);
+                renderQuestions(Array.isArray(questions) ? questions : []);
+                questionPollErrorShown = false;
+            } catch (e) {
+                if (!questionPollErrorShown) {
+                    toast('Student questions could not be refreshed: ' + e.message, 'error');
+                    questionPollErrorShown = true;
+                }
+            }
+        }
+    }
+
+    function renderQuestions(questions) {
+        const currentIds = new Set();
+        el.questionsList.textContent = '';
+        el.questionsPanel.hidden = questions.length === 0;
+        questions.forEach((question) => {
+            const id = String(question.id);
+            currentIds.add(id);
+            const row = document.createElement('div');
+            row.className = 'le-question-row';
+            const heading = document.createElement('strong');
+            heading.textContent = question.display_name || 'A participant';
+            row.appendChild(heading);
+
+            if (question.status === 'pending') {
+                const message = document.createElement('p');
+                message.textContent = 'Would like permission to ask a question.';
+                const allowButton = document.createElement('button');
+                allowButton.type = 'button';
+                allowButton.textContent = 'Allow question';
+                allowButton.addEventListener('click', async () => {
+                    allowButton.disabled = true;
+                    try {
+                        await api('session.php', {
+                            method: 'POST',
+                            body: {
+                                action: 'question_allow',
+                                session_id: SESSION_ID,
+                                question_id: question.id,
+                            },
+                        });
+                        toast('Student can now type their question.', 'success');
+                        pollRoom();
+                    } catch (error) {
+                        allowButton.disabled = false;
+                        toast('Could not allow the question: ' + error.message, 'error');
+                    }
+                });
+                row.appendChild(message);
+                row.appendChild(allowButton);
+                if (!knownQuestionIds.has(id)) toast((question.display_name || 'A participant') + ' requested to ask a question.', 'info');
+            } else {
+                const text = document.createElement('p');
+                text.textContent = question.question_text || '';
+                row.appendChild(text);
+            }
+            el.questionsList.appendChild(row);
+        });
+        knownQuestionIds = currentIds;
     }
 
     function floatReaction(glyph) {

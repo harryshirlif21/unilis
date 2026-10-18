@@ -22,21 +22,19 @@ echo "<!DOCTYPE html>
     <h1>⏰ Deadline Reminder System Setup</h1>
     
     <div class='step'>
-        <h2>Step 1: Run Database Migration</h2>
-        <p>First, run the migration to add the necessary database columns:</p>
-        <div class='code'>php migrations/add_deadline_reminders.php</div>
-        <a href='add_deadline_reminders.php' class='button'>Run Migration Now</a>
+        <h2>Database Prerequisite</h2>
+        <p>The reminder feature requires its tracking fields and log table to already exist in the configured database.</p>
     </div>
     
     <div class='step'>
-        <h2>Step 2: Test the Reminder System</h2>
+        <h2>Step 1: Test the Reminder System</h2>
         <p>Test the deadline reminder system manually:</p>
         <div class='code'>php includes/deadline_reminders.php</div>
         <p>This will show you how many reminders would be sent.</p>
     </div>
     
     <div class='step'>
-        <h2>Step 3: Set Up Cron Job</h2>
+        <h2>Step 2: Set Up Cron Job</h2>
         <p>Add one of the following cron jobs to run the reminder system hourly:</p>
         
         <h3>Option A: Direct PHP Command</h3>
@@ -52,13 +50,13 @@ echo "<!DOCTYPE html>
     </div>
     
     <div class='step'>
-        <h2>Step 4: Verify Cron Job is Working</h2>
+        <h2>Step 3: Verify Cron Job is Working</h2>
         <p>Check your cron logs or the deadline_reminders_log table to confirm reminders are being sent:</p>
         <div class='code'>SELECT * FROM deadline_reminders_log ORDER BY sent_at DESC LIMIT 10;</div>
     </div>
     
     <div class='step'>
-        <h2>Step 5: Monitor Email Delivery</h2>
+        <h2>Step 4: Monitor Email Delivery</h2>
         <p>Monitor your email logs and PHP error logs to ensure emails are being sent successfully.</p>
     </div>
     

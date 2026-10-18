@@ -17,42 +17,64 @@ $lecturer_id   = $_SESSION['user_id'];
  $lecturer_name = $_SESSION['user_name'] ?? 'Lecturer';
 $currentAcademicYear = academic_year_history_current_label($conn);
 $lecturerAcademicYears = [$currentAcademicYear => $currentAcademicYear];
+$academicYearPeriods = [];
  $settingsTable = $conn->query("SHOW TABLES LIKE 'academic_year_settings'");
  if ($settingsTable && $settingsTable->num_rows > 0) {
-     $yearResult = $conn->query("SELECT DISTINCT academic_year_label FROM academic_year_settings ORDER BY academic_year_label DESC");
+     $yearResult = $conn->query("SELECT academic_year_label, start_date, end_date FROM academic_year_settings ORDER BY start_date DESC");
      if ($yearResult) {
          while ($yearRow = $yearResult->fetch_assoc()) {
              $label = trim((string)$yearRow['academic_year_label']);
              if (preg_match('/^\d{4}\/\d{4}$/', $label)) {
                  $lecturerAcademicYears[$label] = $label;
+                 $academicYearPeriods[] = [
+                     'academic_year_label' => $label,
+                     'start_date' => (string)$yearRow['start_date'],
+                     'end_date' => (string)$yearRow['end_date'],
+                 ];
              }
          }
      }
  }
- $resourceYears = $conn->prepare("
-     SELECT academic_year FROM notes WHERE lecturer_id = ? AND academic_year IS NOT NULL
-     UNION SELECT academic_year FROM classnotes WHERE lecturer_id = ? AND academic_year IS NOT NULL
-     UNION SELECT academic_year FROM assignments WHERE lecturer_id = ? AND academic_year IS NOT NULL
-     UNION SELECT academic_year FROM interactive_assignments WHERE lecturer_id = ? AND academic_year IS NOT NULL
-     ORDER BY academic_year DESC
- ");
- if ($resourceYears) {
-     $resourceYears->bind_param('iiii', $lecturer_id, $lecturer_id, $lecturer_id, $lecturer_id);
-     $resourceYears->execute();
-     $yearResult = $resourceYears->get_result();
-     while ($yearRow = $yearResult->fetch_assoc()) {
-         $label = trim((string)$yearRow['academic_year']);
-         if (preg_match('/^\d{4}\/\d{4}$/', $label)) {
-             $lecturerAcademicYears[$label] = $label;
-         }
+ $labelForContentDate = static function (?string $contentDate) use ($academicYearPeriods, $currentAcademicYear): string {
+     $date = substr((string)$contentDate, 0, 10);
+     $configuredLabel = academic_year_history_label_from_periods($date, $academicYearPeriods);
+     if ($configuredLabel !== null) {
+         return $configuredLabel;
      }
-     $resourceYears->close();
+
+     if (preg_match('/^(\d{4})-\d{2}-\d{2}$/', $date, $matches)) {
+         return academic_year_history_label((int)$matches[1]);
+     }
+
+     return $currentAcademicYear;
+ };
+ foreach ([
+     ['notes', 'uploaded_at'],
+     ['classnotes', 'uploaded_at'],
+     ['assignments', 'created_at'],
+     ['interactive_assignments', 'created_at'],
+ ] as [$tableName, $dateColumn]) {
+     if (!academic_year_history_table_exists($conn, $tableName)) {
+         continue;
+     }
+
+     $resourceDates = $conn->prepare("SELECT `{$dateColumn}` AS content_date FROM `{$tableName}` WHERE lecturer_id = ?");
+     $resourceDates->bind_param('i', $lecturer_id);
+     $resourceDates->execute();
+     $yearResult = $resourceDates->get_result();
+     while ($yearRow = $yearResult->fetch_assoc()) {
+         $label = $labelForContentDate($yearRow['content_date'] ?? null);
+         $lecturerAcademicYears[$label] = $label;
+     }
+     $resourceDates->close();
  }
 $selectedAcademicYear = (string)($_GET['academic_year'] ?? $_SESSION['lecturer_dashboard_academic_year'] ?? $currentAcademicYear);
 if (!isset($lecturerAcademicYears[$selectedAcademicYear])) {
     $selectedAcademicYear = $currentAcademicYear;
 }
 $_SESSION['lecturer_dashboard_academic_year'] = $selectedAcademicYear;
+$selectedAcademicYearRange = academic_year_history_date_range($conn, $selectedAcademicYear);
+$currentAcademicYearRange = academic_year_history_date_range($conn, $currentAcademicYear);
 
 // Fetch lecturer info for profile popup
 $lecturer_info = [];
@@ -64,11 +86,16 @@ $stmt->close();
 
 /* Archived notes remain available to their lecturer after yearly progression. */
 $archivedNotes = [];
-$stmt = $conn->prepare("SELECT n.id, n.file_path, n.unit_id, n.uploaded_at, n.academic_year, u.name AS unit_name FROM notes n JOIN lecturer_units lu ON lu.unit_id = n.unit_id JOIN units u ON u.id = n.unit_id WHERE lu.lecturer_id = ? AND n.status = 'archived' AND n.academic_year = ? ORDER BY n.uploaded_at DESC");
+$currentYearStart = $currentAcademicYearRange[0] ?? sprintf('%04d-01-01', (int)date('Y'));
+$stmt = $conn->prepare("SELECT n.id, n.file_path, n.unit_id, n.uploaded_at, u.name AS unit_name FROM notes n JOIN lecturer_units lu ON lu.unit_id = n.unit_id JOIN units u ON u.id = n.unit_id WHERE lu.lecturer_id = ? AND n.status = 'active' AND n.uploaded_at < ? ORDER BY n.uploaded_at DESC");
 if ($stmt) {
-    $stmt->bind_param('is', $lecturer_id, $selectedAcademicYear);
+    $stmt->bind_param('is', $lecturer_id, $currentYearStart);
     $stmt->execute();
     $archivedNotes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    foreach ($archivedNotes as &$archivedNote) {
+        $archivedNote['academic_year'] = $labelForContentDate($archivedNote['uploaded_at'] ?? null);
+    }
+    unset($archivedNote);
     $stmt->close();
 }
 
@@ -109,16 +136,17 @@ $stmt->close();
 /* ================= FETCH NOTES ================= */
 $notesByUnit = [];
 $stmt = $conn->prepare("
-    SELECT n.id, n.file_path, n.unit_id, n.uploaded_at, n.status, n.academic_year
+    SELECT n.id, n.file_path, n.unit_id, n.uploaded_at, n.status
     FROM notes n
     JOIN lecturer_units lu ON lu.unit_id = n.unit_id
-    WHERE lu.lecturer_id = ? AND n.academic_year = ?
+    WHERE lu.lecturer_id = ? AND n.uploaded_at >= ? AND n.uploaded_at < ?
     ORDER BY n.uploaded_at DESC
 ");
-$stmt->bind_param("is", $lecturer_id, $selectedAcademicYear);
+$stmt->bind_param("iss", $lecturer_id, $selectedAcademicYearRange[0], $selectedAcademicYearRange[1]);
 $stmt->execute();
 $res = $stmt->get_result();
 while ($note = $res->fetch_assoc()) {
+    $note['academic_year'] = $labelForContentDate($note['uploaded_at'] ?? null);
     $notesByUnit[$note['unit_id']][] = $note;
 }
 $stmt->close();
@@ -129,10 +157,10 @@ $stmt = $conn->prepare("
     SELECT n.unit_id, COUNT(*) AS cnt
     FROM notes n
     JOIN lecturer_units lu ON lu.unit_id = n.unit_id
-    WHERE lu.lecturer_id = ? AND n.status = 'active' AND n.academic_year = ?
+    WHERE lu.lecturer_id = ? AND n.status = 'active' AND n.uploaded_at >= ? AND n.uploaded_at < ?
     GROUP BY n.unit_id
 ");
-$stmt->bind_param("is", $lecturer_id, $selectedAcademicYear);
+$stmt->bind_param("iss", $lecturer_id, $selectedAcademicYearRange[0], $selectedAcademicYearRange[1]);
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
@@ -883,7 +911,9 @@ $stmt->close();
                                         <a href="<?= $path ?>" target="_blank" class="action-view" <?= $status === 'deleted' ? 'style="pointer-events:none;opacity:0.4;"' : '' ?>>View</a> |
                                         <a href="<?= $path ?>" download class="action-download" <?= $status === 'deleted' ? 'style="pointer-events:none;opacity:0.4;"' : '' ?>>Download</a> |
                                         <span class="action-btn-group" style="white-space:nowrap;">
-                                            <?php if ($status === 'active'): ?>
+                                            <?php if ($selectedAcademicYear !== $currentAcademicYear): ?>
+                                                <span style="color:#9ca3af;font-size:12px;">Archived (read-only)</span>
+                                            <?php elseif ($status === 'active'): ?>
                                                 <a href="#" class="hide-note-btn" data-note-id="<?= $note['id'] ?>" style="color:#f59e0b;">Hide</a> |
                                                 <a href="#" class="delete-note-btn" data-note-id="<?= $note['id'] ?>" style="color:#ef4444;">Delete</a>
                                             <?php elseif ($status === 'hidden'): ?>
@@ -902,9 +932,10 @@ $stmt->close();
                 <?php endforeach; ?>
             </div>
 
+            <?php if ($selectedAcademicYear === $currentAcademicYear): ?>
             <section class="notes-box" style="margin-top:24px; text-align:left;">
                 <h3><i class="fas fa-box-archive"></i> Archived Notes</h3>
-                <p>Notes for completed-year units are kept here after yearly progression.</p>
+                <p>Active notes uploaded before the current academic year remain available here.</p>
                 <?php if (!$archivedNotes): ?>
                     <p style="color:#6b7280;">No archived notes yet.</p>
                 <?php else: ?>
@@ -920,6 +951,7 @@ $stmt->close();
                 <?php endif; ?>
                 <p style="color:#6b7280;">Upload new notes by selecting any of your assigned units from the unit list.</p>
             </section>
+                <?php endif; ?>
         </div>
 
         <!-- ==================== NOTES SENT SECTION ==================== -->
@@ -1016,13 +1048,13 @@ $stmt->close();
                     LEFT JOIN courses c ON c.id = u.course_id
                     JOIN lecturer_units lu ON lu.unit_id = a.unit_id
                     LEFT JOIN submissions s ON s.assignment_id = a.id
-                    WHERE lu.lecturer_id = ? AND a.academic_year = ?
+                    WHERE lu.lecturer_id = ? AND a.created_at >= ? AND a.created_at < ?
                     GROUP BY a.id, a.title, a.description, a.created_at, a.deadline, a.file_path,
                              u.id, u.name, u.code, c.name
                     ORDER BY u.name ASC, a.deadline DESC
                 ");
                 if ($stmt) {
-                    $stmt->bind_param("is", $lecturer_id, $selectedAcademicYear);
+                    $stmt->bind_param("iss", $lecturer_id, $selectedAcademicYearRange[0], $selectedAcademicYearRange[1]);
                     $stmt->execute();
                     $res = $stmt->get_result();
                     while ($row = $res->fetch_assoc()) {

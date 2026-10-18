@@ -105,8 +105,6 @@ if ($paymentTable && $paymentTable->num_rows > 0) {
         <?php endif; ?>
         <div class="mpesa-actions">
             <a class="btn btn-primary" href="../learn/" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Open course catalogue</a>
-            <a class="btn btn-success" href="../migrations/short_course_mpesa.php"><i class="fas fa-database"></i> Run M-Pesa migration</a>
-            <a class="btn btn-success" href="../migrations/2026_10_04_mpesa_reconciliation.php" title="Adds cancelled / timeout / reconciliation_required states"><i class="fas fa-sync-alt"></i> Run reconciliation migration</a>
             <a class="btn btn-secondary" href="dashboard.php"><i class="fas fa-arrow-left"></i> Back to dashboard</a>
         </div>
     </div>

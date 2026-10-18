@@ -41,6 +41,8 @@ const LiveEngagement = (function() {
     let state = {
         sessionId: null,
         participantId: null,
+        handRaised: false,
+        handActionPending: false,
         isPresenter: false,
         pollingTimers: [],
         currentPollId: null,
@@ -61,6 +63,7 @@ const LiveEngagement = (function() {
         
         if (options.sessionId) state.sessionId = options.sessionId;
         if (options.participantId) state.participantId = options.participantId;
+        if (typeof options.handRaised === 'boolean') state.handRaised = options.handRaised;
         if (options.isPresenter) state.isPresenter = true;
 
         // Load saved theme
@@ -75,6 +78,7 @@ const LiveEngagement = (function() {
         setupAutosave();
         setupOnlineStatus();
         setupPageTransitions();
+        updateHandRaiseButtons();
         
         console.log(`Live Engagement Module v${config.version} initialized`);
     }
@@ -622,7 +626,7 @@ const LiveEngagement = (function() {
             const handBtn = e.target.closest('.le-hand-raise-btn');
             if (handBtn) {
                 e.preventDefault();
-                toggleHandRaise();
+                toggleHandRaise().catch(() => {});
             }
         });
 
@@ -941,18 +945,36 @@ const LiveEngagement = (function() {
     }
 
     async function toggleHandRaise() {
-        if (!state.participantId) return;
-        
-        const btn = document.querySelector('.le-hand-raise-btn');
-        const isRaised = btn?.classList.toggle('active');
-        
-        await apiRequest('session.php', {
-            method: 'POST',
-            body: { 
-                action: 'raise_hand', 
-                participant_id: state.participantId,
-                raised: isRaised ? 'true' : 'false',
-            },
+        if (!state.sessionId || !state.participantId || state.handActionPending) return;
+
+        state.handActionPending = true;
+        const nextRaised = !state.handRaised;
+        updateHandRaiseButtons(true);
+        try {
+            await apiRequest('session.php', {
+                method: 'POST',
+                body: {
+                    action: 'raise_hand',
+                    session_id: state.sessionId,
+                    raised: nextRaised,
+                },
+            });
+            state.handRaised = nextRaised;
+        } finally {
+            state.handActionPending = false;
+            updateHandRaiseButtons();
+        }
+    }
+
+    function updateHandRaiseButtons(disabled = state.handActionPending) {
+        document.querySelectorAll('.le-hand-raise-btn').forEach((button) => {
+            button.classList.toggle('active', state.handRaised);
+            button.disabled = disabled;
+            button.setAttribute('aria-pressed', state.handRaised ? 'true' : 'false');
+            button.setAttribute('aria-label', state.handRaised ? 'Lower hand' : 'Raise hand');
+            button.title = state.handRaised ? 'Lower hand' : 'Raise hand';
+            const label = button.querySelector('[data-hand-label]');
+            if (label) label.textContent = state.handRaised ? label.dataset.raisedLabel : (button.closest('.le-bottom-nav') ? 'Hand' : 'Raise Hand');
         });
     }
 

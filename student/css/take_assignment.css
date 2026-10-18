@@ -9,6 +9,25 @@ body { font-family: Arial, sans-serif; background:#f9f9f9; margin:0; padding:0; 
 .card { background:white; border-radius:15px; padding:20px; margin-bottom:30px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
 .card h2 { color:#92400e; margin-bottom:15px; }
 
+/* Academic-year history */
+.year-tile-grid { display:flex; flex-wrap:wrap; gap:10px; }
+.year-tile {
+    display:inline-flex;
+    flex-direction:column;
+    gap:3px;
+    min-width:130px;
+    padding:10px 14px;
+    border:1px solid #f5d78e;
+    border-radius:10px;
+    color:#78350f;
+    font-weight:600;
+    text-decoration:none;
+    background:#fff;
+}
+.year-tile small { font-size:.7rem; opacity:.8; text-transform:uppercase; }
+.year-tile:hover, .year-tile.active { color:#fff; border-color:#d97706; background:#f59e0b; }
+.history-notice { padding:10px 14px; border-radius:8px; background:#eff6ff; color:#1d4ed8; }
+
 /* Tables */
 .table-wrapper { overflow-x:auto; }
 table { width:100%; border-collapse:collapse; }
@@ -36,6 +55,34 @@ tr:hover { background:#fff7ed; }
 .deadline-info { margin:0 0 15px 0; color:#6b7280; font-size:0.9rem; }
 .btn-view, .btn-submit, .action-btn { background:#f59e0b; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; text-decoration:none; margin:3px 0; display:inline-block; }
 .btn-view:hover, .btn-submit:hover, .action-btn:hover { background:#d97706; }
+
+/* Assignment unit tiles */
+.assignment-units-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+.assignment-units-heading h2 { margin:0; }
+.unit-tile-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:18px; }
+.assignment-unit-tile { display:flex; flex-direction:column; align-items:flex-start; min-height:210px; padding:22px; border:1px solid #f5e6b2; border-radius:14px; background:linear-gradient(160deg,#fff 55%,#fffbeb); box-shadow:0 2px 8px rgba(0,0,0,.07); }
+.assignment-unit-icon { display:grid; place-items:center; width:44px; height:44px; margin-bottom:15px; border-radius:12px; color:#b45309; background:#fef3c7; font-size:1.15rem; }
+.assignment-unit-code { color:#92400e; font-size:.75rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.assignment-unit-tile h3 { margin:5px 0 8px; color:#292524; font-size:1.15rem; }
+.assignment-unit-tile p { flex:1; margin:0 0 16px; color:#78716c; font-size:.9rem; }
+.assignment-submitted-count { color:#15803d; font-weight:600; }
+.assignment-unit-tile .btn-view { margin:0; }
+.assignment-unit-tile .btn-view i { margin-left:5px; }
+.empty-assignments { padding:38px 16px; border:1px dashed #d6d3d1; border-radius:12px; text-align:center; color:#78716c; }
+.empty-assignments i { display:block; margin-bottom:10px; color:#a8a29e; font-size:2rem; }
+.empty-assignments p { margin:0; }
+.assignment-modal-year { color:#78716c; font-size:.85rem; }
+.assignment-modal-section + .assignment-modal-section { margin-top:24px; padding-top:20px; border-top:1px solid #e7e5e4; }
+.assignment-modal-section h5 { margin:0 0 12px; color:#92400e; font-size:1rem; }
+.assignment-status { font-weight:600; }
+.assignment-status.open { color:#166534; }
+.assignment-status.closed { color:#991b1b; }
+.assignment-status.late { color:#b45309; }
+.history-read-only { color:#1d4ed8; font-size:.85rem; font-weight:600; }
+.assignment-modal-section table { min-width:680px; }
+.assignment-modal-section td { vertical-align:top; }
+.assignment-modal-section .submit-form { min-width:175px; }
+.assignment-modal-section .submission-status { min-width:140px; }
 
 /* Modals */
 .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:50; }
@@ -100,6 +147,13 @@ tr:hover { background:#fff7ed; }
         width: 100%;
         justify-content: center;
     }
+    .assignment-units-heading,
+    .assignment-units-heading form,
+    .assignment-units-heading .btn-generate-pdf {
+        width:100%;
+    }
+    .unit-tile-grid { grid-template-columns:1fr; }
+    .modal-content { width:96%; padding:14px; max-height:92vh; }
 }
 /* Target only MCQ / interactive assignment modals */
 .mcq-modal {

@@ -32,6 +32,14 @@ if (!$session) {
     exit;
 }
 
+$participant = \le_get_current_session_participant($sessionId, $userId);
+if (!$participant) {
+    header('Location: ' . le_page_url('join'));
+    exit;
+}
+
+$participantId = (int) $participant['id'];
+
 Layout::start([
     'title' => $session['title'] ?? 'Live Session',
     'layout' => 'app',
@@ -122,8 +130,24 @@ Layout::start([
         <!-- Hand Raise -->
         <button class="le-btn le-btn-secondary le-btn-lg le-hand-raise-btn" style="width: 100%; justify-content: center; border-radius: var(--le-radius-lg);">
             <span class="material-symbols-rounded" style="font-size: 22px;">pan_tool</span>
-            Raise Hand
+            <span data-hand-label data-raised-label="Lower Hand">Raise Hand</span>
         </button>
+
+        <div class="le-card-solid" id="questionRequestPanel">
+            <div class="le-card-header">
+                <h2 class="le-card-title">
+                    <span class="material-symbols-rounded" style="font-size: 20px; color: var(--le-primary);">question_answer</span>
+                    Ask a question
+                </h2>
+            </div>
+            <p id="questionRequestStatus" role="status" style="color: var(--le-gray-500);">Request permission to type a question.</p>
+            <button class="le-btn le-btn-primary" type="button" id="requestQuestionButton">Ask lecturer</button>
+            <form id="questionForm" hidden>
+                <label for="questionText" style="display: block; margin: var(--le-space-2) 0 var(--le-space-1);">Your question</label>
+                <textarea id="questionText" class="le-input" maxlength="1000" required rows="4" style="width: 100%; resize: vertical;"></textarea>
+                <button class="le-btn le-btn-primary" type="submit" style="margin-top: var(--le-space-2);">Send question</button>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -143,9 +167,9 @@ Layout::start([
         <span class="material-symbols-rounded">emoji_emotions</span>
         <span>React</span>
     </button>
-    <button class="le-bottom-nav-item le-hand-raise-btn" onclick="LiveEngagement.toggleHandRaise()">
+    <button class="le-bottom-nav-item le-hand-raise-btn">
         <span class="material-symbols-rounded">pan_tool</span>
-        <span>Hand</span>
+        <span data-hand-label data-raised-label="Lower">Hand</span>
     </button>
 </nav>
 
@@ -156,6 +180,8 @@ Layout::start([
 
     LiveEngagement.init({
         sessionId: SESSION_ID,
+        participantId: <?= $participantId ?>,
+        handRaised: <?= !empty($participant['hand_raised']) ? 'true' : 'false' ?>,
         isPresenter: false,
     });
 
@@ -174,11 +200,12 @@ Layout::start([
     LiveEngagement.startPolling('participants', function(data) {
         const list = document.getElementById('participantsList');
         const count = document.getElementById('participantCount');
+        const participants = Array.isArray(data) ? data : data.participants;
         
-        if (data.participants) {
-            count.textContent = data.participants.length;
+        if (Array.isArray(participants)) {
+            count.textContent = participants.length;
             
-            list.innerHTML = data.participants.map(p => `
+            list.innerHTML = participants.map(p => `
                 <div class="le-participant ${p.is_online ? 'le-participant-online' : ''}">
                     <div class="le-participant-avatar">
                         ${p.display_name ? p.display_name.charAt(0).toUpperCase() : '?'}
@@ -204,6 +231,83 @@ Layout::start([
             });
         }
     });
+
+    const questionStatus = document.getElementById('questionRequestStatus');
+    const requestQuestionButton = document.getElementById('requestQuestionButton');
+    const questionForm = document.getElementById('questionForm');
+    const questionText = document.getElementById('questionText');
+
+    function renderQuestionStatus(question) {
+        if (!question) {
+            questionStatus.textContent = 'Request permission to type a question.';
+            requestQuestionButton.hidden = false;
+            requestQuestionButton.disabled = false;
+            questionForm.hidden = true;
+            return;
+        }
+        if (question.status === 'pending') {
+            questionStatus.textContent = 'Waiting for the lecturer to allow your question.';
+            requestQuestionButton.hidden = true;
+            questionForm.hidden = true;
+        } else if (question.status === 'allowed') {
+            questionStatus.textContent = 'The lecturer has allowed you to ask. Type your question below.';
+            requestQuestionButton.hidden = true;
+            questionForm.hidden = false;
+        } else {
+            questionStatus.textContent = 'Your question has been sent to the lecturer.';
+            requestQuestionButton.hidden = false;
+            requestQuestionButton.disabled = false;
+            questionForm.hidden = true;
+            requestQuestionButton.textContent = 'Ask another question';
+        }
+    }
+
+    async function pollQuestionStatus() {
+        try {
+            const result = await leFetch('session.php?action=question_status&id=' + SESSION_ID);
+            renderQuestionStatus(result.question || null);
+        } catch (error) {
+            questionStatus.textContent = 'Question requests are temporarily unavailable.';
+            console.error('Unable to refresh question request status:', error);
+        }
+    }
+
+    requestQuestionButton.addEventListener('click', async function() {
+        requestQuestionButton.disabled = true;
+        try {
+            const result = await leFetch('session.php', {
+                method: 'POST',
+                body: { action: 'question_request', session_id: SESSION_ID },
+            });
+            renderQuestionStatus(result.question || null);
+        } catch (error) {
+            requestQuestionButton.disabled = false;
+            questionStatus.textContent = error.message || 'Could not request permission.';
+        }
+    });
+
+    questionForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const question = questionText.value.trim();
+        if (!question) return;
+        const submitButton = questionForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        try {
+            const result = await leFetch('session.php', {
+                method: 'POST',
+                body: { action: 'question_submit', session_id: SESSION_ID, question },
+            });
+            questionText.value = '';
+            renderQuestionStatus(result.question || null);
+        } catch (error) {
+            questionStatus.textContent = error.message || 'Could not send your question.';
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    pollQuestionStatus();
+    setInterval(pollQuestionStatus, 3000);
 
     // ============================================================
     // Active Polls Polling
@@ -250,15 +354,23 @@ Layout::start([
     var slideCache = null;
     var shownSlide = null;
 
-    async function leFetch(endpoint) {
-        var res = await fetch(<?= json_encode(le_module_url('api') . '/') ?> + endpoint, {
+    async function leFetch(endpoint, options) {
+        var opts = options || {};
+        var request = {
+            method: opts.method || 'GET',
             credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        });
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        };
+        if (opts.body) request.body = JSON.stringify(opts.body);
+        var res = await fetch(<?= json_encode(le_module_url('api') . '/') ?> + endpoint, request);
         var text = await res.text();
         var data = text ? JSON.parse(text) : {};
         if (!res.ok || data.success === false) {
-            throw new Error(data.message || 'Request failed');
+            throw new Error(data.error || data.message || 'Request failed');
         }
         return data.data !== undefined ? data.data : data;
     }

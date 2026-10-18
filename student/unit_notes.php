@@ -17,10 +17,6 @@ if (!isset($_GET['unit_id'])) {
 
 $unit_id = (int) $_GET['unit_id'];
 $student_id = (int) $_SESSION['user_id'];
-$hasAcademicYearColumn = static function (mysqli $conn, string $table): bool {
-    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE 'academic_year'");
-    return $result && $result->num_rows > 0;
-};
 
 // Verify unit belongs to student
 $verify_stmt = $conn->prepare("
@@ -63,6 +59,11 @@ foreach ($academicYearOptions as $label => $studyYear) {
     ];
 }
 $readOnlyHistory = $selectedAcademicYear !== $currentAcademicYear;
+$selectedAcademicYearRange = academic_year_history_date_range($conn, $selectedAcademicYear);
+if ($selectedAcademicYearRange === null) {
+    http_response_code(400);
+    exit('Invalid academic-year selection.');
+}
 
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -99,51 +100,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Fetch file notes
-if ($hasAcademicYearColumn($conn, 'notes')) {
-    $file_notes_stmt = $conn->prepare("
-        SELECT n.id, n.file_path, n.uploaded_at, n.status
-        FROM notes n
-        WHERE n.unit_id = ? AND n.academic_year = ?
-        ORDER BY n.uploaded_at DESC
-    ");
-    $file_notes_stmt->bind_param("is", $unit_id, $selectedAcademicYear);
-} else {
-    $file_notes_stmt = $conn->prepare("
-        SELECT n.id, n.file_path, n.uploaded_at, n.status
-        FROM notes n
-        WHERE n.unit_id = ?
-        ORDER BY n.uploaded_at DESC
-    ");
-    $file_notes_stmt->bind_param("i", $unit_id);
-}
+// Fetch file notes for the selected year using their existing upload dates.
+$file_notes_stmt = $conn->prepare("
+    SELECT n.id, n.file_path, n.uploaded_at, n.status
+    FROM notes n
+    WHERE n.unit_id = ? AND n.uploaded_at >= ? AND n.uploaded_at < ?
+    ORDER BY n.uploaded_at DESC
+");
+$file_notes_stmt->bind_param("iss", $unit_id, $selectedAcademicYearRange[0], $selectedAcademicYearRange[1]);
 $file_notes_stmt->execute();
 $file_notes = $file_notes_stmt->get_result();
 
-// Fetch interactive notes
-if ($hasAcademicYearColumn($conn, 'classnotes')) {
+// Fetch interactive notes for the selected year when their tables are installed.
+$interactive_notes = $conn->query("SELECT 0 AS id, '' AS title, '' AS subtopics_json, NULL AS uploaded_at, NULL AS progress_status WHERE 1 = 0");
+if (academic_year_history_table_exists($conn, 'classnotes')) {
+    $progressJoin = academic_year_history_table_exists($conn, 'student_classnotes_progress')
+        ? 'LEFT JOIN student_classnotes_progress scp ON scp.classnote_id = cn.id AND scp.student_id = ?'
+        : '';
+    $progressSelect = $progressJoin === '' ? 'NULL AS progress_status' : 'scp.status AS progress_status';
     $interactive_notes_stmt = $conn->prepare("
-        SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at,
-               scp.status as progress_status
+        SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at, {$progressSelect}
         FROM classnotes cn
-        LEFT JOIN student_classnotes_progress scp ON scp.classnote_id = cn.id AND scp.student_id = ?
-        WHERE cn.unit_id = ? AND cn.academic_year = ?
+        {$progressJoin}
+        WHERE cn.unit_id = ? AND cn.uploaded_at >= ? AND cn.uploaded_at < ?
         ORDER BY cn.uploaded_at ASC
     ");
-    $interactive_notes_stmt->bind_param("iis", $student_id, $unit_id, $selectedAcademicYear);
-} else {
-    $interactive_notes_stmt = $conn->prepare("
-        SELECT cn.id, cn.title, cn.subtopics_json, cn.uploaded_at,
-               scp.status as progress_status
-        FROM classnotes cn
-        LEFT JOIN student_classnotes_progress scp ON scp.classnote_id = cn.id AND scp.student_id = ?
-        WHERE cn.unit_id = ?
-        ORDER BY cn.uploaded_at ASC
-    ");
-    $interactive_notes_stmt->bind_param("ii", $student_id, $unit_id);
+    if ($progressJoin === '') {
+        $interactive_notes_stmt->bind_param("iss", $unit_id, $selectedAcademicYearRange[0], $selectedAcademicYearRange[1]);
+    } else {
+        $interactive_notes_stmt->bind_param("iiss", $student_id, $unit_id, $selectedAcademicYearRange[0], $selectedAcademicYearRange[1]);
+    }
+    $interactive_notes_stmt->execute();
+    $interactive_notes = $interactive_notes_stmt->get_result();
 }
-$interactive_notes_stmt->execute();
-$interactive_notes = $interactive_notes_stmt->get_result();
 
 // Content sanitization function
 function sanitizeRichContent($content) {
@@ -970,7 +959,7 @@ function fixImagePathsInContent($content) {
         </div>
 
         <!-- Interactive Notes Section -->
-        <div class="notes-section">
+        <div class="notes-section" id="interactive-notes">
             <h2 class="section-title">💻 Interactive Notes</h2>
             <?php if ($interactive_notes->num_rows > 0): ?>
                 <div class="notes-grid">

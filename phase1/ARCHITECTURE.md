@@ -83,9 +83,7 @@ phase1/
 ├── technician/
 │   ├── dashboard.php              # Technician dashboard
 │   └── profile.php                # Profile management
-├── database/
-│   ├── migration_001_phase1.php   # Phase 1 database migration
-│   └── rollback_001_phase1.php    # Rollback script
+├── schema-viewer.php              # Database schema inspection/export
 └── tests/
     └── phase1_tests.php           # Phase 1 test suite
 ```

@@ -23,7 +23,7 @@ to a small Payments layer, never to Safaricom directly.
 | STK callback endpoint | `api/mpesa_callback.php` | Public HTTPS, no login cookies, idempotent, amount-verified, enrols on success. |
 | B2B (department settlement) callback | `api/mpesa_b2b_callback.php` | Marks payouts paid/failed. |
 | Admin config + reconciliation | `admin/mpesa_integration.php`, `admin/mpesa_stk_test.php`, `api/mpesa_reconcile.php` | Super admin only; sandbox STK test; reconcile stale transactions. |
-| Schema | `migrations/short_course_mpesa.php`, `migrations/2026_10_04_mpesa_reconciliation.php` | Creates/extends `short_course_payments`. |
+| Schema | Existing `short_course_payments` table and required department payout fields in the configured database. |
 | Config wiring | `.env.docker.example`, `docker-compose.yml` | Secrets only ever come from env vars. |
 | CI/CD | `.github/workflows/main.yml`, `.github/workflows/deploy.yml` | GitHub Secrets injected; values never echoed. |
 
@@ -100,18 +100,11 @@ GitHub Secrets for CI. Placeholders only in `.env.docker.example`.
 
 ---
 
-## 4. Database migrations
+## 4. Database prerequisites
 
-Run while signed in as the super administrator (`admin@unilis.com`).
-
-1. `migrations/short_course_mpesa.php` - creates `short_course_payments` and the
-   department payout fields.
-2. `migrations/2026_10_04_mpesa_reconciliation.php` - extends the `status` enum
-   with `cancelled`, `timeout`, `reconciliation_required` and adds the
-   `(status, created_at)` index.
-
-Both are idempotent and safe to re-run. The M-Pesa Integration page has
-buttons to run them.
+The configured database must already contain `short_course_payments`, the
+department payout fields, and the reconciliation statuses/index used below.
+This repository no longer includes database migration scripts.
 
 Key columns in `short_course_payments`:
 `id`, `learner_id`, `course_id`, `phone`, `amount`, `course_amount`,
@@ -203,7 +196,7 @@ or by running the application against the sandbox.
 2. Production credentials come from secure server `.env` / GitHub Secrets, never
    from the repository.
 3. Callbacks use **HTTPS** (`https://your-domain.example/api/mpesa_callback.php`).
-4. Run both migrations once, as the super administrator.
+4. Verify the existing database has the required payment and reconciliation schema.
 5. Verify the sandbox flow first, then a small production payment.
 6. Configure monitoring/alerts on `reconciliation_required` and
    `payout_failed` statuses.

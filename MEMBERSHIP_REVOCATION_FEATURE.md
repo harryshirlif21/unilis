@@ -27,7 +27,7 @@ CREATE TABLE `team_membership_requests` (
 );
 ```
 
-Run migration: `teams/api/migrate_membership_requests_table.php`
+This feature requires the `team_membership_requests` table to already exist in the configured database. The repository no longer includes migration scripts.
 
 ---
 
@@ -309,13 +309,11 @@ All requests trigger activity log entries:
 ## File Summary
 
 ### New Files Created:
-1. `database_setup/create_team_membership_requests_table.sql`
-2. `teams/api/migrate_membership_requests_table.php`
-3. `teams/api/request_membership_leave.php`
-4. `teams/api/request_member_removal.php`
-5. `teams/api/get_pending_membership_requests.php`
-6. `teams/api/approve_membership_request.php`
-7. `teams/views/approve_membership_requests.php`
+1. `teams/api/request_membership_leave.php`
+2. `teams/api/request_member_removal.php`
+3. `teams/api/get_pending_membership_requests.php`
+4. `teams/api/approve_membership_request.php`
+5. `teams/views/approve_membership_requests.php`
 
 ### Files Modified:
 1. `teams/views/manage_team.php` - Added leave/removal request UI

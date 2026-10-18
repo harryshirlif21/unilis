@@ -38,8 +38,7 @@ phase1/
 │   └── dashboard.php            # Department Admin dashboard
 ├── technician/
 │   └── dashboard.php            # Technician dashboard
-├── database/
-│   └── migration_001_phase1.php # Database migration
+├── schema-viewer.php             # Database schema inspection/export
 └── tests/
     └── phase1_tests.php         # Test suite
 ```
@@ -51,15 +50,10 @@ phase1/
 
 ## Deployment Instructions
 
-### Step 1: Run the Database Migration
-1. Log in as **Global Admin** (`admin@unilis.com`)
-2. Go to **Admin Dashboard** → **System Upgrade Manager** (in the Phase 1 menu)
-3. Click **"Run Migration"** for `migration_001_phase1.php`
-4. The migration will:
-   - Add missing columns to existing tables
-   - Create 9 new tables
-   - Set admin@unilis.com as Super Admin
-   - Record the version in `system_versions`
+### Step 1: Verify the Existing Database
+The Phase 1 workflows require their tables and columns to already exist in the
+configured database. This repository no longer includes migration scripts; the
+application will not alter the schema during setup.
 
 ### Step 2: Create Department Admins
 1. Go to **Admin Dashboard** → **Department Admins**

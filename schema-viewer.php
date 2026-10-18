@@ -5,13 +5,7 @@ if (!isset($conn) || !($conn instanceof mysqli)) {
     die('Database connection not available.');
 }
 
-// ── Access control ───────────────────────────────────────────────────────────
-// This tool can dump your entire database (including password hashes), so it
-// is gated behind a simple shared-secret key. Set SCHEMA_VIEWER_KEY as an
-// environment variable (e.g. in docker-compose.yml or .env) to a long random
-// string, then visit this page as:
-//   schema-viewer.php?key=YOUR_SECRET
-// Change the fallback below immediately — it is NOT safe to leave as-is.
+// This tool can dump the entire database, so require a shared secret.
 $expectedKey = getenv('SCHEMA_VIEWER_KEY') ?: 'change-me-immediately';
 $providedKey = $_GET['key'] ?? '';
 

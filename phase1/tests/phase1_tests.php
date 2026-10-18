@@ -124,17 +124,7 @@ foreach ($dashboard_files as $path => $description) {
     if ($exists) $passed++; else $failed++;
 }
 
-// ── Test 8: Check migration file exists ─────────────────────────────────────
-$migration_file = __DIR__ . '/../database/migration_001_phase1.php';
-$migration_exists = file_exists($migration_file);
-$tests[] = [
-    'name' => "Migration file exists",
-    'status' => $migration_exists ? 'PASS' : 'FAIL',
-    'details' => $migration_exists ? "migration_001_phase1.php exists" : "Migration file missing",
-];
-if ($migration_exists) $passed++; else $failed++;
-
-// ── Test 9: Check actions.php integration ───────────────────────────────────
+// ── Test 8: Check actions.php integration ───────────────────────────────────
 $actions_content = file_get_contents(__DIR__ . '/../../actions.php');
 $has_login_integration = strpos($actions_content, "phase1/includes/login_handler.php") !== false;
 $tests[] = [
@@ -144,7 +134,7 @@ $tests[] = [
 ];
 if ($has_login_integration) $passed++; else $failed++;
 
-// ── Test 10: Check login.php redirects ──────────────────────────────────────
+// ── Test 9: Check login.php redirects ───────────────────────────────────────
 $login_content = file_get_contents(__DIR__ . '/../../login.php');
 $has_dept_admin_redirect = strpos($login_content, "department_admin") !== false;
 $has_technician_redirect = strpos($login_content, "technician") !== false;
@@ -155,7 +145,7 @@ $tests[] = [
 ];
 if ($has_dept_admin_redirect && $has_technician_redirect) $passed++; else $failed++;
 
-// ── Test 11: Check admin dashboard menu integration ─────────────────────────
+// ── Test 10: Check admin dashboard menu integration ─────────────────────────
 $admin_dashboard = file_get_contents(__DIR__ . '/../../admin/dashboard.php');
 $has_upgrade_manager = strpos($admin_dashboard, "upgrade_manager.php") !== false;
 $has_dept_admins_link = strpos($admin_dashboard, "department_admins.php") !== false;

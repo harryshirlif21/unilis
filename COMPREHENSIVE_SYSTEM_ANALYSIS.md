@@ -1350,7 +1350,7 @@ unilis/
 │   └── requested_files/
 ├── 
 ├── teams/                             # Team collaboration module
-├── migrations/                        # Database migrations
+├── schema-viewer.php                  # Database schema inspection/export
 ├── vendor/                            # Composer dependencies
 ├── 
 ├── docker-compose.yml

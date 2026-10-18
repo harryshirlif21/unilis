@@ -1313,15 +1313,11 @@ if ($action === 'upload_notes') {
             if (move_uploaded_file($file['tmp_name'], $target_path)) {
 
                 // Insert into notes table
-                $academic_year = academic_year_history_label_for_date(
-                    $conn,
-                    date('Y-m-d')
-                );
                 $stmt = $conn->prepare("
-                    INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at, academic_year)
-                    VALUES (?, ?, ?, NOW(), ?)
+                    INSERT INTO notes (lecturer_id, unit_id, file_path, uploaded_at)
+                    VALUES (?, ?, ?, NOW())
                 ");
-                $stmt->bind_param("iiss", $lecturer_id, $unit_id, $filename, $academic_year);
+                $stmt->bind_param("iis", $lecturer_id, $unit_id, $filename);
 
                 if ($stmt->execute()) {
                     $success_count++;
@@ -1471,6 +1467,7 @@ if ($action === 'create_assignment') {
     $instructions = $_POST['instructions'];
     $due_date = $_POST['due_date'];
     $lecturer_id = $_SESSION['user_id'];
+    $academic_year = academic_year_history_label_for_date($conn, date('Y-m-d'));
 
     $filename = null;
     if (!empty($_FILES['assignment_file']['name'])) {
@@ -1522,10 +1519,6 @@ if ($action === 'create_assignment') {
         }
     }
 
-    $academic_year = academic_year_history_label_for_date(
-        $conn,
-        date('Y-m-d')
-    );
     if ($filename) {
         $stmt = $conn->prepare("INSERT INTO assignments (lecturer_id, unit_id, title, description, deadline, file_path, created_at, academic_year)
                                 VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)");
@@ -3042,17 +3035,31 @@ if ($action === 'hide_note' || $action === 'delete_note' || $action === 'unhide_
     }
     
     // Verify lecturer owns this note
-    $check = $conn->prepare("SELECT id FROM notes WHERE id = ? AND lecturer_id = ?");
+    $check = $conn->prepare("SELECT id, uploaded_at FROM notes WHERE id = ? AND lecturer_id = ?");
     $check->bind_param("ii", $note_id, $_SESSION['user_id']);
     $check->execute();
-    $check->store_result();
-    
-    if ($check->num_rows === 0) {
+    $note = $check->get_result()->fetch_assoc();
+
+    if (!$note) {
         $check->close();
         echo json_encode(['success' => false, 'error' => 'Note not found or access denied']);
         exit;
     }
     $check->close();
+
+    $currentRange = academic_year_history_date_range(
+        $conn,
+        academic_year_history_current_label($conn)
+    );
+    $noteDate = substr((string)$note['uploaded_at'], 0, 10);
+    if (
+        $currentRange === null
+        || $noteDate < $currentRange[0]
+        || $noteDate >= $currentRange[1]
+    ) {
+        echo json_encode(['success' => false, 'error' => 'Archived notes are read-only']);
+        exit;
+    }
     
     $newStatus = '';
     if ($action === 'hide_note') $newStatus = 'hidden';

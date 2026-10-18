@@ -1771,17 +1771,10 @@ if ($viewingPastAcademicYear) {
                 <?php endif; ?>
                 
                 <div class="card-actions">
-                    <?php if ($viewingPastAcademicYear): ?>
-                        <span class="btn btn-secondary flex-1" aria-disabled="true">
-                            <span class="material-symbols-outlined">lock</span>
-                            Past assignments are read-only
-                        </span>
-                    <?php else: ?>
-                        <a href="take_assignment.php" class="btn btn-success flex-1">
-                            <span class="material-symbols-outlined">edit</span>
-                            View Assignments
-                        </a>
-                    <?php endif; ?>
+                    <a href="take_assignment.php?academic_year=<?= urlencode($selectedAcademicYear) ?>" class="btn btn-success flex-1">
+                        <span class="material-symbols-outlined"><?= $viewingPastAcademicYear ? 'history' : 'edit' ?></span>
+                        <?= $viewingPastAcademicYear ? 'View Archived Assignments' : 'View Assignments' ?>
+                    </a>
                     <button class="btn btn-secondary">
                         <span class="material-symbols-outlined">history</span>
                         History

@@ -42,7 +42,7 @@ try {
             break;
         case 'POST':
             le_require_csrf();
-            handleSessionPost($action, $sessionModel, $userId, $requestInput);
+            handleSessionPost($action, $sessionModel, $userId, $role, $requestInput);
             break;
         case 'PUT':
             le_require_csrf();
@@ -122,7 +122,53 @@ function handleSessionGet(string $action, int $sessionId, string $code, \LE\Mode
 
         case 'reactions':
             if (!$sessionId) le_error_response('Session ID required');
-            le_success_response(\le_get_reaction_counts($sessionId));
+            $state = \le_get_live_room_state($sessionId);
+            $reactionCounts = [];
+            foreach ($state['reactions'] as $reaction) {
+                $type = $reaction['type'];
+                $reactionCounts[$type] = ($reactionCounts[$type] ?? 0) + 1;
+            }
+            le_success_response([
+                'reactions' => $reactionCounts,
+                'events' => array_map(static function (array $reaction): array {
+                    return ['id' => $reaction['id'], 'type' => $reaction['type']];
+                }, $state['reactions']),
+            ]);
+            break;
+
+        case 'question_status':
+            if (!$sessionId) le_error_response('Session ID required');
+            $participant = \le_get_current_session_participant($sessionId, $userId);
+            if (!$participant) le_error_response('Join this session before asking a question', 403);
+            $state = \le_get_live_room_state($sessionId);
+            $questions = array_values(array_filter(
+                $state['questions'],
+                static fn(array $question): bool => (int) $question['participant_id'] === (int) $participant['id']
+            ));
+            $question = $questions ? $questions[count($questions) - 1] : null;
+            if ($question) {
+                unset($question['participant_id'], $question['display_name'], $question['created_at'], $question['expires_at']);
+            }
+            le_success_response(['question' => $question]);
+            break;
+
+        case 'questions':
+            if (!$sessionId) le_error_response('Session ID required');
+            $session = $model->find($sessionId);
+            if (!$session) le_error_response('Session not found', 404);
+            if ((int) $session['lecturer_id'] !== $userId && $role !== 'admin') {
+                le_error_response('Unauthorized', 403);
+            }
+            $state = \le_get_live_room_state($sessionId);
+            $questions = array_values(array_filter(
+                $state['questions'],
+                static fn(array $question): bool => in_array($question['status'], ['pending', 'submitted'], true)
+            ));
+            $questions = array_map(static function (array $question): array {
+                unset($question['participant_id'], $question['expires_at']);
+                return $question;
+            }, $questions);
+            le_success_response($questions);
             break;
 
         case 'reports':
@@ -153,7 +199,7 @@ function handleSessionGet(string $action, int $sessionId, string $code, \LE\Mode
 /**
  * Handle POST requests
  */
-function handleSessionPost(string $action, \LE\Models\SessionModel $model, ?int $userId, array $input): void
+function handleSessionPost(string $action, \LE\Models\SessionModel $model, ?int $userId, ?string $role, array $input): void
 {
     switch ($action) {
         case 'create':
@@ -217,25 +263,123 @@ function handleSessionPost(string $action, \LE\Models\SessionModel $model, ?int 
             $sessionId = (int)($input['session_id'] ?? 0);
             if (!$sessionId) le_error_response('Session ID required');
             if ($model->end($sessionId)) {
+                \le_clear_live_room_state($sessionId);
                 le_success_response(null, 'Session ended');
             }
             le_error_response('Failed to end session');
             break;
 
         case 'raise_hand':
-            $participantId = (int)($input['participant_id'] ?? 0);
-            $raised = ($input['raised'] ?? 'true') === 'true';
-            if (!$participantId) le_error_response('Participant ID required');
-            \le_set_hand_raised($participantId, $raised);
+            $sessionId = (int) ($input['session_id'] ?? 0);
+            $participant = $sessionId ? \le_get_current_session_participant($sessionId, $userId) : null;
+            if (!$participant) le_error_response('Join this session before raising your hand', 403);
+            $raised = filter_var($input['raised'] ?? true, FILTER_VALIDATE_BOOLEAN);
+            if (!\le_set_hand_raised((int) $participant['id'], $raised)) {
+                le_error_response('Failed to update raised hand', 500);
+            }
             le_success_response(null, $raised ? 'Hand raised' : 'Hand lowered');
             break;
 
         case 'reaction':
             $sessionId = (int)($input['session_id'] ?? 0);
-            $reactionType = $input['type'] ?? 'like';
             if (!$sessionId) le_error_response('Session ID required');
-            \le_add_reaction($sessionId, $userId, null, $reactionType);
+            $participant = \le_get_current_session_participant($sessionId, $userId);
+            if (!$participant) le_error_response('Join this session before reacting', 403);
+            $reactionType = (string) ($input['type'] ?? 'like');
+            $allowedReactions = ['like', 'love', 'laugh', 'wow', 'sad', 'angry', 'clap', 'celebrate'];
+            if (!in_array($reactionType, $allowedReactions, true)) {
+                le_error_response('Invalid reaction', 400);
+            }
+            \le_add_reaction($sessionId, $userId, (int) $participant['id'], $reactionType);
             le_success_response(null, 'Reaction added');
+            break;
+
+        case 'question_request':
+            $sessionId = (int) ($input['session_id'] ?? 0);
+            if (!$sessionId) le_error_response('Session ID required');
+            $participant = \le_get_current_session_participant($sessionId, $userId);
+            if (!$participant) le_error_response('Join this session before asking a question', 403);
+            $question = null;
+            \le_update_live_room_state($sessionId, static function (array $state) use ($participant, &$question): array {
+                foreach ($state['questions'] as $existing) {
+                    if ((int) $existing['participant_id'] === (int) $participant['id']
+                        && in_array($existing['status'], ['pending', 'allowed'], true)) {
+                        $question = $existing;
+                        return $state;
+                    }
+                }
+                $question = [
+                    'id' => bin2hex(random_bytes(12)),
+                    'participant_id' => (int) $participant['id'],
+                    'display_name' => (string) $participant['display_name'],
+                    'status' => 'pending',
+                    'question_text' => null,
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'expires_at' => time() + 3600,
+                ];
+                $state['questions'][] = $question;
+                return $state;
+            });
+            unset($question['participant_id'], $question['display_name'], $question['created_at'], $question['expires_at']);
+            le_success_response(['question' => $question], 'Question permission requested');
+            break;
+
+        case 'question_allow':
+            $sessionId = (int) ($input['session_id'] ?? 0);
+            $questionId = (string) ($input['question_id'] ?? '');
+            if (!$sessionId || !$questionId) le_error_response('Session and question IDs are required');
+            $session = $model->find($sessionId);
+            if (!$session) le_error_response('Session not found', 404);
+            if ((int) $session['lecturer_id'] !== $userId && $role !== 'admin') {
+                le_error_response('Unauthorized', 403);
+            }
+            $allowed = false;
+            \le_update_live_room_state($sessionId, static function (array $state) use ($questionId, &$allowed): array {
+                foreach ($state['questions'] as &$question) {
+                    if ($question['id'] === $questionId && $question['status'] === 'pending') {
+                        $question['status'] = 'allowed';
+                        $allowed = true;
+                        break;
+                    }
+                }
+                unset($question);
+                return $state;
+            });
+            if (!$allowed) le_error_response('This question request is no longer pending', 409);
+            le_success_response(null, 'Student may now type their question');
+            break;
+
+        case 'question_submit':
+            $sessionId = (int) ($input['session_id'] ?? 0);
+            $questionText = trim((string) ($input['question'] ?? ''));
+            if (!$sessionId) le_error_response('Session ID required');
+            if ($questionText === '' || !preg_match('/\A.{1,1000}\z/us', $questionText)) {
+                le_error_response('Question must be between 1 and 1000 characters');
+            }
+            $participant = \le_get_current_session_participant($sessionId, $userId);
+            if (!$participant) le_error_response('Join this session before asking a question', 403);
+            $question = null;
+            $allowedQuestionExists = false;
+            \le_update_live_room_state($sessionId, static function (array $state) use ($participant, $questionText, &$question, &$allowedQuestionExists): array {
+                foreach ($state['questions'] as &$storedQuestion) {
+                    if ((int) $storedQuestion['participant_id'] === (int) $participant['id']
+                        && $storedQuestion['status'] === 'allowed') {
+                        $allowedQuestionExists = true;
+                        $storedQuestion['question_text'] = $questionText;
+                        $storedQuestion['status'] = 'submitted';
+                        $question = [
+                            'id' => $storedQuestion['id'],
+                            'status' => $storedQuestion['status'],
+                            'question_text' => $storedQuestion['question_text'],
+                        ];
+                        break;
+                    }
+                }
+                unset($storedQuestion);
+                return $state;
+            });
+            if (!$allowedQuestionExists) le_error_response('The lecturer has not allowed your question yet', 403);
+            le_success_response(['question' => $question], 'Question submitted');
             break;
 
         case 'record_attendance':
@@ -310,6 +454,7 @@ function handleSessionDelete(string $action, int $sessionId, \LE\Models\SessionM
                 le_error_response('Unauthorized', 403);
             }
             if ($model->delete($sessionId)) {
+                \le_clear_live_room_state($sessionId);
                 le_success_response(null, 'Session deleted');
             }
             le_error_response('Failed to delete session');

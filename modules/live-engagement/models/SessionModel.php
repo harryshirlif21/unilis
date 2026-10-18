@@ -160,9 +160,10 @@ class SessionModel extends BaseModel
         $session['quiz_count'] = $this->db->count(
             'live_quizzes', 'session_id = ?', [$sessionId]
         );
-        $session['reaction_count'] = $this->db->count(
-            'live_reactions', 'session_id = ?', [$sessionId]
-        );
+        $session['reaction_count'] = array_sum(array_column(
+            \le_get_reaction_counts($sessionId),
+            'count'
+        ));
 
         // Get latest statistics
         $stats = $this->db->fetchOne(
@@ -171,6 +172,9 @@ class SessionModel extends BaseModel
             'i'
         );
         $session['statistics'] = $stats;
+        if (is_array($session['statistics'])) {
+            $session['statistics']['total_reactions'] = 0;
+        }
 
         return $session;
     }

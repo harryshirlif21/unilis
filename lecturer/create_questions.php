@@ -10,6 +10,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'lecturer') {
 
 $lecturer_id = $_SESSION['user_id'];
 
+if (!academic_year_history_table_exists($conn, 'interactive_assignments')) {
+    http_response_code(503);
+    exit('Interactive assignments are unavailable in this database.');
+}
+
 // ---------- Helper functions ----------
 function json_exit($arr) {
     header('Content-Type: application/json');
@@ -116,7 +121,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
 
     try {
         $previous = $conn->prepare("
-            SELECT id, unit_id, title, description, due_date, academic_year
+            SELECT id, unit_id, title, description, due_date, created_at
             FROM interactive_assignments
             WHERE id = ? AND lecturer_id = ?
         ");
@@ -154,10 +159,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_interactive_assignme
         }
         $previousQuestionStmt->close();
 
-        $revisionYear = (string)($previousAssignment['academic_year'] ?? '');
-        if ($revisionYear === '') {
-            $revisionYear = academic_year_history_current_label($conn);
-        }
+        $revisionYear = academic_year_history_label_for_date(
+            $conn,
+            (string)($previousAssignment['created_at'] ?? date('Y-m-d'))
+        );
         academic_year_history_revision(
             $conn,
             'interactive_assignment',
@@ -389,16 +394,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'create_interactive_assignme
     try {
 
         // Insert assignment
+        $assignmentAcademicYear = academic_year_history_label_for_date($conn, date('Y-m-d'));
         $ins = $conn->prepare("
-            INSERT INTO interactive_assignments 
+            INSERT INTO interactive_assignments
             (lecturer_id, unit_id, title, description, due_date, created_at, academic_year)
             VALUES (?, ?, ?, ?, ?, NOW(), ?)
         ");
-        $academic_year = academic_year_history_label_for_date(
-            $conn,
-            date('Y-m-d')
-        );
-        $ins->bind_param("iissss", $lecturer_id, $unit_id, $title, $description, $due_date, $academic_year);
+        $ins->bind_param("iissss", $lecturer_id, $unit_id, $title, $description, $due_date, $assignmentAcademicYear);
         $ins->execute();
 
         $assignment_id = $conn->insert_id;
