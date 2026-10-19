@@ -353,13 +353,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string)$_POST['csrf_token'])) {
             $student_university_error = 'Your session expired. Reload the page and try again.';
         } else {
+            $transactionStarted = false;
             try {
-                $selectedUniversityId = (int)($_POST['university_id'] ?? 0);
-                $selectedUniversity = $selectedUniversityId > 0
-                    ? get_university_by_id($conn, $selectedUniversityId)
-                    : null;
+                $conn->begin_transaction();
+                $transactionStarted = true;
+                if ($action === 'assign_students_to_jkuat') {
+                    $selectedUniversityId = get_or_create_jkuat_university_id($conn);
+                    $selectedUniversity = get_university_by_id($conn, $selectedUniversityId);
+                } else {
+                    $selectedUniversityId = (int)($_POST['university_id'] ?? 0);
+                    $selectedUniversity = $selectedUniversityId > 0
+                        ? get_university_by_id($conn, $selectedUniversityId)
+                        : null;
+                    if ($selectedUniversity === null) {
+                        throw new RuntimeException('Select a university that exists in the database.');
+                    }
+                }
                 if ($selectedUniversity === null) {
-                    throw new RuntimeException('Select a university that exists in the database.');
+                    throw new RuntimeException('Unable to load the JKUAT university record.');
                 }
 
                 $stmt = $conn->prepare("
@@ -371,6 +382,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute();
                 $updatedCount = $stmt->affected_rows;
                 $stmt->close();
+                $conn->commit();
+                $transactionStarted = false;
 
                 if ($updatedCount > 0) {
                     $student_university_message = "Assigned $updatedCount student(s) to " . $selectedUniversity['name'] . '.';
@@ -381,6 +394,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         : 'No student accounts were found.';
                 }
             } catch (Throwable $e) {
+                if ($transactionStarted) {
+                    $conn->rollback();
+                }
                 error_log('Unable to assign students to selected university: ' . $e->getMessage());
                 $student_university_error = $e instanceof RuntimeException
                     ? $e->getMessage()
@@ -877,6 +893,11 @@ if ($teamTablesExist) {
                     <?php endwhile; ?>
                 </select>
                 <button type="submit" class="btn btn-primary"><i class="fas fa-user-graduate"></i> Assign all students</button>
+            </form>
+            <form method="POST" style="margin-top:12px;" onsubmit="return confirm('This will create the JKUAT university record if needed and assign every student account to JKUAT. Continue?');">
+                <input type="hidden" name="action" value="assign_students_to_jkuat">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-university"></i> Set up JKUAT and assign all students</button>
             </form>
         </div>
     </section>

@@ -33,6 +33,55 @@ function get_jkuat_university_id(mysqli $conn): int
     return $universityId;
 }
 
+function get_or_create_jkuat_university_id(mysqli $conn): int
+{
+    $stmt = $conn->prepare("
+        SELECT id
+        FROM universities
+        WHERE UPPER(TRIM(name)) IN (?, ?)
+           OR UPPER(TRIM(name)) LIKE '%JKUAT%'
+        ORDER BY id
+    ");
+    if (!$stmt) {
+        throw new RuntimeException('Unable to find the JKUAT university record: ' . $conn->error);
+    }
+
+    $shortName = 'JKUAT';
+    $fullName = 'JOMO KENYATTA UNIVERSITY OF AGRICULTURE AND TECHNOLOGY';
+    $stmt->bind_param('ss', $shortName, $fullName);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $matches = $result->num_rows;
+
+    if ($matches > 1) {
+        $stmt->close();
+        throw new RuntimeException('More than one university record matches JKUAT. Resolve the duplicate records first.');
+    }
+
+    if ($matches === 1) {
+        $universityId = (int)$result->fetch_assoc()['id'];
+        $stmt->close();
+        return $universityId;
+    }
+
+    $stmt->close();
+    $stmt = $conn->prepare('INSERT INTO universities (name) VALUES (?)');
+    if (!$stmt) {
+        throw new RuntimeException('Unable to create the JKUAT university record: ' . $conn->error);
+    }
+
+    $stmt->bind_param('s', $fullName);
+    $stmt->execute();
+    $universityId = (int)$conn->insert_id;
+    $stmt->close();
+
+    if ($universityId < 1) {
+        throw new RuntimeException('Unable to create the JKUAT university record.');
+    }
+
+    return $universityId;
+}
+
 function get_university_by_id(mysqli $conn, int $universityId): ?array
 {
     $stmt = $conn->prepare('SELECT id, name FROM universities WHERE id = ? LIMIT 1');
