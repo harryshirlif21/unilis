@@ -223,16 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
             !isset($_POST['signup_csrf_token'], $_SESSION['student_signup_csrf'])
             || !hash_equals($_SESSION['student_signup_csrf'], (string)$_POST['signup_csrf_token'])
         ) {
-            $_SESSION['signup_errors'] = ['Your registration session expired. Please try again.'];
-            header("Location: signup.php");
-            exit;
-        }
-
-        $verifiedSignupEmail = strtolower((string)($_SESSION['student_signup_verified_email'] ?? ''));
-        $verifiedAt = (int)($_SESSION['student_signup_verified_at'] ?? 0);
-        if ($verifiedSignupEmail === '' || $verifiedAt < 1 || time() - $verifiedAt > 1800) {
-            unset($_SESSION['student_signup_verified_email'], $_SESSION['student_signup_verified_at']);
-            $_SESSION['signup_errors'] = ['Confirm your email before starting student registration.'];
+            $_SESSION['signup_errors'] = ['This registration form is no longer valid. Please reload the page and try again.'];
             header("Location: signup.php");
             exit;
         }
@@ -253,11 +244,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
 
         // === 2. Validate inputs ===
         $errors = [];
-
         if (empty($reg_no)) $errors[] = "Registration number is required.";
         if (empty($name)) $errors[] = "Full name is required.";
         if (!$email) $errors[] = "Please enter a valid email address.";
-        elseif (strtolower($email) !== $verifiedSignupEmail) $errors[] = "The registration email must match the confirmed email address.";
         if ($department_id <= 0) $errors[] = "Please select a valid department.";
         if ($course_id <= 0) $errors[] = "Please select a valid course.";
         if ($year_of_study < 1 || $year_of_study > 6) $errors[] = "Year of study must be between 1 and 6.";
@@ -295,23 +284,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         $stmt->close();
 
         // === 4. Insert student record ===
+        $token       = bin2hex(random_bytes(32));
+        $expires_at  = date('Y-m-d H:i:s', time() + (TOKEN_EXPIRY_MINUTES * 60));
         $hashed_pass = password_hash($password, PASSWORD_DEFAULT);
 
         $stmt = $conn->prepare("
             INSERT INTO students (
                 reg_no, name, email, university_id, department_id, course_id,
                 year_of_study, year_joined, password,
-                verification_code, token_expires_at, is_verified, verified_at,
+                verification_code, token_expires_at, is_verified,
                 terms_consent, privacy_consent, consented_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 1, NOW(), ?, ?, NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())
         ");
         if (!$stmt) {
             throw new Exception("Database error preparing student insert: " . $conn->error);
         }
         $stmt->bind_param(
-            "sssiiiiisii",
+            "sssiiiiisssii",
             $reg_no, $name, $email, $university_id, $department_id, $course_id,
-            $year_of_study, $year_joined, $hashed_pass, $terms_consent, $privacy_consent
+            $year_of_study, $year_joined, $hashed_pass, $token, $expires_at,
+            $terms_consent, $privacy_consent
         );
 
         if (!$stmt->execute()) {
@@ -320,8 +312,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         }
         $stmt->close();
 
-        unset($_SESSION['student_signup_verified_email'], $_SESSION['student_signup_verified_at']);
-        $_SESSION['signup_email_gate_notice'] = "Registration complete. Your email is confirmed; you can now log in.";
+        if (send_verification_email($email, $token, $name)) {
+            $redirect = $_GET['redirect'] ?? '';
+            $verifyUrl = "../verify.php?sent=1&email=" . urlencode($email);
+            if ($redirect !== '') {
+                $verifyUrl .= "&redirect=" . urlencode($redirect);
+            }
+            header("Location: " . $verifyUrl);
+            exit;
+        }
+
+        $_SESSION['signup_errors'] = ["Account created, but we couldn't send the verification email. Please contact support."];
         header("Location: signup.php");
         exit;
     } catch (Exception $e) {

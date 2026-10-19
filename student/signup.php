@@ -1,5 +1,8 @@
 <?php
 session_start();
+if (empty($_SESSION['student_signup_csrf'])) {
+    $_SESSION['student_signup_csrf'] = bin2hex(random_bytes(32));
+}
 include '../actions.php';
 
 // Handle redirect parameter
@@ -99,6 +102,7 @@ $coursesJson = json_encode($allCourses);
 
       <form method="POST" id="signupForm" novalidate>
         <input type="hidden" name="action" value="signup_student">
+        <input type="hidden" name="signup_csrf_token" value="<?= htmlspecialchars($_SESSION['student_signup_csrf'], ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="university" value="JKUAT">
 
         <!-- Step 1: Personal Details -->
