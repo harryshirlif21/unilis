@@ -35,7 +35,6 @@ try {
     exit;
 }
 
-require_once __DIR__ . '/includes/university_helpers.php';
 require_once __DIR__ . '/includes/academic_year_history.php';
 
 // Set up global error handler for uncaught exceptions
@@ -232,7 +231,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         $reg_no          = trim($_POST['reg_no'] ?? '');
         $name            = trim($_POST['name'] ?? '');
         $email           = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
-        $university_id   = get_jkuat_university_id($conn);
         $department_id   = (int)($_POST['department'] ?? 0);
         $course_id       = (int)($_POST['course'] ?? 0);
         $year_of_study   = (int)($_POST['year_of_study'] ?? 0);
@@ -248,6 +246,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'signu
         if (empty($name)) $errors[] = "Full name is required.";
         if (!$email) $errors[] = "Please enter a valid email address.";
         if ($department_id <= 0) $errors[] = "Please select a valid department.";
+        $university_id = 0;
+        if ($department_id > 0) {
+            $departmentStmt = $conn->prepare("SELECT university_id FROM departments WHERE id = ? LIMIT 1");
+            $departmentStmt->bind_param("i", $department_id);
+            $departmentStmt->execute();
+            $department = $departmentStmt->get_result()->fetch_assoc();
+            $departmentStmt->close();
+
+            if (!$department) {
+                $errors[] = "The selected department could not be found.";
+            } else {
+                $university_id = (int)($department['university_id'] ?? 0);
+                if ($university_id <= 0) {
+                    $errors[] = "The selected department is not linked to a university.";
+                }
+            }
+        }
         if ($course_id <= 0) $errors[] = "Please select a valid course.";
         if ($year_of_study < 1 || $year_of_study > 6) $errors[] = "Year of study must be between 1 and 6.";
         if ($year_joined < 2000 || $year_joined > date('Y')) $errors[] = "Year joined must be between 2000 and " . date('Y') . ".";
