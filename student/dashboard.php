@@ -299,13 +299,35 @@ if ($viewingPastAcademicYear) {
 
     try {
         $stmt = $conn->prepare("
+            SELECT u.id AS unit_id, u.name AS unit_name, u.semester
+            FROM student_unit_enrollments sue
+            JOIN units u ON u.id = sue.unit_id
+            WHERE sue.student_id = ? AND u.course_id = ? AND u.year = ?
+            ORDER BY u.semester, u.name
+        ");
+        $stmt->bind_param('iii', $student_id, $course_id, $selectedStudyYear);
+        $stmt->execute();
+        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+            $addHistoryEvent(
+                'Enrolled unit',
+                (string)$row['unit_name'],
+                (string)$row['unit_name'],
+                null,
+                'Enrolled · Semester ' . (int)$row['semester'],
+                (int)$row['unit_id']
+            );
+        }
+        $stmt->close();
+
+        $stmt = $conn->prepare("
             SELECT n.file_path, n.uploaded_at, n.status, u.id AS unit_id, u.name AS unit_name
             FROM notes n
             JOIN units u ON u.id = n.unit_id
+            JOIN student_unit_enrollments sue ON sue.unit_id = u.id AND sue.student_id = ?
             WHERE u.course_id = ? AND u.year = ? AND n.academic_year = ?
               AND COALESCE(n.status, 'active') <> 'deleted'
         ");
-        $stmt->bind_param('iis', $course_id, $selectedStudyYear, $selectedAcademicYear);
+        $stmt->bind_param('iiis', $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
         $stmt->execute();
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
             $addHistoryEvent('File note', basename((string)$row['file_path']), (string)$row['unit_name'], $row['uploaded_at'], (string)($row['status'] ?? 'active'), (int)$row['unit_id']);
@@ -316,9 +338,10 @@ if ($viewingPastAcademicYear) {
             SELECT cn.title, cn.uploaded_at, u.id AS unit_id, u.name AS unit_name
             FROM classnotes cn
             JOIN units u ON u.id = cn.unit_id
+            JOIN student_unit_enrollments sue ON sue.unit_id = u.id AND sue.student_id = ?
             WHERE u.course_id = ? AND u.year = ? AND cn.academic_year = ?
         ");
-        $stmt->bind_param('iis', $course_id, $selectedStudyYear, $selectedAcademicYear);
+        $stmt->bind_param('iiis', $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
         $stmt->execute();
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
             $addHistoryEvent('Interactive notes', (string)$row['title'], (string)$row['unit_name'], $row['uploaded_at'], 'Available to view', (int)$row['unit_id']);
@@ -330,10 +353,11 @@ if ($viewingPastAcademicYear) {
                    s.id AS submission_id, s.submitted_at
             FROM assignments a
             JOIN units u ON u.id = a.unit_id
+            JOIN student_unit_enrollments sue ON sue.unit_id = u.id AND sue.student_id = ?
             LEFT JOIN submissions s ON s.assignment_id = a.id AND s.student_id = ?
             WHERE u.course_id = ? AND u.year = ? AND a.academic_year = ?
         ");
-        $stmt->bind_param('iiis', $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
+        $stmt->bind_param('iiiis', $student_id, $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
         $stmt->execute();
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
             $addHistoryEvent('Assignment', (string)$row['title'], (string)$row['unit_name'], $row['submitted_at'] ?: $row['created_at'], $row['submission_id'] ? 'Submitted' : 'Not submitted', (int)$row['unit_id']);
@@ -345,10 +369,11 @@ if ($viewingPastAcademicYear) {
                    s.id AS submission_id, s.submitted_at
             FROM interactive_assignments a
             JOIN units u ON u.id = a.unit_id
+            JOIN student_unit_enrollments sue ON sue.unit_id = u.id AND sue.student_id = ?
             LEFT JOIN interactive_submissions s ON s.assignment_id = a.id AND s.student_id = ?
             WHERE u.course_id = ? AND u.year = ? AND a.academic_year = ?
         ");
-        $stmt->bind_param('iiis', $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
+        $stmt->bind_param('iiiis', $student_id, $student_id, $course_id, $selectedStudyYear, $selectedAcademicYear);
         $stmt->execute();
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
             $addHistoryEvent('Interactive assignment', (string)$row['title'], (string)$row['unit_name'], $row['submitted_at'] ?: $row['created_at'], $row['submission_id'] ? 'Submitted' : 'Not submitted', (int)$row['unit_id']);
@@ -360,6 +385,7 @@ if ($viewingPastAcademicYear) {
             FROM attendance_records ars
             JOIN attendance_sessions ats ON ats.id = ars.session_id
             JOIN units u ON u.id = ats.unit_id
+            JOIN student_unit_enrollments sue ON sue.unit_id = u.id AND sue.student_id = ars.student_id
             WHERE ars.student_id = ? AND u.course_id = ? AND u.year = ?
               AND ats.academic_year = ?
         ");
@@ -369,25 +395,6 @@ if ($viewingPastAcademicYear) {
             $addHistoryEvent('Attendance', 'Class attendance', (string)$row['unit_name'], $row['attended_at'] ?: $row['created_at'], (int)$row['attended'] === 1 ? 'Present' : 'Absent', (int)$row['unit_id']);
         }
         $stmt->close();
-
-        $tableCheck = $conn->query("SHOW TABLES LIKE 'student_units'");
-        if ($tableCheck && $tableCheck->num_rows > 0) {
-            $columnCheck = $conn->query("SHOW COLUMNS FROM student_units LIKE 'academic_year'");
-            if ($columnCheck && $columnCheck->num_rows > 0) {
-                $stmt = $conn->prepare("
-                    SELECT u.name AS unit_name, su.status, u.id AS unit_id
-                    FROM student_units su
-                    JOIN units u ON u.id = su.unit_id
-                    WHERE su.student_id = ? AND su.academic_year = ? AND u.course_id = ?
-                ");
-                $stmt->bind_param('isi', $student_id, $selectedAcademicYear, $course_id);
-                $stmt->execute();
-                foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-                    $addHistoryEvent('Unit result', 'Unit result record', (string)$row['unit_name'], null, (string)$row['status'], (int)$row['unit_id']);
-                }
-                $stmt->close();
-            }
-        }
     } catch (Throwable $e) {
         error_log('Unable to load student academic-year activity: ' . $e->getMessage());
     }
